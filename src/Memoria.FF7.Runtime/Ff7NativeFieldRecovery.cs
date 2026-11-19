@@ -182,7 +182,7 @@ public static class Ff7NativeFieldRecovery
             1 => 660,
             _ => 1760
         };
-        return 6 * (magic + record[1]) + offsetHp;
+        return 6 * (magic + caster.Level) + offsetHp;
     }
 
     private static int MagicBonus(ReadOnlySpan<byte> stats)

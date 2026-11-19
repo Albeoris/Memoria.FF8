@@ -38,6 +38,14 @@ internal static class NativeGrowthTests
         }
         growth = new(KernelGrowthTables.Read(kernel));
         Check(growth.Threshold(0, 10) == 385 && growth.Threshold(0, 11) == 1012 && growth.Threshold(0, 60) == 442860 && growth.Threshold(0, 61) == 542717 && growth.Threshold(0, 81) == 1443528, "Native level-band boundaries changed.");
+        Ff7BattleRng expandedRng = new(kernel, new(new byte[8]));
+        byte[] expanded = growth.Apply(Character(), growth.ReadThreshold(0, 299), expandedRng, 1, 300, out int expandedLevel);
+        Check(expandedLevel == 300 && expanded[1] == 99 && U32(expanded, 0x80) == 0, "Level 300 must persist separately from the native byte projection.");
+        byte[] limited = growth.Apply(Character(), 100, rng, 1, 1, out int limitedLevel);
+        Check(limitedLevel == 1 && U32(limited, 0x3C) == 100 && U32(limited, 0x80) == 0, "A lower cap must stop level progression and preserve awarded EXP.");
+        Ff7BattleRng retainedRng = new(kernel, expandedRng.Capture());
+        byte[] retained = growth.Apply(expanded, 0, retainedRng, 300, null, out int retainedLevel);
+        Check(retainedLevel == 300 && retained.SequenceEqual(expanded) && retainedRng.Capture().Indices.SequenceEqual(expandedRng.Capture().Indices), "Existing levels must survive disabling the mod without consuming growth RNG.");
         Throws<InvalidDataException>(() => KernelGrowthTables.Read(new byte[3987]));
         kernel[8] = 192;
         Throws<InvalidDataException>(() => KernelGrowthTables.Read(kernel));

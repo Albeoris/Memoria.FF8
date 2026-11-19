@@ -96,8 +96,19 @@ public sealed partial record NativeCharacterVitals
 
     public GuardianForceAbilityProfile? GuardianForceProfile { get; init; }
 
+    public int MaximumCharacterLevel { get; init; } = GameplayLevelRules.DefaultMaximumLevel;
+
+    public int CharacterLevel(NativeCharacterVital character)
+    {
+        return NativeStatDefinitions.Level(character.Experience, Definitions.Characters[character.CharacterId], MaximumCharacterLevel);
+    }
+
     public void Validate()
     {
+        if (MaximumCharacterLevel is < 1 or > GameplayLevelRules.HighestLevel)
+        {
+            throw new InvalidDataException("Character vitals require a supported maximum character level.");
+        }
         static bool Hash(string value) => value is { Length: 64 } && value.All(Uri.IsHexDigit);
         if (Version != 1 || Rule != InitializationRule || !Hash(InitOutSha256) || !Hash(KernelSha256) || Records is null || !IsValidRosterShape(Records, CombatParty, ExtendedRosterEnabled, DreamEnabled, ExtendedRosterPartyBeforeDream) || Records.Any(record => record is null || record.HitPoints is null || record.CharacterId > 10 || record.StatBonuses is not { Length: 6 } || record.MagicInventory is not { Length: 32 } || record.MagicInventory.Any(stock => stock is null) || record.GuardianForceCompatibility is { Length: not 16 }))
         {

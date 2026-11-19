@@ -4,7 +4,7 @@ using Memoria.FF7.Formats;
 
 namespace Memoria.FF7.Runtime;
 
-public sealed record Ff7BattleAiActor(int Slot, uint Statuses, uint Conditions, ushort MagicPoints, ushort MaxMagicPoints, uint HitPoints, uint MaxHitPoints, ushort Defense = 0, ushort MagicDefense = 0, byte Variant = 0, byte IdleAction = 0, byte HurtAction = 1, ushort LastAttackerMask = 0, byte? Level = null, ushort? EnemyId = null, byte? Strength = null, byte? Magic = null, byte? Speed = null, byte? FormationRow = null, uint? ElementHalve = null, uint? ElementNullify = null, uint? ElementAbsorb = null, uint? ElementWeakness = null, uint? PreviousStatuses = null, uint? CaptureMask = null, byte? PresentationByte = null, ushort? LastPhysicalAttackerMask = null, ushort? LastMagicAttackerMask = null, ushort? ExtraElementAbsorb = null, byte? PhysicalEvasion = null, byte? HitEffect = null)
+public sealed record Ff7BattleAiActor(int Slot, uint Statuses, uint Conditions, ushort MagicPoints, ushort MaxMagicPoints, uint HitPoints, uint MaxHitPoints, ushort Defense = 0, ushort MagicDefense = 0, byte Variant = 0, byte IdleAction = 0, byte HurtAction = 1, ushort LastAttackerMask = 0, ushort? Level = null, ushort? EnemyId = null, byte? Strength = null, byte? Magic = null, byte? Speed = null, byte? FormationRow = null, uint? ElementHalve = null, uint? ElementNullify = null, uint? ElementAbsorb = null, uint? ElementWeakness = null, uint? PreviousStatuses = null, uint? CaptureMask = null, byte? PresentationByte = null, ushort? LastPhysicalAttackerMask = null, ushort? LastMagicAttackerMask = null, ushort? ExtraElementAbsorb = null, byte? PhysicalEvasion = null, byte? HitEffect = null)
 {
     public byte? ElementReaction { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
@@ -444,7 +444,7 @@ public static class Ff7BattleAi
                 (0, >= 0x4020 and < 0x4040) => actor.Conditions >> (address - 0x4020) & 1,
                 (3, 0x4000) => actor.Statuses,
                 (3, 0x4020) => actor.Conditions,
-                (1, 0x4048) => actor.Level ?? 0,
+                (1, 0x4048) => Math.Min(actor.Level.GetValueOrDefault(), (ushort)byte.MaxValue),
                 (1, 0x4060) => actor.Variant,
                 (1, 0x4068) => actor.Strength ?? 0,
                 (1, 0x4070) => actor.Magic ?? 0,

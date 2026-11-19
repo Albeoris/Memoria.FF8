@@ -142,23 +142,24 @@ public sealed partial class BattleHudController
     internal uint RemainingExperience(BattleCombatant actor)
     {
         uint awarded = AwardedExperience(actor);
-        if (experienceFinished || CharacterResult(actor)?.PreviousLevel >= 100)
+        NativeCharacterVitals? vitals = resultVitals;
+        BattleCharacterRewardPresentation? growth = CharacterResult(actor);
+        int maximumLevel = vitals?.MaximumCharacterLevel ?? GameplayLevelRules.DefaultMaximumLevel;
+        if (experienceFinished || growth?.PreviousLevel >= maximumLevel)
         {
             return 0;
         }
-        NativeCharacterVitals? vitals = resultVitals;
-        BattleCharacterRewardPresentation? growth = CharacterResult(actor);
         long step = 1;
         if (vitals is not null && growth is not null)
         {
             NativeStatCurve curve = vitals.Definitions.Characters[vitals.Records[growth.Row].CharacterId];
             int level = growth.PreviousLevel;
-            long lower = (level - 1) * (level - 1) * curve.ExperienceFraction / 256 + (level - 1) * 10 * curve.ExperienceStep;
-            long upper = level * level * curve.ExperienceFraction / 256 + level * 10 * curve.ExperienceStep;
+            long lower = NativeStatDefinitions.ExperienceForLevel(level, curve);
+            long upper = NativeStatDefinitions.ExperienceForLevel(level + 1, curve);
             step = Math.Max(1, (upper - lower) >> 7);
         }
         long consumed = Math.Min(awarded, experienceTicks * step);
-        if (growth?.FinalLevel >= 100 && consumed >= growth.FinalExperience - growth.PreviousExperience)
+        if (growth?.FinalLevel >= maximumLevel && consumed >= (long)growth.FinalExperience - growth.PreviousExperience)
         {
             return 0;
         }
@@ -172,12 +173,13 @@ public sealed partial class BattleHudController
         {
             return (null, actor.Level, null);
         }
-        if (experienceFinished || growth.PreviousLevel >= 100)
+        int maximumLevel = resultVitals?.MaximumCharacterLevel ?? GameplayLevelRules.DefaultMaximumLevel;
+        if (experienceFinished || growth.PreviousLevel >= maximumLevel)
         {
             return (growth.FinalExperience, growth.FinalLevel, growth.ExperienceToNextLevel);
         }
         uint total = growth.PreviousExperience + AwardedExperience(actor) - RemainingExperience(actor);
-        if (growth.FinalLevel >= 100 && total >= growth.FinalExperience)
+        if (growth.FinalLevel >= maximumLevel && total >= growth.FinalExperience)
         {
             return (growth.FinalExperience, growth.FinalLevel, 0);
         }
@@ -186,9 +188,8 @@ public sealed partial class BattleHudController
             return (total, growth.PreviousLevel, growth.PreviousExperienceToNextLevel);
         }
         NativeStatCurve curve = vitals.Definitions.Characters[vitals.Records[growth.Row].CharacterId];
-        int level = NativeStatDefinitions.Level(total, curve);
-        uint threshold = (uint)(level * level * curve.ExperienceFraction / 256 + level * 10 * curve.ExperienceStep);
-        return (total, level, level >= 100 ? 0 : threshold - total);
+        int level = NativeStatDefinitions.Level(total, curve, maximumLevel);
+        return (total, level, NativeStatDefinitions.ExperienceToNextLevel(total, curve, maximumLevel));
     }
 
     internal string ResultText(int id, string fallback, int number = 0, string? subject = null)

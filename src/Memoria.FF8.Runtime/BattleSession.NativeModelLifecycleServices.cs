@@ -32,6 +32,7 @@ public sealed partial class BattleSession
         {
             ActorOpacities = ReadPendingAllocationOpacities(),
             ReadScanDescriptor = owner => CaptureNativeScanDescriptor208(GetActor(RequireCanonicalGraphicsActorId(owner))),
+            ReadScanLevel = owner => GetActor(RequireCanonicalGraphicsActorId(owner)).Level,
             ReadScanExtra = owner => ReadNativeScanExtra71(GetActor(RequireCanonicalGraphicsActorId(owner)))
         };
     }
@@ -79,6 +80,7 @@ public sealed partial class BattleSession
             Renzokuken = CaptureExpandedHostedRenzokukenFrame(),
             ActorOpacities = ReadPendingAllocationOpacities(),
             ReadScanDescriptor = owner => CaptureNativeScanDescriptor208(GetActor(RequireCanonicalGraphicsActorId(owner))),
+            ReadScanLevel = owner => GetActor(RequireCanonicalGraphicsActorId(owner)).Level,
             ReadScanExtra = owner => ReadNativeScanExtra71(GetActor(RequireCanonicalGraphicsActorId(owner)))
         };
     }

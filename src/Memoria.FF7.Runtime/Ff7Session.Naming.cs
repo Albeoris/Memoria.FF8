@@ -29,7 +29,7 @@ public sealed partial class Ff7Session
         int physical = NamingResources.RecordId(identity);
         Ff7CharacterState original = Progress.Characters.Single(character => character.Id == physical);
         byte[] record = NamingResources.CreateTemplate(identity);
-        Ff7CharacterState initialized = ProjectNamingRecord(original, record, Ff7NativeSaveSlot.ReadText(record.AsSpan(16, 12)));
+        Ff7CharacterState initialized = ProjectNamingRecord(original, record, record[1], Ff7NativeSaveSlot.ReadText(record.AsSpan(16, 12)));
         Ff7Progress prepared = Progress with { Characters = Progress.Characters.Select(character => character.Id == physical ? initialized : character).ToArray() };
         prepared.Validate();
         Progress = prepared;
@@ -59,29 +59,30 @@ public sealed partial class Ff7Session
             }
             name = nativeName;
         }
+        int level = original.Level;
         Ff7BattleRngState? randomState = Progress.BattleRng;
         if (!NamingResources.SkipsJoin(identity))
         {
             battleKernel ??= KernelArchive.Read(File.ReadAllBytes(installation.GetRequired(Ff7ResourceRole.Kernel).Path));
             Ff7BattleRng random = new(battleKernel[2].Data.Span, randomState ?? new(new byte[8]));
             Ff7NativeGrowth growth = new(KernelGrowthTables.Read(battleKernel[2].Data.Span));
-            record = growth.InitializeJoin(record, Progress.Characters, Progress.AvailableCharacters, random);
+            record = growth.InitializeJoin(record, Progress.Characters, Progress.AvailableCharacters, random, null, level, AutolevelCharacterCap, out level);
             BinaryPrimitives.WriteUInt16LittleEndian(record.AsSpan(44), BinaryPrimitives.ReadUInt16LittleEndian(record.AsSpan(46)));
             BinaryPrimitives.WriteUInt16LittleEndian(record.AsSpan(48), BinaryPrimitives.ReadUInt16LittleEndian(record.AsSpan(50)));
             randomState = random.Capture();
         }
-        Ff7CharacterState completed = ProjectNamingRecord(original, record, name);
+        Ff7CharacterState completed = ProjectNamingRecord(original, record, level, name);
         Ff7Progress prepared = Progress with { Characters = Progress.Characters.Select(character => character.Id == physical ? completed : character).ToArray(), BattleRng = randomState };
         prepared.Validate();
         Progress = prepared;
     }
 
-    private static Ff7CharacterState ProjectNamingRecord(Ff7CharacterState original, byte[] record, string name)
+    private static Ff7CharacterState ProjectNamingRecord(Ff7CharacterState original, byte[] record, int level, string name)
     {
         return original with
         {
             Name = name,
-            Level = record[1],
+            Level = level,
             Experience = BinaryPrimitives.ReadUInt32LittleEndian(record.AsSpan(60)),
             HitPoints = BinaryPrimitives.ReadUInt16LittleEndian(record.AsSpan(44)),
             MagicPoints = BinaryPrimitives.ReadUInt16LittleEndian(record.AsSpan(48)),

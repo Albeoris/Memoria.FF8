@@ -94,6 +94,8 @@ public sealed record Ff7BattleSnapshot(long RequestId, int FormationId, byte Lay
     public System.Collections.Immutable.ImmutableArray<Ff7BattleGuestMagicSequence> GuestMagicSequences { get; init; } = [];
     public long NextMagicSequenceId { get; init; }
     public Ff7ResolvedEnemyExtension[]? EnemyExtensions { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public int? MaximumCharacterLevel { get; init; }
     public byte[]? AiGlobalMemory { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public Ff7BattleAiMasks? AiMasks { get; init; }
@@ -171,11 +173,20 @@ public sealed partial class Ff7BattleSession
     private const int LogicUpdatesPerPresentation = 4;
     private Ff7BattleSnapshot state;
 
-    public Ff7BattleSession(SceneFormation formation, Ff7Progress progress, IReadOnlyList<KernelSection> kernel, IReadOnlyList<short> materiaModifiers, long requestId, ushort requestFlags = 0, Ff7BattleSnapshot? snapshot = null, Ff7BattleAnimationResources? animations = null, IReadOnlyList<Ff7BattleAttack>? limits = null, IReadOnlyList<byte>? beatRushSymbols = null, byte requestMode = 0, int? musicTrack = null, short bigShotChargeRotation = 0, short bigShotCounterRotation = 0, short searchScopeScaleCounter = 0, Ff7BattleCameraScriptResources? cameraScripts = null, byte cameraPresentationCounter = 0, short silkDirection = 1, Ff7EnemyExtensionCatalog? enemyExtensions = null, IReadOnlyList<byte>? enemyExtensionPartyLevels = null, byte[]? initialSaveBank1 = null, Ff7BattleSnapshot? previousFormation = null, Ff7BattleSystemMessages? systemMessages = null, Ff7BattleCommandResources? commandResources = null)
+    public Ff7BattleSession(SceneFormation formation, Ff7Progress progress, IReadOnlyList<KernelSection> kernel, IReadOnlyList<short> materiaModifiers, long requestId, ushort requestFlags = 0, Ff7BattleSnapshot? snapshot = null, Ff7BattleAnimationResources? animations = null, IReadOnlyList<Ff7BattleAttack>? limits = null, IReadOnlyList<byte>? beatRushSymbols = null, byte requestMode = 0, int? musicTrack = null, short bigShotChargeRotation = 0, short bigShotCounterRotation = 0, short searchScopeScaleCounter = 0, Ff7BattleCameraScriptResources? cameraScripts = null, byte cameraPresentationCounter = 0, short silkDirection = 1, Ff7EnemyExtensionCatalog? enemyExtensions = null, IReadOnlyList<int>? enemyExtensionPartyLevels = null, byte[]? initialSaveBank1 = null, Ff7BattleSnapshot? previousFormation = null, Ff7BattleSystemMessages? systemMessages = null, Ff7BattleCommandResources? commandResources = null, Ff7EnemyLevelRules? enemyLevelRules = null)
     {
         Formation = formation;
         SceneBattleData nativeData = SceneBattleData.Read(formation);
-        Ff7ResolvedEnemyExtension[] resolvedExtensions = snapshot is null ? ResolveEnemyExtensions(nativeData, enemyExtensions, enemyExtensionPartyLevels ?? progress.Party.Where(id => id != 255).Select(id => (byte)progress.Characters.Single(c => c.Id == Ff7NativeCharacterIdentity.RecordId(id)).Level).ToArray()) : snapshot.EnemyExtensions ?? [];
+        Ff7EnemyLevelRules activeLevelRules = enemyLevelRules ?? new();
+        activeLevelRules.Validate();
+        int? maximumCharacterLevel = (snapshot, previousFormation) switch
+        {
+            ({ } current, _) => current.MaximumCharacterLevel,
+            (_, { } previous) => previous.MaximumCharacterLevel,
+            _ when enemyExtensions?.ScalesLevels == true => activeLevelRules.MaximumCharacterLevel,
+            _ => null
+        };
+        Ff7ResolvedEnemyExtension[] resolvedExtensions = snapshot is null ? ResolveEnemyExtensions(nativeData, enemyExtensions, enemyExtensionPartyLevels ?? progress.Party.Where(id => id != 255).Select(id => progress.Characters.Single(c => c.Id == Ff7NativeCharacterIdentity.RecordId(id)).Level).ToArray(), activeLevelRules) : snapshot.EnemyExtensions ?? [];
         Data = ApplyEnemyExtensions(nativeData, resolvedExtensions);
         Formation = formation with { EnemyRewards = formation.EnemyRewards.Select(reward => Data.Enemies.FirstOrDefault(e => e.Placement.EnemyId == reward.EnemyId)?.Rewards ?? reward).ToArray() };
         this.kernel = kernel;
@@ -201,6 +212,10 @@ public sealed partial class Ff7BattleSession
             }
             Ff7CharacterState character = progress.Characters.Single(character => character.Id == Ff7NativeCharacterIdentity.RecordId(id));
             Ff7BattlePlayerStats stats = Ff7NativeBattlePlayerStats.Create(character, kernel, materiaModifiers);
+            if (maximumCharacterLevel is int cap && stats.Actor.Level > cap)
+            {
+                stats = stats with { Actor = stats.Actor with { Level = (ushort)cap } };
+            }
             characters[slot] = character;
             displayNames[slot] = Ff7CharacterDisplayName.Resolve(progress.Characters, id);
             party[slot] = stats;
@@ -239,7 +254,7 @@ public sealed partial class Ff7BattleSession
         }
         byte layout = Ff7NativeAtb.ResolveLayout(formation.Layout, formation.BattleFlags, (requestFlags & 4) != 0);
         Ff7BattleAiActor[] setup = Ff7NativeAtb.ApplyFormationConditions(layout, initialActors.Select(actor => actor.Actor).ToArray(), Data);
-        state = new(requestId, formation.FormationId, layout, 0, initialActors.Select((actor, index) => actor with { Actor = setup[index] }).ToArray(), random.Capture(), Ff7BattleCommandQueueState.Create(), (Ff7InventorySlot[])progress.Inventory.Clone(), Escape: Ff7NativeBattleEscape.Start(formation, Ff7NativeAtb.BattleTypeForLayout(layout)), RequestFlags: requestFlags, RequestMode: requestMode, EntryMusicTrack: musicTrack) { BigShotChargeRotation = bigShotChargeRotation, BigShotCounterRotation = bigShotCounterRotation, SearchScopeScaleCounter = searchScopeScaleCounter, SilkDirection = silkDirection, EnemyExtensions = resolvedExtensions, NativeBattleSpeed = nativeBattleSpeed };
+        state = new(requestId, formation.FormationId, layout, 0, initialActors.Select((actor, index) => actor with { Actor = setup[index] }).ToArray(), random.Capture(), Ff7BattleCommandQueueState.Create(), (Ff7InventorySlot[])progress.Inventory.Clone(), Escape: Ff7NativeBattleEscape.Start(formation, Ff7NativeAtb.BattleTypeForLayout(layout)), RequestFlags: requestFlags, RequestMode: requestMode, EntryMusicTrack: musicTrack) { BigShotChargeRotation = bigShotChargeRotation, BigShotCounterRotation = bigShotCounterRotation, SearchScopeScaleCounter = searchScopeScaleCounter, SilkDirection = silkDirection, EnemyExtensions = resolvedExtensions, MaximumCharacterLevel = maximumCharacterLevel, NativeBattleSpeed = nativeBattleSpeed };
         state = state with { PartyAiAliases = progress.PartyAiAliases?.ToArray() ?? Ff7KernelBattleAi.InitialAliases() };
         state = state with { GuestProjectedBattleMask = Ff7GuestBattleStatuses.SupportedOriginBattle };
         if (previousFormation is not null)
@@ -780,11 +795,11 @@ public sealed partial class Ff7BattleSession
         {
             throw new InvalidDataException("FFVII battle snapshot has an invalid global status clock or Stop counter.");
         }
-        if (snapshot.RequestId != requestId || snapshot.FormationId != Formation.FormationId || snapshot.Layout != Ff7NativeAtb.ResolveLayout(Formation.Layout, Formation.BattleFlags, (snapshot.RequestFlags & 4) != 0) || snapshot.Tick < 0 || !Enum.IsDefined(snapshot.Outcome) || snapshot.Actors is null || snapshot.Actors.Any(actor => actor.ReflectionCount > 3) || snapshot.Inventory is null || snapshot.Queue is null || snapshot.EntryMusicTrack is < 1 or > 98 || snapshot.ImprisonedType is > 3)
+        if (snapshot.RequestId != requestId || snapshot.FormationId != Formation.FormationId || snapshot.Layout != Ff7NativeAtb.ResolveLayout(Formation.Layout, Formation.BattleFlags, (snapshot.RequestFlags & 4) != 0) || snapshot.Tick < 0 || snapshot.MaximumCharacterLevel is < 1 or > Ff7EnemyLevelRules.HighestLevel || !Enum.IsDefined(snapshot.Outcome) || snapshot.Actors is null || snapshot.Actors.Any(actor => actor.ReflectionCount > 3) || snapshot.Inventory is null || snapshot.Queue is null || snapshot.EntryMusicTrack is < 1 or > 98 || snapshot.ImprisonedType is > 3)
         {
             throw new InvalidDataException("FFVII battle snapshot conflicts with its native encounter or physical actors.");
         }
-        if (snapshot.Actors.Any(actor => actor?.Actor is null || actor.AiMemory is not { Length: 0 or Ff7BattleAi.LocalMemorySize }) || !snapshot.Actors.Select(actor => (actor.Actor.Slot, actor.Identity)).SequenceEqual(expected.Select(actor => (actor.Actor.Slot, actor.Identity))))
+        if (snapshot.Actors.Any(actor => actor?.Actor is null || actor.Actor.Level is > Ff7EnemyLevelRules.HighestLevel || actor.AiMemory is not { Length: 0 or Ff7BattleAi.LocalMemorySize }) || !snapshot.Actors.Select(actor => (actor.Actor.Slot, actor.Identity)).SequenceEqual(expected.Select(actor => (actor.Actor.Slot, actor.Identity))))
         {
             throw new InvalidDataException("FFVII battle snapshot has invalid physical actor ownership.");
         }

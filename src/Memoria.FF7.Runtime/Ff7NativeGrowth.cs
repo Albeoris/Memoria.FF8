@@ -6,6 +6,7 @@ namespace Memoria.FF7.Runtime;
 /// <summary>Original PC EXP, level, base-stat and base-HP/MP growth. The battle caller owns RNG and reward atomicity.</summary>
 public sealed class Ff7NativeGrowth
 {
+    internal const int NativeMaximumLevel = 99;
     private readonly KernelGrowthTables tables;
 
     public Ff7NativeGrowth(KernelGrowthTables tables)
@@ -15,15 +16,24 @@ public sealed class Ff7NativeGrowth
 
     public byte[] Apply(ReadOnlySpan<byte> nativeRecord, uint awardedExp, Ff7BattleRng rng)
     {
+        return Apply(nativeRecord, awardedExp, rng, null, null, out _);
+    }
+
+    internal byte[] Apply(ReadOnlySpan<byte> nativeRecord, uint awardedExp, Ff7BattleRng rng, int? effectiveLevel, int? maximumCharacterLevel, out int level)
+    {
         ArgumentNullException.ThrowIfNull(rng);
-        if (nativeRecord.Length != 132 || nativeRecord[0] >= 9 || nativeRecord[1] is < 1 or > 99)
+        if (nativeRecord.Length != 132 || nativeRecord[0] >= 9 || nativeRecord[1] is < 1 or > NativeMaximumLevel || effectiveLevel is < 1 or > Ff7EnemyLevelRules.HighestLevel || maximumCharacterLevel is < 1 or > Ff7EnemyLevelRules.HighestLevel)
         {
             throw new InvalidDataException("Character growth requires a complete native character record and valid level.");
         }
         byte[] record = nativeRecord.ToArray();
         int character = record[0];
-        int level = record[1];
-        uint experience = Math.Min(unchecked(BinaryPrimitives.ReadUInt32LittleEndian(record.AsSpan(0x3C)) + awardedExp), 999999999u);
+        level = effectiveLevel ?? record[1];
+        int cap = maximumCharacterLevel ?? NativeMaximumLevel;
+        uint previousExperience = BinaryPrimitives.ReadUInt32LittleEndian(record.AsSpan(0x3C));
+        uint experience = maximumCharacterLevel.HasValue || level > NativeMaximumLevel
+            ? (uint)Math.Min((ulong)previousExperience + awardedExp, 999999999u)
+            : Math.Min(unchecked(previousExperience + awardedExp), 999999999u);
         int[] values = new int[8];
         for (int index = 0; index < 6; index++)
         {
@@ -31,12 +41,12 @@ public sealed class Ff7NativeGrowth
         }
         values[6] = Math.Max(1, (int)BinaryPrimitives.ReadUInt16LittleEndian(record.AsSpan(0x2E)));
         values[7] = Math.Max(1, (int)BinaryPrimitives.ReadUInt16LittleEndian(record.AsSpan(0x32)));
-        uint previousThreshold = Threshold(character, level - 1);
+        uint previousThreshold = ReadThreshold(character, level - 1);
         uint nextThreshold = previousThreshold;
-        while (level < 99)
+        while (level < cap)
         {
-            int band = LevelBand(level);
-            nextThreshold = Threshold(character, level);
+            int band = Math.Min(7, LevelBand(level));
+            nextThreshold = ReadThreshold(character, level);
             if (nextThreshold > experience)
             {
                 break;
@@ -60,7 +70,7 @@ public sealed class Ff7NativeGrowth
             level++;
             previousThreshold = nextThreshold;
         }
-        record[1] = (byte)level;
+        record[1] = NativeLevel(level);
         for (int statistic = 0; statistic < 6; statistic++)
         {
             record[statistic + 2] = unchecked((byte)values[statistic]);
@@ -68,16 +78,21 @@ public sealed class Ff7NativeGrowth
         BinaryPrimitives.WriteUInt16LittleEndian(record.AsSpan(0x2E), (ushort)values[6]);
         BinaryPrimitives.WriteUInt16LittleEndian(record.AsSpan(0x32), (ushort)values[7]);
         BinaryPrimitives.WriteUInt32LittleEndian(record.AsSpan(0x3C), experience);
-        BinaryPrimitives.WriteUInt32LittleEndian(record.AsSpan(0x80), level == 99 ? 0 : unchecked(nextThreshold - experience));
-        record[0x21] = level == 99 ? (byte)61 : nextThreshold == previousThreshold ? (byte)0 : unchecked((byte)(unchecked((experience - previousThreshold) * 61) / (nextThreshold - previousThreshold)));
+        BinaryPrimitives.WriteUInt32LittleEndian(record.AsSpan(0x80), level >= cap ? 0 : unchecked(nextThreshold - experience));
+        record[0x21] = level >= cap ? (byte)61 : nextThreshold == previousThreshold ? (byte)0 : unchecked((byte)(unchecked((experience - previousThreshold) * 61) / (nextThreshold - previousThreshold)));
         return record;
     }
 
     public byte[] InitializeJoin(ReadOnlySpan<byte> nativeRecord, IReadOnlyList<Ff7CharacterState> characters, ushort available, Ff7BattleRng random, byte? savedLevel = null)
     {
+        return InitializeJoin(nativeRecord, characters, available, random, savedLevel, null, null, out _);
+    }
+
+    internal byte[] InitializeJoin(ReadOnlySpan<byte> nativeRecord, IReadOnlyList<Ff7CharacterState> characters, ushort available, Ff7BattleRng random, byte? savedLevel, int? effectiveLevel, int? maximumCharacterLevel, out int level)
+    {
         ArgumentNullException.ThrowIfNull(characters);
         ArgumentNullException.ThrowIfNull(random);
-        if (nativeRecord.Length != 132 || nativeRecord[0] >= 9 || nativeRecord[1] is < 1 or > 99 || characters.Any(character => character is null || character.Id is < 0 or > 8 || character.NativeRecord is not { Length: 132 }) || characters.Select(character => character.Id).Distinct().Count() != characters.Count)
+        if (nativeRecord.Length != 132 || nativeRecord[0] >= 9 || nativeRecord[1] is < 1 or > NativeMaximumLevel || characters.Any(character => character is null || character.Id is < 0 or > 8 || character.NativeRecord is not { Length: 132 }) || characters.Select(character => character.Id).Distinct().Count() != characters.Count)
         {
             throw new InvalidDataException("Native join growth requires complete character records and a valid joining persona.");
         }
@@ -103,7 +118,7 @@ public sealed class Ff7NativeGrowth
                 Ff7CharacterState? selected = physicalRecords.FirstOrDefault(character => character.NativeRecord[0] == logical);
                 if (selected is not null)
                 {
-                    levels += selected.NativeRecord[1];
+                    levels += maximumCharacterLevel.HasValue ? selected.Level : selected.NativeRecord[1];
                     count++;
                 }
             }
@@ -111,15 +126,21 @@ public sealed class Ff7NativeGrowth
         }
         targetLevel = Math.Max(1, targetLevel);
         byte[] prepared = nativeRecord.ToArray();
+        if (maximumCharacterLevel is int cap)
+        {
+            targetLevel = Math.Min(targetLevel, cap);
+        }
         if (reset)
         {
+            effectiveLevel = null;
             prepared[1] = 1;
             prepared.AsSpan(2, 6).Clear();
             prepared.AsSpan(0x2E, 2).Clear();
             prepared.AsSpan(0x32, 2).Clear();
             prepared.AsSpan(0x3C, 4).Clear();
         }
-        return Apply(prepared, JoinThreshold(persona, targetLevel - 1), random);
+        uint joinExperience = maximumCharacterLevel.HasValue && targetLevel > NativeMaximumLevel ? ReadThreshold(persona, targetLevel - 1) : JoinThreshold(persona, targetLevel - 1);
+        return Apply(prepared, joinExperience, random, effectiveLevel, maximumCharacterLevel, out level);
     }
 
     private uint JoinThreshold(int character, int level)
@@ -133,13 +154,28 @@ public sealed class Ff7NativeGrowth
         return result;
     }
 
+    private static byte NativeLevel(int level)
+    {
+        return checked((byte)Math.Min(level, NativeMaximumLevel));
+    }
+
     public uint Threshold(int character, int level)
     {
-        if ((uint)level > 98)
+        if ((uint)level >= NativeMaximumLevel)
         {
             throw new ArgumentOutOfRangeException(nameof(level));
         }
-        KernelGrowthCurve curve = tables.Curve(character, 8, LevelBand(level));
+        return ReadThreshold(character, level);
+    }
+
+    internal uint ReadThreshold(int character, int level)
+    {
+        if ((uint)level >= Ff7EnemyLevelRules.HighestLevel)
+        {
+            throw new ArgumentOutOfRangeException(nameof(level));
+        }
+        // Expanded characters continue on the last authored KERNEL EXP curve.
+        KernelGrowthCurve curve = tables.Curve(character, 8, Math.Min(7, LevelBand(level)));
         uint result = 0;
         for (int index = 1; index <= level; index++)
         {

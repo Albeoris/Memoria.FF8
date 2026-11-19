@@ -116,6 +116,8 @@ Choose **Difficulty** before pressing **Begin** in New Game, or change it later 
 
 All difficulties use the same initial ATB calculation for party members and enemies, including each participant's current Speed. Status restrictions and equipped initiative abilities still apply. Hard and Hardcore require a Memoria save slot so the choice survives loading.
 
+Outside New Game+, Hardcore raises the enemy level cap to 110 and adds 10 levels to the party average used for enemy scaling. Normal and Hard cap enemies at 100 and use the party average directly. All three difficulties cap character levels at 100. [New Game+](new-game-plus.md) lets you choose these values for each run.
+
 ## If startup fails
 
 | Symptom | Check |

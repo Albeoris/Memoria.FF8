@@ -15,7 +15,7 @@ public sealed partial record NativeCharacterVitals
         ArgumentOutOfRangeException.ThrowIfGreaterThan(magicId, 56);
         NativeCharacterVital source = Records[sourceRow];
         NativeCharacterVital target = Records[targetRow];
-        if (sourceRules.CharacterId != source.CharacterId || sourceRules.Level != NativeStatDefinitions.Level(source.Experience, Definitions.Characters[source.CharacterId]) || sourceRules.Abilities != source.Junction.Abilities || !sourceRules.MagicJunctions.AsSpan().SequenceEqual(source.Junction.MagicJunctions))
+        if (sourceRules.CharacterId != source.CharacterId || sourceRules.Level != CharacterLevel(source) || sourceRules.Abilities != source.Junction.Abilities || !sourceRules.MagicJunctions.AsSpan().SequenceEqual(source.Junction.MagicJunctions))
         {
             throw new InvalidDataException("Field magic requires the current caster's native statistic rules.");
         }

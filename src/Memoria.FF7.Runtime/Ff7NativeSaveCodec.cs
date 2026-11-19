@@ -79,6 +79,10 @@ public static class Ff7NativeSaveCodec
     public static Ff7NativeSaveSlot ExportField(Ff7Progress progress, byte[] persistentVariables, ushort map, short x, short y, ushort triangle, byte direction, byte[]? originalData = null)
     {
         progress.Validate();
+        if (progress.Characters.Any(character => character.Level > Ff7NativeGrowth.NativeMaximumLevel))
+        {
+            throw new NotSupportedException("Characters above level 99 require a Memoria FFVII save.");
+        }
         if (persistentVariables.Length != 1280 || originalData is not null && originalData.Length != Ff7NativeSaveSlot.Size)
         {
             throw new InvalidDataException("Invalid native FFVII save projection storage.");

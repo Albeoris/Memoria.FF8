@@ -71,7 +71,7 @@ public sealed partial record NativeCharacterVitals
 
     public BattleNativeCharacterGrowth EffectiveGrowth(NativeCharacterVital character)
     {
-        int level = NativeStatDefinitions.Level(character.Experience, Definitions.Characters[character.CharacterId]);
+        int level = CharacterLevel(character);
         return character.Growth.Effective(LevelBasedStatBonuses, level, character.Junction.Abilities);
     }
 }

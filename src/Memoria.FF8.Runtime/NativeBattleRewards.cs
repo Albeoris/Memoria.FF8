@@ -18,14 +18,14 @@ public enum BattleDefeatCredit
 }
 
 /// <summary>Observed death and selected reward branches, without action history or random samples.</summary>
-public sealed record BattleEnemyDefeat([property: JsonRequired] int Slot, [property: JsonRequired] byte Level, [property: JsonRequired] BattleDefeatCredit Credit, [property: JsonRequired] byte? KillerRow, [property: JsonRequired] byte? GuardianForceId, [property: JsonRequired] bool CardSelected, [property: JsonRequired] sbyte DropSelection)
+public sealed record BattleEnemyDefeat([property: JsonRequired] int Slot, [property: JsonRequired] int Level, [property: JsonRequired] BattleDefeatCredit Credit, [property: JsonRequired] byte? KillerRow, [property: JsonRequired] byte? GuardianForceId, [property: JsonRequired] bool CardSelected, [property: JsonRequired] sbyte DropSelection)
 {
     public byte? NativeCommand { get; init; }
     public string? AllocationId { get; init; }
     public string AllocationKey => AllocationId ?? $"scene-{Slot}";
     public void Validate()
     {
-        if (Slot is < 0 or >= ExpandedBattleFormation.MaximumRewardSlots || AllocationId is not null && string.IsNullOrWhiteSpace(AllocationId) || Level is < 1 or > 100 || !Enum.IsDefined(Credit) || KillerRow is >= NativeCharacterVitals.ExtendedRecordCount || GuardianForceId is >= 16 || DropSelection is < -1 or > 3 || Credit == BattleDefeatCredit.Unattributed && (KillerRow is not null || GuardianForceId is not null) || Credit == BattleDefeatCredit.Character && (KillerRow is null || GuardianForceId is not null) || Credit == BattleDefeatCredit.GuardianForce && (KillerRow is null || GuardianForceId is null))
+        if (Slot is < 0 or >= ExpandedBattleFormation.MaximumRewardSlots || AllocationId is not null && string.IsNullOrWhiteSpace(AllocationId) || Level is < 1 or > GameplayLevelRules.HighestLevel || !Enum.IsDefined(Credit) || KillerRow is >= NativeCharacterVitals.ExtendedRecordCount || GuardianForceId is >= 16 || DropSelection is < -1 or > 3 || Credit == BattleDefeatCredit.Unattributed && (KillerRow is not null || GuardianForceId is not null) || Credit == BattleDefeatCredit.Character && (KillerRow is null || GuardianForceId is not null) || Credit == BattleDefeatCredit.GuardianForce && (KillerRow is null || GuardianForceId is null))
         {
             throw new InvalidDataException("Enemy defeat fact lacks its observed level, credit or selected reward branch.");
         }
@@ -66,11 +66,11 @@ public sealed record BattleEnemyRewardDefinition(ushort KillExperience, ushort S
 public sealed record BattleExperienceAwards(IReadOnlyDictionary<byte, ushort> Characters, IReadOnlyDictionary<byte, ushort> GuardianForces);
 
 /// <summary>Current enemy operands used to settle shared experience after an escape.</summary>
-public sealed record BattleEnemyRemainingExperience(int Slot, byte Level, int MaximumHp, int CurrentHp, [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] int? NativeIndex)
+public sealed record BattleEnemyRemainingExperience(int Slot, int Level, int MaximumHp, int CurrentHp, [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] int? NativeIndex)
 {
     public void Validate()
     {
-        if (NativeIndex is < 3 or > 6 || Slot < 0 || Slot >= (NativeIndex.HasValue ? NativeBattleSlots.FormationSlotCount : ExpandedBattleFormation.MaximumRewardSlots) || Level is < 1 or > 100 || MaximumHp < 1 || CurrentHp < 0 || CurrentHp > MaximumHp)
+        if (NativeIndex is < 3 or > 6 || Slot < 0 || Slot >= (NativeIndex.HasValue ? NativeBattleSlots.FormationSlotCount : ExpandedBattleFormation.MaximumRewardSlots) || Level is < 1 or > GameplayLevelRules.HighestLevel || MaximumHp < 1 || CurrentHp < 0 || CurrentHp > MaximumHp)
         {
             throw new InvalidDataException("Remaining enemy experience requires its current slot, level and HP operands.");
         }
@@ -169,7 +169,7 @@ public static class NativeBattleRewardDistribution
         {
             throw new InvalidDataException("Battle experience requires its actual nonempty combat party.");
         }
-        int averageLevel = party.Sum(row => NativeStatDefinitions.Level(vitals.Records[row].Experience, vitals.Definitions.Characters[vitals.Records[row].CharacterId])) / party.Count;
+        int averageLevel = party.Sum(row => vitals.CharacterLevel(vitals.Records[row])) / party.Count;
         Dictionary<byte, int> personal = [];
         Dictionary<byte, int> guardian = [];
         int shared = 0;
@@ -191,7 +191,7 @@ public static class NativeBattleRewardDistribution
             if (defeat.Credit == BattleDefeatCredit.Character && defeat.NativeCommand is not (0 or 245 or 246))
             {
                 byte row = defeat.KillerRow!.Value;
-                int level = NativeStatDefinitions.Level(vitals.Records[row].Experience, vitals.Definitions.Characters[vitals.Records[row].CharacterId]);
+                int level = vitals.CharacterLevel(vitals.Records[row]);
                 personal[row] = Accumulate(personal.GetValueOrDefault(row), ScaledExperience(definition.KillExperience, defeat.Level, level), newGamePlusRewards);
             }
             else if (defeat.Credit == BattleDefeatCredit.GuardianForce)
@@ -214,8 +214,9 @@ public static class NativeBattleRewardDistribution
                 continue;
             }
             int scaled = 5 * basis * enemy.Level / averageLevel - basis;
-            int partial = unchecked((enemy.MaximumHp - enemy.CurrentHp) * scaled) / enemy.MaximumHp;
-            ushort amount = partial < 1 ? (ushort)1 : Math.Min(unchecked((ushort)partial), (ushort)60000);
+            int lostHp = enemy.MaximumHp - enemy.CurrentHp;
+            int partial = enemy.Level > GameplayLevelRules.DefaultMaximumLevel ? (int)((long)lostHp * scaled / enemy.MaximumHp) : unchecked(lostHp * scaled) / enemy.MaximumHp;
+            ushort amount = LimitExperience(partial, enemy.Level);
             shared = Accumulate(shared, amount, newGamePlusRewards);
         }
         Dictionary<byte, int> characters = [];
@@ -260,7 +261,16 @@ public static class NativeBattleRewardDistribution
             return 0;
         }
         int value = 5 * basis * enemyLevel / recipientLevel - basis;
-        return value < 1 ? (ushort)1 : Math.Min(unchecked((ushort)value), (ushort)60000);
+        return LimitExperience(value, enemyLevel);
+    }
+
+    private static ushort LimitExperience(int amount, int enemyLevel)
+    {
+        if (enemyLevel > GameplayLevelRules.DefaultMaximumLevel)
+        {
+            return (ushort)Math.Clamp(amount, 1, 60000);
+        }
+        return amount < 1 ? (ushort)1 : Math.Min(unchecked((ushort)amount), (ushort)60000);
     }
 
     private static int Accumulate(int accumulated, ushort amount, NewGamePlusRewardRules? newGamePlusRewards)

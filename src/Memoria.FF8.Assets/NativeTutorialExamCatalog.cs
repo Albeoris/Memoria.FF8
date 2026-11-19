@@ -165,7 +165,7 @@ public sealed class NativeTutorialExamCatalog
     public static void ValidateProgress(NativeTutorialExamProgress progress)
     {
         ArgumentNullException.ThrowIfNull(progress);
-        if (progress.PassedTests is < 0 or > 30 || progress.SeeDRank is < -1 or > 31 || progress.CharacterLevel is < 1 or > 100)
+        if (progress.PassedTests is < 0 or > 30 || progress.SeeDRank is < -1 or > 31 || progress.CharacterLevel is < 1 or > GameplayLevelRules.HighestLevel)
         {
             throw new ArgumentException("Original SeeD test progress requires thirty levels, native rank and Squall's actual character level.", nameof(progress));
         }

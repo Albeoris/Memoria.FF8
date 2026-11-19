@@ -122,6 +122,7 @@ public sealed partial class BattlePresentationProcess
                     NativeBattleEffectMemory allocationMemory = current.Memory;
                     NativeBattleScanResultServices resultServices = new(nativeActionPackets.ModelAliases, ReadNativeScanDescriptor208, id => current.Effect.Binding.ScanTextResources!.ReadEncodedMiscText(id) ?? throw new NotSupportedException("Native Scan requires its actual reached miscellaneous text template."), actor => ReadNativeScanEnemyInformation(actor)[0xF7], ReadNativeScanExtra71)
                     {
+                        ReadLevel = ReadNativeScanLevel,
                         ReserveByteRange = length =>
                         {
                             (allocationMemory, uint resource) = NativeBattlePresentationTaskStorage.ReserveByteRange(allocationMemory, current.Effect, nativeActionPackets.Roster, length);

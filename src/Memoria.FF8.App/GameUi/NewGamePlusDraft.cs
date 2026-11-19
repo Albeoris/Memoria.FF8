@@ -23,6 +23,7 @@ internal sealed class NewGamePlusDraft
     internal NewGamePlusPreset CardPreset { get; private set; } = NewGamePlusPreset.Stored;
     internal int ExperienceMultiplierTenths { get; set; } = 10;
     internal int ApMultiplierTenths { get; set; } = 10;
+    internal GameplayLevelRules LevelRules { get; private set; } = GameplayLevelRules.Default;
     internal int GlobalLevel { get; private set; }
     internal bool AllowWorldMapPartyChanges { get; private set; }
     internal IReadOnlyList<NewGamePlusCharacter> Characters => characters.Values.OrderBy(character => character.CharacterId).ToArray();
@@ -70,7 +71,7 @@ internal sealed class NewGamePlusDraft
         {
             NativeCharacterVital? record = input.Records.FirstOrDefault(record => record.CharacterId == identity);
             NativeCharacterVital fallback = target.Records.Single(record => record.CharacterId == identity);
-            int level = NativeStatDefinitions.Level((record ?? fallback).Experience, (record is null ? target : input).Definitions.Characters[identity]);
+            int level = (record is null ? target : input).CharacterLevel(record ?? fallback);
             characters.Add(identity, new(identity, level, (fallback.MemberFlags & 1) != 0, record is null));
         }
         GlobalLevel = 0;
@@ -114,7 +115,7 @@ internal sealed class NewGamePlusDraft
             foreach (NewGamePlusCharacter character in Characters.Where(character => character.NativeFallback))
             {
                 NativeCharacterVital record = target.Records.Single(record => record.CharacterId == character.CharacterId);
-                characters[character.CharacterId] = character with { IndividualLevel = NativeStatDefinitions.Level(record.Experience, target.Definitions.Characters[record.CharacterId]) };
+                characters[character.CharacterId] = character with { IndividualLevel = target.CharacterLevel(record) };
             }
         }
         if (GuardianForcePreset is NewGamePlusPreset.Native or NewGamePlusPreset.Stored)
@@ -126,7 +127,13 @@ internal sealed class NewGamePlusDraft
 
     internal void SetGlobalLevel(int value)
     {
-        GlobalLevel = Math.Clamp(value, 0, 100);
+        int cap = LevelRules.MaximumCharacterLevel;
+        value = Math.Clamp(value, 0, cap);
+        if (value == cap && GlobalLevel > cap)
+        {
+            return;
+        }
+        GlobalLevel = value;
         CharacterPreset = NewGamePlusPreset.Custom;
         Dirty = true;
     }
@@ -137,7 +144,13 @@ internal sealed class NewGamePlusDraft
         {
             return;
         }
-        characters[identity] = characters[identity] with { IndividualLevel = Math.Clamp(value, 1, 100), NativeFallback = false };
+        int cap = LevelRules.MaximumCharacterLevel;
+        value = Math.Clamp(value, 1, cap);
+        if (value == cap && characters[identity].IndividualLevel > cap)
+        {
+            return;
+        }
+        characters[identity] = characters[identity] with { IndividualLevel = value, NativeFallback = false };
         CharacterPreset = NewGamePlusPreset.Custom;
         Dirty = true;
     }
@@ -153,6 +166,17 @@ internal sealed class NewGamePlusDraft
     {
         AllowWorldMapPartyChanges = !AllowWorldMapPartyChanges;
         CharacterPreset = NewGamePlusPreset.Custom;
+        Dirty = true;
+    }
+
+    internal void SetLevelRules(GameplayLevelRules rules)
+    {
+        rules.Validate();
+        if (LevelRules == rules)
+        {
+            return;
+        }
+        LevelRules = rules;
         Dirty = true;
     }
 
@@ -407,7 +431,7 @@ internal sealed class NewGamePlusDraft
             InitialFullBattlePlaythrough = Settings.BattlePolicy == "NewGameFullCombat", InitialRandomEncountersEnabled = Settings.RandomEncounters,
             InitialMagicConversionMoves = MagicConversionMoves.ToImmutableArray(), InitialMagicOverflow = MagicOverflow.ToImmutableArray(),
             Characters = Characters.ToImmutableArray(), GlobalLevel = GlobalLevel, AllowWorldMapPartyChanges = AllowWorldMapPartyChanges,
-            ExperienceMultiplierTenths = ExperienceMultiplierTenths, ApMultiplierTenths = ApMultiplierTenths,
+            ExperienceMultiplierTenths = ExperienceMultiplierTenths, ApMultiplierTenths = ApMultiplierTenths, LevelRules = LevelRules,
             CharacterPreset = CharacterPreset, GuardianForcePreset = GuardianForcePreset, MagicPreset = MagicPreset, ItemPreset = ItemPreset, CardPreset = CardPreset,
             InitialItems = items.Items.ToImmutableArray(), InitialCardQuantities = Enumerable.Range(0, 110).Select(identity => Math.Max(0, cards.AvailableCount(identity))).ToImmutableArray(),
             InitialMagic = magic.Records.Select(record => new NewGamePlusMagicBank(record.CharacterId, record.MagicInventory.ToImmutableArray())).ToImmutableArray(), InitialMagicExtension = magic.MagicSystem.RecordZeroExtension.ToImmutableArray(),
@@ -423,27 +447,14 @@ internal sealed class NewGamePlusDraft
         NativeCharacterVitals result = cold.CharacterVitals!.WithGuestBattleRecords().DeepCopy();
         result = result with { GuardianForces = guardianForces.GuardianForces.ToArray(), GuardianForceProfile = FreezeGuardianForces().GuardianForceProfile, MenuDefinitions = result.MenuDefinitions with { SourceTemplates = guardianForces.ResolveGuardianForceTemplates() } };
         result = result.ApplyGuardianForceTemplates(guardianForces.ResolveGuardianForceTemplates());
-        result = result with { ExtendedRosterEnabled = definition.RequiresExpandedRoster, NewGamePlusPermanentGuests = (ushort)Characters.Where(character => character.CharacterId >= 6 && character.AvailableFromStart).Aggregate(0, (mask, character) => mask | (1 << character.CharacterId)) };
+        result = result with { ExtendedRosterEnabled = definition.RequiresExpandedRoster, NewGamePlusPermanentGuests = (ushort)Characters.Where(character => character.CharacterId >= 6 && character.AvailableFromStart).Aggregate(0, (mask, character) => mask | (1 << character.CharacterId)), MaximumCharacterLevel = LevelRules.MaximumCharacterLevel };
         for (int row = 0; row < result.Records.Length; row++)
         {
             NativeCharacterVital record = result.Records[row];
             NewGamePlusCharacter choice = characters[record.CharacterId];
-            uint low = 0;
-            uint high = int.MaxValue;
-            while (low < high)
-            {
-                uint middle = low + (high - low) / 2;
-                if (NativeStatDefinitions.Level(middle, result.Definitions.Characters[record.CharacterId]) >= definition.ResolvedLevel(record.CharacterId))
-                {
-                    high = middle;
-                }
-                else
-                {
-                    low = middle + 1;
-                }
-            }
+            uint experience = NativeStatDefinitions.ExperienceForLevel(definition.ResolvedLevel(record.CharacterId), result.Definitions.Characters[record.CharacterId]);
             NewGamePlusMagicBank? bank = definition.InitialMagic.FirstOrDefault(bank => bank.CharacterId == record.CharacterId);
-            result.Records[row] = record with { Experience = low, Status = 0, MemberFlags = (ushort)(choice.AvailableFromStart ? record.MemberFlags | 1 : record.MemberFlags & ~1), MagicInventory = bank?.Stock.ToArray() ?? Enumerable.Repeat(new NativeMagicStock(0, 0), 32).ToArray() };
+            result.Records[row] = record with { Experience = experience, Status = 0, MemberFlags = (ushort)(choice.AvailableFromStart ? record.MemberFlags | 1 : record.MemberFlags & ~1), MagicInventory = bank?.Stock.ToArray() ?? Enumerable.Repeat(new NativeMagicStock(0, 0), 32).ToArray() };
         }
         result = result with { MagicSystem = result.MagicSystem.DeepCopy() with { SharedMagicStock = magic.MagicSystem.SharedMagicStock, RecordZeroExtension = magic.MagicSystem.RecordZeroExtension.ToArray() } };
         result = MagicModeCoordinator.Preview(result, cold.GameplayPreferences).Vitals;

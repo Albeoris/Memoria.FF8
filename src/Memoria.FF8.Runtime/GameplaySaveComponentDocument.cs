@@ -50,7 +50,8 @@ public sealed record GameplaySaveComponentDocument
         {
             installed = NewGamePlusGuardianForceDefinitions.BindEmbedded(installed, run.InitialGuardianForceTemplates, run.GuardianForceExcludedDocuments);
         }
-        return Characters.Restore(installed) with { LevelBasedStatBonuses = Progression?.Rules.Preferences.Tuning.LevelBasedStatBonuses ?? false };
+        int maximumCharacterLevel = NewGamePlus?.LevelRules.MaximumCharacterLevel ?? CompletedGame?.MaximumCharacterLevel ?? GameplayLevelRules.DefaultMaximumLevel;
+        return Characters.Restore(installed with { MaximumCharacterLevel = maximumCharacterLevel }) with { LevelBasedStatBonuses = Progression?.Rules.Preferences.Tuning.LevelBasedStatBonuses ?? false };
     }
 
     /// <summary>Captures only the named component owners. The coordinator must separately preserve all remaining gameplay owners.</summary>

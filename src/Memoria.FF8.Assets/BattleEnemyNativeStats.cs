@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
+using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Assets;
 
@@ -37,9 +38,9 @@ public sealed record BattleEnemyNativeStats(ImmutableArray<byte> HpCoefficients,
 
     public BattleEnemyNativeProjection Project(int level)
     {
-        if (level is < 0 or > 100 || HpCoefficients.IsDefault || HpCoefficients.Length != 4 || StatCoefficients.IsDefault || StatCoefficients.Length != 24 || ElementDefenses.IsDefault || ElementDefenses.Length != 8)
+        if (level is < 0 or > GameplayLevelRules.HighestLevel || HpCoefficients.IsDefault || HpCoefficients.Length != 4 || StatCoefficients.IsDefault || StatCoefficients.Length != 24 || ElementDefenses.IsDefault || ElementDefenses.Length != 8)
         {
-            throw new InvalidDataException("Native enemy projection requires its complete original coefficients and level0..100.");
+            throw new InvalidDataException("Native enemy projection requires its complete original coefficients and a supported level.");
         }
         int maximumHp = level * (HpCoefficients[0] + 100 * HpCoefficients[2]) + 10 * (HpCoefficients[1] + 100 * HpCoefficients[3]) + level * level * HpCoefficients[0] / 20;
         int[] stats = new int[6];
@@ -61,7 +62,7 @@ public sealed record BattleEnemyNativeStats(ImmutableArray<byte> HpCoefficients,
                 value = row[2] + level * row[0] + level / row[1] - level / row[3];
             }
             //495930 caps only the upper bound;48C1C0 writes its low BYTE.
-            baseStatistics[stat] = Math.Min(255, value);
+            baseStatistics[stat] = level > GameplayLevelRules.DefaultMaximumLevel ? Math.Clamp(value, 0, 255) : Math.Min(255, value);
             stats[stat] = unchecked((byte)baseStatistics[stat]);
         }
         return new(level, maximumHp, stats[0], stats[1], stats[2], stats[3], stats[4], stats[5], ElementDefenses) { BaseStatistics = baseStatistics };

@@ -40,6 +40,15 @@ public sealed class NativeBattleScanResultsTests
         Assert.Equal("L 15 H ?/?", source.Page(result, 0));
     }
 
+    [Fact]
+    public void ScanFormatsTheCurrentCombatantLevelAboveTheNativeByteRange()
+    {
+        ScanResultTestSource source = new();
+        source.Descriptor = ScanResultTestSource.Unknown(208).WriteDword(0x7C, 0x2000).WriteByte(0xBC, 255);
+        NativeBattleScanResultMemory result = NativeBattleScanResults.BuildB68390(NativeBattleScanResultMemory.FromColdProcess(), OriginalOwner(0), source.Services with { ReadLevel = _ => 300 });
+        Assert.Equal("L 300 H ?/?", source.Page(result, 0));
+    }
+
     [Theory]
     [InlineData(0, null)]
     [InlineData(1, "A C  ")]

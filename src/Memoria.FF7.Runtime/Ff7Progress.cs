@@ -75,7 +75,7 @@ public sealed record Ff7Progress
         {
             throw new InvalidDataException("FFVII progression is missing required owners.");
         }
-        if (Characters.Select(character => character.Id).Distinct().Count() != Characters.Length || Characters.Any(character => character.Id is < 0 or > 8 || character.Level is < 0 or > 99 || character.HitPoints < 0 || character.MagicPoints < 0 || character.NativeRecord is not { Length: 132 } || character.Name is null))
+        if (Characters.Select(character => character.Id).Distinct().Count() != Characters.Length || Characters.Any(character => character.Id is < 0 or > 8 || character.Level is < 0 or > Ff7EnemyLevelRules.HighestLevel || character.HitPoints < 0 || character.MagicPoints < 0 || character.NativeRecord is not { Length: 132 } || character.Level > Ff7NativeGrowth.NativeMaximumLevel && character.NativeRecord[1] != Ff7NativeGrowth.NativeMaximumLevel || character.Name is null))
         {
             throw new InvalidDataException("FFVII character progression is invalid.");
         }

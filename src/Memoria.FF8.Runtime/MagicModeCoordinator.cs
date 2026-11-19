@@ -111,7 +111,7 @@ public static class MagicJunctionPolicy
     {
         NativeCharacterVital character = vitals.Records[row];
         int spell = character.Junction.MagicJunctions[0];
-        return vitals.Definitions.CharacterMaximum(character.CharacterId, NativeStatDefinitions.Level(character.Experience, vitals.Definitions.Characters[character.CharacterId]), vitals.EffectiveGrowth(character).HitPointBonus, (byte)spell, GetEffectiveCount(vitals, row, spell), character.Junction.Abilities);
+        return vitals.Definitions.CharacterMaximum(character.CharacterId, vitals.CharacterLevel(character), vitals.EffectiveGrowth(character).HitPointBonus, (byte)spell, GetEffectiveCount(vitals, row, spell), character.Junction.Abilities);
     }
 
     internal static NativeCharacterVitals ClampHitPoints(NativeCharacterVitals vitals, int? physicalRow = null)

@@ -6,6 +6,64 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NewGamePlusRewardTests
 {
     [Theory]
+    [InlineData(1)]
+    [InlineData(75)]
+    [InlineData(100)]
+    [InlineData(101)]
+    [InlineData(256)]
+    [InlineData(300)]
+    public void CharacterExperienceThresholdsRespectTheConfiguredCap(int cap)
+    {
+        NativeStatCurve curve = new(14, 183, 10, 255, 10);
+        uint threshold = NativeStatDefinitions.ExperienceForLevel(cap, curve);
+        Assert.Equal(cap, NativeStatDefinitions.Level(threshold, curve, cap));
+        Assert.Equal(0u, NativeStatDefinitions.ExperienceToNextLevel(threshold, curve, cap));
+        if (cap > 1)
+        {
+            Assert.Equal(cap - 1, NativeStatDefinitions.Level(threshold - 1, curve, cap));
+            Assert.Equal(1u, NativeStatDefinitions.ExperienceToNextLevel(threshold - 1, curve, cap));
+        }
+    }
+
+    [Fact]
+    public void BattleAwardsAndResultsRetainCharacterLevelsAbove255WhileGuardianForcesCapAt100()
+    {
+        NativeCharacterVitals before = MagicSystemFixture.Create() with { MaximumCharacterLevel = 300 };
+        NativeCharacterVital character = before.Records[0];
+        NativeStatCurve curve = before.Definitions.Characters[0];
+        uint previousExperience = NativeStatDefinitions.ExperienceForLevel(299, curve);
+        before.Records[0] = character with { Experience = previousExperience, Junction = character.Junction with { Abilities = 58 } };
+        uint[] abilityFlags = new uint[20];
+        abilityFlags[0] = 0x180;
+        NativeBattleExperienceDefinition experience = new(before.KernelSha256, abilityFlags.ToImmutableArray());
+
+        NativeCharacterVitals after = before.AwardBattleExperience(new Dictionary<byte, ushort> { [0] = ushort.MaxValue }, new Dictionary<byte, ushort> { [0] = ushort.MaxValue }, experience);
+        BattleCharacterRewardPresentation result = NativeBattleResultPresentation.BuildCharacters(before, after)[0];
+        Assert.Equal(new BattleCharacterRewardPresentation(0, previousExperience, NativeStatDefinitions.ExperienceForLevel(300, curve), 299, 300, 10, 0), result);
+        Assert.Equal(30, after.Records[0].Growth.HitPointBonus);
+        Assert.Equal(1, after.Records[0].Growth.StatBonuses[0]);
+        Assert.Equal(1, after.GetMagicMaximumHitPoints(0));
+        Assert.Equal(8970, BattleNativeCharacterGrowth.LevelBonus(65, after.CharacterLevel(after.Records[0])));
+        Assert.Equal(NativeStatDefinitions.ExperienceForLevel(100, before.Definitions.GuardianForces[0]), after.GuardianForces[0].Experience);
+    }
+
+    [Fact]
+    public void DefeatAndEscapeRewardsUseTheActual300LevelOperands()
+    {
+        NativeCharacterVitals vitals = MagicSystemFixture.Create() with { MaximumCharacterLevel = 300 };
+        foreach (byte row in vitals.CombatParty)
+        {
+            NativeCharacterVital character = vitals.Records[row];
+            vitals.Records[row] = character with { Experience = NativeStatDefinitions.ExperienceForLevel(300, vitals.Definitions.Characters[character.CharacterId]) };
+        }
+        Dictionary<int, BattleEnemyRewardDefinition> definitions = new() { [0] = Definition(100, 100), [1] = Definition(0, 100) };
+        BattleExperienceAwards awards = NativeBattleRewardDistribution.Experience([new(0, 300, BattleDefeatCredit.Character, 0, null, false, -1)], vitals, definitions, false,
+            [new(1, 300, 1_000_000, 500_000, null)], newGamePlusRewards: new());
+        Assert.Equal((ushort)1000, awards.Characters[0]);
+        Assert.Equal((ushort)600, awards.Characters[1]);
+    }
+
+    [Theory]
     [InlineData(1, 4, 0)]
     [InlineData(1, 5, 1)]
     [InlineData(3, 5, 2)]

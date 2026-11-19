@@ -182,7 +182,7 @@ public static class LiveMenuData
                         NativeId = native.CharacterId,
                         Name = CharacterName(state, native.CharacterId, names, catalog),
                         InParty = inParty,
-                        Level = NativeStatDefinitions.Level(native.Experience, vitals.Definitions.Characters[native.CharacterId]),
+                        Level = vitals.CharacterLevel(native),
                         CurrentHp = native.HitPoints.Minimum == native.HitPoints.Maximum ? native.HitPoints.Minimum : null,
                         HpDisplay = native.HitPoints.Minimum == native.HitPoints.Maximum ? native.HitPoints.Minimum.ToString(System.Globalization.CultureInfo.InvariantCulture) : $"{native.HitPoints.Minimum}..{native.HitPoints.Maximum}",
                         MaximumHp = vitals.GetMagicMaximumHitPoints(row),
@@ -238,7 +238,7 @@ public static class LiveMenuData
                             character.AvailableAbilities.Add(choice);
                         }
                     }
-                    character.NextLevelExperience = ExperienceToNextLevel(native.Experience, vitals.Definitions.Characters[native.CharacterId]);
+                    character.NextLevelExperience = ExperienceToNextLevel(native.Experience, vitals.Definitions.Characters[native.CharacterId], vitals.MaximumCharacterLevel);
                     if (catalog is not null)
                     {
                         int characterRow = row;
@@ -366,7 +366,7 @@ public static class LiveMenuData
                     Learning = native.Learning == 0 ? "--" : AbilityName(native.Learning, "Ability {0}", "fallback.ability.name"),
                     LearningAbilityId = native.Learning == 0 ? null : native.Learning.ToString(System.Globalization.CultureInfo.InvariantCulture)
                 };
-                int? ownerLevel = ownerRow < 0 ? null : NativeStatDefinitions.Level(vitals.Records[ownerRow].Experience, vitals.Definitions.Characters[vitals.Records[ownerRow].CharacterId]);
+                int? ownerLevel = ownerRow < 0 ? null : vitals.CharacterLevel(vitals.Records[ownerRow]);
                 foreach (NativeGuardianForceAbility entry in vitals.GuardianForceAbilities(id))
                 {
                     if (entry.Learned)
@@ -502,10 +502,9 @@ public static class LiveMenuData
 
     private static string Rank(int value) => value == 10 ? "A" : value.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
-    internal static int ExperienceToNextLevel(uint experience, NativeStatCurve curve)
+    internal static int ExperienceToNextLevel(uint experience, NativeStatCurve curve, int maximumLevel = GameplayLevelRules.DefaultMaximumLevel)
     {
-        int level = NativeStatDefinitions.Level(experience, curve);
-        return level == 100 ? 0 : checked((int)(10L * level * curve.ExperienceStep + (long)level * level * curve.ExperienceFraction / 256 - experience));
+        return checked((int)NativeStatDefinitions.ExperienceToNextLevel(experience, curve, maximumLevel));
     }
 
     internal static Dictionary<string, int> Statistics(BattleNativePlayerStatRules rules, NativeCharacterVital character, IReadOnlyList<NativeMagicStock> inventory)

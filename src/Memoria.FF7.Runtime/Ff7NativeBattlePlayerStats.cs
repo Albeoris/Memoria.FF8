@@ -101,7 +101,7 @@ public static class Ff7NativeBattlePlayerStats
         bool backRow = (record[32] & 1) == 0;
         byte attack = (byte)Math.Clamp(stats[0] + weapon[4], 1, 255);
         ushort defense = (ushort)Math.Min(255, stats[1] + armor[2]);
-        Ff7BattleDamageActor actor = new(record[1], attack, (byte)stats[2], (byte)stats[4], (byte)stats[5], armor[4], armor[5], defense, (ushort)stats[3], weapon[7], statuses, BackRow: backRow) { EquippedMateriaCount = equippedMateriaCount };
+        Ff7BattleDamageActor actor = new(checked((ushort)character.Level), attack, (byte)stats[2], (byte)stats[4], (byte)stats[5], armor[4], armor[5], defense, (ushort)stats[3], weapon[7], statuses, BackRow: backRow) { EquippedMateriaCount = equippedMateriaCount };
 
         ushort flags = BinaryPrimitives.ReadUInt16LittleEndian(weapon[40..]);
         if ((weapon[2] >> 4) is 1 or 3 or 6 or 10 or 11)

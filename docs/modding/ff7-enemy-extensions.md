@@ -24,13 +24,15 @@ This Scan-only contribution does not promote the target's level or alter its sta
 | Property | Meaning |
 | --- | --- |
 | `scanDescription` | Authored English prose displayed independently of name and statistics. |
-| `scaleLevel` | Independent level promotion: `true` raises the level to the captured party reference; `false` preserves it. Other channels remain independent. |
+| `scaleLevel` | Independent level scaling. With `true`, take the higher of the source enemy level and the active party’s rounded-down mean level plus the campaign bonus, then apply the campaign enemy cap. With `false`, preserve the source level. Other channels remain independent. |
 | `growth` | Changed multiplier rows for `hp`, `attack`, `magic`, or `mp`; omit unchanged statistics. |
 | `rewardGrowth` | Separate native-unit FFVII multiplier rows for `exp`, `ap`, and `gil`. These are not FFVIII EXP or GF AP amounts. |
 | `drawTiers` | Increasing `minimumDelta` boundaries, each with at most four distinct `{magicId,resistance}` slots. IDs refer to stocked FFVIII magic, not FFVII attacks or GF identities. |
 | `itemReplacements` | Explicit `{minimumDelta,channel,fromItemId,toItemId}` replacements; the bundled content uses only native `drop` and `steal` channels. |
 
 Growth coefficients are four signed integers with a fixed scale of 1,000,000, in `[A,B,C,D]` order. The initial coefficient is 1,000,000 and the remaining coefficients are nonnegative. For `t=(L-L0)/max(1,100-L0)`, the multiplier is `A+B*t+C*t*t+D*t*t*t`, divided by the coefficient scale. The implementation uses checked wide arithmetic and rounds down. At `L<=L0`, it returns the unchanged native anchor. Constant rows need not be declared.
+
+The level-100 divisor stays the same at higher levels. Native FFVII AI reads the level through a byte-sized value capped at 255, while combat calculations and Scan use the effective level.
 
 The anchor comes from the selected, resolved native data, including compatible source changes; it is not a baseline copied into the mod. Defenses, speed, luck and other undeclared properties retain their native ownership. Authored Draw resistance is a slot modifier; the spell's kernel Draw resistance remains independently authoritative.
 
@@ -41,6 +43,8 @@ An item replacement starts only at a positive level delta. It selects an existin
 The catalog composes disjoint changes to the same enemy ID. A Scan contribution can coexist with a separate HP contribution; different growth or reward row keys can coexist. Two writers of the same description, level policy, Draw table, growth row, reward row, or item selector/threshold fail with a diagnostic identifying the documents. Package order does not silently choose a winner.
 
 Level, statistic growth, Draw, rewards and item replacements are separate channels. Omitting Draw never disables another channel. A preserved level leaves level-delta tiers at their baseline. For compatibility with earlier documents, an omitted `scaleLevel` promotes level when statistic growth is declared; otherwise it preserves level. New documents should declare their intended level policy explicitly.
+
+When a level-scaling extension is active, the campaign character cap limits native FFVII character growth, battle levels and the levels used to scale enemies. Existing rosters retain earned experience, levels and permanent stats in the save. Above level 99, growth continues using the final KERNEL curves. Characters above level 99 require a Memoria save.
 
 Unknown executable properties, duplicate JSON properties, duplicate document or enemy IDs, unsupported coefficient rows, invalid magic identities and unordered Draw boundaries fail preparation. A failed candidate is not partially applied. Resolved encounter state is captured once, separately from the immutable source records and the authored declarations.
 

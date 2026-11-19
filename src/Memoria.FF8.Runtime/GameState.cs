@@ -23,6 +23,8 @@ public sealed record GameState
     public CompletedGameData? CompletedGame { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NewGamePlusDefinition? NewGamePlus { get; init; }
+    [JsonIgnore]
+    public GameplayLevelRules LevelRules => NewGamePlus?.LevelRules ?? GameplayLevelRules.ForDifficulty(GameplayPreferences.Difficulty);
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NewGamePlusRewardRules? NewGamePlusRewards { get; init; }
 

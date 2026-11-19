@@ -4,7 +4,7 @@ using Memoria.FF7.Formats;
 
 namespace Memoria.FF7.Runtime;
 
-public sealed record Ff7BattleGuestProjection(ushort MaximumHp, byte Level, byte Luck, ushort Defense, ushort MagicDefense)
+public sealed record Ff7BattleGuestProjection(ushort MaximumHp, ushort Level, byte Luck, ushort Defense, ushort MagicDefense)
 {
     public byte? Dexterity { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -16,7 +16,7 @@ public sealed record Ff7BattleGuestProjection(ushort MaximumHp, byte Level, byte
 
     internal void Validate()
     {
-        if (MaximumHp is 0 or > 9999 || Level > 99 || Defense > 999 || MagicDefense > 999 || OriginElementDefenses is { } elements && (elements.IsDefault || elements.Length != 8 || elements.Any(value => value is < 800 or > 1000)) || OriginStatusResistances is { } statuses && (statuses.IsDefault || statuses.Length != 40 || statuses.Any(value => value is < 100 or > 200)))
+        if (MaximumHp is 0 or > 9999 || Level > Ff7EnemyLevelRules.HighestLevel || Defense > 999 || MagicDefense > 999 || OriginElementDefenses is { } elements && (elements.IsDefault || elements.Length != 8 || elements.Any(value => value is < 800 or > 1000)) || OriginStatusResistances is { } statuses && (statuses.IsDefault || statuses.Length != 40 || statuses.Any(value => value is < 100 or > 200)))
         {
             throw new InvalidDataException("The current guest stat projection exceeds its admitted native caps.");
         }
@@ -55,7 +55,7 @@ public sealed record Ff7BattleGuestProjection(ushort MaximumHp, byte Level, byte
     }
 }
 
-public sealed record Ff7BattleGuestVitalsBinding(Guid EncounterId, string SourcePayloadSha256, int HostSlot, int StoryCharacter, int OriginCharacter, int OriginRow, ushort InitialHp, ushort MaximumHp, byte Level, byte Luck, ushort Defense, ushort MagicDefense)
+public sealed record Ff7BattleGuestVitalsBinding(Guid EncounterId, string SourcePayloadSha256, int HostSlot, int StoryCharacter, int OriginCharacter, int OriginRow, ushort InitialHp, ushort MaximumHp, ushort Level, byte Luck, ushort Defense, ushort MagicDefense)
 {
     public ushort OriginStatuses { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -64,7 +64,7 @@ public sealed record Ff7BattleGuestVitalsBinding(Guid EncounterId, string Source
 
     internal void Validate()
     {
-        if (EncounterId == Guid.Empty || SourcePayloadSha256 is not { Length: 64 } || !SourcePayloadSha256.All(Uri.IsHexDigit) || HostSlot is < 0 or > 2 || StoryCharacter is < 0 or > 8 || OriginCharacter is < 0 or > 10 || OriginRow is < 0 or > 10 || OriginRow >= 8 && OriginRow != OriginCharacter || InitialHp > MaximumHp || MaximumHp == 0 || MaximumHp > 9999 || Level > 99 || string.IsNullOrWhiteSpace(OriginName))
+        if (EncounterId == Guid.Empty || SourcePayloadSha256 is not { Length: 64 } || !SourcePayloadSha256.All(Uri.IsHexDigit) || HostSlot is < 0 or > 2 || StoryCharacter is < 0 or > 8 || OriginCharacter is < 0 or > 10 || OriginRow is < 0 or > 10 || OriginRow >= 8 && OriginRow != OriginCharacter || InitialHp > MaximumHp || MaximumHp == 0 || MaximumHp > 9999 || Level > Ff7EnemyLevelRules.HighestLevel || string.IsNullOrWhiteSpace(OriginName))
         {
             throw new InvalidDataException("Guest vitals lack their original save and host slot binding.");
         }

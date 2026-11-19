@@ -1055,6 +1055,7 @@ public sealed partial class BattleSession
 
     private void ValidateDefinition(BattleDefinition source)
     {
+        source.LevelRules.Validate();
         int enemyCount = source.Combatants.Count(actor => !actor.IsPlayer);
         int addedCount = source.AddedEnemySources?.Count ?? 0;
         int enemySlotCount = source.EnemySlotCount;
@@ -1132,10 +1133,10 @@ public sealed partial class BattleSession
             }
             foreach (ExpandedEnemyLevelProfile profile in levelProfiles.Values)
             {
-                if (profile is null || profile.Levels.IsDefault || profile.Levels.Length != 100 || profile.DrawBands.IsDefault || profile.DrawBands.Length != 3 ||
+                if (profile is null || profile.Levels.IsDefault || profile.Levels.Length != source.LevelRules.MaximumEnemyLevel || profile.DrawBands.IsDefault || profile.DrawBands.Length != 3 ||
                     profile.Levels.Any(level => level is null || level.MaximumHp <= 0 || level.BaseStatistics.IsDefault || level.BaseStatistics.Length != 6 || level.AiLevelBand is < 0 or > 2))
                 {
-                    throw new InvalidDataException("Expanded level projections require all 100 original levels and three Draw banks.");
+                    throw new InvalidDataException("Expanded level projections require every configured enemy level and three Draw banks.");
                 }
                 foreach (var band in profile.DrawBands)
                 {
@@ -1183,7 +1184,7 @@ public sealed partial class BattleSession
         HashSet<int> rewardSlots = [];
         foreach (BattleCombatantDefinition actor in source.Combatants)
         {
-            ValidateNativeAi(actor, enemySlotCount);
+            ValidateNativeAi(actor, enemySlotCount, source.LevelRules.MaximumEnemyLevel);
             if (actor.ExpandedEnemyBaseStatistics is { } baseStatistics && (actor.IsPlayer || baseStatistics.Length != 6))
             {
                 throw new InvalidDataException("Expanded enemy statistics require exactly six original values on an expanded enemy.");
@@ -1196,7 +1197,7 @@ public sealed partial class BattleSession
             bool invalidModel = actor.ModelId < -1 || actor.IsPlayer && actor.ModelId < 0 || actor.ModelId == -1 && (source.EncounterId is not null || actor.WeaponId is not null || actor.Costume != 0);
             // Both native enemy projections carry the original HP DWORD.
             bool hasNativeHpProjection = actor.NativeTemplate is not null || actor.ExpandedEnemyBaseStatistics.HasValue;
-            if (string.IsNullOrWhiteSpace(actor.Id) || !ids.Add(actor.Id) || invalidName || invalidModel || actor.Costume < 0 || actor.MaximumHp < 0 || !hasNativeHpProjection && actor.MaximumHp > 1_000_000 || actor.MaximumHp == 0 && (actor.InitialActive || actor.NativeTemplate is null) || actor.CurrentHp < 0 || actor.CurrentHp > actor.MaximumHp || actor.Speed is < 1 or > AtbMaximum || actor.Attack is < 0 or > 1_000_000 || actor.Defense is < 0 or > 1_000_000 || actor.InitialAtb is < 0 or > AtbMaximum || actor.WeaponId < 0 || actor.EquipmentIds.Any(id => id < 0) || actor.Level is < 0 or > 100 || actor.Magic is < 0 or > 255 || actor.Spirit is < 0 or > 255 || actor.PhysicalPower is < 0 or > 255 || actor.ElementAttack is < 0 or > 255 || actor.ElementAttackPercent is < 0 or > 255 || actor.DrainPercent is < 0 or > 255 || actor.ElementDefenses.Length != 8 || actor.ElementDefenses.Any(value => value is < 0 or > 2550) || actor.DrawSpells.Any(spell => spell.Id is < 1 or >= 64 || spell.Resistance is < 0 or > 255) || actor.DrawSpells.Select(spell => spell.Id).Distinct().Count() != actor.DrawSpells.Length)
+            if (string.IsNullOrWhiteSpace(actor.Id) || !ids.Add(actor.Id) || invalidName || invalidModel || actor.Costume < 0 || actor.MaximumHp < 0 || !hasNativeHpProjection && actor.MaximumHp > 1_000_000 || actor.MaximumHp == 0 && (actor.InitialActive || actor.NativeTemplate is null) || actor.CurrentHp < 0 || actor.CurrentHp > actor.MaximumHp || actor.Speed is < 1 or > AtbMaximum || actor.Attack is < 0 or > 1_000_000 || actor.Defense is < 0 or > 1_000_000 || actor.InitialAtb is < 0 or > AtbMaximum || actor.WeaponId < 0 || actor.EquipmentIds.Any(id => id < 0) || actor.Level < 0 || actor.Level > (actor.IsPlayer ? source.LevelRules.MaximumCharacterLevel : source.LevelRules.MaximumEnemyLevel) || actor.Magic is < 0 or > 255 || actor.Spirit is < 0 or > 255 || actor.PhysicalPower is < 0 or > 255 || actor.ElementAttack is < 0 or > 255 || actor.ElementAttackPercent is < 0 or > 255 || actor.DrainPercent is < 0 or > 255 || actor.ElementDefenses.Length != 8 || actor.ElementDefenses.Any(value => value is < 0 or > 2550) || actor.DrawSpells.Any(spell => spell.Id is < 1 or >= 64 || spell.Resistance is < 0 or > 255) || actor.DrawSpells.Select(spell => spell.Id).Distinct().Count() != actor.DrawSpells.Length)
             {
                 throw new ArgumentException($"Battle combatant '{actor.Id}' has invalid identity, vitals, stats or equipment.");
             }

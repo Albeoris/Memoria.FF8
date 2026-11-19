@@ -17,6 +17,7 @@ public sealed partial class MenuController
     private int newGamePlusMagicRow;
     private int newGamePlusSpell;
     private string newGamePlusMagicReview = "";
+    private static readonly string[] NgLevelCategories = ["enemy-level-cap", "character-level-cap", "party-level-bonus"];
     public bool IsNewGamePlusSetup { get; private set; }
     public Action? CancelNewGamePlusSetup { get; set; }
 
@@ -88,7 +89,58 @@ public sealed partial class MenuController
 
     private MenuEntry NgAction(string id, string label, string help, string action, string value = "", bool enabled = true) => new(id, label, help, Action: new(action, id, Value: value), Enabled: enabled);
     private string NgRewardHelp(bool experience) => experience ? NgText("exp.help", "Applies to character and GF EXP. The whole battle subtotal is scaled once, with halves rounded up. Zero disables EXP; other rewards continue.") : NgText("ap.help", "Applies to GF AP. The whole battle subtotal is scaled once, with halves rounded up. Zero disables AP; other rewards continue.");
-    private string NgCategoryLabel(string category) => NgText("category." + category, category switch { "characters" => "Character Levels", "exp" => "EXP Gain", "gf" => "Guardian Forces", "ap" => "AP Gain", "magic" => "Magic", "items" => "Items", "cards" => "Cards", _ => category });
+    private string NgCategoryLabel(string category) => NgText("category." + category, category switch
+    {
+        "characters" => "Character Levels",
+        "exp" => "EXP Gain",
+        "gf" => "Guardian Forces",
+        "ap" => "AP Gain",
+        "magic" => "Magic",
+        "items" => "Items",
+        "cards" => "Cards",
+        "enemy-level-cap" => "Maximum Enemy Level",
+        "character-level-cap" => "Maximum Character Level",
+        "party-level-bonus" => "Party Level Bonus",
+        _ => category
+    });
+
+    private string NgCategoryHelp(string category) => category switch
+    {
+        "exp" or "ap" => NgRewardHelp(category == "exp"),
+        "enemy-level-cap" => NgText("enemy-level-cap.help", "Cap enemy levels at a value from 1 to 300. The default is 100."),
+        "character-level-cap" => NgText("character-level-cap.help", "Cap starting and earned character levels at a value from 1 to 300. The default is 100."),
+        "party-level-bonus" => NgText("party-level-bonus.help", "Add 0 to 200 levels to the party average used to scale enemies. The default is 0."),
+        _ => NgText("category.help", "Choose a preset or open Config to edit starting values.")
+    };
+
+    private (int Value, int Min, int Max) NgLevelOption(string category)
+    {
+        GameplayLevelRules rules = newGamePlusDraft!.LevelRules;
+        return category switch
+        {
+            "enemy-level-cap" => (rules.MaximumEnemyLevel, 1, GameplayLevelRules.HighestLevel),
+            "character-level-cap" => (rules.MaximumCharacterLevel, 1, GameplayLevelRules.HighestLevel),
+            "party-level-bonus" => (rules.AdditionalPartyLevel, 0, GameplayLevelRules.HighestAdditionalPartyLevel),
+            _ => throw new ArgumentOutOfRangeException(nameof(category))
+        };
+    }
+
+    private void SetNgLevelOption(string category, int value)
+    {
+        (_, int min, int max) = NgLevelOption(category);
+        value = Math.Clamp(value, min, max);
+        NewGamePlusDraft draft = newGamePlusDraft!;
+        GameplayLevelRules rules = draft.LevelRules;
+        draft.SetLevelRules(category switch
+        {
+            "enemy-level-cap" => rules with { MaximumEnemyLevel = value },
+            "character-level-cap" => rules with { MaximumCharacterLevel = value },
+            "party-level-bonus" => rules with { AdditionalPartyLevel = value },
+            _ => throw new ArgumentOutOfRangeException(nameof(category))
+        });
+        _view = null;
+    }
+
     private NewGamePlusPreset NgCategoryPreset(string category) => category switch { "characters" => newGamePlusDraft!.CharacterPreset, "gf" => newGamePlusDraft!.GuardianForcePreset, "magic" => newGamePlusDraft!.MagicPreset, "items" => newGamePlusDraft!.ItemPreset, "cards" => newGamePlusDraft!.CardPreset, _ => NewGamePlusPreset.Custom };
 
     private IReadOnlyList<MenuEntry> NewGamePlusEntries()
@@ -97,9 +149,9 @@ public sealed partial class MenuController
         List<MenuEntry> entries = [];
         if (ScreenId == "new-game-plus")
         {
-            foreach (string category in new[] { "characters", "exp", "gf", "ap", "magic", "items", "cards" })
+            foreach (string category in new[] { "characters", "exp", "gf", "ap", "magic", "items", "cards" }.Concat(NgLevelCategories))
             {
-                entries.Add(NgAction(category, NgCategoryLabel(category), category is "exp" or "ap" ? NgRewardHelp(category == "exp") : NgText("category.help", "Choose a preset or open Config to edit starting values."), "ng-category"));
+                entries.Add(NgAction(category, NgCategoryLabel(category), NgCategoryHelp(category), "ng-category"));
             }
             entries.Add(NgAction("begin", NgText("begin", "Begin New Game+"), NgText("begin.help", "Review carryover and selected rules before starting."), "ng-review"));
         }
@@ -109,11 +161,14 @@ public sealed partial class MenuController
             {
                 case "exp":
                 case "ap":
-                    entries.Add(NgAction(newGamePlusCategory, NgCategoryLabel(newGamePlusCategory), NgRewardHelp(newGamePlusCategory == "exp"), "ng-number"));
+                case "enemy-level-cap":
+                case "character-level-cap":
+                case "party-level-bonus":
+                    entries.Add(NgAction(newGamePlusCategory, NgCategoryLabel(newGamePlusCategory), NgCategoryHelp(newGamePlusCategory), "ng-number"));
                     break;
                 case "characters":
                     entries.Add(NgAction("world", NgText("world", "Allow Party Changes on the World Map") + "   " + NgText(draft.AllowWorldMapPartyChanges ? "on" : "off", draft.AllowWorldMapPartyChanges ? "On" : "Off"), NgText("world.help", "Allow party exchange while controlling the world map before the normal story unlock."), "ng-world"));
-                    entries.Add(NgAction("all", NgText("global-level", "Level for All Characters"), NgText("global-level.help", "0: Individual / No Override. Values 1–100 override levels while retaining individual choices. Availability remains independent."), "ng-number"));
+                    entries.Add(NgAction("all", NgText("global-level", "Level for All Characters"), NgText("global-level.help", "Choose 0 to use individual levels, or set one starting level for all characters. The character level cap applies and availability stays independent."), "ng-number"));
                     foreach (NewGamePlusCharacter character in draft.Characters)
                     {
                         string id = character.CharacterId.ToString(CultureInfo.InvariantCulture);
@@ -249,6 +304,11 @@ public sealed partial class MenuController
                     slider.LabelWidthRatio = stacked ? 0 : 0.48f;
                     control = slider;
                 }
+                else if (NgLevelCategories.Contains(entry.Id))
+                {
+                    (int value, int min, int max) = NgLevelOption(entry.Id);
+                    control = NgSlider(entry.Id, entry.Label, value, min, max, 1, changed => SetNgLevelOption(entry.Id, (int)changed));
+                }
                 else if (entry.Id == "begin")
                 {
                     control = new UiButton { Text = entry.Label, Click = () => Activate(selected), FontSize = 23 * TextScale, DrawBackground = false };
@@ -298,7 +358,7 @@ public sealed partial class MenuController
                 }
             }
             Place(body, Panel(null, commands), 0);
-            bool hasNumber = TryNgNumber(out float value, out float max);
+            bool hasNumber = TryNgNumber(out float value, out float min, out float max);
             UiGrid detail = Grid(hasNumber ? [1, 3, 1] : [1, 3], [1], 8);
             string title = ScreenId == "new-game-plus-review" ? NgText("review.title", "Review New Game+") : ScreenId.Contains("abilit", StringComparison.Ordinal) ? NgGuardian(newGamePlusGuardian) : NgCategoryLabel(newGamePlusCategory);
             if (TextScale > 1.5f && SelectedEntry is { } selected)
@@ -316,7 +376,7 @@ public sealed partial class MenuController
             Place(detail, Panel(null, explanationScroll), 1);
             if (hasNumber)
             {
-                Place(detail, Panel(null, NgSlider("ng-selected-value", NgText("value", "Value"), value, 0, max, newGamePlusCategory is "exp" or "ap" ? 0.1f : 1, SetNgNumber)), 2);
+                Place(detail, Panel(null, NgSlider("ng-selected-value", NgText("value", "Value"), value, min, max, newGamePlusCategory is "exp" or "ap" ? 0.1f : 1, SetNgNumber)), 2);
             }
             if (TextScale > 1.5f)
             {
@@ -352,7 +412,8 @@ public sealed partial class MenuController
         Place(rows, world, 0);
         UiGrid global = Grid([1, 1], [1], 0);
         Place(global, Label(NgText("global-level", "Level for All Characters") + (draft.GlobalLevel == 0 ? " · " + NgText("individual", "Individual / No Override") : ""), 18, UiTextFlow.Wrap), 0);
-        UiNumericSlider all = NgSlider("all", "", draft.GlobalLevel, 0, 100, 1, value =>
+        int maximum = draft.LevelRules.MaximumCharacterLevel;
+        UiNumericSlider all = NgSlider("all", "", Math.Min(draft.GlobalLevel, maximum), 0, maximum, 1, value =>
         {
             draft.SetGlobalLevel((int)value);
             _view = null;
@@ -379,7 +440,7 @@ public sealed partial class MenuController
             {
                 Place(row, portrait, 0);
             }
-            UiNumericSlider level = NgSlider("level-" + character.CharacterId, accessible ? "" : NgCharacter(character.CharacterId), draft.GlobalLevel == 0 ? character.IndividualLevel : draft.GlobalLevel, 1, 100, 1, value =>
+            UiNumericSlider level = NgSlider("level-" + character.CharacterId, accessible ? "" : NgCharacter(character.CharacterId), Math.Min(draft.GlobalLevel == 0 ? character.IndividualLevel : draft.GlobalLevel, maximum), 1, maximum, 1, value =>
             {
                 draft.SetLevel(character.CharacterId, (int)value);
                 _view = null;
@@ -467,9 +528,10 @@ public sealed partial class MenuController
         _view = null;
     }
 
-    private bool TryNgNumber(out float value, out float max)
+    private bool TryNgNumber(out float value, out float min, out float max)
     {
         value = 0;
+        min = 0;
         max = 100;
         if (SelectedEntry?.Action?.Kind != "ng-number" || ScreenId != "new-game-plus-config")
         {
@@ -482,13 +544,20 @@ public sealed partial class MenuController
             value = (newGamePlusCategory == "exp" ? draft.ExperienceMultiplierTenths : draft.ApMultiplierTenths) / 10f;
             max = 10;
         }
+        else if (NgLevelCategories.Contains(newGamePlusCategory))
+        {
+            (value, min, max) = NgLevelOption(newGamePlusCategory);
+        }
         else if (id == "all")
         {
-            value = draft.GlobalLevel;
+            max = draft.LevelRules.MaximumCharacterLevel;
+            value = Math.Min(draft.GlobalLevel, max);
         }
         else if (id.StartsWith("level-", StringComparison.Ordinal))
         {
-            value = draft.GlobalLevel != 0 ? draft.GlobalLevel : draft.Characters.Single(character => character.CharacterId == byte.Parse(id[6..], CultureInfo.InvariantCulture)).IndividualLevel;
+            min = 1;
+            max = draft.LevelRules.MaximumCharacterLevel;
+            value = Math.Min(draft.GlobalLevel != 0 ? draft.GlobalLevel : draft.Characters.Single(character => character.CharacterId == byte.Parse(id[6..], CultureInfo.InvariantCulture)).IndividualLevel, max);
         }
         else if (newGamePlusCategory == "items")
         {
@@ -521,6 +590,10 @@ public sealed partial class MenuController
             {
                 SetNgReward(newGamePlusCategory, value);
             }
+            else if (NgLevelCategories.Contains(newGamePlusCategory))
+            {
+                SetNgLevelOption(newGamePlusCategory, (int)value);
+            }
             else if (id == "all")
             {
                 draft.SetGlobalLevel((int)value);
@@ -552,7 +625,13 @@ public sealed partial class MenuController
     private string NgSummary()
     {
         NewGamePlusDraft draft = newGamePlusDraft!;
-        return string.Join("\n", new[] { "characters", "gf", "magic", "items", "cards" }.Select(category => NgCategoryLabel(category) + ": " + NgPreset(NgCategoryPreset(category)))) + "\nEXP " + (draft.ExperienceMultiplierTenths / 10m).ToString("0.0", CultureInfo.CurrentCulture) + "× · AP " + (draft.ApMultiplierTenths / 10m).ToString("0.0", CultureInfo.CurrentCulture) + "×\n" + NgText("difficulty", "Difficulty") + ": " + draft.Settings.Difficulty + "\n" + NgText("global-level", "Level for All Characters") + ": " + (draft.GlobalLevel == 0 ? NgText("individual", "Individual / No Override") : draft.GlobalLevel.ToString(CultureInfo.CurrentCulture)) + (draft.MagicOverflow.Length == 0 ? "" : "\n" + NgText("overflow", "Magic overflow is retained in the original personal banks.") + " " + draft.MagicOverflow.Sum(move => move.Quantity));
+        string presets = string.Join("\n", new[] { "characters", "gf", "magic", "items", "cards" }.Select(category => NgCategoryLabel(category) + ": " + NgPreset(NgCategoryPreset(category))));
+        string rewards = "EXP " + (draft.ExperienceMultiplierTenths / 10m).ToString("0.0", CultureInfo.CurrentCulture) + "× · AP " + (draft.ApMultiplierTenths / 10m).ToString("0.0", CultureInfo.CurrentCulture) + "×";
+        string difficulty = NgText("difficulty", "Difficulty") + ": " + draft.Settings.Difficulty;
+        string level = NgText("global-level", "Level for All Characters") + ": " + (draft.GlobalLevel == 0 ? NgText("individual", "Individual / No Override") : Math.Min(draft.GlobalLevel, draft.LevelRules.MaximumCharacterLevel).ToString(CultureInfo.CurrentCulture));
+        string levelRules = string.Join("\n", NgLevelCategories.Select(category => NgCategoryLabel(category) + ": " + NgLevelOption(category).Value.ToString(CultureInfo.CurrentCulture)));
+        string overflow = draft.MagicOverflow.Length == 0 ? "" : "\n" + NgText("overflow", "Magic overflow is retained in the original personal banks.") + " " + draft.MagicOverflow.Sum(move => move.Quantity);
+        return string.Join("\n", presets, rewards, difficulty, level, levelRules) + overflow;
     }
 
     private string NgRetainedMagic(int spell)
@@ -649,12 +728,16 @@ public sealed partial class MenuController
                 string category = SelectedEntry.Id;
                 SetNgReward(category, ((category == "exp" ? newGamePlusDraft!.ExperienceMultiplierTenths : newGamePlusDraft!.ApMultiplierTenths) + direction) / 10f);
             }
+            else if (ScreenId == "new-game-plus" && SelectedEntry?.Id is string levelCategory && NgLevelCategories.Contains(levelCategory))
+            {
+                SetNgLevelOption(levelCategory, NgLevelOption(levelCategory).Value + direction);
+            }
             else if (ScreenId == "new-game-plus" && SelectedEntry?.Id is string category && category != "begin")
             {
                 NewGamePlusPreset alternate = category is "characters" or "gf" ? NewGamePlusPreset.Native : NewGamePlusPreset.Empty;
                 RequestNgReset(category, NgCategoryPreset(category) == NewGamePlusPreset.Stored ? alternate : NewGamePlusPreset.Stored);
             }
-            else if (TryNgNumber(out float value, out _))
+            else if (TryNgNumber(out float value, out _, out _))
             {
                 SetNgNumber(value + direction * (newGamePlusCategory is "exp" or "ap" ? 0.1f : 1));
             }

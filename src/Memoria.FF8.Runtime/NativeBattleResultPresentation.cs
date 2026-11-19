@@ -28,9 +28,9 @@ public static class NativeBattleResultPresentation
             NativeCharacterVital previous = before.Records[row];
             NativeCharacterVital final = after.Records[row];
             NativeStatCurve curve = after.Definitions.Characters[final.CharacterId];
-            byte previousLevel = NativeStatDefinitions.Level(previous.Experience, curve);
-            byte finalLevel = NativeStatDefinitions.Level(final.Experience, curve);
-            return new BattleCharacterRewardPresentation(row, previous.Experience, final.Experience, previousLevel, finalLevel, ExperienceToNextLevel(previous.Experience, previousLevel, curve), ExperienceToNextLevel(final.Experience, finalLevel, curve));
+            int previousLevel = before.CharacterLevel(previous);
+            int finalLevel = after.CharacterLevel(final);
+            return new BattleCharacterRewardPresentation(row, previous.Experience, final.Experience, previousLevel, finalLevel, NativeStatDefinitions.ExperienceToNextLevel(previous.Experience, before.Definitions.Characters[previous.CharacterId], before.MaximumCharacterLevel), NativeStatDefinitions.ExperienceToNextLevel(final.Experience, curve, after.MaximumCharacterLevel));
         }).ToArray();
     }
 
@@ -55,15 +55,5 @@ public static class NativeBattleResultPresentation
             }
         }
         return notices.ToArray();
-    }
-
-    private static uint ExperienceToNextLevel(uint experience, byte level, NativeStatCurve curve)
-    {
-        if (level >= 100)
-        {
-            return 0;
-        }
-        uint threshold = (uint)(level * level * curve.ExperienceFraction / 256 + level * 10 * curve.ExperienceStep);
-        return threshold > experience ? threshold - experience : 0;
     }
 }

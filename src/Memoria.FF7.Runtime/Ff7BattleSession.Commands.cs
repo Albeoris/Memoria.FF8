@@ -1067,7 +1067,7 @@ public sealed partial class Ff7BattleSession
         Ff7BattleRng candidate = new(kernel[2].Data.Span, random.Capture());
         bool completed = progress.CompletedBattles.Any(receipt => receipt.FieldGeneration == fieldGeneration && receipt.RequestId == RequestId);
         Ff7Progress resultProgress = completed ? progress : PublishVitals(progress);
-        return Ff7DebugVictory.Project(resultProgress, Formation, kernel, fieldGeneration, RequestId, candidate, IsDefeated, guestStoryCharacters: guestStoryCharacters, suppressRewards: (state.RequestFlags & 0x80) != 0, experienceReward: ReadActorExperienceReward, gilReward: ReadActorGilReward);
+        return Ff7DebugVictory.Project(resultProgress, Formation, kernel, fieldGeneration, RequestId, candidate, IsDefeated, guestStoryCharacters: guestStoryCharacters, suppressRewards: (state.RequestFlags & 0x80) != 0, experienceReward: ReadActorExperienceReward, gilReward: ReadActorGilReward, maximumCharacterLevel: state.MaximumCharacterLevel);
     }
 
     public Ff7BattleReward PreviewVictory()

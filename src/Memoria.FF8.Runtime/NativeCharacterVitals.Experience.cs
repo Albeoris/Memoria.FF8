@@ -47,19 +47,20 @@ public sealed partial record NativeCharacterVitals
         {
             NativeCharacterVital character = records[row];
             NativeStatCurve curve = Definitions.Characters[character.CharacterId];
-            int previousLevel = NativeStatDefinitions.Level(character.Experience, curve);
+            int previousLevel = CharacterLevel(character);
             uint experience = unchecked(character.Experience + points);
-            int level = NativeStatDefinitions.Level(experience, curve);
-            if (level == 100)
+            int level = NativeStatDefinitions.Level(experience, curve, MaximumCharacterLevel);
+            if (level == MaximumCharacterLevel)
             {
                 // Original496E03..496E51 indexes this cap by physical row, even for a substituted dream identity.
-                experience = MaximumExperience(Definitions.Characters[row]);
+                NativeStatCurve capCurve = MaximumCharacterLevel == GameplayLevelRules.DefaultMaximumLevel ? Definitions.Characters[row] : curve;
+                experience = NativeStatDefinitions.ExperienceForLevel(MaximumCharacterLevel, capCurve);
             }
             BattleNativeCharacterGrowth growth = character.Growth;
             int hitPointGain = 0;
             int[] statGains = new int[6];
             int levelsGained = level - previousLevel;
-            if (previousLevel != 100 && levelsGained > 0)
+            if (levelsGained > 0)
             {
                 uint flags = definition.ReadCharacterAbilityFlags(character.Junction.Abilities);
                 if ((flags & 0x80) != 0)
@@ -83,17 +84,12 @@ public sealed partial record NativeCharacterVitals
             NativeGuardianForceVital gf = guardianForces[id];
             NativeStatCurve curve = Definitions.GuardianForces[id];
             uint experience = unchecked(gf.Experience + points);
-            if (NativeStatDefinitions.Level(experience, curve) == 100)
+            if (NativeStatDefinitions.Level(experience, curve) == GameplayLevelRules.DefaultMaximumLevel)
             {
-                experience = MaximumExperience(curve);
+                experience = NativeStatDefinitions.ExperienceForLevel(GameplayLevelRules.DefaultMaximumLevel, curve);
             }
             guardianForces[id] = gf with { Experience = experience };
         }
         return (this with { Records = records, GuardianForces = guardianForces }).RebuildParty();
-    }
-
-    private static uint MaximumExperience(NativeStatCurve curve)
-    {
-        return (uint)(9801 * curve.ExperienceFraction / 256 + 990 * curve.ExperienceStep);
     }
 }

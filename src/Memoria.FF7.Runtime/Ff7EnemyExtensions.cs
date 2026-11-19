@@ -14,6 +14,19 @@ public sealed record Ff7EnemyIntegrationContext(Ff7EnemyIntegrationPreference Pr
 {
     public bool Effective => Preference == Ff7EnemyIntegrationPreference.Enabled || Preference == Ff7EnemyIntegrationPreference.Automatic && EnteredFromFf8;
 }
+public sealed record Ff7EnemyLevelRules(int MaximumEnemyLevel = 100, int MaximumCharacterLevel = 100, int AdditionalPartyLevel = 0)
+{
+    public const int HighestLevel = 300;
+
+    internal void Validate()
+    {
+        if (MaximumEnemyLevel is < 1 or > HighestLevel || MaximumCharacterLevel is < 1 or > HighestLevel || AdditionalPartyLevel is < 0 or > 200)
+        {
+            throw new InvalidDataException("Invalid FFVII autoleveling rules.");
+        }
+    }
+}
+
 public sealed record Ff7EnemyDrawSlot(byte MagicId, byte Resistance);
 public sealed record Ff7EnemyDrawTier(int MinimumDelta, Ff7EnemyDrawSlot[] Slots);
 public sealed record Ff7EnemyItemReplacement(int MinimumDelta, string Channel, [property: JsonRequired] short FromItemId, [property: JsonRequired] short ToItemId);
@@ -23,6 +36,7 @@ public sealed record Ff7EnemyExtensionDelta
     public short EnemyId { get; init; }
     public string? ScanDescription { get; init; }
     public bool? ScaleLevel { get; init; }
+    internal bool ScalesLevel => ScaleLevel ?? Growth is { Count: > 0 };
     public Dictionary<string, int[]>? Growth { get; init; }
     public Dictionary<string, int[]>? RewardGrowth { get; init; }
     public Ff7EnemyDrawTier[]? DrawTiers { get; init; }
@@ -112,6 +126,7 @@ public sealed class Ff7EnemyExtensionCatalog
     public static Ff7EnemyExtensionCatalog Empty { get; } = new([]);
     private readonly Dictionary<short, Ff7EnemyExtensionDelta> enemies = [];
     public int Count => enemies.Count;
+    internal bool ScalesLevels => enemies.Values.Any(enemy => enemy.ScalesLevel);
 
     public Ff7EnemyExtensionCatalog(IEnumerable<Ff7EnemyExtensionDocument> documents)
     {
@@ -170,7 +185,7 @@ public sealed class Ff7EnemyExtensionCatalog
             return baseline;
         }
         Int128 d = Math.Max(1, 100 - baseLevel);
-        Int128 n = Math.Min(level - baseLevel, (int)d);
+        Int128 n = level - baseLevel;
         Int128 numerator = checked(coefficients[0] * d * d * d + coefficients[1] * n * d * d + coefficients[2] * n * n * d + coefficients[3] * n * n * n);
         Int128 value = checked(baseline * numerator) / (1_000_000 * d * d * d);
         uint ceiling = Math.Max(baseline, maximum);
@@ -178,7 +193,7 @@ public sealed class Ff7EnemyExtensionCatalog
     }
 }
 
-public sealed record Ff7ResolvedEnemyExtension(int ActorSlot, short EnemyId, byte BaseLevel, byte Level, string? ScanDescription, Ff7EnemyDrawSlot[] DrawSlots, uint Hp, ushort Mp, byte Attack, byte Magic)
+public sealed record Ff7ResolvedEnemyExtension(int ActorSlot, short EnemyId, ushort BaseLevel, ushort Level, string? ScanDescription, Ff7EnemyDrawSlot[] DrawSlots, uint Hp, ushort Mp, byte Attack, byte Magic)
 {
     public uint Experience { get; init; }
     public uint Gil { get; init; }
@@ -208,7 +223,7 @@ public sealed partial class Ff7BattleSession
             {
                 return enemy;
             }
-            if (extension.EnemyId != enemy.Placement.EnemyId || extension.Level < extension.BaseLevel || extension.DrawSlots is null || extension.Items is null || extension.DrawSlots.Any(slot => slot is null || slot.MagicId is < 1 or > 56))
+            if (extension.EnemyId != enemy.Placement.EnemyId || extension.BaseLevel != enemy.Level || extension.Level > Ff7EnemyLevelRules.HighestLevel || extension.DrawSlots is null || extension.Items is null || extension.DrawSlots.Any(slot => slot is null || slot.MagicId is < 1 or > 56))
             {
                 throw new InvalidDataException("A resolved enemy extension does not match its source actor or level/Draw contract.");
             }
@@ -223,13 +238,13 @@ public sealed partial class Ff7BattleSession
         }).ToArray() };
     }
 
-    private static Ff7ResolvedEnemyExtension[] ResolveEnemyExtensions(SceneBattleData source, Ff7EnemyExtensionCatalog? catalog, IReadOnlyList<byte>? partyLevels)
+    private static Ff7ResolvedEnemyExtension[] ResolveEnemyExtensions(SceneBattleData source, Ff7EnemyExtensionCatalog? catalog, IReadOnlyList<int>? partyLevels, Ff7EnemyLevelRules rules)
     {
         if (catalog is null || partyLevels is not { Count: > 0 })
         {
             return [];
         }
-        int partyLevel = partyLevels.Sum(l => (int)l) / partyLevels.Count;
+        int partyLevel = partyLevels.Sum(level => Math.Min(level, rules.MaximumCharacterLevel)) / partyLevels.Count + rules.AdditionalPartyLevel;
         List<Ff7ResolvedEnemyExtension> result = [];
         foreach (SceneBattleEnemy enemy in source.Enemies)
         {
@@ -238,19 +253,19 @@ public sealed partial class Ff7BattleSession
             {
                 continue;
             }
-            bool scaleLevel = delta.ScaleLevel ?? delta.Growth is { Count: > 0 };
-            byte level = scaleLevel ? (byte)Math.Max(enemy.Level, Math.Min(100, partyLevel)) : enemy.Level;
+            ushort level = delta.ScalesLevel ? (ushort)Math.Clamp(Math.Max(enemy.Level, partyLevel), 1, rules.MaximumEnemyLevel) : enemy.Level;
+            int growthDelta = Math.Max(0, level - enemy.Level);
             int Grow(string stat, int value, int maximum) => delta.Growth?.TryGetValue(stat, out int[]? row) == true ? Ff7EnemyExtensionCatalog.Scale(value, level, enemy.Level, row, maximum) : value;
-            Ff7EnemyDrawSlot[] draw = delta.DrawTiers?.LastOrDefault(t => t.MinimumDelta <= level - enemy.Level)?.Slots ?? [];
+            Ff7EnemyDrawSlot[] draw = delta.DrawTiers?.LastOrDefault(t => t.MinimumDelta <= growthDelta)?.Slots ?? [];
             uint Reward(string channel, uint value, uint maximum) => Ff7EnemyExtensionCatalog.ScaleUnsigned(value, level, enemy.Level, delta.RewardGrowth?.GetValueOrDefault(channel), maximum);
             SceneItemSlot[] items = enemy.Rewards.Items.Select(item =>
             {
                 string channel = (item.Rate & 128) != 0 ? "steal" : "drop";
-                Ff7EnemyItemReplacement? replacement = delta.ItemReplacements?.Where(r => r.Channel == channel && r.FromItemId == item.ItemId && r.MinimumDelta <= level - enemy.Level).OrderBy(r => r.MinimumDelta).LastOrDefault();
+                Ff7EnemyItemReplacement? replacement = delta.ItemReplacements?.Where(r => r.Channel == channel && r.FromItemId == item.ItemId && r.MinimumDelta <= growthDelta).OrderBy(r => r.MinimumDelta).LastOrDefault();
                 return replacement is null ? item : item with { ItemId = replacement.ToItemId };
             }).ToArray();
             short nativeMorph = System.Buffers.Binary.BinaryPrimitives.ReadInt16LittleEndian(enemy.Rewards.Raw.Span.Slice(160, 2));
-            Ff7EnemyItemReplacement? morphReplacement = delta.ItemReplacements?.Where(r => r.Channel == "morph" && r.FromItemId == nativeMorph && r.MinimumDelta <= level - enemy.Level).OrderBy(r => r.MinimumDelta).LastOrDefault();
+            Ff7EnemyItemReplacement? morphReplacement = delta.ItemReplacements?.Where(r => r.Channel == "morph" && r.FromItemId == nativeMorph && r.MinimumDelta <= growthDelta).OrderBy(r => r.MinimumDelta).LastOrDefault();
             uint hp = Ff7EnemyExtensionCatalog.ScaleUnsigned(enemy.MaxHitPoints, level, enemy.Level, delta.Growth?.GetValueOrDefault("hp"), int.MaxValue);
             result.Add(new(enemy.FormationSlot + 4, enemy.Placement.EnemyId, enemy.Level, level, delta.ScanDescription, draw, hp, (ushort)Grow("mp", enemy.MaxMagicPoints, ushort.MaxValue), (byte)Grow("attack", enemy.Strength, byte.MaxValue), (byte)Grow("magic", enemy.Magic, byte.MaxValue)) { Experience = Reward("exp", enemy.Rewards.Experience, uint.MaxValue), Gil = Reward("gil", enemy.Rewards.Gil, uint.MaxValue), AbilityPoints = (ushort)Reward("ap", enemy.Rewards.AbilityPoints, ushort.MaxValue), Items = items, MorphItemId = morphReplacement?.ToItemId });
         }

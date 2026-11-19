@@ -9,7 +9,7 @@ public sealed partial record NativeCharacterVitals
         NativeCharacterVital character = Records[physicalRow];
         byte spell = character.Junction.MagicJunctions[0];
         int quantity = MagicJunctionPolicy.GetEffectiveCount(this, physicalRow, spell);
-        return Definitions.CharacterMaximum(character.CharacterId, NativeStatDefinitions.Level(character.Experience, Definitions.Characters[character.CharacterId]), EffectiveGrowth(character).HitPointBonus, spell, quantity, character.Junction.Abilities);
+        return Definitions.CharacterMaximum(character.CharacterId, CharacterLevel(character), EffectiveGrowth(character).HitPointBonus, spell, quantity, character.Junction.Abilities);
     }
 
     private ushort MagicMaximumHitPoints(NativeCharacterVital character)
@@ -17,7 +17,7 @@ public sealed partial record NativeCharacterVitals
         int row = Array.FindIndex(Records, record => record.CharacterId == character.CharacterId);
         byte spell = character.Junction.MagicJunctions[0];
         int quantity = MagicJunctionPolicy.GetEffectiveCount(this, row, spell);
-        return Definitions.CharacterMaximum(character.CharacterId, NativeStatDefinitions.Level(character.Experience, Definitions.Characters[character.CharacterId]), EffectiveGrowth(character).HitPointBonus, spell, quantity, character.Junction.Abilities);
+        return Definitions.CharacterMaximum(character.CharacterId, CharacterLevel(character), EffectiveGrowth(character).HitPointBonus, spell, quantity, character.Junction.Abilities);
     }
 
     public int? ResolveFieldMagicCaster(int selectedRow, int spellId, Func<int, BattleNativePlayerStatRules> readRules, NativeWorldControlState? controls = null)

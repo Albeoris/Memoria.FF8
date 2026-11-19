@@ -7,23 +7,32 @@ namespace Memoria.FF8.Assets;
 
 public sealed partial class BattleAssets
 {
-    private readonly Dictionary<(int Model, byte SceneLevel), NativeBattleEnemyTemplate> enemyTemplates = [];
-    public NativeBattleEnemyTemplate ReadEnemyTemplate(int modelId, byte sceneLevel)
+    private readonly Dictionary<(int Model, int MaximumLevel), NativeBattleEnemyTemplate> enemyTemplates = [];
+    public NativeBattleEnemyTemplate ReadEnemyTemplate(int modelId, byte sceneLevel, int maximumLevel = GameplayLevelRules.DefaultMaximumLevel)
     {
-        if (enemyTemplates.TryGetValue((modelId, sceneLevel), out NativeBattleEnemyTemplate? cached))
+        if (maximumLevel is < 1 or > GameplayLevelRules.HighestLevel)
         {
-            return cached;
+            throw new ArgumentOutOfRangeException(nameof(maximumLevel));
         }
-        BattleEnemyNativeStats stats = ReadEnemyNativeStats(modelId);
-        NativeBattleEnemyLevel[] levels = new NativeBattleEnemyLevel[101];
+        if (enemyTemplates.TryGetValue((modelId, maximumLevel), out NativeBattleEnemyTemplate? cached))
+        {
+            return cached with { SceneLevel = sceneLevel };
+        }
+        byte[] bytes = Read($"c0m{modelId:000}.dat");
+        BattleEnemyNativeStats stats = BattleEnemyNativeStats.ReadMonster(bytes);
+        int information = EnemyDrawInformation(bytes);
+        NativeBattleDrawSlot[][] drawTables = ReadEnemyDrawTables(bytes, information);
+        BattleDrawSpell[][] spells = drawTables.Select(band => band.Where(slot => slot.Id is > 0 and < 64).Select(slot => new BattleDrawSpell(slot.Id, slot.Resistance)).ToArray()).ToArray();
+        int[][] guardianForces = drawTables.Select(band => band.Where(slot => slot.Id >= 64).Select(slot => slot.Id - 64).ToArray()).ToArray();
+        NativeBattleEnemyLevel[] levels = new NativeBattleEnemyLevel[maximumLevel + 1];
         for (int level = 0; level < levels.Length; level++)
         {
             BattleEnemyNativeProjection projection = stats.Project(level);
-            NativeBattleAiDefinition ai = ReadEnemyAi(modelId, level);
-            levels[level] = new(projection.MaximumHp, projection.Strength, projection.Vitality, projection.Magic, projection.Spirit, projection.Speed, projection.ElementDefenses.Select(value => (int)value).ToArray(), ReadEnemyDrawSpells(modelId, level), ReadEnemyDrawGuardianForces(modelId, level), ai.LevelBand) { Evasion = projection.Evasion, BaseStatistics = projection.BaseStatistics.ToArray() };
+            int band = EnemyLevelBand(bytes, information, level);
+            levels[level] = new(projection.MaximumHp, projection.Strength, projection.Vitality, projection.Magic, projection.Spirit, projection.Speed, projection.ElementDefenses.Select(value => (int)value).ToArray(), spells[band], guardianForces[band], band) { Evasion = projection.Evasion, BaseStatistics = projection.BaseStatistics.ToArray() };
         }
-        NativeBattleEnemyTemplate template = new(sceneLevel, levels) { NativeDrawTables = ReadEnemyDrawTables(modelId), Information246 = ReadEnemyNativeInformation246(modelId), Information254 = ReadEnemyNativeEntryFlags(modelId), NativeMug = ReadEnemyNativeMugData(modelId), NativeSpecial = ReadNativeEnemySpecial(modelId), NativeCombatantFlags = ReadEnemyNativeCombatantFlags(modelId), NativeStatusAllocation = ReadEnemyNativeStatusData(modelId) };
-        enemyTemplates.Add((modelId, sceneLevel), template);
+        NativeBattleEnemyTemplate template = new(sceneLevel, levels) { NativeDrawTables = drawTables, Information246 = ReadEnemyNativeInformation246(modelId), Information254 = ReadEnemyNativeEntryFlags(modelId), NativeMug = ReadEnemyNativeMugData(modelId), NativeSpecial = ReadNativeEnemySpecial(modelId), NativeCombatantFlags = ReadEnemyNativeCombatantFlags(modelId), NativeStatusAllocation = ReadEnemyNativeStatusData(modelId) };
+        enemyTemplates.Add((modelId, maximumLevel), template);
         return template;
     }
 
@@ -40,7 +49,7 @@ public sealed partial class BattleAssets
         {
             throw new InvalidDataException("Enemy GF Draw metadata exceeds the original information section.");
         }
-        int band = level < bytes[information + 244] ? 0 : level < bytes[information + 245] ? 1 : 2;
+        int band = EnemyLevelBand(bytes, information, level);
         return Enumerable.Range(0, 4).Select(slot => (int)bytes[information + 260 + band * 8 + 2 * slot]).Where(id => id >= 64).Select(id => id - 64).ToArray();
     }
 
@@ -100,7 +109,7 @@ public sealed partial class BattleAssets
                 abilities[index] = new(command, sequence, id);
             }
         }
-        int band = level < bytes[information + 244] ? 0 : level < bytes[information + 245] ? 1 : 2;
+        int band = EnemyLevelBand(bytes, information, level);
         bool? deathSequenceReleasesAllocation = includeDeathLifecycle ? false : null;
         if (includeDeathLifecycle && sections == 11)
         {

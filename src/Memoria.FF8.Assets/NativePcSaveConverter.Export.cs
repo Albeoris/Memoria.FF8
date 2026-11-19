@@ -66,7 +66,7 @@ public static partial class NativePcSaveConverter
 
     private static byte[] ExportCore(GameState state, short? originalPlaceId = null)
     {
-        if (state.Ff8Completion is not null || state.CompletedGame is not null || state.NewGamePlus is not null || state.NewGamePlusRewards is not null)
+        if (state.Ff8Completion is not null || state.CompletedGame is not null || state.NewGamePlus is not null || state.NewGamePlusRewards is not null || state.CharacterVitals is { MaximumCharacterLevel: not GameplayLevelRules.DefaultMaximumLevel })
         {
             throw new NotSupportedException("Completed games and New Game+ rules require Memoria format. Choose a Memoria destination to preserve them.");
         }

@@ -214,6 +214,7 @@ public sealed record BattleDefinition
         ? NativeBattleSlots.FormationSlotCount + (AddedEnemySources?.Count ?? 0)
         : Combatants.Count(actor => !actor.IsPlayer);
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public GameplayLevelRules LevelRules { get; init; } = GameplayLevelRules.Default;
     public ImmutableSortedDictionary<int, ExpandedEnemyLevelProfile>? ExpandedEnemyLevels { get; init; }
     public BattleActionDefinition[] ActionDefinitions { get; init; } = [];
     public BattleNativeAction[] NativeActions { get; init; } = [];
@@ -601,7 +602,7 @@ public sealed partial class BattleCombatant
     {
         if (definition.NativeTemplate is null && ExpandedEnemyLevels is { } expanded)
         {
-            if (level is < 1 or > 100)
+            if (level < 1 || level > expanded.Levels.Length)
             {
                 throw new InvalidDataException("Expanded enemy level exceeds its installed level projections.");
             }

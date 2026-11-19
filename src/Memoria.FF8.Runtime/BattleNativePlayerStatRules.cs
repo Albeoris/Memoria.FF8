@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 public sealed record BattleNativePlayerStatistics(ushort MaximumHp, int Strength, int Vitality, int Magic, int Spirit, int Speed, int Luck, int Hit, int Evasion, ImmutableArray<int> ElementDefenses, int ElementAttack, int ElementAttackPercent);
 
 /// <summary>Immutable original inputs for495960 and the496xxx player-stat consumers.</summary>
-public sealed record BattleNativePlayerStatRules(int CharacterId, byte Level, ImmutableArray<byte> CharacterRecord, ImmutableArray<byte> WeaponRecord, ImmutableArray<ImmutableArray<byte>> MagicRecords, ImmutableArray<ImmutableArray<byte>> PassiveRecords, ImmutableArray<byte> MagicJunctions, uint Abilities, NativeStatDefinitions SavedDefinitions)
+public sealed record BattleNativePlayerStatRules(int CharacterId, int Level, ImmutableArray<byte> CharacterRecord, ImmutableArray<byte> WeaponRecord, ImmutableArray<ImmutableArray<byte>> MagicRecords, ImmutableArray<ImmutableArray<byte>> PassiveRecords, ImmutableArray<byte> MagicJunctions, uint Abilities, NativeStatDefinitions SavedDefinitions)
 {
     public bool LevelBasedStatBonuses { get; init; }
 
@@ -13,7 +13,7 @@ public sealed record BattleNativePlayerStatRules(int CharacterId, byte Level, Im
 
     public void Validate()
     {
-        if (CharacterId is < 0 or > 10 || Level is < 1 or > 100 || CharacterRecord.IsDefault || CharacterRecord.Length != 36 || WeaponRecord.IsDefault || WeaponRecord.Length != 12 || MagicRecords.IsDefault || MagicRecords.Length != 57 || MagicRecords.Any(record => record.IsDefault || record.Length != 60) || PassiveRecords.IsDefault || PassiveRecords.Length != 19 || PassiveRecords.Any(record => record.IsDefault || record.Length != 8) || MagicJunctions.IsDefault || MagicJunctions.Length != 20 || MagicJunctions.Take(19).Any(spell => spell >= 57))
+        if (CharacterId is < 0 or > 10 || Level is < 1 or > GameplayLevelRules.HighestLevel || CharacterRecord.IsDefault || CharacterRecord.Length != 36 || WeaponRecord.IsDefault || WeaponRecord.Length != 12 || MagicRecords.IsDefault || MagicRecords.Length != 57 || MagicRecords.Any(record => record.IsDefault || record.Length != 60) || PassiveRecords.IsDefault || PassiveRecords.Length != 19 || PassiveRecords.Any(record => record.IsDefault || record.Length != 8) || MagicJunctions.IsDefault || MagicJunctions.Length != 20 || MagicJunctions.Take(19).Any(spell => spell >= 57))
         {
             throw new InvalidDataException("Native player statistic rules require complete original records and saved junction inputs.");
         }
@@ -55,6 +55,10 @@ public sealed record BattleNativePlayerStatRules(int CharacterId, byte Level, Im
             int baseValue = kind is 5 or 8 ? Level * data[0] + Level / data[1] - Level / data[3] + data[2] : (data[2] + Level * data[0] / 10 + Level / data[1] - Level * Level / data[3] / 2) / 4;
             int weaponBonus = kind == 1 ? WeaponRecord[8] : 0;
             int value = Math.Min(255, growth.StatBonuses[bonus] + baseValue + junctionBonus + weaponBonus);
+            if (Level > GameplayLevelRules.DefaultMaximumLevel)
+            {
+                value = Math.Max(0, value);
+            }
             return Math.Min(255, value * Percentage(kind == 8 ? 8 : kind) / 100);
         }
         int speed = Stat(5, 28, 5, 4);

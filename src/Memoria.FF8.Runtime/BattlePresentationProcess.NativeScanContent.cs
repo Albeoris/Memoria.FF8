@@ -9,6 +9,11 @@ public sealed partial class BattlePresentationProcess
         return (hostedFrameServices?.ReadScanDescriptor ?? throw new InvalidOperationException("Hosted Scan requires its current canonical descriptor reader."))(owner);
     }
 
+    private int ReadNativeScanLevel(BattleModelOwner owner)
+    {
+        return (hostedFrameServices?.ReadScanLevel ?? throw new InvalidOperationException("Hosted Scan requires its current combatant level reader."))(owner);
+    }
+
     private byte[] ReadNativeScanEnemyInformation(BattleModelOwner owner)
     {
         NativeBattleGraphicsState graphics = RequireNativeGraphics();

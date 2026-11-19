@@ -27,7 +27,7 @@ public sealed record SceneCameraPlacement(Vector3 Position, Vector3 Focus)
     [System.Text.Json.Serialization.JsonIgnore]
     public ushort? FocalLength { get; init; }
 }
-public sealed record SceneBattleEnemy(int FormationSlot, SceneEnemyInstance Placement, uint InitialConditionFlags, SceneEnemyReward Rewards, byte Level, byte Speed, byte Luck, byte Evasion, byte Strength, byte Defense, byte Magic, byte MagicDefense, uint MaxHitPoints, ushort MaxMagicPoints, uint NativeStatusMask, IReadOnlyList<SceneEnemyAffinity> Affinities, IReadOnlyList<SceneEnemyAttack> Attacks, IReadOnlyList<ReadOnlyMemory<byte>>? Scripts);
+public sealed record SceneBattleEnemy(int FormationSlot, SceneEnemyInstance Placement, uint InitialConditionFlags, SceneEnemyReward Rewards, ushort Level, byte Speed, byte Luck, byte Evasion, byte Strength, byte Defense, byte Magic, byte MagicDefense, uint MaxHitPoints, ushort MaxMagicPoints, uint NativeStatusMask, IReadOnlyList<SceneEnemyAffinity> Affinities, IReadOnlyList<SceneEnemyAttack> Attacks, IReadOnlyList<ReadOnlyMemory<byte>>? Scripts);
 
 /// <summary>Resource data for one native formation, without simulation or progression side effects.</summary>
 public sealed record SceneBattleData(int FormationId, IReadOnlyList<SceneCameraPlacement> Cameras, IReadOnlyList<SceneBattleEnemy> Enemies, IReadOnlyList<SceneBattleAttack> Attacks, IReadOnlyList<ReadOnlyMemory<byte>>? FormationScripts)

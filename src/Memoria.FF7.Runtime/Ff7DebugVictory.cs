@@ -16,7 +16,7 @@ public static class Ff7DebugVictory
         return Project(progress, formation, kernel, fieldGeneration, requestId, random, dormantGuestStoryCharacter: dormantGuestStoryCharacter, guestStoryCharacters: guestStoryCharacters).Progress;
     }
 
-    internal static Ff7VictoryProjection Project(Ff7Progress progress, SceneFormation formation, IReadOnlyList<KernelSection> kernel, long fieldGeneration, long requestId, Ff7BattleRng random, Func<SceneEnemyInstance, bool>? defeated = null, int? dormantGuestStoryCharacter = null, IReadOnlyCollection<int>? guestStoryCharacters = null, bool suppressRewards = false, Func<SceneEnemyInstance, uint>? experienceReward = null, Func<SceneEnemyInstance, uint>? gilReward = null)
+    internal static Ff7VictoryProjection Project(Ff7Progress progress, SceneFormation formation, IReadOnlyList<KernelSection> kernel, long fieldGeneration, long requestId, Ff7BattleRng random, Func<SceneEnemyInstance, bool>? defeated = null, int? dormantGuestStoryCharacter = null, IReadOnlyCollection<int>? guestStoryCharacters = null, bool suppressRewards = false, Func<SceneEnemyInstance, uint>? experienceReward = null, Func<SceneEnemyInstance, uint>? gilReward = null, int? maximumCharacterLevel = null)
     {
         ArgumentNullException.ThrowIfNull(progress);
         ArgumentNullException.ThrowIfNull(formation);
@@ -65,8 +65,8 @@ public static class Ff7DebugVictory
             {
                 ApplyMateria(character, record, reward.AbilityPoints, kernel, materia, materiaGrowth);
             }
-            record = growth.Apply(record, active ? reward.Experience : reward.Experience / 2, random);
-            Ff7CharacterState updated = character with { NativeRecord = record, Level = record[1], Experience = BinaryPrimitives.ReadUInt32LittleEndian(record.AsSpan(60)), HitPoints = BinaryPrimitives.ReadUInt16LittleEndian(record.AsSpan(44)), MagicPoints = BinaryPrimitives.ReadUInt16LittleEndian(record.AsSpan(48)) };
+            record = growth.Apply(record, active ? reward.Experience : reward.Experience / 2, random, character.Level, maximumCharacterLevel, out int level);
+            Ff7CharacterState updated = character with { NativeRecord = record, Level = level, Experience = BinaryPrimitives.ReadUInt32LittleEndian(record.AsSpan(60)), HitPoints = BinaryPrimitives.ReadUInt16LittleEndian(record.AsSpan(44)), MagicPoints = BinaryPrimitives.ReadUInt16LittleEndian(record.AsSpan(48)) };
             changed.Add(id, updated);
             if (updated.Experience != character.Experience || updated.Level != character.Level)
             {
@@ -101,22 +101,22 @@ public static class Ff7DebugVictory
             }
             items.Add(new(item.ItemId, acceptedQuantity, item.Quantity - acceptedQuantity));
         }
-        Ff7Progress result = progress with { Characters = characters, Inventory = Ff7NativeInventory.Normalize(inventory), Materia = materia.ToArray(), Gil = unchecked(progress.Gil + reward.Gil), BattleRng = random.Capture(), CompletedBattles = [.. progress.CompletedBattles, new(fieldGeneration, requestId, checked((ushort)formation.FormationId), reward)] };
+        Ff7Progress result = progress with { Characters = characters, Inventory = Ff7NativeInventory.Normalize(inventory), Materia = materia.ToArray(), Gil = (uint)Math.Min((ulong)progress.Gil + reward.Gil, uint.MaxValue), BattleRng = random.Capture(), CompletedBattles = [.. progress.CompletedBattles, new(fieldGeneration, requestId, checked((ushort)formation.FormationId), reward)] };
         result.Validate();
         return new(result, reward, characterGrowth, materiaGrowth, items);
     }
 
     public static Ff7BattleReward ResolveRewards(SceneFormation formation, Ff7BattleRng random, Func<SceneEnemyInstance, bool>? defeated = null, Func<SceneEnemyInstance, uint>? experienceReward = null, Func<SceneEnemyInstance, uint>? gilReward = null)
     {
-        uint experience = 0;
-        uint gil = 0;
+        ulong experience = 0;
+        ulong gil = 0;
         uint ap = 0;
         List<Ff7RewardItem> items = [];
         foreach (SceneEnemyInstance instance in formation.Enemies.Where(enemy => enemy.EnemyId != -1 && (defeated is null || defeated(enemy))))
         {
             SceneEnemyReward enemy = formation.EnemyRewards.Single(enemy => enemy.EnemyId == instance.EnemyId);
-            experience = unchecked(experience + (experienceReward?.Invoke(instance) ?? enemy.Experience));
-            gil = unchecked(gil + (gilReward?.Invoke(instance) ?? enemy.Gil));
+            experience += experienceReward?.Invoke(instance) ?? enemy.Experience;
+            gil += gilReward?.Invoke(instance) ?? enemy.Gil;
             ap = unchecked(ap + enemy.AbilityPoints);
             foreach (SceneItemSlot slot in enemy.Items)
             {
@@ -147,7 +147,7 @@ public static class Ff7DebugVictory
                 break;
             }
         }
-        return new(gil, experience, ap, items.ToArray());
+        return new((uint)Math.Min(gil, uint.MaxValue), (uint)Math.Min(experience, uint.MaxValue), ap, items.ToArray());
     }
 
     private static void ApplyMateria(Ff7CharacterState character, byte[] record, uint ap, IReadOnlyList<KernelSection> kernel, List<Ff7MateriaState> inventory, List<Ff7VictoryMateriaGrowth> changes)

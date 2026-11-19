@@ -51,14 +51,14 @@ public sealed partial class BattleSession
         return action.AttackType is 13 or 16;
     }
 
-    private static int ProjectNativeLevel(BattleNativeAction action, int currentLevel)
+    private int ProjectNativeLevel(BattleNativeAction action, int currentLevel)
     {
-        return Math.Clamp(action.Power * currentLevel / 8, 1, 100);
+        return Math.Clamp(action.Power * currentLevel / 8, 1, definition.LevelRules.MaximumEnemyLevel);
     }
 
     private bool CanRebindExpandedEnemyLevel(BattleCombatant recipient, int level, IReadOnlyList<uint>? savedLocals = null)
     {
-        if (recipient.IsPlayer || recipient.Level is < 1 or > 100 || recipient.ExpandedEnemyLevels is not { } profile)
+        if (recipient.IsPlayer || recipient.ExpandedEnemyLevels is not { } profile || recipient.Level < 1 || recipient.Level > profile.Levels.Length || level < 1 || level > profile.Levels.Length)
         {
             return false;
         }

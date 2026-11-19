@@ -98,7 +98,7 @@ public sealed partial class BattleAssets : IDisposable
             throw new InvalidDataException("Enemy Draw records exceed the original information section.");
         }
         // Native48C7A0/48FD20 read four BYTE spell/resistance pairs at info+260+8*levelBand.
-        int band = level < bytes[information + 244] ? 0 : level < bytes[information + 245] ? 1 : 2;
+        int band = EnemyLevelBand(bytes, information, level);
         List<Memoria.FF8.Runtime.BattleDrawSpell> spells = [];
         for (int slot = 0; slot < 4; slot++)
         {

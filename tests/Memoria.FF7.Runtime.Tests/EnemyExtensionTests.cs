@@ -26,6 +26,7 @@ internal static class EnemyExtensionTests
         int[] row = [1000000, 1000000, 0, 0];
         Check(Ff7EnemyExtensionCatalog.Scale(77, 5, 20, row, 255) == 77 && Ff7EnemyExtensionCatalog.Scale(77, 20, 20, row, 255) == 77, "Baseline and lower party levels must be exact.");
         Check(Ff7EnemyExtensionCatalog.Scale(77, 100, 20, row, 255) == 154 && Ff7EnemyExtensionCatalog.Scale(0, 100, 20, row, 255) == 0, "Growth must retain its anchor and intentional zero.");
+        Check(Ff7EnemyExtensionCatalog.Scale(77, 300, 20, row, 999) == 346, "Extended levels must continue growth with the original level-100 anchor.");
         Check(Ff7EnemyExtensionCatalog.Scale(200, 100, 20, row, 255) == 255, "Native storage projection must clamp without wrapping.");
         Check(Ff7EnemyExtensionCatalog.Scale(3, 98, 97, row, 255) == 4 && Ff7EnemyExtensionCatalog.Scale(3, 98, 97, [1000000, 0, 9000000, 0], 255) == 6, "Fractional growth intervals must evaluate one exact rational expression before flooring.");
         Check(Ff7EnemyExtensionCatalog.ScaleUnsigned(uint.MaxValue, 100, 20, null, int.MaxValue) == uint.MaxValue && Ff7EnemyExtensionCatalog.ScaleUnsigned(uint.MaxValue, 20, 20, row, int.MaxValue) == uint.MaxValue, "Absent rows and baseline anchors must retain unsigned source values without narrowing.");
@@ -66,7 +67,7 @@ internal static class EnemyExtensionTests
         Ff7EnemyExtensionDelta[] deltas = formation.EnemyRewards.Where(e => e.EnemyId >= 0).Select(r => new Ff7EnemyExtensionDelta { EnemyId = r.EnemyId, ScanDescription = "A watchman in the city's iron veins.", Growth = new() { ["hp"] = [1000000, 1000000, 0, 0] }, RewardGrowth = new() { ["exp"] = [1000000, 1000000, 0, 0] }, DrawTiers = [new(0, [new(1, 0)]), new(1, [new(2, 0)])], ItemReplacements = [new(1, "drop", 0, 1), new(10, "drop", 0, 2)] }).ToArray();
         Ff7EnemyExtensionCatalog catalog = new([new(1, "test", deltas)]);
         Ff7BattleSession disabled = new(formation, original.Progress, kernel, executable.NativeMateriaStatModifiers, 1);
-        byte baseLevel = disabled.Data.Enemies[0].Level;
+        int baseLevel = disabled.Data.Enemies[0].Level;
         Ff7BattleSession baseline = new(formation, original.Progress, kernel, executable.NativeMateriaStatModifiers, 1, enemyExtensions: catalog, enemyExtensionPartyLevels: [baseLevel]);
         Check(baseline.Data.Enemies[0].MaxHitPoints == disabled.Data.Enemies[0].MaxHitPoints && baseline.Data.Enemies[0].Rewards.Experience == 17 && baseline.Data.Enemies[0].Rewards.Items[0].ItemId == 0, "An enabled baseline encounter must retain native stats, rewards and item results.");
         Ff7BattleSession high = new(formation, original.Progress, kernel, executable.NativeMateriaStatModifiers, 1, enemyExtensions: catalog, enemyExtensionPartyLevels: [20, 80]);
@@ -76,7 +77,32 @@ internal static class EnemyExtensionTests
         Ff7BattleSnapshot snapshot = JsonSerializer.Deserialize<Ff7BattleSnapshot>(JsonSerializer.Serialize(high.Capture()))!;
         Ff7BattleSession restored = new(formation, original.Progress, kernel, executable.NativeMateriaStatModifiers, 1, snapshot: snapshot, enemyExtensions: Ff7EnemyExtensionCatalog.Empty, enemyExtensionPartyLevels: [1]);
         Check(JsonSerializer.Serialize(restored.Capture()) == JsonSerializer.Serialize(high.Capture()) && restored.Data.Enemies[0].MaxHitPoints == high.Data.Enemies[0].MaxHitPoints && restored.Data.Enemies[0].Rewards.Items[0].ItemId == 2, "Restoration must preserve resolved generation and RNG without consulting the changed catalog or party.");
-        Ff7BattleSnapshot old = disabled.Capture() with { EnemyExtensions = null };
+        Ff7BattleSession extended = new(formation, original.Progress, kernel, executable.NativeMateriaStatModifiers, 1, enemyExtensions: catalog, enemyExtensionPartyLevels: [200, 220], enemyLevelRules: new(300, 150, 150));
+        Check(extended.Data.Enemies[0].Level == 300 && extended.Actors.First(actor => actor.Actor.Slot == 4).Actor.Level == 300 && extended.Capture().MaximumCharacterLevel == 150, "The enemy cap, party bonus and character cap must reach the allocated battle.");
+        Ff7BattleSnapshot extendedSnapshot = JsonSerializer.Deserialize<Ff7BattleSnapshot>(JsonSerializer.Serialize(extended.Capture()))!;
+        Ff7BattleSession restoredExtended = new(formation, original.Progress, kernel, executable.NativeMateriaStatModifiers, 1, snapshot: extendedSnapshot, enemyLevelRules: new(1, 1, 0));
+        Check(restoredExtended.Data.Enemies[0].Level == 300 && restoredExtended.Capture().MaximumCharacterLevel == 150, "The effective level and character cap must survive an encounter snapshot.");
+        Ff7BattleSession limited = new(formation, original.Progress, kernel, executable.NativeMateriaStatModifiers, 1, enemyExtensions: catalog, enemyExtensionPartyLevels: [100], enemyLevelRules: new(1, 100, 0));
+        Check(limited.Data.Enemies[0].Level == 1 && limited.Data.Enemies[0].MaxHitPoints == disabled.Data.Enemies[0].MaxHitPoints && limited.EnemyExtension(4)!.DrawSlots[0].MagicId == 1, "A low cap must apply below the native level, preserving anchored stats and the baseline Draw tier.");
+        int activeRecord = Ff7NativeCharacterIdentity.RecordId(original.Progress.Party.First(id => id != 255));
+        Ff7Progress extendedProgress = original.Progress with { Characters = original.Progress.Characters.Select(character => character.Id == activeRecord
+            ? character with { Level = 300, NativeRecord = character.NativeRecord.Select((value, offset) => offset == 1 ? (byte)99 : value).ToArray() }
+            : character).ToArray() };
+        Ff7Progress restoredProgress = JsonSerializer.Deserialize<Ff7Progress>(JsonSerializer.Serialize(extendedProgress))!;
+        restoredProgress.Validate();
+        Ff7BattleSession modDisabled = new(formation, restoredProgress, kernel, executable.NativeMateriaStatModifiers, 1);
+        Check(modDisabled.Actors.First(actor => actor.Actor.Slot < 3).Actor.Level == 300 && modDisabled.Capture().MaximumCharacterLevel is null, "Disabling autoleveling must keep characters' previously gained levels.");
+        Ff7BattleSession cappedParty = new(formation, restoredProgress, kernel, executable.NativeMateriaStatModifiers, 1, enemyExtensions: catalog, enemyExtensionPartyLevels: [300], enemyLevelRules: new(300, 150, 30));
+        Check(cappedParty.Actors.First(actor => actor.Actor.Slot < 3).Actor.Level == 150 && cappedParty.Data.Enemies[0].Level == 180 && restoredProgress.Characters.Single(character => character.Id == activeRecord).Level == 300, "The character cap must affect battle formulas and enemy scaling while retaining the earned level in the save.");
+        try
+        {
+            Ff7NativeSaveCodec.ExportField(restoredProgress, new byte[1280], 0, 0, 0, 0, 0);
+            throw new InvalidOperationException("The original save cannot encode a character above level 99.");
+        }
+        catch (NotSupportedException)
+        {
+        }
+        Ff7BattleSnapshot old = disabled.Capture() with { EnemyExtensions = null, MaximumCharacterLevel = null };
         Ff7BattleSession oldRestored = new(formation, original.Progress, kernel, executable.NativeMateriaStatModifiers, 1, snapshot: old, enemyExtensions: catalog, enemyExtensionPartyLevels: [100]);
         Check(oldRestored.EnemyExtension(4) is null && oldRestored.Data.Enemies[0].MaxHitPoints == disabled.Data.Enemies[0].MaxHitPoints, "Old snapshots must not gain newly enabled scaling during restore.");
         SceneFormation unsignedFormation = formation with { EnemyRewards = formation.EnemyRewards.Select(reward =>

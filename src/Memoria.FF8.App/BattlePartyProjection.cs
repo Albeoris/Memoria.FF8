@@ -58,7 +58,7 @@ internal static class BattlePartyProjection
             int character = saved.CharacterId;
             BattleResolvedLoadout loadout = resources.ResolveBattleLoadout(state, character, vitals.GetBattleWeapon(row));
             int weapon = loadout.Weapon.Id;
-            int level = NativeStatDefinitions.Level(saved.Experience, vitals.Definitions.Characters[character]);
+            int level = vitals.CharacterLevel(saved);
             int costume = row < appearance.Records.Length ? appearance.Records[row].Dress : 0;
             _ = resources.LoadPlayer(character, costume);
             string name = LiveMenuData.CharacterName(state, saved.CharacterId, names, catalog);

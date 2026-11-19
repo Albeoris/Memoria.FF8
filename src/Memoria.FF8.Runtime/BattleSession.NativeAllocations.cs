@@ -201,8 +201,8 @@ public sealed partial class BattleSession
         int drawCount = NativeBattleEnemyLevelRules.RandomByteCount(template.SceneLevel);
         byte firstRoll = drawCount > 0 ? (byte)NextRandomByte() : (byte)0;
         byte? secondRoll = drawCount == 2 ? (byte)NextRandomByte() : null;
-        byte[] partyLevels = allies.Where(candidate => candidate.IsActive).Select(candidate => checked((byte)candidate.Level)).ToArray();
-        int level = NativeBattleEnemyLevelRules.ResolveExpanded(template.SceneLevel, partyLevels, firstRoll, secondRoll);
+        int[] partyLevels = allies.Where(candidate => candidate.IsActive).Select(candidate => candidate.Level).ToArray();
+        int level = NativeBattleEnemyLevelRules.ResolveExpanded(template.SceneLevel, partyLevels, firstRoll, secondRoll, definition.LevelRules);
         spawned.BindNativeLevel(level);
         spawned.ResetNativeStatusAllocation();
         ResetNativeDrawAllocation(spawned);

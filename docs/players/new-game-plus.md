@@ -21,10 +21,15 @@ The next screen offers these choices:
 | Guardian Forces | Stored or Native; Config edits ownership and each GF's abilities. |
 | AP Gain | 0.0–10.0× in steps of 0.1. |
 | Magic, Items, Cards | Stored or Empty; Config edits the collection and quantities. |
+| Maximum Enemy Level | 1–300, default 100. |
+| Maximum Character Level | 1–300, default 100. Applies to starting levels and later level gains. |
+| Party Level Bonus | 0–200, default 0. Adds levels to the party average used for enemy level scaling. |
 
 The currently bound card-game action opens Config from the selected category and opens ability details from a GF. Config is a contextual action, shown in the binding hint; it has no separate on-screen button. The on-screen hint follows keyboard/controller remapping. Lists scroll; Back preserves edits. Changing a preset replaces its category only after confirmation. Edited categories display **Custom**.
 
-**Level for All Characters = 0** means **Individual / No Override**. Values 1–100 temporarily override individual levels without erasing them. Squall must remain available for the opening party. The five additional characters are independent choices; enabling one does not unlock all five. Checked guests remain selectable through later story departures. Regular characters still follow their story availability. **Allow Party Changes on the World Map** permits switching during interactive world-map control before the usual story unlock.
+**Level for All Characters = 0** means **Individual / No Override**. Values from 1 through **Maximum Character Level** temporarily override individual levels. Lowering the cap also lowers any higher starting level for this run. Raising it again during setup restores the previous choices. Squall must remain available for the opening party. The five additional characters are independent choices; enabling one does not unlock all five. Checked guests remain selectable through later story departures. Regular characters still follow their story availability. **Allow Party Changes on the World Map** permits switching during interactive world-map control before the usual story unlock.
+
+The level rules start at 100 for both caps and 0 for the bonus on every New Game+ setup, even if the source used different rules or the new run uses Hardcore. The chosen values are saved with the new run. The party level bonus affects scaled enemies while fixed-level enemies keep their encounter level subject to the enemy cap. The character level cap leaves Guardian Force levels unchanged.
 
 Both reward sliders start at 1.0×, even when the source was another New Game+ run. Rewards are summed for each recipient, multiplied once, then rounded with halves upward: 3 EXP at 0.5× gives 2; 1 EXP at 0.4× gives 0. Zero disables that reward category while items, story events and battle completion continue normally.
 

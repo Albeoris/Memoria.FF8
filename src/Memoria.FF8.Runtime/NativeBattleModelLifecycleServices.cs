@@ -66,6 +66,7 @@ internal sealed class NativeBattleModelLifecycleServices(ImmutableDictionary<Bat
     internal HostedDuelFrameOwner? Duel { get; init; }
     internal HostedRenzokukenFrame? Renzokuken { get; init; }
     internal Func<BattleModelOwner, NativeBattleScanByteOwner>? ReadScanDescriptor { get; init; }
+    internal Func<BattleModelOwner, int>? ReadScanLevel { get; init; }
     internal Func<BattleModelOwner, NativeBattleScanByteOwner>? ReadScanExtra { get; init; }
 
     internal ImmutableArray<NativeBattleModelLifecycleReceipt> ReadReceipts() => receipts.OfType<NativeBattleModelLifecycleReceipt>().ToImmutableArray();

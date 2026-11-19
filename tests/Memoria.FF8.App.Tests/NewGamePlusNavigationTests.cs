@@ -10,7 +10,7 @@ public sealed class NewGamePlusNavigationTests
     [Fact]
     public void TranslatorCatalogIncludesDynamicPresetsCategoriesAndCompletionActions()
     {
-        foreach (string identity in new[] { "new-game-plus.preset.stored", "new-game-plus.preset.native", "new-game-plus.preset.empty", "new-game-plus.preset.custom", "new-game-plus.category.characters", "new-game-plus.available", "new-game-plus.configure", "ngplus.completed", "ngplus.overwrite.message", "ngplus.completion.prompt" })
+        foreach (string identity in new[] { "new-game-plus.preset.stored", "new-game-plus.preset.native", "new-game-plus.preset.empty", "new-game-plus.preset.custom", "new-game-plus.category.characters", "new-game-plus.category.enemy-level-cap", "new-game-plus.category.character-level-cap", "new-game-plus.category.party-level-bonus", "new-game-plus.available", "new-game-plus.configure", "ngplus.completed", "ngplus.overwrite.message", "ngplus.completion.prompt" })
         {
             Assert.True(SystemTextCatalog.Defaults.ContainsKey(identity), identity);
         }
@@ -44,7 +44,7 @@ public sealed class NewGamePlusNavigationTests
         UiElement[] controls = Descendants(view.Root).Where(element => element.Id?.StartsWith("config-", StringComparison.Ordinal) == true).ToArray();
         Assert.Empty(controls);
         Assert.DoesNotContain(Descendants(view.Root).OfType<UiButton>(), button => button.Text == "Config");
-        Assert.Equal(2, Descendants(view.Root).OfType<UiNumericSlider>().Count());
+        Assert.Equal(5, Descendants(view.Root).OfType<UiNumericSlider>().Count());
         menus.Navigate(MenuInput.Down);
         menus.Navigate(MenuInput.Right);
         Assert.Equal("exp", menus.SelectedEntry!.Id);
@@ -57,7 +57,7 @@ public sealed class NewGamePlusNavigationTests
         Assert.Equal(3f, menus.TextScale);
         using SkiaSharp.SKBitmap bitmap = new(960, 672);
         using BattlePreviewCanvas canvas = new(bitmap);
-        for (int index = 0; index < 8; index++)
+        for (int index = 0; index < menus.Entries.Count; index++)
         {
             UiView view = menus.BuildView();
             view.Resize(960, 672);
@@ -71,6 +71,13 @@ public sealed class NewGamePlusNavigationTests
                 UiSize measured = canvas.MeasureText(button.Text, button.FontSize, float.PositiveInfinity, menus.CreateTheme().FontFamily);
                 Assert.True(measured.Width <= button.Bounds.Width - button.TextInset - 8 + 1, button.Text);
                 Assert.True(measured.Height <= button.Bounds.Height + 1, button.Text);
+            }
+            if (menus.SelectedEntry!.Id is "enemy-level-cap" or "character-level-cap" or "party-level-bonus")
+            {
+                UiLabel heading = Assert.Single(Descendants(view.Root).OfType<UiLabel>(), element => element.Text == menus.SelectedEntry.Label);
+                UiSize measured = canvas.MeasureText(heading.Text, heading.FontSize, heading.Bounds.Width, menus.CreateTheme().FontFamily);
+                Assert.True(measured.Width <= heading.Bounds.Width + 1, heading.Text);
+                Assert.True(measured.Height <= heading.Bounds.Height + 1, heading.Text);
             }
             menus.Navigate(MenuInput.Down);
         }
@@ -129,6 +136,34 @@ public sealed class NewGamePlusNavigationTests
         Assert.Equal(10, draft.ExperienceMultiplierTenths);
         menus.Back();
         Assert.Equal("exp", menus.SelectedEntry!.Id);
+    }
+
+    [Theory]
+    [InlineData(7, "enemy-level-cap", "Maximum Enemy Level", 1, 300, 100)]
+    [InlineData(8, "character-level-cap", "Maximum Character Level", 1, 300, 100)]
+    [InlineData(9, "party-level-bonus", "Party Level Bonus", 0, 200, 0)]
+    public void LevelRulesShareInlineAndDetailControlsAndAppearInReview(int row, string id, string label, int min, int max, int defaultValue)
+    {
+        (MenuController menus, _) = Create();
+        UiNumericSlider inline = Descendants(menus.BuildView().Root).OfType<UiNumericSlider>().Single(slider => slider.Id == id);
+        Assert.Equal(((float)min, (float)max, (float)defaultValue), (inline.Min, inline.Max, inline.Value));
+        for (int index = 0; index < row; index++)
+        {
+            menus.Navigate(MenuInput.Down);
+        }
+        Assert.Equal(id, menus.SelectedEntry!.Id);
+        menus.Navigate(MenuInput.Right);
+        menus.Navigate(MenuInput.Alternate);
+        UiNumericSlider detail = Assert.Single(Descendants(menus.BuildView().Root).OfType<UiNumericSlider>());
+        Assert.Equal(((float)min, (float)max, defaultValue + 1f), (detail.Min, detail.Max, detail.Value));
+        detail.ValueChanged!(max);
+        menus.Navigate(MenuInput.Right);
+        Assert.Equal((float)max, Assert.Single(Descendants(menus.BuildView().Root).OfType<UiNumericSlider>()).Value);
+        menus.Back();
+        Assert.Equal(id, menus.SelectedEntry!.Id);
+        menus.Execute(new("ng-review"));
+        Assert.Equal("new-game-plus-review", menus.ScreenId);
+        Assert.Contains(Descendants(menus.BuildView().Root).OfType<UiLabel>(), element => element.Text.Contains($"{label}: {max}", StringComparison.Ordinal));
     }
 
     [Fact]

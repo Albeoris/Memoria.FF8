@@ -1,6 +1,6 @@
 namespace Memoria.FF8.Runtime;
 
-public sealed record BattleCharacterRewardPresentation(byte Row, uint PreviousExperience, uint FinalExperience, byte PreviousLevel, byte FinalLevel, uint PreviousExperienceToNextLevel, uint ExperienceToNextLevel);
+public sealed record BattleCharacterRewardPresentation(byte Row, uint PreviousExperience, uint FinalExperience, int PreviousLevel, int FinalLevel, uint PreviousExperienceToNextLevel, uint ExperienceToNextLevel);
 public sealed record BattleGuardianForceRewardPresentation(int Id, byte PreviousLevel, byte FinalLevel, int[] LearnedAbilityIds);
 public sealed record BattleRewardSummary(IReadOnlyDictionary<byte, ushort> CharacterExperience, IReadOnlyDictionary<byte, ushort> GuardianForceExperience, IReadOnlyDictionary<int, ushort> GuardianForceAbilityPoints, BattleStock[] Items, byte[] Cards)
 {

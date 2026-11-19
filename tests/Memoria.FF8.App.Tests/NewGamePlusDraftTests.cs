@@ -71,6 +71,55 @@ public sealed class NewGamePlusDraftTests
     }
 
     [Fact]
+    public void LoweringCharacterCapBoundsStartingExperienceAndPreservesDraftChoices()
+    {
+        GameState native = Native();
+        NewGamePlusDraft draft = new(CompletedSaveFixture.State(), native, new());
+        GameplayLevelRules rules = new() { MaximumEnemyLevel = 240, MaximumCharacterLevel = 300, AdditionalPartyLevel = 75 };
+        draft.SetLevelRules(rules);
+        draft.SetLevel(0, 290);
+        draft.SetGlobalLevel(275);
+        draft.SetLevelRules(rules with { MaximumCharacterLevel = 180 });
+        draft.RevalidateNative(native);
+
+        GameState started = draft.ApplyTo(native);
+        NativeCharacterVitals vitals = started.CharacterVitals!;
+        Assert.Equal(rules with { MaximumCharacterLevel = 180 }, started.LevelRules);
+        Assert.All(vitals.Records, record =>
+        {
+            Assert.Equal(180, vitals.CharacterLevel(record));
+            Assert.Equal(NativeStatDefinitions.ExperienceForLevel(180, vitals.Definitions.Characters[record.CharacterId]), record.Experience);
+        });
+        Assert.Equal(275, started.NewGamePlus!.GlobalLevel);
+        draft.SetLevelRules(rules);
+        Assert.Equal(275, draft.ResolveDefinition().ResolvedLevel(0));
+        draft.SetGlobalLevel(0);
+        Assert.Equal(290, draft.ResolveDefinition().ResolvedLevel(0));
+    }
+
+    [Fact]
+    public void CompletedTransferKeepsSourceLevelsWhileTheNextRunUsesFreshLevelRules()
+    {
+        GameState native = Native();
+        GameState source = CompletedSaveFixture.State();
+        NewGamePlusDraft first = new(source, native, new());
+        first.SetLevelRules(new() { MaximumEnemyLevel = 280, MaximumCharacterLevel = 250, AdditionalPartyLevel = 200 });
+        first.SetLevel(0, 240);
+        GameState completed = first.ApplyTo(native) with { Ff8Completion = source.Ff8Completion };
+
+        GameplaySaveComponentDocument document = CompletedGameData.Capture(completed);
+        GameState transfer = CompletedGameData.ToTransferState(document, native);
+        NativeCharacterVitals vitals = transfer.CharacterVitals!;
+        Assert.Equal(250, document.CompletedGame!.MaximumCharacterLevel);
+        Assert.Equal(240, vitals.CharacterLevel(vitals.Records[0]));
+        NewGamePlusDraft second = new(transfer, native, new());
+        Assert.Equal(GameplayLevelRules.Default, second.LevelRules);
+        Assert.Equal(100, second.ResolveDefinition().ResolvedLevel(0));
+        second.SetLevelRules(second.LevelRules with { MaximumCharacterLevel = 300 });
+        Assert.Equal(240, second.ResolveDefinition().ResolvedLevel(0));
+    }
+
+    [Fact]
     public void EmptyCollectionsClearAllStockAndRareCardsStayUniqueWithoutImportingStory()
     {
         GameState source = CompletedSaveFixture.State() with { EventMemory = NativeEventMemory.FromDWords(new Dictionary<int, int> { [300] = 987654 }) };

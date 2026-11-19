@@ -43,6 +43,7 @@ public sealed record NewGamePlusDefinition
     public int ApMultiplierTenths { get; init; } = 10;
     [JsonRequired]
     public int GlobalLevel { get; init; }
+    public GameplayLevelRules LevelRules { get; init; } = GameplayLevelRules.Default;
     [JsonRequired]
     public bool AllowWorldMapPartyChanges { get; init; }
     [JsonRequired]
@@ -80,7 +81,7 @@ public sealed record NewGamePlusDefinition
     public ImmutableArray<byte> InitializedGuardianForces { get; init; } = [];
 
     public bool RequiresExpandedRoster => Characters.Any(character => character.CharacterId >= 6 && character.AvailableFromStart);
-    public int ResolvedLevel(byte identity) => GlobalLevel == 0 ? Characters.Single(character => character.CharacterId == identity).IndividualLevel : GlobalLevel;
+    public int ResolvedLevel(byte identity) => Math.Min(LevelRules.MaximumCharacterLevel, GlobalLevel == 0 ? Characters.Single(character => character.CharacterId == identity).IndividualLevel : GlobalLevel);
 
     public void Validate()
     {
@@ -88,12 +89,13 @@ public sealed record NewGamePlusDefinition
         {
             throw new NotSupportedException("This New Game+ save requires an unsupported initialization policy. Preserve it and use a compatible Memoria version.");
         }
-        if (Settings is null || InitialMagicExtension.IsDefault || InitializedCharacters.IsDefault || InitializedGuardianForces.IsDefault || !Enum.IsDefined(CharacterPreset) || !Enum.IsDefined(GuardianForcePreset) || !Enum.IsDefined(MagicPreset) || !Enum.IsDefined(ItemPreset) || !Enum.IsDefined(CardPreset))
+        if (Settings is null || LevelRules is null || InitialMagicExtension.IsDefault || InitializedCharacters.IsDefault || InitializedGuardianForces.IsDefault || !Enum.IsDefined(CharacterPreset) || !Enum.IsDefined(GuardianForcePreset) || !Enum.IsDefined(MagicPreset) || !Enum.IsDefined(ItemPreset) || !Enum.IsDefined(CardPreset))
         {
             throw new InvalidDataException("New Game+ is missing required settings, choices or initialization receipts.");
         }
         Settings.Validate();
-        if (ExperienceMultiplierTenths is < 0 or > 100 || ApMultiplierTenths is < 0 or > 100 || GlobalLevel is < 0 or > 100 || Characters.IsDefault || Characters.Length != 11 || Characters.Any(character => character is null || character.CharacterId > 10 || character.IndividualLevel is < 1 or > 100) || Characters.Select(character => character.CharacterId).Distinct().Count() != 11)
+        LevelRules.Validate();
+        if (ExperienceMultiplierTenths is < 0 or > 100 || ApMultiplierTenths is < 0 or > 100 || GlobalLevel is < 0 or > GameplayLevelRules.HighestLevel || Characters.IsDefault || Characters.Length != 11 || Characters.Any(character => character is null || character.CharacterId > 10 || character.IndividualLevel is < 1 or > GameplayLevelRules.HighestLevel) || Characters.Select(character => character.CharacterId).Distinct().Count() != 11)
         {
             throw new InvalidDataException("New Game+ requires valid reward rates and eleven identity-based character choices.");
         }

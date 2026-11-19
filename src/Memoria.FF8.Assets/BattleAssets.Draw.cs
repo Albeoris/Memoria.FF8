@@ -9,14 +9,13 @@ public sealed partial class BattleAssets
     {
         byte[] bytes = Read($"c0m{modelId:000}.dat");
         int information = EnemyDrawInformation(bytes);
-        int band = level < bytes[information + 244] ? 0 : level < bytes[information + 245] ? 1 : 2;
+        int band = EnemyLevelBand(bytes, information, level);
         return ReadEnemyDrawTables(bytes, information)[band];
     }
 
-    private NativeBattleDrawSlot[][] ReadEnemyDrawTables(int modelId)
+    private static int EnemyLevelBand(byte[] bytes, int information, int level)
     {
-        byte[] bytes = Read($"c0m{modelId:000}.dat");
-        return ReadEnemyDrawTables(bytes, EnemyDrawInformation(bytes));
+        return level < bytes[information + 244] ? 0 : level < bytes[information + 245] ? 1 : 2;
     }
 
     private static int EnemyDrawInformation(byte[] bytes)

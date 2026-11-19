@@ -11,7 +11,7 @@ public sealed partial class MenuController
         NativeTutorialExamProgress ReadProgress()
         {
             NativeCharacterVitals? party = session.State.CharacterVitals?.DeepCopy();
-            int level = party is null ? 1 : NativeStatDefinitions.Level(party.Records[0].Experience, party.Definitions.Characters[0]);
+            int level = party is null ? 1 : NativeStatDefinitions.Level(party.Records[0].Experience, party.Definitions.Characters[0], party.MaximumCharacterLevel);
             NativeSeeDState? seeD = session.SeeD;
             int rank = seeD is { SalaryUiEnabled: true } ? seeD.RankPoints / 100 : -1;
             return new NativeTutorialExamProgress(seeD?.TestLevel ?? 0, rank, level, party);

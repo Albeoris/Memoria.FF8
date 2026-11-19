@@ -588,13 +588,17 @@ public sealed partial class BattleSession
         }
         if (saved.ResolvedLevel is int level)
         {
+            if (level < 0 || level > definition.LevelRules.MaximumEnemyLevel)
+            {
+                throw new InvalidDataException("Saved enemy level exceeds the configured maximum.");
+            }
             if (copy is not null && !saved.ReprojectedEncounterCopy && level == copy.Level)
             {
                 actor.RestoreResolvedEncounterCopy(copy);
             }
             else
             {
-                if ((actor.NativeTemplate is null || copy is not null) && (level is < 1 or > 100 || !CanRebindExpandedEnemyLevel(actor, level, saved.Variables)))
+                if ((actor.NativeTemplate is null || copy is not null) && !CanRebindExpandedEnemyLevel(actor, level, saved.Variables))
                 {
                     throw new InvalidDataException("Saved expanded enemy level is outside its installed level or AI contract.");
                 }
@@ -648,7 +652,7 @@ public sealed partial class BattleSession
 
     private static NativeBattleAiDefinition? CloneNativeAi(NativeBattleAiDefinition? source) => source is null ? null : source with { Scripts = source.Scripts.Select(script => script.ToArray()).ToArray(), Abilities = source.Abilities.ToArray(), Texts = source.Texts.ToArray(), NameBuffers = source.NameBuffers.Select(buffer => buffer.ToArray()).ToArray(), DisplayNames = source.DisplayNames.ToArray() };
     private static NativeBattleEnemyTemplate? CloneNativeTemplate(NativeBattleEnemyTemplate? source) => source is null ? null : source with { NativeDrawTables = source.NativeDrawTables?.Select(table => table.ToArray()).ToArray(), Levels = source.Levels.Select(level => level with { BaseStatistics = level.BaseStatistics.ToArray(), ElementDefenses = level.ElementDefenses.ToArray(), DrawSpells = level.DrawSpells.ToArray(), DrawGuardianForces = level.DrawGuardianForces.ToArray() }).ToArray() };
-    private static void ValidateNativeAi(BattleCombatantDefinition actor, int enemySlotCount)
+    private static void ValidateNativeAi(BattleCombatantDefinition actor, int enemySlotCount, int maximumEnemyLevel)
     {
         if ((actor.NativeRetainedStatusBits & ~0x80) != 0)
         {
@@ -669,7 +673,7 @@ public sealed partial class BattleSession
                 BattleCombatant.ValidateDrawSlots(table);
             }
         }
-        if (actor.NativeTemplate is { } template && (template.Levels is null || template.Levels.Length != 101 || template.Levels.Any(level => level.MaximumHp < 0 || level.ElementDefenses.Length != 8 || level.AiLevelBand is < 0 or > 2 || level.Evasion is < 0 or > 255 || level.BaseStatistics is null || level.BaseStatistics.Length is not (0 or 6))))
+        if (actor.NativeTemplate is { } template && (template.Levels is null || template.Levels.Length <= maximumEnemyLevel || template.Levels.Length > GameplayLevelRules.HighestLevel + 1 || template.Levels.Any(level => level.MaximumHp < 0 || level.ElementDefenses.Length != 8 || level.AiLevelBand is < 0 or > 2 || level.Evasion is < 0 or > 255 || level.BaseStatistics is null || level.BaseStatistics.Length is not (0 or 6))))
         {
             throw new InvalidDataException("Native enemy resource template lacks its complete level projections.");
         }

@@ -2,6 +2,7 @@ using Memoria.FF7.Runtime;
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Mods;
 using Memoria.FF8.Platform;
+using Memoria.FF8.Runtime;
 using Memoria.FF8.Ui;
 
 namespace Memoria.FF8;
@@ -52,14 +53,24 @@ internal sealed partial class Ff7Scene
         {
             session.SetFullCombatEnabled(true);
         }
-        Session?.ConfigureEnemyExtensions(enemyExtensionCatalog, enabled, ReadEnemyIntegrationPartyLevels);
+        Session?.ConfigureEnemyExtensions(enemyExtensionCatalog, enabled, ReadEnemyIntegrationPartyLevels, ReadEnemyIntegrationLevelRules);
     }
 
-    private IReadOnlyList<byte> ReadEnemyIntegrationPartyLevels()
+    private Ff7EnemyLevelRules ReadEnemyIntegrationLevelRules()
+    {
+        GameplaySaveComponentDocument? campaign = envelope.Ff8PayloadFormat == CrossoverSaveAdapter.Ff8Codec && envelope.Ff8Payload is { Length: > 0 }
+            ? CrossoverSaveAdapter.ReadFf8(envelope)
+            : null;
+        BattleDifficulty difficulty = campaign?.Progression?.Rules.Preferences.Difficulty ?? PresentationPreferences.Difficulty;
+        GameplayLevelRules rules = campaign?.NewGamePlus?.LevelRules ?? GameplayLevelRules.ForDifficulty(difficulty);
+        return new(rules.MaximumEnemyLevel, rules.MaximumCharacterLevel, rules.AdditionalPartyLevel);
+    }
+
+    private IReadOnlyList<int> ReadEnemyIntegrationPartyLevels()
     {
         Ff7Session session = Session ?? throw new InvalidOperationException("Enemy levels require an active FFVII party.");
         Dictionary<int, int> guests = mixedFieldVitals?.ReadAll().ToDictionary(guest => guest.StoryCharacter, guest => guest.Level) ?? [];
-        return session.Progress.Party.Where(id => id != 255).Select(id => checked((byte)(guests.TryGetValue(id, out int level) ? level : session.Progress.Characters.Single(character => character.Id == Ff7NativeCharacterIdentity.RecordId(id)).Level))).ToArray();
+        return session.Progress.Party.Where(id => id != 255).Select(id => guests.TryGetValue(id, out int level) ? level : session.Progress.Characters.Single(character => character.Id == Ff7NativeCharacterIdentity.RecordId(id)).Level).ToArray();
     }
 
     private void PumpEnemyIntegration()

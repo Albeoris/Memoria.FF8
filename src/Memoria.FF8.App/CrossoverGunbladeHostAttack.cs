@@ -531,9 +531,14 @@ internal sealed partial class CrossoverGunbladeHostAttack : IFf7BattleGuestAttac
     // Original physical type9 uses P/16 and untriggered type10 uses 2*P/32.
     internal static byte ProjectPhysicalPower(byte nativePower, int multiplier) => (byte)Math.Min(byte.MaxValue, 8 * nativePower * multiplier / 20);
 
-    internal static Ff7BattleDamageActor ProjectPhysicalSource(CrossoverFf8BattleKit kit) => new(Project(kit.Level, 7, 6, 100, 99), Project(kit.Stats.Strength, 17, 36, 255, 255), 0, 0, Project(kit.Stats.Luck, 16, 14, 255, 255), 0, 0, 0, 0);
+    internal static Ff7BattleDamageActor ProjectPhysicalSource(CrossoverFf8BattleKit kit) => new(ProjectLevel(kit.Level), Project(kit.Stats.Strength, 17, 36, 255, 255), 0, 0, Project(kit.Stats.Luck, 16, 14, 255, 255), 0, 0, 0, 0);
 
     private static long HostTime(long tick) => checked(tick * TimeSpan.TicksPerSecond) / Ff7BattleSession.LogicUpdatesPerSecond;
+
+    internal static ushort ProjectLevel(int level)
+    {
+        return checked((ushort)(level > GameplayLevelRules.DefaultMaximumLevel ? level : Project(level, 7, 6, 100, 99)));
+    }
 
     private static byte Project(int value, int from, int to, int sourceCap, int targetCap)
         => checked((byte)(value <= from ? value * to / from : to + (value - from) * (targetCap - to) / (sourceCap - from)));

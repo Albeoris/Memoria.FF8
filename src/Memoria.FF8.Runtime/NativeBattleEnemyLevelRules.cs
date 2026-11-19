@@ -7,23 +7,39 @@ public static class NativeBattleEnemyLevelRules
 
     public static int Resolve(byte sceneLevel, ReadOnlySpan<byte> presentPartyLevels, byte originalBattleRoll, byte? secondBattleRoll = null)
     {
-        return ResolveForParty(sceneLevel, presentPartyLevels, originalBattleRoll, secondBattleRoll, 3);
+        return ResolveOriginalParty(sceneLevel, presentPartyLevels, originalBattleRoll, secondBattleRoll, 3);
     }
 
     public static int ResolveExpanded(byte sceneLevel, ReadOnlySpan<byte> presentPartyLevels, byte originalBattleRoll, byte? secondBattleRoll = null)
     {
-        return ResolveForParty(sceneLevel, presentPartyLevels, originalBattleRoll, secondBattleRoll, NativeCharacterVitals.ExtendedRecordCount);
+        return ResolveOriginalParty(sceneLevel, presentPartyLevels, originalBattleRoll, secondBattleRoll, NativeCharacterVitals.ExtendedRecordCount);
     }
 
-    private static int ResolveForParty(byte sceneLevel, ReadOnlySpan<byte> presentPartyLevels, byte originalBattleRoll, byte? secondBattleRoll, int capacity)
+    private static int ResolveOriginalParty(byte sceneLevel, ReadOnlySpan<byte> presentPartyLevels, byte originalBattleRoll, byte? secondBattleRoll, int capacity)
     {
+        Span<int> levels = stackalloc int[Math.Min(presentPartyLevels.Length, capacity + 1)];
+        for (int index = 0; index < levels.Length; index++)
+        {
+            levels[index] = presentPartyLevels[index];
+        }
+        return ResolveForParty(sceneLevel, levels, originalBattleRoll, secondBattleRoll, capacity, GameplayLevelRules.Default);
+    }
+
+    public static int ResolveExpanded(byte sceneLevel, ReadOnlySpan<int> presentPartyLevels, byte originalBattleRoll, byte? secondBattleRoll, GameplayLevelRules rules)
+    {
+        return ResolveForParty(sceneLevel, presentPartyLevels, originalBattleRoll, secondBattleRoll, NativeCharacterVitals.ExtendedRecordCount, rules);
+    }
+
+    private static int ResolveForParty(byte sceneLevel, ReadOnlySpan<int> presentPartyLevels, byte originalBattleRoll, byte? secondBattleRoll, int capacity, GameplayLevelRules rules)
+    {
+        int maximum = rules.MaximumEnemyLevel;
         if (sceneLevel <= 100)
         {
-            return sceneLevel;
+            return Math.Min(sceneLevel, maximum);
         }
         if (sceneLevel == 252)
         {
-            return originalBattleRoll % 100 + 1;
+            return Math.Min(originalBattleRoll % 100 + 1, maximum);
         }
         if (RandomByteCount(sceneLevel) == 2 && secondBattleRoll is null)
         {
@@ -34,31 +50,31 @@ public static class NativeBattleEnemyLevelRules
             throw new InvalidDataException("Native enemy level requires the actual present battle party levels within its roster capacity.");
         }
         int sum = 0;
-        foreach (byte level in presentPartyLevels)
+        foreach (int level in presentPartyLevels)
         {
-            if (level is < 1 or > 100)
+            if (level < 1 || level > rules.MaximumCharacterLevel)
             {
-                throw new InvalidDataException("Native present battle party levels must be1..100.");
+                throw new InvalidDataException("Present battle party levels exceed the supported character level range.");
             }
             sum += level;
         }
-        int average = sum / presentPartyLevels.Length;
+        int average = sum / presentPartyLevels.Length + rules.AdditionalPartyLevel;
         if (sceneLevel == 254)
         {
-            return average;
+            return Math.Min(maximum, average);
         }
-        int varied = Math.Clamp(average + ((originalBattleRoll & 1) != 0 ? average / 5 : average / -5), 1, 100);
+        int varied = Math.Clamp(average + ((originalBattleRoll & 1) != 0 ? average / 5 : average / -5), 1, maximum);
         if (sceneLevel <= 200)
         {
             return Math.Min(sceneLevel - 100, varied);
         }
         if (sceneLevel <= 250)
         {
-            return Math.Min(100, varied + sceneLevel - 200);
+            return Math.Min(maximum, varied + sceneLevel - 200);
         }
         return sceneLevel switch
         {
-            251 => Math.Clamp(average + ((originalBattleRoll & 1) != 0 ? secondBattleRoll!.Value & 3 : -(secondBattleRoll!.Value & 3)), 1, 65),
+            251 => Math.Clamp(average + ((originalBattleRoll & 1) != 0 ? secondBattleRoll!.Value & 3 : -(secondBattleRoll!.Value & 3)), 1, Math.Min(65, maximum)),
             253 => Math.Max(1, secondBattleRoll!.Value % varied),
             255 => varied,
             _ => throw new InvalidDataException("Invalid native level dispatch.")

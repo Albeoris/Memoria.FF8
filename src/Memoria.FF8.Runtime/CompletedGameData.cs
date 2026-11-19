@@ -11,6 +11,7 @@ public sealed record CompletedGameData
     public string? ParentCompletionIdentity { get; init; }
     public required Ff8CompletionState Completion { get; init; }
     public required GameplayPreferences Settings { get; init; }
+    public int MaximumCharacterLevel { get; init; } = GameplayLevelRules.DefaultMaximumLevel;
     public ImmutableArray<ImmutableArray<GuardianForceAbilityTemplate>> GuardianForceTemplates { get; init; } = [];
     public ImmutableArray<string> EmbeddedGuardianForceDocuments { get; init; } = [];
     public NativeCardInventory? Cards { get; init; }
@@ -23,7 +24,7 @@ public sealed record CompletedGameData
 
     public void Validate()
     {
-        if (SchemaVersion != 1 || Campaign != "ff8" || Completion is null || Settings is null || Cards is null || InitializationIdentity is not { Length: 64 } || ContentIdentity is not { Length: 64 } || Portraits is null || Portraits.Length > 11 || Portraits.Any(id => id is < 0 or > 10) || GuardianForceTemplates.IsDefault || GuardianForceTemplates.Length != 16 || GuardianForceTemplates.Any(row => row.IsDefault || row.Any(entry => entry is null)) || EmbeddedGuardianForceDocuments.IsDefault)
+        if (SchemaVersion != 1 || Campaign != "ff8" || Completion is null || Settings is null || MaximumCharacterLevel is < 1 or > GameplayLevelRules.HighestLevel || Cards is null || InitializationIdentity is not { Length: 64 } || ContentIdentity is not { Length: 64 } || Portraits is null || Portraits.Length > 11 || Portraits.Any(id => id is < 0 or > 10) || GuardianForceTemplates.IsDefault || GuardianForceTemplates.Length != 16 || GuardianForceTemplates.Any(row => row.IsDefault || row.Any(entry => entry is null)) || EmbeddedGuardianForceDocuments.IsDefault)
         {
             throw new InvalidDataException("Unsupported or incomplete FFVIII completed game data.");
         }
@@ -63,6 +64,7 @@ public sealed record CompletedGameData
                 RunIdentity = string.IsNullOrEmpty(state.NewGamePlus?.RunIdentity) ? completion.Identity : state.NewGamePlus.RunIdentity,
                 ParentCompletionIdentity = state.NewGamePlus?.SourceCompletionIdentity,
                 Settings = state.GameplayPreferences,
+                MaximumCharacterLevel = state.LevelRules.MaximumCharacterLevel,
                 Cards = state.CardInventory,
                 Playtime = state.Playtime,
                 FullBattlePlaythrough = state.FullBattlePlaythrough,
@@ -85,6 +87,7 @@ public sealed record CompletedGameData
         NativeCharacterVitals characters = initialized.CharacterVitals ?? throw new NotSupportedException("New Game+ requires initialized character definitions.");
         NativeEconomy economy = initialized.Economy ?? throw new NotSupportedException("New Game+ requires initialized inventory definitions.");
         characters = NewGamePlusGuardianForceDefinitions.BindEmbedded(characters, clear.GuardianForceTemplates, clear.EmbeddedGuardianForceDocuments);
+        characters = characters with { MaximumCharacterLevel = clear.MaximumCharacterLevel };
         GameplaySaveCharacters transfer = document.Characters with { GuardianForceIntent = null };
         return initialized with
         {

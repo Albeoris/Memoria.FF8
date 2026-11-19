@@ -24,12 +24,16 @@ public sealed partial class Ff7Session
 
     public Ff7BattleSession? Battle { get; private set; }
     private Ff7EnemyExtensionCatalog? enemyExtensions;
-    private Func<IReadOnlyList<byte>>? enemyExtensionPartyLevels;
+    private Func<IReadOnlyList<int>>? enemyExtensionPartyLevels;
+    private Func<Ff7EnemyLevelRules>? enemyExtensionLevelRules;
 
-    public void ConfigureEnemyExtensions(Ff7EnemyExtensionCatalog catalog, bool enabled, Func<IReadOnlyList<byte>>? partyLevels = null)
+    private int? AutolevelCharacterCap => enemyExtensions?.ScalesLevels == true ? (enemyExtensionLevelRules?.Invoke() ?? new()).MaximumCharacterLevel : null;
+
+    public void ConfigureEnemyExtensions(Ff7EnemyExtensionCatalog catalog, bool enabled, Func<IReadOnlyList<int>>? partyLevels = null, Func<Ff7EnemyLevelRules>? levelRules = null)
     {
         enemyExtensions = enabled ? catalog : null;
-        enemyExtensionPartyLevels = partyLevels;
+        enemyExtensionPartyLevels = enabled ? partyLevels : null;
+        enemyExtensionLevelRules = enabled ? levelRules : null;
     }
 
     public void SetFullCombatEnabled(bool enabled)
@@ -78,7 +82,7 @@ public sealed partial class Ff7Session
 
     private Ff7BattleSession CreateBattle(SceneFormation formation, long requestId, ushort flags, byte requestMode, int track, FieldVariables variables, Ff7BattleSnapshot? previousFormation = null)
     {
-        return new(formation, Progress, battleKernel!, executable.NativeMateriaStatModifiers, requestId, flags, animations: battleAnimations, limits: battleLimits, beatRushSymbols: beatRushSymbols, requestMode: requestMode, musicTrack: track > 0 ? track : null, bigShotChargeRotation: previousFormation?.BigShotChargeRotation ?? battleBigShotChargeRotation, bigShotCounterRotation: previousFormation?.BigShotCounterRotation ?? battleBigShotCounterRotation, searchScopeScaleCounter: previousFormation?.SearchScopeScaleCounter ?? battleSearchScopeScaleCounter, cameraScripts: LoadBattleCameraScripts(Ff7NativeAtb.ResolveLayout(formation.Layout, formation.BattleFlags, (flags & 4) != 0)), cameraPresentationCounter: previousFormation?.Camera?.Scripts.PresentationCounter ?? battleCameraPresentationCounter, silkDirection: previousFormation?.SilkDirection ?? battleSilkDirection, enemyExtensions: enemyExtensions, enemyExtensionPartyLevels: enemyExtensionPartyLevels?.Invoke(), initialSaveBank1: Ff7BattleSession.CaptureNativeSaveBank(variables), previousFormation: previousFormation, systemMessages: battleSystemMessages, commandResources: battleCommandResources);
+        return new(formation, Progress, battleKernel!, executable.NativeMateriaStatModifiers, requestId, flags, animations: battleAnimations, limits: battleLimits, beatRushSymbols: beatRushSymbols, requestMode: requestMode, musicTrack: track > 0 ? track : null, bigShotChargeRotation: previousFormation?.BigShotChargeRotation ?? battleBigShotChargeRotation, bigShotCounterRotation: previousFormation?.BigShotCounterRotation ?? battleBigShotCounterRotation, searchScopeScaleCounter: previousFormation?.SearchScopeScaleCounter ?? battleSearchScopeScaleCounter, cameraScripts: LoadBattleCameraScripts(Ff7NativeAtb.ResolveLayout(formation.Layout, formation.BattleFlags, (flags & 4) != 0)), cameraPresentationCounter: previousFormation?.Camera?.Scripts.PresentationCounter ?? battleCameraPresentationCounter, silkDirection: previousFormation?.SilkDirection ?? battleSilkDirection, enemyExtensions: enemyExtensions, enemyExtensionPartyLevels: enemyExtensionPartyLevels?.Invoke(), initialSaveBank1: Ff7BattleSession.CaptureNativeSaveBank(variables), previousFormation: previousFormation, systemMessages: battleSystemMessages, commandResources: battleCommandResources, enemyLevelRules: enemyExtensionLevelRules?.Invoke());
     }
 
     private void AdvanceBattle(bool waitForCommand, bool confirmLimit, bool escapeHeld, bool turnBased)

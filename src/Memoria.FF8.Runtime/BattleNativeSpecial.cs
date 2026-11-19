@@ -41,7 +41,7 @@ public sealed record BattleNativeCharacterGrowth(ushort HitPointBonus, Immutable
         _ => 0
     };
 
-    public static int LevelBonus(int ability, int level) => Math.Clamp(level - 1, 0, 99) * LevelBonusPerLevel(ability);
+    public static int LevelBonus(int ability, int level) => Math.Clamp(level - 1, 0, GameplayLevelRules.HighestLevel - 1) * LevelBonusPerLevel(ability);
 
     public void Validate()
     {

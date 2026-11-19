@@ -177,7 +177,7 @@ internal static class SpecialEnemyInitializationTests
                 continue;
             }
             Ff7ResolvedEnemyExtension resolved = battle.EnemyExtension(enemy.FormationSlot + 4)!;
-            byte level = delta.ScaleLevel == true ? (byte)Math.Max(100, (int)enemy.Level) : enemy.Level;
+            int level = delta.ScalesLevel ? 100 : enemy.Level;
             Check(resolved.Level == level, $"Enemy {enemy.Placement.EnemyId} level policy changed.");
             uint hp = Ff7EnemyExtensionCatalog.ScaleUnsigned(enemy.MaxHitPoints, level, enemy.Level, delta.Growth?.GetValueOrDefault("hp"), int.MaxValue);
             Check(resolved.Hp == hp, $"Enemy {enemy.Placement.EnemyId} HP projection changed.");

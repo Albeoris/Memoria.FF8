@@ -74,22 +74,58 @@ public sealed record NativeStatDefinitions([property: JsonRequired] ImmutableArr
 
     public static byte Level(uint experience, NativeStatCurve curve)
     {
-        int level = 1;
-        int accumulated = 10 * curve.ExperienceStep;
-        int fractional = curve.ExperienceFraction;
-        while (level < 100 && unchecked((int)experience) >= accumulated + level * fractional / 256)
-        {
-            level++;
-            fractional += curve.ExperienceFraction;
-            accumulated += 10 * curve.ExperienceStep;
-        }
-        return (byte)level;
+        return checked((byte)Level(experience, curve, GameplayLevelRules.DefaultMaximumLevel));
     }
 
-    public ushort CharacterMaximum(NativeCharacterVital character, bool levelBasedStatBonuses = false)
+    public static int Level(uint experience, NativeStatCurve curve, int maximumLevel)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(maximumLevel, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(maximumLevel, GameplayLevelRules.HighestLevel);
+        // The original level comparison reads the saved experience DWORD as signed.
+        if (experience > int.MaxValue)
+        {
+            return 1;
+        }
+        int low = 1;
+        int high = maximumLevel;
+        while (low < high)
+        {
+            int middle = low + (high - low + 1) / 2;
+            if (experience < ExperienceForLevel(middle, curve))
+            {
+                high = middle - 1;
+            }
+            else
+            {
+                low = middle;
+            }
+        }
+        return low;
+    }
+
+    public static uint ExperienceForLevel(int level, NativeStatCurve curve)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(level, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(level, GameplayLevelRules.HighestLevel);
+        int steps = level - 1;
+        return (uint)(10 * steps * curve.ExperienceStep + steps * steps * curve.ExperienceFraction / 256);
+    }
+
+    public static uint ExperienceToNextLevel(uint experience, NativeStatCurve curve, int maximumLevel = GameplayLevelRules.DefaultMaximumLevel)
+    {
+        int level = Level(experience, curve, maximumLevel);
+        if (level == maximumLevel)
+        {
+            return 0;
+        }
+        uint threshold = ExperienceForLevel(level + 1, curve);
+        return threshold > experience ? threshold - experience : 0;
+    }
+
+    public ushort CharacterMaximum(NativeCharacterVital character, bool levelBasedStatBonuses = false, int maximumLevel = GameplayLevelRules.DefaultMaximumLevel)
     {
         NativeStatCurve curve = Characters[character.CharacterId];
-        int level = Level(character.Experience, curve);
+        int level = Level(character.Experience, curve, maximumLevel);
         byte spell = character.Junction.MagicJunctions[0];
         int quantity = spell == 0 ? 0 : character.MagicInventory.FirstOrDefault(stock => stock.SpellId == spell)?.Count ?? 0;
         return CharacterMaximum(character.CharacterId, level, character.Growth.Effective(levelBasedStatBonuses, level, character.Junction.Abilities).HitPointBonus, spell, quantity, character.Junction.Abilities);
@@ -113,7 +149,7 @@ public sealed record NativeStatDefinitions([property: JsonRequired] ImmutableArr
             }
         }
         int maximum = unchecked((byte)percentage * baseMaximum) / 100;
-        return unchecked((ushort)Math.Min(maximum, 9999));
+        return level > GameplayLevelRules.DefaultMaximumLevel ? (ushort)Math.Clamp(maximum, 1, 9999) : unchecked((ushort)Math.Min(maximum, 9999));
     }
 
     public ushort GuardianForceMaximum(int id, NativeGuardianForceVital guardianForce)

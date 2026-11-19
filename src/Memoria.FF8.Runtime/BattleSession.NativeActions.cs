@@ -280,7 +280,7 @@ public sealed partial class BattleSession
             }
             damage = native.AttackType switch
             {
-                7 => (recipient.NativeCombatantFlags & 0x10000) != 0 ? 0 : native.Power * recipient.CurrentHp / 16,
+                7 => (recipient.NativeCombatantFlags & 0x10000) != 0 ? 0 : (int)((long)native.Power * recipient.CurrentHp / 16),
                 18 => 5 * actor.MaximumHp,
                 34 => recipient.IsPlayer ? native.Power * recipient.NativeKillCount : 0,
                 10 => NativeGunbladeAttack.Damage(EffectiveStat(actor, BattleStatId.Strength), vitality, native.Power, NextRandomByte(), ResolveGunbladeTiming(actor, recipient, command)),
@@ -351,7 +351,7 @@ public sealed partial class BattleSession
                         Log("Miss", actor.Id, recipient.Id, 0, $"{action.Name}: {recipient.Name} was unaffected.");
                         return;
                     }
-                    damage = native.AttackType == 32 ? -native.Power * recipient.MaximumHp / 16 : native.AttackType == 25 ? -(actor.MaximumHp - ReadNativeRecoverSourceHp(actor)) : -50 * native.Power;
+                    damage = native.AttackType == 32 ? (int)(-(long)native.Power * recipient.MaximumHp / 16) : native.AttackType == 25 ? -(actor.MaximumHp - ReadNativeRecoverSourceHp(actor)) : -50 * native.Power;
                     if ((native.AttackFlags & 3) == 2 && (actor.IsPlayer))
                     {
                         uint passiveFlags = actor.NativePlayerStatRules?.NativeStatusPassiveFlags ?? throw new NotSupportedException("Native item healing requires the equipped character-ability flags.");
@@ -363,13 +363,13 @@ public sealed partial class BattleSession
                     applyStatuses = native.StatusAttack > NextRandomByte() % 100 + 1;
                     break;
                 case 21:
-                    damage = -native.Power * recipient.MaximumHp / 16;
+                    damage = (int)(-(long)native.Power * recipient.MaximumHp / 16);
                     break;
                 case 8:
-                    damage = (recipient.NativeCombatantFlags & 0x10000) != 0 ? 0 : native.Power * recipient.CurrentHp / 16;
+                    damage = (recipient.NativeCombatantFlags & 0x10000) != 0 ? 0 : (int)((long)native.Power * recipient.CurrentHp / 16);
                     break;
                 case 20:
-                    damage = (recipient.NativeCombatantFlags & 0x10000) != 0 ? 0 : action.Level * recipient.MaximumHp / ((native.PowerModifier ?? 0) - (native.LevelModifier ?? 0) + 100);
+                    damage = (recipient.NativeCombatantFlags & 0x10000) != 0 ? 0 : (int)((long)action.Level * recipient.MaximumHp / ((native.PowerModifier ?? 0) - (native.LevelModifier ?? 0) + 100));
                     break;
                 case 11:
                 case 15:

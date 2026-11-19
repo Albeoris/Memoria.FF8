@@ -141,7 +141,7 @@ public sealed partial class BattleSession
         {
             return;
         }
-        if (!SelphieCardSlots || deal.Id == Guid.Empty || deal.CrisisLevel is < 1 or > 4 || deal.CharacterLevel is < 1 or > 100 || deal.Candidates.IsDefault || deal.Candidates.Length != 2 * deal.CrisisLevel + 1 || deal.RevealMask < 0 || deal.RevealMask >= (1 << deal.Candidates.Length) || deal.SelectedIndex is int selected && (selected < 0 || selected >= deal.Candidates.Length) || nativeGlobalRandom is null || !NativeSlotsDealOwnerValid(deal) || nativeSlotsRolls.ContainsKey(deal.ActorId))
+        if (!SelphieCardSlots || deal.Id == Guid.Empty || deal.CrisisLevel is < 1 or > 4 || deal.CharacterLevel is < 1 or > GameplayLevelRules.HighestLevel || deal.Candidates.IsDefault || deal.Candidates.Length != 2 * deal.CrisisLevel + 1 || deal.RevealMask < 0 || deal.RevealMask >= (1 << deal.Candidates.Length) || deal.SelectedIndex is int selected && (selected < 0 || selected >= deal.Candidates.Length) || nativeGlobalRandom is null || !NativeSlotsDealOwnerValid(deal) || nativeSlotsRolls.ContainsKey(deal.ActorId))
         {
             throw new InvalidDataException("Saved Slots deal contradicts its immutable choice or current actor ownership.");
         }

@@ -20,12 +20,16 @@ public static partial class SystemTextCatalog
         defaults["new-game-plus.cards.rare.help"] = "Rare cards are unique: 0 or 1, with matching ownership.";
         defaults["new-game-plus.category.ap"] = "AP Gain";
         defaults["new-game-plus.category.cards"] = "Cards";
+        defaults["new-game-plus.category.character-level-cap"] = "Maximum Character Level";
         defaults["new-game-plus.category.characters"] = "Character Levels";
+        defaults["new-game-plus.category.enemy-level-cap"] = "Maximum Enemy Level";
         defaults["new-game-plus.category.exp"] = "EXP Gain";
         defaults["new-game-plus.category.gf"] = "Guardian Forces";
         defaults["new-game-plus.category.help"] = "Choose a preset or open Config to edit starting values.";
         defaults["new-game-plus.category.items"] = "Items";
         defaults["new-game-plus.category.magic"] = "Magic";
+        defaults["new-game-plus.category.party-level-bonus"] = "Party Level Bonus";
+        defaults["new-game-plus.character-level-cap.help"] = "Cap starting and earned character levels at a value from 1 to 300. The default is 100.";
         defaults["new-game-plus.character.0"] = "Squall";
         defaults["new-game-plus.character.1"] = "Zell";
         defaults["new-game-plus.character.10"] = "Ward";
@@ -42,6 +46,7 @@ public static partial class SystemTextCatalog
         defaults["new-game-plus.difficulty"] = "Difficulty";
         defaults["new-game-plus.done"] = "Done";
         defaults["new-game-plus.done.help"] = "Keep edits and return.";
+        defaults["new-game-plus.enemy-level-cap.help"] = "Cap enemy levels at a value from 1 to 300. The default is 100.";
         defaults["new-game-plus.exp.help"] = "Applies to character and GF EXP. The whole battle subtotal is scaled once, with halves rounded up. Zero disables EXP; other rewards continue.";
         defaults["new-game-plus.gf.0"] = "Quezacotl";
         defaults["new-game-plus.gf.1"] = "Shiva";
@@ -61,7 +66,7 @@ public static partial class SystemTextCatalog
         defaults["new-game-plus.gf.9"] = "Cerberus";
         defaults["new-game-plus.gf.help"] = "Confirm toggles initial ownership. Config opens this GF's abilities without granting it.";
         defaults["new-game-plus.global-level"] = "Level for All Characters";
-        defaults["new-game-plus.global-level.help"] = "0: Individual / No Override. Values 1–100 override levels while retaining individual choices. Availability remains independent.";
+        defaults["new-game-plus.global-level.help"] = "Choose 0 to use individual levels, or set one starting level for all characters. The character level cap applies and availability stays independent.";
         defaults["new-game-plus.individual"] = "Individual / No Override";
         defaults["new-game-plus.individual.help"] = "Choose the starting level. This transfers levels without weapons, junctions or permanent stat bonuses.";
         defaults["new-game-plus.item"] = "Item";
@@ -84,6 +89,7 @@ public static partial class SystemTextCatalog
         defaults["new-game-plus.off"] = "Off";
         defaults["new-game-plus.on"] = "On";
         defaults["new-game-plus.overflow"] = "Magic overflow is retained in the original personal banks.";
+        defaults["new-game-plus.party-level-bonus.help"] = "Add 0 to 200 levels to the party average used to scale enemies. The default is 0.";
         defaults["new-game-plus.preset.custom"] = "Custom";
         defaults["new-game-plus.preset.empty"] = "Empty";
         defaults["new-game-plus.preset.native"] = "Native";

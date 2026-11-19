@@ -20,6 +20,9 @@ public sealed class NewGamePlusPersistenceTests
         NewGamePlusDraft draft = new(CompletedSaveFixture.State(), native, new());
         draft.ExperienceMultiplierTenths = 15;
         draft.ApMultiplierTenths = 4;
+        GameplayLevelRules levelRules = new() { MaximumEnemyLevel = 300, MaximumCharacterLevel = 260, AdditionalPartyLevel = 199 };
+        draft.SetLevelRules(levelRules);
+        draft.SetLevel(0, 245);
         draft.Reset("items", NewGamePlusPreset.Empty);
         draft.Reset("magic", NewGamePlusPreset.Empty);
         GameState started = draft.ApplyTo(native);
@@ -39,6 +42,9 @@ public sealed class NewGamePlusPersistenceTests
         Assert.Null(restored.Ff8Completion);
         Assert.Equal(37, restored.CharacterVitals!.GetMagicCount(0, 1));
         Assert.Equal(currentCharacters.Records[0].Experience, restored.CharacterVitals.Records[0].Experience);
+        Assert.Equal(levelRules, restored.LevelRules);
+        Assert.Equal(260, restored.CharacterVitals.MaximumCharacterLevel);
+        Assert.Equal(250, restored.CharacterVitals.CharacterLevel(restored.CharacterVitals.Records[0]));
         Assert.Equal(23, restored.Economy!.Items.Single(item => item.ItemId == 17).Count);
         Assert.Equal(1, restored.CardInventory!.AvailableCount(77));
         Assert.Equal(15, restored.NewGamePlusRewards!.ExperienceTenths);

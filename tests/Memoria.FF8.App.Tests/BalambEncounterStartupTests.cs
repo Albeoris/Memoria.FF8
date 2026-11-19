@@ -1,11 +1,82 @@
 using System.Text.Json;
 using Memoria.FF8.Assets;
+using Memoria.FF8.GameUi;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.App.Tests;
 
 public sealed class BalambEncounterStartupTests
 {
+    [Fact]
+    public void NewGamePlusProjectsInstalledEnemyStatsAboveTheNativeLevelRange()
+    {
+        string directory = TestResources.GameDirectory;
+        using GameAssets assets = new(directory);
+        GameState native = GameSession.CreateColdProcess().State with
+        {
+            Scene = SceneKind.Field,
+            FieldId = 999,
+            CharacterVitals = assets.ReadNewGameCharacterVitals().Rest(),
+            CharacterAppearance = assets.ReadNewGameCharacterAppearance(),
+            CardInventory = NativeCardInventory.CreateNewGame(),
+            InputConfiguration = assets.ReadNewGameInputConfiguration(),
+            Economy = assets.ReadNewGameEconomy(),
+            BattleVariables = NativeBattleVariableState.CreateNewGame(),
+            GlobalRandom = assets.ReadNewGameGlobalRandom(),
+            NativeBattleMemory = assets.ReadColdProcessNativeBattleMemory()
+        };
+        NewGamePlusDraft draft = new(native, native, new());
+        GameplayLevelRules rules = new() { MaximumEnemyLevel = 300, MaximumCharacterLevel = 275, AdditionalPartyLevel = 150 };
+        draft.SetLevelRules(rules);
+        draft.SetGlobalLevel(275);
+        using GameWorld world = new(new GameSession(draft.ApplyTo(native)), directory);
+
+        BattleDefinition definition = world.CreateEncounterBattle(512);
+        Assert.Equal(rules, definition.LevelRules);
+        Assert.All(definition.Combatants.Where(actor => actor.IsPlayer), actor => Assert.Equal(275, actor.Level));
+        BattleCombatantDefinition enemy = definition.Combatants.First(actor => !actor.IsPlayer && actor.InitialActive && actor.Level == 300);
+        BattleEnemyNativeProjection stats = world.BattleResources.ReadEnemyNativeStats(enemy.ModelId).Project(300);
+        Assert.Equal(stats.MaximumHp, enemy.MaximumHp);
+        Assert.Equal(stats.Magic, enemy.Magic);
+        Assert.Equal(world.BattleResources.ReadEnemyAi(enemy.ModelId, 300).LevelBand, enemy.NativeAi!.LevelBand);
+
+        BattleNativeCommandBinding levelDown = world.BattleResources.ReadNativeCommand(33);
+        BattleNativeCommandBinding levelUp = world.BattleResources.ReadNativeCommand(34);
+        BattleCombatantDefinition player = definition.Combatants.First(actor => actor.IsPlayer);
+        definition = world.BindExpandedEnemyLevels(definition with
+        {
+            Combatants = definition.Combatants.Select(actor => actor.Id == player.Id ? actor with { NativeCommands = [.. actor.NativeCommands, levelDown, levelUp] } : actor).ToArray()
+        });
+        NativeMusicProcessState sourceBuffers = new(1, null, null, null, 0, null);
+        NativeBattleMusicEntryPreparation music = NativeBattleMusicEntry.Prepare52CE30(512, definition.NativeFlags, sourceBuffers, 5, -1, NativeGlobalSoundProcess.FromBufferlessColdProcess(), new NativeMusicCatalog(directory).ReadBattleEntryResources());
+        definition = definition with { NativeMusicProcess = music.MusicProcess, NativeGlobalSoundProcess = music.SoundProcess };
+        BattleSession battle = GameWorld.CreateLiveBattleSession(definition, native.GameplayPreferences, assets, world.BattleResources);
+        battle.ConfigureDiagnosticScheduling(holdEnemyCommands: true, readinessActorId: player.Id);
+
+        TickUntil(battle, () => battle.CanChoosePlayerCommand(player.Id));
+        battle.QueueNativePlayerCommand(player.Id, enemy.Id, 33, levelDown.ActionId);
+        TickUntil(battle, () => battle.Events.Any(item => item.LevelChange is { NewLevel: 150 }));
+        TickUntil(battle, () => battle.CanChoosePlayerCommand(player.Id));
+        battle.QueueNativePlayerCommand(player.Id, enemy.Id, 34, levelUp.ActionId);
+        BattleSession fork = battle.ForkForContinuation();
+        foreach (BattleSession candidate in new[] { battle, fork })
+        {
+            TickUntil(candidate, () => candidate.Events.Any(item => item.LevelChange is { NewLevel: 300 }));
+            BattleCombatant restoredEnemy = candidate.Combatants.Single(actor => actor.Id == enemy.Id);
+            Assert.Equal(300, restoredEnemy.Level);
+            Assert.Equal(stats.MaximumHp, restoredEnemy.MaximumHp);
+        }
+    }
+
+    private static void TickUntil(BattleSession battle, Func<bool> condition)
+    {
+        for (int callback = 0; callback < 2000 && !condition(); callback++)
+        {
+            battle.Tick();
+        }
+        Assert.True(condition(), $"Battle did not reach the expected state after {battle.Frame} callbacks.");
+    }
+
     [Theory]
     [InlineData(6)]
     [InlineData(4)]

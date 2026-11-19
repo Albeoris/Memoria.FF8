@@ -74,7 +74,8 @@ internal sealed class CrossoverGuestFieldVitals : IFf7GuestFieldVitals, IDisposa
     {
         int row = ReadGuestRow(vitals, binding.OriginCharacter);
         NativeCharacterVital saved = vitals.Records[row];
-        return new(binding.StoryCharacter, ReadGuestName(document, binding.OriginCharacter), NativeStatDefinitions.Level(saved.Experience, vitals.Definitions.Characters[binding.OriginCharacter]), saved.HitPoints.Minimum, CrossoverGuestRecord.MaximumHitPoints(vitals, row, binding.OriginCharacter));
+        int level = NativeStatDefinitions.Level(saved.Experience, vitals.Definitions.Characters[binding.OriginCharacter], vitals.MaximumCharacterLevel);
+        return new(binding.StoryCharacter, ReadGuestName(document, binding.OriginCharacter), level, saved.HitPoints.Minimum, CrossoverGuestRecord.MaximumHitPoints(vitals, row, binding.OriginCharacter));
     }
 
     internal static string ReadGuestName(GameplaySaveComponentDocument document, int character)

@@ -107,9 +107,9 @@ internal sealed record DiagnosticBattlePreparation([property: JsonRequired] Immu
             {
                 throw new InvalidDataException("Diagnostic commands require distinct native slots and learned kernel command abilities; a legacy Magic slot cannot be assigned twice.");
             }
-            if (character.Level is < 1 or > 100)
+            if (character.Level is < 1 or > GameplayLevelRules.HighestLevel)
             {
-                throw new InvalidDataException("Diagnostic character level must be within1..100.");
+                throw new InvalidDataException("Diagnostic character level exceeds the supported range.");
             }
             if (character.MagicJunctions.IsDefault || character.MagicJunctions.Length > 19 || character.MagicJunctions.Any(junction => junction is null || junction.Slot is < 0 or >= 19 || junction.Action is < 1 or >= 57) || character.MagicJunctions.Select(junction => junction.Slot).Distinct().Count() != character.MagicJunctions.Length || character.MagicJunctions.Select(junction => junction.Action).Distinct().Count() != character.MagicJunctions.Length)
             {

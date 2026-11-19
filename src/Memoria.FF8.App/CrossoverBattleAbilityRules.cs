@@ -56,7 +56,7 @@ internal static class CrossoverBattleAbilityRules
         bool guardian = action.AttackType is 11 or 15;
         int level = abilityLevel ?? kit.Level;
         ArgumentOutOfRangeException.ThrowIfLessThan(level, 1);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(level, 100);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(level, GameplayLevelRules.HighestLevel);
         ArgumentOutOfRangeException.ThrowIfNegative(damagePercent);
         if (action.AttackType == 26 && action.Hit == 0)
         {

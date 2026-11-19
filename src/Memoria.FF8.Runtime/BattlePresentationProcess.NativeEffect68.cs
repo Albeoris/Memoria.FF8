@@ -57,6 +57,7 @@ public sealed partial class BattlePresentationProcess
             NativeBattleEffectMemory allocationMemory = current.Memory;
             NativeBattleScanResultServices services = new(nativeActionPackets.ModelAliases, ReadNativeScanDescriptor208, id => text.ReadEncodedMiscText(id) ?? throw new NotSupportedException("Effect68 requires its reached text template."), owner => ReadNativeScanEnemyInformation(owner)[0xF7], ReadNativeScanExtra71)
             {
+                ReadLevel = ReadNativeScanLevel,
                 ReserveByteRange = length =>
                 {
                     (allocationMemory, uint resource) = NativeBattlePresentationTaskStorage.ReserveByteRange(allocationMemory, current.Effect, nativeActionPackets.Roster, length);

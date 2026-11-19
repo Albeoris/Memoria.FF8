@@ -26,6 +26,7 @@ internal sealed record NativeBattleScanExtraTextBinding(uint Address, BattleMode
 public sealed record NativeBattleScanResultServices(NativeBattleModelAliases Aliases, Func<BattleModelOwner, NativeBattleScanByteOwner> ReadDescriptor208, Func<int, ImmutableArray<byte>> ReadMiscText, Func<BattleModelOwner, byte> ReadEnemyInfoFlags, Func<BattleModelOwner, NativeBattleScanByteOwner> ReadEnemyExtra71)
 {
     public Func<int, uint>? ReserveByteRange { get; init; }
+    public Func<BattleModelOwner, int>? ReadLevel { get; init; }
 }
 
 public static class NativeBattleScanResults
@@ -73,7 +74,7 @@ public static class NativeBattleScanResults
                 maximum = Number(max);
             }
         }
-        Concat(services.ReadMiscText(0x21), separator, Number(descriptor.ReadByte(0xBC)));
+        Concat(services.ReadMiscText(0x21), separator, Number(checked((uint)(services.ReadLevel?.Invoke(actor) ?? descriptor.ReadByte(0xBC)))));
         Concat(ReadString(ScratchAddress), separator, services.ReadMiscText(0x22));
         Concat(ReadString(ScratchAddress), separator, current);
         Concat(ReadString(ScratchAddress), slash, maximum);
