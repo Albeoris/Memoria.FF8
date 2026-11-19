@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using System.Reflection;
 using Memoria.FF7.Formats;
 using Memoria.FF7.Runtime;
@@ -58,10 +58,42 @@ internal static class ApproachContextOwnershipTests
         gateways.Clear();
         owned.Add((0, 1));
         Check(Context() != stable, "A native owned-portal topology change retained stale route intent.");
+        CheckAtomicLinePhase();
         CheckOwnership(stable, moved);
         CheckStaleAdviceFallback();
         CheckFinalApproachRejoinsCurrentRoute();
         Console.WriteLine("Approach context ownership checks passed.");
+    }
+
+    private static void CheckAtomicLinePhase()
+    {
+        foreach (Ff7AutoPlayTargetKind kind in new[] { Ff7AutoPlayTargetKind.LineEnter, Ff7AutoPlayTargetKind.LineLeave })
+        {
+            Ff7AutoPlayActiveEvent active = new("visit", "line", "condition", 1, 8, 5, kind, null, 1, "before");
+            Ff7AutoPlayState state = new() { Active = active };
+            Ff7AutoplayDriver driver = new(null!);
+            int publications = 0;
+            string intent = Ff7AutoPlayPolicy.ReadNativePlanningIntent(state);
+            InvalidOperationException failure = new("native preparation failed");
+            try
+            {
+                Ff7AutoPlayPolicy.PrepareLinePhase(state, driver, active, () => throw failure, () => publications++);
+                throw new Exception("The native input preparation failure was swallowed.");
+            }
+            catch (InvalidOperationException error) when (ReferenceEquals(error, failure))
+            {
+            }
+            Check(state.Active == active && publications == 0 && intent == Ff7AutoPlayPolicy.ReadNativePlanningIntent(state), "A failed native line preparation changed its owner phase, publication or authenticated intent.");
+            Ff7AutoPlayPolicy.PrepareLinePhase(state, driver, active, () =>
+            {
+                driver.DeferPlanning();
+                return default;
+            }, () => publications++);
+            Check(driver.PlanningPending && state.Active == active && publications == 0 && intent == Ff7AutoPlayPolicy.ReadNativePlanningIntent(state), "A cooperative pending native line preparation committed a phase before producing an applicable input.");
+            driver.BeginPlanningStep();
+            Ff7AutoplayInput ready = new(1, -1, Run: false);
+            Check(Ff7AutoPlayPolicy.PrepareLinePhase(state, driver, active, () => ready, () => publications++) == ready && state.Active == (active with { LinePhase = 1 }) && publications == 1, "A ready native line input did not atomically commit exactly its own phase.");
+        }
     }
 
     private static void CheckFinalApproachRejoinsCurrentRoute()

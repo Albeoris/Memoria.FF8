@@ -25,7 +25,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         State = session.AutoPlayState?.Clone() ?? new();
         State.Validate();
         RestoreUnscopedMovementFailures(State);
-        planner = CreatePlanner(State, (visit, target) => NativeDestinationPhase(State, nativeDestinationHints.TryGetValue((visit.Key, target.Id), out int destination) ? destination : null), (visit, target) => nativeDestinationHints.TryGetValue((visit.Key, target.Id), out int destination) && destination > 64 && destination != short.MaxValue && NativeDestinationPhase(State, destination) == 0);
+        planner = CreatePlanner(State, (visit, target) => NativeDestinationPhase(State, nativeDestinationHints.TryGetValue((visit.Key, target.Id), out int destination) ? destination : null), (visit, target) => nativeDestinationHints.TryGetValue((visit.Key, target.Id), out int destination) && destination > 64 && destination != short.MaxValue && NativeDestinationPhase(State, destination) == 0, IsKeymanPreferredEntry);
         discovery = new(session);
         choices = new(session, planner, State, writeChoiceCheckpoint);
         scriptedInput = new(session);
@@ -45,12 +45,16 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
     public string WorkProgress => $"{State.FrontierProgressKey}:world-catalogs:{worldCatalogs.Count}:native-planning:{nativePlanningWork}";
     public string Status => State.Status ?? "Discovering native events";
 
-    internal static AutoPlayPlanner<Ff7AutoPlayDeferral> CreatePlanner(Ff7AutoPlayState state, Func<AutoPlayVisit, AutoPlayEvent, int>? phaseOrder = null, Func<AutoPlayVisit, AutoPlayEvent, bool>? unvisitedDestination = null)
+    internal static AutoPlayPlanner<Ff7AutoPlayDeferral> CreatePlanner(Ff7AutoPlayState state, Func<AutoPlayVisit, AutoPlayEvent, int>? phaseOrder = null, Func<AutoPlayVisit, AutoPlayEvent, bool>? unvisitedDestination = null, Func<AutoPlayVisit, AutoPlayEvent, bool>? preferredNativeEntry = null)
     {
         return new(state.Coverage, phaseOrder: phaseOrder, candidateProgressionOrder: (visit, target, candidate) =>
         {
             AutoPlayEventCoverage<Ff7AutoPlayDeferral>? coverage = state.Coverage.Visits.SingleOrDefault(entry => entry.Visit.Key == visit.Key)?.Events.SingleOrDefault(entry => entry.Event.Id == target.Id);
             if (state.DestinationField is not null && state.NavigationGoal is { EventId: not null } goal && goal.EventId == target.Id && (goal.Conditions is null || goal.Conditions == target.ConditionSignature) && state.Coverage.NavigationVisits.Any(navigation => navigation.Key == goal.NavigationKey && navigation.VisitKey == visit.Key))
+            {
+                return -3;
+            }
+            if (preferredNativeEntry?.Invoke(visit, target) == true)
             {
                 return -3;
             }
@@ -423,7 +427,10 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         }
         try
         {
-            return driver.ChooseTargetInput(selectedTarget, observation.Events, run => PrepareEntryInput(selectedTarget, ChooseOrdinaryTargetInput(driver, selectedTarget, run)));
+            Ff7AutoplayInput Prepare() => driver.ChooseTargetInput(selectedTarget, observation.Events, run => PrepareEntryInput(selectedTarget, ChooseOrdinaryTargetInput(driver, selectedTarget, run)));
+            Ff7Line? phaseLine = current.LinePhase == 0 && selectedTarget.Kind is Ff7AutoPlayTargetKind.LineEnter or Ff7AutoPlayTargetKind.LineLeave ? session.Host.Process.Lines.Single(line => line.Entity == selectedTarget.Entity) : null;
+            bool advancePhase = phaseLine is not null && (selectedTarget.Kind == Ff7AutoPlayTargetKind.LineEnter ? !phaseLine.Touch : phaseLine.Touch);
+            return advancePhase ? PrepareLinePhase(State, driver, current, Prepare, Publish) : Prepare();
         }
         catch (Ff7AutoPlayNavigationUnavailableException absence)
         {
@@ -793,11 +800,6 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         {
             if (line.Touch || active.LinePhase != 0)
             {
-                if (active.LinePhase == 0)
-                {
-                    State.Active = active with { LinePhase = 1 };
-                    Publish();
-                }
                 return driver.LeaveLine(target.Entity, run);
             }
             return driver.ApproachLine(target.Entity, Ff7AutoPlayTargetKind.LineTouch, run);
@@ -806,12 +808,22 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         {
             return driver.LeaveLine(target.Entity, run);
         }
-        if (target.Kind == Ff7AutoPlayTargetKind.LineEnter && !line.Touch && active.LinePhase == 0)
-        {
-            State.Active = active with { LinePhase = 1 };
-            Publish();
-        }
         return driver.ApproachLine(target.Entity, target.Kind, run);
+    }
+
+    internal static Ff7AutoplayInput PrepareLinePhase(Ff7AutoPlayState state, Ff7AutoplayDriver driver, Ff7AutoPlayActiveEvent active, Func<Ff7AutoplayInput> prepare, Action publish)
+    {
+        Ff7AutoplayInput input = prepare();
+        if (!driver.PlanningPending)
+        {
+            if (state.Active != active)
+            {
+                throw new InvalidOperationException("The native line owner changed while preparing its input.");
+            }
+            state.Active = active with { LinePhase = 1 };
+            publish();
+        }
+        return input;
     }
 
     private bool DetectMovementCycle(Ff7AutoPlayActiveEvent active)

@@ -3,6 +3,18 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--keyman-route-only", StringComparer.Ordinal))
+{
+    NativeKeymanRouteTests.Run();
+    return 0;
+}
+
+if (args.Contains("--keyman-route-original-only", StringComparer.Ordinal))
+{
+    NativeKeymanRouteTests.RunOriginal();
+    return 0;
+}
+
 if (args.Contains("--clock-route-only", StringComparer.Ordinal))
 {
     NativeClockRouteTests.Run();
