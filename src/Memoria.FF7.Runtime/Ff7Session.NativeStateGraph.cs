@@ -5,11 +5,11 @@ using Memoria.FF7.Events;
 
 namespace Memoria.FF7.Runtime;
 
-internal enum Ff7NativeGraphEdgeKind { Wait, Portal, Goal, OwnedEvent, OwnerSettlement }
+internal enum Ff7NativeGraphEdgeKind { Wait, Primitive, Portal, Goal, OwnedEvent, OwnerSettlement }
 internal sealed record Ff7NativeGraphOwner(int Entity, int Priority, int Root, bool Returned, int Script = -1, int ParentEntity = -1, int ParentPriority = -1);
 internal sealed record Ff7NativeGraphDebt(Ff7AutoPlayTarget[] Roots, bool[] Pending, Ff7NativeGraphOwner[] Owners, long? LadderRequest = null, int LadderEntity = -1, int LadderPriority = -1, bool BackwardCompleted = false, int LadderRoot = -1, bool[]? AdmissionObserved = null);
 internal sealed record Ff7NativeGraphState(Ff7SessionSave Native, Ff7NativeGraphDebt? Debt, Ff7NativeGraphDebt? Recovery = null);
-internal sealed record Ff7NativeGraphEdge(Ff7NativeGraphEdgeKind Kind, Vector3 Point, int? Triangle = null, Ff7AutoPlayTarget? Event = null, bool Run = true);
+internal sealed record Ff7NativeGraphEdge(Ff7NativeGraphEdgeKind Kind, Vector3 Point, int? Triangle = null, Ff7AutoPlayTarget? Event = null, bool Run = true, Ff7AutoplayInput? Input = null);
 
 public sealed partial class Ff7AutoplayDriver
 {
@@ -27,10 +27,6 @@ public sealed partial class Ff7AutoplayDriver
             yield break;
         }
         int initialDistance = ReadNativeRouteDistance(target, targets);
-        if (initialDistance == int.MaxValue)
-        {
-            yield break;
-        }
         Ff7SessionSave rootSave = session.CaptureAutoPlayNavigation();
         Ff7NativeGraphState root = new(rootSave, ReadRootNativeDebt(session, targets));
         using Ff7NativeStateGraph<Ff7NativeGraphState, Ff7AutoPlayRouteStep> graph = new(root, NativeGraphKey(root), NativeGraphAdvisory(rootSave.Process!, target.Position));
@@ -42,6 +38,7 @@ public sealed partial class Ff7AutoplayDriver
             while (graph.TryBeginExpansion(out var node))
             {
                 Ff7NativeGraphState state = node!.State!;
+                Ff7NativePrimitiveReuse primitiveReuse = new();
                 Ff7NativeGraphEdge[] edges;
                 using (Ff7Session inspect = session.RestoreAutoPlayNavigation(state.Native))
                 {
@@ -50,7 +47,11 @@ public sealed partial class Ff7AutoplayDriver
                 }
                 foreach (Ff7NativeGraphEdge edge in edges)
                 {
-                    using IEnumerator<int> expansion = ExpandNativeGraphEdge(graph, node, state, edge, target, initialDistance, probe, summaryId, rootSave.Process!.Actors.Single(actor => actor.PlayerControlled)).GetEnumerator();
+                    if (edge.Kind == Ff7NativeGraphEdgeKind.OwnedEvent && edge.Input is Ff7AutoplayInput repeated && edge.Event is { } eventTarget && primitiveReuse.CanSkip(repeated, eventTarget.Entity, eventTarget.Script))
+                    {
+                        continue;
+                    }
+                    using IEnumerator<int> expansion = ExpandNativeGraphEdge(graph, node, state, edge, target, initialDistance, probe, summaryId, rootSave.Process!.Actors.Single(actor => actor.PlayerControlled), primitiveReuse).GetEnumerator();
                     while (expansion.MoveNext())
                     {
                         yield return expansion.Current;
@@ -75,7 +76,7 @@ public sealed partial class Ff7AutoplayDriver
         LastNativeRouteProbe = "The represented native guide graph exhausted without an authenticated goal boundary.";
     }
 
-    private IEnumerable<int> ExpandNativeGraphEdge(Ff7NativeStateGraph<Ff7NativeGraphState, Ff7AutoPlayRouteStep> graph, Ff7NativeGraphNode<Ff7NativeGraphState, Ff7AutoPlayRouteStep> parent, Ff7NativeGraphState source, Ff7NativeGraphEdge edge, Ff7AutoPlayTarget goal, int initialDistance, Ff7NativeRouteProbe probe, long id, Ff7Actor original)
+    private IEnumerable<int> ExpandNativeGraphEdge(Ff7NativeStateGraph<Ff7NativeGraphState, Ff7AutoPlayRouteStep> graph, Ff7NativeGraphNode<Ff7NativeGraphState, Ff7AutoPlayRouteStep> parent, Ff7NativeGraphState source, Ff7NativeGraphEdge edge, Ff7AutoPlayTarget goal, int initialDistance, Ff7NativeRouteProbe probe, long id, Ff7Actor original, Ff7NativePrimitiveReuse primitiveReuse)
     {
         NativeGraphOwnership ownership = new(source.Debt, edge.Kind == Ff7NativeGraphEdgeKind.OwnedEvent ? edge.Event : null);
         List<Ff7AutoPlayRouteStep> segment = [];
@@ -83,155 +84,145 @@ public sealed partial class Ff7AutoplayDriver
         Ff7NativeGraphDebt? recovery = source.Recovery;
         try
         {
-            while (true)
+            nativeGraphWork[id] = (graph.FrontierCount, graph.VisitedCount, graph.ExpandedCount);
+            probe.Progress = $"{goal.Id}:graph:{edge.Kind}:cost{parent.Cost + segment.Count}:nodes{graph.VisitedCount}:frontier{graph.FrontierCount}:expanded{graph.ExpandedCount}";
+            yield return 0;
+            using Ff7Session branch = session.RestoreAutoPlayNavigation(work.Native);
+            ActiveNativeRouteCandidates++;
+            try
             {
-                nativeGraphWork[id] = (graph.FrontierCount, graph.VisitedCount, graph.ExpandedCount);
-                probe.Progress = $"{goal.Id}:graph:{edge.Kind}:cost{parent.Cost + segment.Count}:nodes{graph.VisitedCount}:frontier{graph.FrontierCount}:expanded{graph.ExpandedCount}";
-                yield return 0;
-                using Ff7Session branch = session.RestoreAutoPlayNavigation(work.Native);
-                ActiveNativeRouteCandidates++;
+                Ff7AutoplayDriver driver = new(branch);
+                Ff7AutoPlayDiscovery discovery = new(branch);
+                Ff7AutoPlayObservation current = discovery.Observe();
+                Ff7AutoPlayTarget[] protectedEvents = current.Events.Where(IsNativeGraphProtectedLine).ToArray();
+                bool selected = false;
+                bool unexpected = false;
+                HashSet<(int Entity, int Script)> startedRoots = [];
+                Ff7Actor startingPlayer = branch.Host.Process.Actors.Single(actor => actor.PlayerControlled);
+                bool forcedSettlement = edge.Kind == Ff7NativeGraphEdgeKind.OwnerSettlement && ownership.HasDebt && (branch.Host.Process.PlayerLocked || branch.Host.Process.Join is not null || startingPlayer.Ladder is not null || branch.Host.HasScriptedMotion(startingPlayer) || ownership.HasPendingRoot);
+                Ff7NativeTickObservation? lastTick = null;
+                branch.NativeTickCompleted += tick => lastTick = tick;
+                branch.NativeInteractionScriptRequested += admission =>
+                {
+                    int entity = admission.Entity;
+                    int script = admission.Script;
+                    bool accepted = admission.Accepted;
+                    if (admission.Started)
+                    {
+                        startedRoots.Add((entity, script));
+                    }
+                    if (accepted && forcedSettlement && !ownership.Allows(entity, script) && protectedEvents.FirstOrDefault(item => item.Entity == entity && item.Script == script && !driver.CanSkipNavigationLine(item, branch.Machine.Input, false)) is { } forcedRoot)
+                    {
+                        ownership.AdoptForcedRoot(forcedRoot);
+                    }
+                    bool owned = ownership.Requested(entity, script, accepted, admission.Started);
+                    selected |= accepted && entity == goal.Entity && script == goal.Script;
+                    if (accepted && !owned && (entity != goal.Entity || script != goal.Script) && protectedEvents.Any(item => item.Entity == entity && item.Script == script && !driver.CanSkipNavigationLine(item, branch.Machine.Input, false)))
+                    {
+                        unexpected = true;
+                    }
+                };
+                branch.Machine.ScriptDispatched += ownership.Dispatched;
+                branch.Machine.ScriptReturned += ownership.Returned;
+                // Every predecessor has passed this same executed-operand witness.
+                using Ff7NativeRouteClockWitness clock = new(branch.Machine);
+                driver.BeginPlanningStep();
+                Ff7AutoplayInput input;
+                long physical = driver.PhysicalPlanningWork;
                 try
                 {
-                    Ff7AutoplayDriver driver = new(branch);
-                    Ff7AutoPlayDiscovery discovery = new(branch);
-                    Ff7AutoPlayObservation current = discovery.Observe();
-                    Ff7AutoPlayTarget[] protectedEvents = current.Events.Where(IsNativeGraphProtectedLine).ToArray();
-                    bool selected = false;
-                    bool unexpected = false;
-                    Ff7Actor startingPlayer = branch.Host.Process.Actors.Single(actor => actor.PlayerControlled);
-                    bool forcedSettlement = edge.Kind == Ff7NativeGraphEdgeKind.OwnerSettlement && ownership.HasDebt && (branch.Host.Process.PlayerLocked || branch.Host.Process.Join is not null || startingPlayer.Ladder is not null || branch.Host.HasScriptedMotion(startingPlayer) || ownership.HasPendingRoot);
-                    Ff7NativeTickObservation? lastTick = null;
-                    branch.NativeTickCompleted += tick => lastTick = tick;
-                    branch.NativeInteractionScriptRequested += admission =>
-                    {
-                        int entity = admission.Entity;
-                        int script = admission.Script;
-                        bool accepted = admission.Accepted;
-                        if (accepted && forcedSettlement && !ownership.Allows(entity, script) && protectedEvents.FirstOrDefault(item => item.Entity == entity && item.Script == script && !driver.CanSkipNavigationLine(item, branch.Machine.Input, false)) is { } forcedRoot)
-                        {
-                            ownership.AdoptForcedRoot(forcedRoot);
-                        }
-                        bool owned = ownership.Requested(entity, script, accepted, admission.Started);
-                        selected |= accepted && entity == goal.Entity && script == goal.Script;
-                        if (accepted && !owned && (entity != goal.Entity || script != goal.Script) && protectedEvents.Any(item => item.Entity == entity && item.Script == script && !driver.CanSkipNavigationLine(item, branch.Machine.Input, false)))
-                        {
-                            unexpected = true;
-                        }
-                    };
-                    branch.Machine.ScriptDispatched += ownership.Dispatched;
-                    branch.Machine.ScriptReturned += ownership.Returned;
-                    // Every predecessor has passed this same executed-operand witness.
-                    using Ff7NativeRouteClockWitness clock = new(branch.Machine);
-                    driver.BeginPlanningStep();
-                    Ff7Actor before = branch.Host.Process.Actors.Single(actor => actor.PlayerControlled);
-                    Ff7NativeGraphState lastSafe = work;
-                    Int128 distance = NativeGraphFixedDistance(before, edge.Point);
-                    Ff7AutoplayInput input;
-                    long physical = driver.PhysicalPlanningWork;
-                    try
-                    {
-                        input = ChooseNativeGraphInput(branch, driver, edge, goal, current.Events, ownership);
-                    }
-                    catch (Ff7AutoPlayNavigationUnavailableException)
-                    {
-                        if (segment.Count > 0)
-                        {
-                            graph.AddSuccessor(parent, lastSafe, NativeGraphKey(lastSafe), segment, NativeGraphAdvisory(lastSafe.Native.Process!, goal.Position));
-                        }
-                        break;
-                    }
-                    finally
-                    {
-                        DetachedPhysicalPlanningWork += driver.PhysicalPlanningWork - physical;
-                    }
-                    bool pending = driver.PlanningPending;
-                    if (pending)
-                    {
-                        input = default;
-                        driver.BeginPlanningStep();
-                    }
-                    segment.Add(new(ReadNativeRouteFingerprint(branch), input));
-                    driver.Apply(input);
-                    branch.AdvanceNavigationTick();
-                    DetachedNativeCallbacks++;
-                    Ff7Actor after = branch.Host.Process.Actors.Single(actor => actor.PlayerControlled);
-                    ownership.ObserveLadder(branch, after);
-                    current = discovery.Observe();
-                    protectedEvents = current.Events.Where(IsNativeGraphProtectedLine).ToArray();
-                    if (forcedSettlement)
-                    {
-                        foreach (Ff7AutoPlayTarget forced in protectedEvents.Where(item => item.Id != goal.Id && !ownership.Allows(item.Entity, item.Script)))
-                        {
-                            if (driver.ReadPendingNavigationLineRequest([forced]) is not null)
-                            {
-                                ownership.AdoptForcedRoot(forced);
-                            }
-                        }
-                    }
-                    Ff7AutoPlayTarget? queued = driver.ReadPendingNavigationLineRequest(protectedEvents.Where(item => item.Id != goal.Id && !ownership.Allows(item.Entity, item.Script)).ToArray());
-                    bool unsafeEdge = unexpected || ownership.Invalid || queued is not null || !clock.Independent || !HasNativeRouteClockContract(branch);
-                    Ff7Line? line = branch.Host.Process.Lines.LastOrDefault(item => item.Entity == goal.Entity);
-                    Ff7AutoPlayNativeIdleFacts idle = new(branch.Host.Process.PlayerLocked, branch.Host.Process.Join is not null, after.Ladder is { Completed: false }, after.Ladder is { Completed: true }, goal.Kind != Ff7AutoPlayTargetKind.Gateway && line?.Enabled != 1, input, line);
-                    nativeCandidateSummaries.Set(id, new("NativeGraph", ownership.HasDebt || recovery is not null, goal.Id, checked((int)(parent.Cost + segment.Count)), branch.Host.Process.Tick, new(after.X4096, after.Y4096, after.Z4096, after.Triangle, after.Direction), after.X4096 != original.X4096 || after.Y4096 != original.Y4096 || after.Z4096 != original.Z4096 || after.Triangle != original.Triangle, pending, Vector3.Distance(new(after.X4096 / 4096f, after.Y4096 / 4096f, after.Z4096 / 4096f), goal.Position), idle));
-                    if (unsafeEdge)
-                    {
-                        segment.RemoveAt(segment.Count - 1);
-                        if (segment.Count > 0)
-                        {
-                            graph.AddSuccessor(parent, lastSafe, NativeGraphKey(lastSafe), segment, NativeGraphAdvisory(lastSafe.Native.Process!, goal.Position));
-                        }
-                        break;
-                    }
-                    ownership.ObserveQueued(branch.Host.Process.Lines);
-                    if (lastTick is not null && input == default && ownership.HasDebt)
-                    {
-                        probe.QueuedLineWaitObserved?.Invoke(segment[^1], lastTick);
-                    }
-                    bool settled = ownership.IsSettled(branch);
-                    if (branch.Host.Process.Transition is not null)
-                    {
-                        if (goal.Kind == Ff7AutoPlayTargetKind.Gateway && branch.GatewayDeparture is { } departure && departure.GatewayIndex == goal.GatewayIndex && departure.Transition.Map == goal.DestinationField && branch.HasNativeGatewayDeparture(departure))
-                        {
-                            SetNativeGraphProof(graph, parent, segment, branch, goal, probe, gateway: departure);
-                        }
-                        break;
-                    }
-                    if (branch.Battle is not null || branch.World is not null || branch.FieldGeneration != session.FieldGeneration)
-                    {
-                        if (branch.Battle is not null && branch.FieldGeneration == session.FieldGeneration && driver.ReadNativeRouteDistance(goal, current.Events) < initialDistance)
-                        {
-                            SetNativeGraphProof(graph, parent, segment, branch, goal, probe, battle: true);
-                        }
-                        break;
-                    }
-                    if (selected)
-                    {
-                        SetNativeGraphProof(graph, parent, segment, branch, goal, probe);
-                        break;
-                    }
-                    if (settled && ownership.OwnsLadder)
-                    {
-                        recovery = ownership.Capture();
-                    }
-                    bool released = (settled || !ownership.HasDebt) && recovery is not null && new NativeGraphOwnership(recovery, null).CanReleaseSource(branch);
-                    if (released && Ff7AutoPlayDiscovery.NativeControlReady(branch) && driver.ReadNativeRouteDistance(goal, current.Events) < initialDistance && probe.SourceRelease?.Invoke(branch, current) == true)
-                    {
-                        SetNativeGraphProof(graph, parent, segment, branch, goal, probe, released: true);
-                        break;
-                    }
-                    Ff7NativeGraphDebt? debt = settled ? null : ownership.Capture();
-                    bool moved = after.X4096 != before.X4096 || after.Y4096 != before.Y4096 || after.Z4096 != before.Z4096;
-                    work = new(branch.CaptureAutoPlayNavigation(), debt, recovery);
-                    if (edge.Kind is Ff7NativeGraphEdgeKind.Wait or Ff7NativeGraphEdgeKind.OwnerSettlement || debt is not null || settled || pending || after.Triangle != before.Triangle || !moved || NativeGraphFixedDistance(after, edge.Point) >= distance)
-                    {
-                        graph.AddSuccessor(parent, work, NativeGraphKey(work), segment, NativeGraphAdvisory(work.Native.Process!, goal.Position));
-                        break;
-                    }
+                    input = ChooseNativeGraphInput(branch, driver, edge, goal, current.Events, ownership);
+                }
+                catch (Ff7AutoPlayNavigationUnavailableException)
+                {
+                    yield break;
                 }
                 finally
                 {
-                    ActiveNativeRouteCandidates--;
+                    DetachedPhysicalPlanningWork += driver.PhysicalPlanningWork - physical;
                 }
+                bool pending = driver.PlanningPending;
+                if (pending)
+                {
+                    throw new InvalidOperationException("A native graph callback cannot discard a pending physical search.");
+                }
+                segment.Add(new(ReadNativeRouteFingerprint(branch), input));
+                driver.Apply(input);
+                branch.AdvanceNavigationTick();
+                DetachedNativeCallbacks++;
+                Ff7Actor after = branch.Host.Process.Actors.Single(actor => actor.PlayerControlled);
+                ownership.ObserveLadder(branch, after);
+                current = discovery.Observe();
+                protectedEvents = current.Events.Where(IsNativeGraphProtectedLine).ToArray();
+                if (forcedSettlement)
+                {
+                    foreach (Ff7AutoPlayTarget forced in protectedEvents.Where(item => item.Id != goal.Id && !ownership.Allows(item.Entity, item.Script)))
+                    {
+                        if (driver.ReadPendingNavigationLineRequest([forced]) is not null)
+                        {
+                            ownership.AdoptForcedRoot(forced);
+                        }
+                    }
+                }
+                Ff7AutoPlayTarget? queued = driver.ReadPendingNavigationLineRequest(protectedEvents.Where(item => item.Id != goal.Id && !ownership.Allows(item.Entity, item.Script)).ToArray());
+                bool unsafeEdge = unexpected || ownership.Invalid || queued is not null || !clock.Independent || !HasNativeRouteClockContract(branch);
+                Ff7Line? line = branch.Host.Process.Lines.LastOrDefault(item => item.Entity == goal.Entity);
+                Ff7AutoPlayNativeIdleFacts idle = new(branch.Host.Process.PlayerLocked, branch.Host.Process.Join is not null, after.Ladder is { Completed: false }, after.Ladder is { Completed: true }, goal.Kind != Ff7AutoPlayTargetKind.Gateway && line?.Enabled != 1, input, line);
+                nativeCandidateSummaries.Set(id, new("NativeGraph", ownership.HasDebt || recovery is not null, goal.Id, checked((int)(parent.Cost + segment.Count)), branch.Host.Process.Tick, new(after.X4096, after.Y4096, after.Z4096, after.Triangle, after.Direction), after.X4096 != original.X4096 || after.Y4096 != original.Y4096 || after.Z4096 != original.Z4096 || after.Triangle != original.Triangle, pending, Vector3.Distance(new(after.X4096 / 4096f, after.Y4096 / 4096f, after.Z4096 / 4096f), goal.Position), idle));
+                if (unsafeEdge)
+                {
+                    segment.RemoveAt(segment.Count - 1);
+                    yield break;
+                }
+                ownership.ObserveQueued(branch.Host.Process.Lines);
+                if (lastTick is not null && input == default && ownership.HasDebt)
+                {
+                    probe.QueuedLineWaitObserved?.Invoke(segment[^1], lastTick);
+                }
+                bool settled = ownership.IsSettled(branch);
+                if (branch.Host.Process.Transition is not null)
+                {
+                    if (goal.Kind == Ff7AutoPlayTargetKind.Gateway && branch.GatewayDeparture is { } departure && departure.GatewayIndex == goal.GatewayIndex && departure.Transition.Map == goal.DestinationField && branch.HasNativeGatewayDeparture(departure))
+                    {
+                        SetNativeGraphProof(graph, parent, segment, branch, goal, probe, gateway: departure);
+                    }
+                    yield break;
+                }
+                if (branch.Battle is not null || branch.World is not null || branch.FieldGeneration != session.FieldGeneration)
+                {
+                    if (branch.Battle is not null && branch.FieldGeneration == session.FieldGeneration && driver.ReadNativeRouteDistance(goal, current.Events) < initialDistance)
+                    {
+                        SetNativeGraphProof(graph, parent, segment, branch, goal, probe, battle: true);
+                    }
+                    yield break;
+                }
+                if (selected)
+                {
+                    SetNativeGraphProof(graph, parent, segment, branch, goal, probe);
+                    yield break;
+                }
+                if (settled && ownership.OwnsLadder)
+                {
+                    recovery = ownership.Capture();
+                }
+                bool released = (settled || !ownership.HasDebt) && recovery is not null && new NativeGraphOwnership(recovery, null).CanReleaseSource(branch);
+                if (released && Ff7AutoPlayDiscovery.NativeControlReady(branch) && driver.ReadNativeRouteDistance(goal, current.Events) < initialDistance && probe.SourceRelease?.Invoke(branch, current) == true)
+                {
+                    SetNativeGraphProof(graph, parent, segment, branch, goal, probe, released: true);
+                    yield break;
+                }
+                Ff7NativeGraphDebt? debt = settled ? null : ownership.Capture();
+                work = new(branch.CaptureAutoPlayNavigation(), debt, recovery);
+                graph.AddSuccessor(parent, work, NativeGraphKey(work), segment, NativeGraphAdvisory(work.Native.Process!, goal.Position));
+                if (edge.Kind == Ff7NativeGraphEdgeKind.Primitive && edge.Input == input && debt is null)
+                {
+                    primitiveReuse.Remember(input, Ff7Session.ReadNativeLineScriptRequests(() => branch.Host).Concat(startedRoots));
+                }
+                yield break;
+            }
+            finally
+            {
+                ActiveNativeRouteCandidates--;
             }
         }
         finally
@@ -257,6 +248,10 @@ public sealed partial class Ff7AutoplayDriver
             yield break;
         }
         yield return new(Ff7NativeGraphEdgeKind.Wait, position);
+        foreach (Ff7AutoplayInput input in ReadNativeMovementInputs())
+        {
+            yield return new(Ff7NativeGraphEdgeKind.Primitive, position, Run: input.Run, Input: input);
+        }
         Ff7AutoPlayTarget? currentGoal = observation.Events.SingleOrDefault(item => item.Id == goal.Id && item.Entity == goal.Entity && item.Script == goal.Script && item.Kind == goal.Kind && item.AnalysisComplete);
         if (currentGoal is not null && ReadNativeEventGuide(branch, player, currentGoal, Ff7NativeGraphEdgeKind.Goal) is { } goalEdge)
         {
@@ -276,11 +271,24 @@ public sealed partial class Ff7AutoplayDriver
         }
         foreach (Ff7AutoPlayTarget item in observation.Events.Where(item => item.Id != goal.Id && IsNativeGraphProtectedLine(item)))
         {
+            foreach (Ff7AutoplayInput input in ReadNativeMovementInputs())
+            {
+                yield return new(Ff7NativeGraphEdgeKind.OwnedEvent, item.Position, Event: item, Run: input.Run, Input: input);
+            }
             if (ReadNativeEventGuide(branch, player, item, Ff7NativeGraphEdgeKind.OwnedEvent) is { } eventEdge)
             {
                 yield return eventEdge with { Run = true };
                 yield return eventEdge with { Run = false };
             }
+        }
+    }
+
+    internal static IEnumerable<Ff7AutoplayInput> ReadNativeMovementInputs()
+    {
+        foreach (var direction in Directions)
+        {
+            yield return new(direction.X, direction.Y, Run: true);
+            yield return new(direction.X, direction.Y, Run: false);
         }
     }
 
@@ -334,48 +342,23 @@ public sealed partial class Ff7AutoplayDriver
         driver.ConfigureSpatialBoundaries(events, selected);
         return driver.ChooseTargetInput(selected, events.Where(item => item.Id != goal.Id || item.Id == selected.Id).ToArray(), run =>
         {
-            if (edge.Kind == Ff7NativeGraphEdgeKind.Portal)
+            if (edge.Input is Ff7AutoplayInput primitive)
             {
-                return driver.Approach(edge.Point, edge.Triangle, run);
+                return primitive;
             }
-            if (selected.Kind == Ff7AutoPlayTargetKind.Gateway)
+            if (selected.Kind == Ff7AutoPlayTargetKind.LineTalk && branch.Host.Process.Lines.LastOrDefault(line => line.Entity == selected.Entity) is { } talk && Ff7FieldHost.CanRequestLineTalk(talk, actor))
             {
-                return driver.GatewayAt(selected.GatewayIndex!.Value, run);
+                return new(Talk: true, Run: run);
             }
-            Ff7Line line = branch.Host.Process.Lines.Last(line => line.Entity == selected.Entity);
-            if (selected.Kind == Ff7AutoPlayTargetKind.LineLeave)
-            {
-                return line.Touch ? driver.LeaveLine(selected.Entity, run) : driver.Approach(edge.Point, edge.Triangle, run);
-            }
-            if (selected.Kind == Ff7AutoPlayTargetKind.LineEnter && line.Touch)
-            {
-                return driver.LeaveLine(selected.Entity, run);
-            }
-            if (selected.Kind == Ff7AutoPlayTargetKind.LineTalk)
-            {
-                return driver.TalkToLine(selected.Entity, run);
-            }
-            int distance = Ff7Session.DistanceToSegment(new(line.X1, line.Y1, line.Z1), new(line.X2, line.Y2, line.Z2), new(actor.X4096 >> 12, actor.Y4096 >> 12, actor.Z4096 >> 12), out _);
-            return distance >= 0 && distance < unchecked(actor.CollisionRadius * actor.CollisionRadius) && selected.Kind is Ff7AutoPlayTargetKind.LineCross or Ff7AutoPlayTargetKind.LinePush
-                ? driver.ApproachLine(selected.Entity, selected.Kind, run)
-                : driver.Approach(edge.Point, edge.Triangle, run);
+            return driver.Steer(edge.Point, run);
         }, requiredRun: edge.Run);
     }
-
     private static bool IsNativeGraphProtectedLine(Ff7AutoPlayTarget target) => target.AnalysisComplete && target.Kind is >= Ff7AutoPlayTargetKind.LineTalk and <= Ff7AutoPlayTargetKind.LineLeave && (target.ChangesField || target.MayChangeNavigation);
 
     private float NativeGraphAdvisory(Ff7FieldProcess process, Vector3 target)
     {
         Ff7Actor player = process.Actors.Single(actor => actor.PlayerControlled);
         return Vector3.Distance(new(player.X4096 / 4096f, player.Y4096 / 4096f, player.Z4096 / 4096f), target) / Math.Max(1, session.GetPlayerMovementSpeed(true) / 256f);
-    }
-
-    private static Int128 NativeGraphFixedDistance(Ff7Actor actor, Vector3 point)
-    {
-        Int128 dx = actor.X4096 - (long)(point.X * 4096);
-        Int128 dy = actor.Y4096 - (long)(point.Y * 4096);
-        Int128 dz = actor.Z4096 - (long)(point.Z * 4096);
-        return dx * dx + dy * dy + dz * dz;
     }
 
     private static Ff7NativeGraphDebt? ReadRootNativeDebt(Ff7Session branch, IReadOnlyList<Ff7AutoPlayTarget> targets)
@@ -533,5 +516,20 @@ public sealed partial class Ff7AutoplayDriver
         internal bool HasReturnedLadder => backwardCompleted && ladderRequest is not null && ladderRoot >= 0 && ladderRoot < roots.Count && owners.Any(owner => owner.Entity == ladderEntity && owner.Priority == ladderPriority && owner.Root == ladderRoot && owner.Returned) && owners.Any(owner => owner.Entity == roots[ladderRoot].Entity && owner.Priority == 1 && owner.Root == ladderRoot && owner.Returned);
         internal bool CanReleaseSource(Ff7Session branch) => HasReturnedLadder && branch.Host.Process.Actors.Single(actor => actor.PlayerControlled).Ladder is null && branch.Machine.Capture().PendingRequests?.Any(request => request.Id == ladderRequest) != true;
         internal Ff7NativeGraphDebt? Capture() => HasDebt ? new(roots.ToArray(), pending.ToArray(), owners.OrderBy(owner => owner.Root).ThenBy(owner => owner.Entity).ThenBy(owner => owner.Priority).ToArray(), ladderRequest, ladderEntity, ladderPriority, backwardCompleted, ladderRoot, admissionObserved.ToArray()) : null;
+    }
+}
+
+internal sealed class Ff7NativePrimitiveReuse
+{
+    private readonly Dictionary<Ff7AutoplayInput, HashSet<(int Entity, int Script)>> safe = [];
+
+    internal void Remember(Ff7AutoplayInput input, IEnumerable<(int Entity, int Script)> startedOrQueued)
+    {
+        safe[input] = startedOrQueued.ToHashSet();
+    }
+
+    internal bool CanSkip(Ff7AutoplayInput input, int entity, int script)
+    {
+        return safe.TryGetValue(input, out var queued) && !queued.Contains((entity, script));
     }
 }

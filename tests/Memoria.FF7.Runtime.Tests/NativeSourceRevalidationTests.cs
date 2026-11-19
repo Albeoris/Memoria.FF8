@@ -50,9 +50,11 @@ internal static class NativeSourceRevalidationTests
         legacyAttempt.SourceRevalidationAttempts.Add(legacyReceipt);
         string rejectedOwnerReceipt = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new { Source = "remote", Event = repair.Id, Condition = "pending", Revision = 2, Facts = legacyFacts })));
         legacyAttempt.SourceRevalidationAttempts.Add(rejectedOwnerReceipt);
+        string guideOnlyReceipt = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new { Source = "remote", Event = repair.Id, Condition = "pending", Revision = 3, Facts = legacyFacts })));
+        legacyAttempt.SourceRevalidationAttempts.Add(guideOnlyReceipt);
         Check(legacyReceipt != debt[0].ReceiptKey && Ff7AutoPlayPolicy.ReadPendingSourceRevalidations(legacyAttempt, observation).Single().NavigationKey == "remote", "A retired prover's receipt suppressed a genuine unfinished remote source.");
         Ff7AutoPlayPolicy.RecordSourceRevalidationAttempt(legacyAttempt, "remote", repair.Id, "pending");
-        Check(legacyAttempt.SourceRevalidationAttempts.Contains(legacyReceipt) && legacyAttempt.SourceRevalidationAttempts.Contains(rejectedOwnerReceipt) && rejectedOwnerReceipt != debt[0].ReceiptKey && Ff7AutoPlayPolicy.ReadPendingSourceRevalidations(legacyAttempt, observation).Length == 0, "Current prover completion failed to suppress the same unchanged source attempt or erased its history.");
+        Check(legacyAttempt.SourceRevalidationAttempts.Contains(legacyReceipt) && legacyAttempt.SourceRevalidationAttempts.Contains(rejectedOwnerReceipt) && rejectedOwnerReceipt != debt[0].ReceiptKey && guideOnlyReceipt != debt[0].ReceiptKey && legacyAttempt.SourceRevalidationAttempts.Contains(guideOnlyReceipt) && Ff7AutoPlayPolicy.ReadPendingSourceRevalidations(legacyAttempt, observation).Length == 0, "Current prover completion failed to suppress the same unchanged source attempt or erased its history.");
         string positiveCapability = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes("physical|native-continuation:2")));
         Check(Ff7AutoPlayPolicy.ReadNativeContinuationAvailability("physical") == positiveCapability && JsonSerializer.Serialize(legacyAttempt.Coverage) == coverage && JsonSerializer.Serialize(legacyAttempt.NavigationGuards) == guards, "Negative-attempt versioning changed positive capability, consumed completion or refusal history.");
         pending.Conditions!.ConsumedEntries.Add("pending");
