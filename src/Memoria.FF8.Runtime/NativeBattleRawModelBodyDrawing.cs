@@ -18,6 +18,7 @@ public static class NativeBattleRawModelBodyDrawing
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         int allocated = 0;
         int bytesWritten = 0;
+        NativeBattlePilotModelPose? modelPose = pilotIdentity is { } identity && !pilotScreenSpace ? NativeBattlePilotModelPose.Capture(meshes, bones, projection, identity, 397, false, pilotContinuous) : null;
         for (int index = 0; index < meshes.Length; index++)
         {
             if ((objectMask & (1u << (index & 31))) == 0)
@@ -25,7 +26,7 @@ public static class NativeBattleRawModelBodyDrawing
                 continue;
             }
             // Each selected object restarts projection at the same context work pointer.
-            NativeBattleRawModelBodyDraw body = Draw5099D0(meshes[index], bones, projection, color, 1, scratch, colors, depthShift, viewport, tableBaseBucket, depthCue, pilotIdentity is { } identity ? identity with { Primitive = unchecked(identity.Primitive * 397 + index) } : null, pilotScreenSpace, pilotContinuous);
+            NativeBattleRawModelBodyDraw body = Draw5099D0(meshes[index], bones, projection, color, 1, scratch, colors, depthShift, viewport, tableBaseBucket, depthCue, pilotIdentity is { } selected ? selected with { Primitive = unchecked(selected.Primitive * 397 + index) } : null, pilotScreenSpace, pilotContinuous, modelPose);
             scratch = body.ProjectedScratch;
             bytesWritten = Math.Max(bytesWritten, body.ProjectedBytesWritten);
             attempts.AddRange(body.Packets.Attempts.Select(attempt => attempt with { ByteOffsetRelative = checked(allocated + attempt.ByteOffsetRelative) }));
@@ -34,7 +35,7 @@ public static class NativeBattleRawModelBodyDrawing
         return new(scratch, bytesWritten, new(attempts.ToImmutable(), allocated));
     }
 
-    public static NativeBattleRawModelBodyDraw Draw5099D0(NativeBattleRawMesh mesh, ImmutableArray<NativeBattleActionMatrix> bones, NativeBattleCameraProjection projection, uint color, uint objectMask, ImmutableArray<byte> projectedScratch, NativeBattleSummonColors colors, byte depthShift = 4, NativeBattleGeometryViewport? viewport = null, int tableBaseBucket = 17, short? depthCue = 0, NativeBattlePilotVisualIdentity? pilotIdentity = null, bool pilotScreenSpace = false, bool pilotContinuous = true)
+    public static NativeBattleRawModelBodyDraw Draw5099D0(NativeBattleRawMesh mesh, ImmutableArray<NativeBattleActionMatrix> bones, NativeBattleCameraProjection projection, uint color, uint objectMask, ImmutableArray<byte> projectedScratch, NativeBattleSummonColors colors, byte depthShift = 4, NativeBattleGeometryViewport? viewport = null, int tableBaseBucket = 17, short? depthCue = 0, NativeBattlePilotVisualIdentity? pilotIdentity = null, bool pilotScreenSpace = false, bool pilotContinuous = true, NativeBattlePilotModelPose? modelPose = null)
     {
         if (bones.IsDefault || projectedScratch.IsDefault || depthShift > 31)
         {
@@ -58,7 +59,8 @@ public static class NativeBattleRawModelBodyDrawing
                 BinaryPrimitives.WriteUInt32LittleEndian(scratch.AsSpan(index * 8 + 4), vertices[index].DepthAndClip);
             }
             System.Numerics.Vector3[]? world = pilotIdentity is null || pilotScreenSpace ? null : mesh.Vertices.Select(vertex => NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(bones[vertex.Bone], vertex.Position), projection)).ToArray();
-            body = NativeBattleRawGeometryPackets.EmitProjected5099D0(mesh.Polygons, vertices, color, tableBaseBucket, depthShift, depthCue, null, colors, pilotWorldVertices: world, pilotIdentity: pilotIdentity, pilotScreenSpace: pilotScreenSpace, pilotContinuous: pilotContinuous);
+            modelPose ??= pilotIdentity is { } identity && !pilotScreenSpace ? NativeBattlePilotModelPose.Capture([mesh], bones, projection, identity, 1, false, pilotContinuous) : null;
+            body = NativeBattleRawGeometryPackets.EmitProjected5099D0(mesh.Polygons, vertices, color, tableBaseBucket, depthShift, depthCue, null, colors, pilotWorldVertices: world, pilotIdentity: pilotIdentity, pilotScreenSpace: pilotScreenSpace, pilotContinuous: pilotContinuous, modelPose: modelPose);
         }
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         int allocated = 0;

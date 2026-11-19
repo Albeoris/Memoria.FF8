@@ -21,16 +21,25 @@ public readonly struct NativeBattlePilotGeometryReference
         this.index = index;
     }
 
+    internal NativeBattlePilotGeometryReference(NativeBattlePilotModelPose.Surface surface, int index)
+    {
+        owner = surface;
+        this.index = index;
+    }
+
     public bool IsEmpty => owner is null;
     internal bool IsModel => owner is NativeBattleModelPilotPage;
     internal bool HasModelEmissions(NativeBattleModelEmissionStorage emissions) => owner is NativeBattleModelPilotPage page && ReferenceEquals(page.Emissions, emissions);
     internal NativeBattlePilotVisualGeometry? AuthoredGeometry => Rich;
     private NativeBattlePilotVisualGeometry? Rich => owner as NativeBattlePilotVisualGeometry;
+    private NativeBattlePilotModelPose.Surface? Surface => owner as NativeBattlePilotModelPose.Surface;
     private ref readonly NativeBattleModelPilotRow Model => ref ((NativeBattleModelPilotPage)owner!).Read(index);
     private ref readonly NativeBattleModelEmission Emission => ref ((NativeBattleModelPilotPage)owner!).ReadEmission(Model.Emission);
-    public NativeBattlePilotVisualIdentity Identity => owner is NativeBattleModelPilotPage ? Emission.PilotIdentity with { Primitive = Model.Primitive } : Rich?.Identity ?? default;
-    public byte CornerCount => owner is NativeBattleModelPilotPage ? Model.CornerCount : Rich?.CornerCount ?? 0;
-    public bool Continuous => owner is NativeBattleModelPilotPage ? Emission.PilotContinuous : Rich?.Continuous ?? false;
+    public NativeBattlePilotVisualIdentity Identity => owner is NativeBattleModelPilotPage ? Emission.PilotIdentity with { Primitive = Model.Primitive } : Surface is { } surface ? surface.Identity with { Primitive = unchecked(surface.Identity.Primitive * 65537 + index) } : Rich?.Identity ?? default;
+    public byte CornerCount => owner is NativeBattleModelPilotPage ? Model.CornerCount : Surface is { } surface ? (byte)(surface.Polygons[index].Quad ? 4 : 3) : Rich?.CornerCount ?? 0;
+    public bool Continuous => owner is NativeBattleModelPilotPage ? Emission.PilotContinuous : Surface?.Continuous ?? Rich?.Continuous ?? false;
+    [System.Text.Json.Serialization.JsonIgnore]
+    public NativeBattlePilotModelPose? ModelPose => owner is NativeBattleModelPilotPage ? Emission.ModelPose : Rich?.ModelPose;
     public bool ScreenSpace => owner is NativeBattleModelPilotPage ? Emission.PilotScreenSpace : Rich?.ScreenSpace ?? false;
     public NativeBattleForeignSurface? ForeignSurface => Rich?.ForeignSurface;
     public NativeBattlePilotSpriteGeometry? Sprite => Rich?.Sprite;
@@ -43,6 +52,10 @@ public readonly struct NativeBattlePilotGeometryReference
 
     public Vector3 Corner(int corner)
     {
+        if (Surface is { } surface)
+        {
+            return surface.Corner(index, corner);
+        }
         if (owner is NativeBattleModelPilotPage)
         {
             return Model.Corner(corner);
@@ -58,13 +71,17 @@ public readonly struct NativeBattlePilotGeometryReference
     /// <summary>Compatibility materialization; rendering and ordering use this reference directly.</summary>
     public NativeBattlePilotVisualGeometry? ToGeometry()
     {
+        if (Surface is not null)
+        {
+            return new(Identity, Corner(0), Corner(1), Corner(2), CornerCount == 4 ? Corner(3) : default, CornerCount, Continuous);
+        }
         if (owner is not NativeBattleModelPilotPage)
         {
             return Rich;
         }
         ref readonly NativeBattleModelPilotRow model = ref Model;
         ref readonly NativeBattleModelEmission emission = ref Emission;
-        return new(emission.PilotIdentity with { Primitive = model.Primitive }, model.A, model.B, model.C, model.D, model.CornerCount, emission.PilotContinuous) { ScreenSpace = emission.PilotScreenSpace };
+        return new(emission.PilotIdentity with { Primitive = model.Primitive }, model.A, model.B, model.C, model.D, model.CornerCount, emission.PilotContinuous) { ScreenSpace = emission.PilotScreenSpace, ModelPose = emission.ModelPose };
     }
 
     public static implicit operator NativeBattlePilotGeometryReference(NativeBattlePilotVisualGeometry? geometry)

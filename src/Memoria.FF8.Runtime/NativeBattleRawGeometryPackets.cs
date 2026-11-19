@@ -35,7 +35,7 @@ public static class NativeBattleRawGeometryPackets
         NativeBattleProjectedVertex[]? projectionBuffer = null;
         NativeBattleProjectedVertex[]? scratchBuffer = null;
         BattleSceneScreenPoint[]? coordinateBuffer = null;
-        System.Numerics.Vector3?[]? worldBuffer = null;
+        NativeBattlePilotModelPose? modelPose = pilotIdentity is { } modelIdentity && !pilotScreenSpace ? NativeBattlePilotModelPose.Capture(meshes, matrices, projection, modelIdentity, 257, true, pilotContinuous) : null;
         try
         {
             for (int index = 0; index < meshes.Length; index++)
@@ -86,14 +86,12 @@ public static class NativeBattleRawGeometryPackets
                     meshIdentity = identity with { ResourceGeneration = NativeBattlePilotVisualLifetimes.EpochFor(mesh), Primitive = unchecked(identity.Primitive * 257 + index) };
                     if (!pilotScreenSpace)
                     {
-                        worldBuffer = EnsureScratchSpace(worldBuffer, count);
-                        worldBuffer.AsSpan(0, count).Clear();
-                        world = new CapturedWorldVertices(mesh.Vertices, matrices, projection, worldBuffer);
+                        world = modelPose!.Positions(index);
                     }
                 }
                 // Packet and pilot builders copy their published values before the next mesh reuses this storage.
                 var projectedVertices = new ArraySegment<NativeBattleProjectedVertex>(projectionBuffer, 0, count);
-                AppendProjected5099D0(result, mesh.Polygons, projectedVertices, colorFlags28, tableBaseBucket, depthShift, colorDepth36, textureBinding, colorRules, coordinates, world, meshIdentity, pilotScreenSpace, pilotContinuous, actorId, material, modelResult);
+                AppendProjected5099D0(result, mesh.Polygons, projectedVertices, colorFlags28, tableBaseBucket, depthShift, colorDepth36, textureBinding, colorRules, coordinates, world, meshIdentity, pilotScreenSpace, pilotContinuous, actorId, material, modelResult, modelPose);
             }
             return result?.ToImmutable() ?? [];
         }
@@ -102,7 +100,6 @@ public static class NativeBattleRawGeometryPackets
             ReturnScratchSpace(projectionBuffer);
             ReturnScratchSpace(scratchBuffer);
             ReturnScratchSpace(coordinateBuffer);
-            ReturnScratchSpace(worldBuffer);
         }
 
         NativeBattleActionMatrix ReadMatrix(NativeBattleRawVertex vertex)
@@ -130,34 +127,14 @@ public static class NativeBattleRawGeometryPackets
         }
     }
 
-    private sealed class CapturedWorldVertices(ImmutableArray<NativeBattleRawVertex> vertices, IReadOnlyList<NativeBattleActionMatrix> matrices, NativeBattleCameraProjection projection, System.Numerics.Vector3?[] values) : IReadOnlyList<System.Numerics.Vector3>
-    {
-        public int Count => vertices.Length;
-        public System.Numerics.Vector3 this[int index]
-        {
-            get
-            {
-                if (values[index] is not System.Numerics.Vector3 value)
-                {
-                    NativeBattleRawVertex vertex = vertices[index];
-                    value = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrices[vertex.Bone], vertex.Position), projection);
-                    values[index] = value;
-                }
-                return value;
-            }
-        }
-        public IEnumerator<System.Numerics.Vector3> GetEnumerator() => Enumerable.Range(0, Count).Select(index => this[index]).GetEnumerator();
-        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
-    }
-
-    public static ImmutableArray<NativeBattleGeometryPrimitive> EmitProjected5099D0(ImmutableArray<NativeBattleRawPolygon> polygons, IReadOnlyList<NativeBattleProjectedVertex> projected, uint colorFlags28, int tableBaseBucket, byte depthShift, short? colorDepth36, NativeBattleModelTextureBinding? textureBinding = null, NativeBattleSummonColors? colorRules = null, IReadOnlyList<BattleSceneScreenPoint>? projectedCoordinates = null, IReadOnlyList<System.Numerics.Vector3>? pilotWorldVertices = null, NativeBattlePilotVisualIdentity? pilotIdentity = null, bool pilotScreenSpace = false, bool pilotContinuous = true)
+    public static ImmutableArray<NativeBattleGeometryPrimitive> EmitProjected5099D0(ImmutableArray<NativeBattleRawPolygon> polygons, IReadOnlyList<NativeBattleProjectedVertex> projected, uint colorFlags28, int tableBaseBucket, byte depthShift, short? colorDepth36, NativeBattleModelTextureBinding? textureBinding = null, NativeBattleSummonColors? colorRules = null, IReadOnlyList<BattleSceneScreenPoint>? projectedCoordinates = null, IReadOnlyList<System.Numerics.Vector3>? pilotWorldVertices = null, NativeBattlePilotVisualIdentity? pilotIdentity = null, bool pilotScreenSpace = false, bool pilotContinuous = true, NativeBattlePilotModelPose? modelPose = null)
     {
         ImmutableArray<NativeBattleGeometryPrimitive>.Builder result = ImmutableArray.CreateBuilder<NativeBattleGeometryPrimitive>();
-        AppendProjected5099D0(result, polygons, projected, colorFlags28, tableBaseBucket, depthShift, colorDepth36, textureBinding, colorRules, projectedCoordinates, pilotWorldVertices, pilotIdentity, pilotScreenSpace, pilotContinuous);
+        AppendProjected5099D0(result, polygons, projected, colorFlags28, tableBaseBucket, depthShift, colorDepth36, textureBinding, colorRules, projectedCoordinates, pilotWorldVertices, pilotIdentity, pilotScreenSpace, pilotContinuous, modelPose: modelPose);
         return result.ToImmutable();
     }
 
-    private static void AppendProjected5099D0(ImmutableArray<NativeBattleGeometryPrimitive>.Builder? result, ImmutableArray<NativeBattleRawPolygon> polygons, IReadOnlyList<NativeBattleProjectedVertex> projected, uint colorFlags28, int tableBaseBucket, byte depthShift, short? colorDepth36, NativeBattleModelTextureBinding? textureBinding, NativeBattleSummonColors? colorRules, IReadOnlyList<BattleSceneScreenPoint>? projectedCoordinates, IReadOnlyList<System.Numerics.Vector3>? pilotWorldVertices, NativeBattlePilotVisualIdentity? pilotIdentity, bool pilotScreenSpace, bool pilotContinuous, string? actorId = null, NativeBattleModelTextureOwner? material = null, NativeBattleModelPrimitiveBatch.Builder? modelResult = null)
+    private static void AppendProjected5099D0(ImmutableArray<NativeBattleGeometryPrimitive>.Builder? result, ImmutableArray<NativeBattleRawPolygon> polygons, IReadOnlyList<NativeBattleProjectedVertex> projected, uint colorFlags28, int tableBaseBucket, byte depthShift, short? colorDepth36, NativeBattleModelTextureBinding? textureBinding, NativeBattleSummonColors? colorRules, IReadOnlyList<BattleSceneScreenPoint>? projectedCoordinates, IReadOnlyList<System.Numerics.Vector3>? pilotWorldVertices, NativeBattlePilotVisualIdentity? pilotIdentity, bool pilotScreenSpace, bool pilotContinuous, string? actorId = null, NativeBattleModelTextureOwner? material = null, NativeBattleModelPrimitiveBatch.Builder? modelResult = null, NativeBattlePilotModelPose? modelPose = null)
     {
         if (polygons.IsDefault)
         {
@@ -183,7 +160,7 @@ public static class NativeBattleRawGeometryPackets
                 if (modelResult is not null && !emission.HasValue)
                 {
                     NativeBattleSceneCapture? sceneCapture = NativeBattleSceneCapture.Current;
-                    emission = modelResult.BeginEmission(new(actorId, sceneCapture is null ? material : null, sceneCapture, pilotIdentity.GetValueOrDefault(), pilotContinuous, pilotScreenSpace));
+                    emission = modelResult.BeginEmission(new(actorId, sceneCapture is null ? material : null, sceneCapture, pilotIdentity.GetValueOrDefault(), pilotContinuous, pilotScreenSpace) { ModelPose = modelPose });
                 }
                 NativeBattlePilotGeometryReference pilotGeometry = default;
                 if (pilotIdentity is { } identity && (pilotWorldVertices is not null || pilotScreenSpace))
@@ -206,7 +183,7 @@ public static class NativeBattleRawGeometryPackets
                     }
                     else
                     {
-                        pilotGeometry = new NativeBattlePilotVisualGeometry(identity with { Primitive = primitive }, Corner(0), Corner(1), Corner(2), polygon.Quad ? Corner(3) : default, (byte)(polygon.Quad ? 4 : 3), pilotContinuous) { ScreenSpace = pilotScreenSpace };
+                        pilotGeometry = new NativeBattlePilotVisualGeometry(identity with { Primitive = primitive }, Corner(0), Corner(1), Corner(2), polygon.Quad ? Corner(3) : default, (byte)(polygon.Quad ? 4 : 3), pilotContinuous) { ScreenSpace = pilotScreenSpace, ModelPose = modelPose };
                     }
                 }
                 if (modelResult is not null)

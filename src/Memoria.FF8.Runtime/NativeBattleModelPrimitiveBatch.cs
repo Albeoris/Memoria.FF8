@@ -32,7 +32,10 @@ internal readonly record struct NativeBattleModelPrimitive(int Bucket, NativeBat
 
 internal readonly record struct NativeBattleModelPrimitiveRow(int Bucket, int Emission, NativeBattleImmutableSlice<uint> Words, NativeBattleImmutableSlice<int> VertexPayload4, NativeBattleImmutableSlice<BattleSceneScreenPoint>? ProjectedCoordinates, ImmutableArray<NativeBattleGfPacketByteState> PhysicalWriteMask, NativeBattlePilotGeometryReference Pilot);
 
-internal readonly record struct NativeBattleModelEmission(string? PresentationActorId, NativeBattleModelTextureOwner? ModelTextureOwner, NativeBattleSceneCapture? SceneCapture, NativeBattlePilotVisualIdentity PilotIdentity, bool PilotContinuous, bool PilotScreenSpace);
+internal readonly record struct NativeBattleModelEmission(string? PresentationActorId, NativeBattleModelTextureOwner? ModelTextureOwner, NativeBattleSceneCapture? SceneCapture, NativeBattlePilotVisualIdentity PilotIdentity, bool PilotContinuous, bool PilotScreenSpace)
+{
+    internal NativeBattlePilotModelPose? ModelPose { get; init; }
+}
 
 /// <summary>The builder publishes one immutable emission table shared by retained packet and pilot pages.</summary>
 internal sealed class NativeBattleModelEmissionStorage

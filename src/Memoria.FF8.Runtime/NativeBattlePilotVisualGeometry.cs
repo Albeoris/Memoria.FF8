@@ -64,6 +64,8 @@ public sealed record NativeBattlePilotSpriteGeometry(Vector3 LocalA, Vector3 Loc
 /// <summary>Four bounded world-space corners retained independently of mutable native task storage.</summary>
 public sealed record NativeBattlePilotVisualGeometry(NativeBattlePilotVisualIdentity Identity, Vector3 A, Vector3 B, Vector3 C, Vector3 D, byte CornerCount, bool Continuous = true)
 {
+    [JsonIgnore]
+    public NativeBattlePilotModelPose? ModelPose { get; init; }
     [System.Text.Json.Serialization.JsonIgnore]
     public NativeBattleForeignSurface? ForeignSurface { get; init; }
     public NativeBattlePilotSpriteGeometry? Sprite { get; init; }

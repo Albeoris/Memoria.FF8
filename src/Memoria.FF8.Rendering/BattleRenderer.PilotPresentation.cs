@@ -113,10 +113,18 @@ public sealed partial class BattleRenderer
             Dictionary<NativeBattlePilotVisualIdentity, NativeBattlePilotGeometryReference> indexed = geometry ??= [];
             try
             {
+                HashSet<NativeBattlePilotModelPose> poses = [];
                 foreach (ref readonly NativeBattleLogicalResolvedCommand resolved in Later.Primitives.LastCommands)
                 {
                     if (resolved.Command.Pilot is { IsEmpty: false } pilot)
                     {
+                        if (pilot.ModelPose is { } pose && poses.Add(pose))
+                        {
+                            foreach (NativeBattlePilotGeometryReference surface in pose.Geometry())
+                            {
+                                indexed[surface.Identity] = surface;
+                            }
+                        }
                         indexed[pilot.Identity] = pilot;
                     }
                 }
