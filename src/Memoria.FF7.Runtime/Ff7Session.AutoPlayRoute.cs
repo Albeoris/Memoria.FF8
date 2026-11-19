@@ -22,6 +22,9 @@ public sealed partial class Ff7AutoplayDriver
     internal string? LastNativeRouteProbe { get; private set; }
     internal int ActiveNativeRouteCandidates { get; private set; }
     internal int PeakNativeRouteCandidates { get; private set; }
+    internal long DetachedPhysicalPlanningWork { get; private set; }
+    internal long DetachedNativeCallbacks { get; private set; }
+    internal Ff7AutoPlayPlanningProgress PlanningProgress => new(PlanningPending, PhysicalPlanningWork + DetachedPhysicalPlanningWork, DetachedNativeCallbacks, ActiveNativeRouteCandidates);
 
     internal Ff7AutoPlayNativeRoute? ProveNativeRoute(Ff7AutoPlayTarget target, IReadOnlyList<Ff7AutoPlayTarget> targets, bool requireIntermediate = true, Func<Ff7Session, Ff7AutoPlayObservation, bool>? sourceRelease = null)
     {
@@ -160,6 +163,7 @@ public sealed partial class Ff7AutoplayDriver
             };
             bool AdvanceCallback(long callback)
             {
+                long physicalBefore = driver.PhysicalPlanningWork;
                 try
                 {
                     driver.BeginPlanningStep();
@@ -227,6 +231,7 @@ public sealed partial class Ff7AutoplayDriver
                     }
                     driver.Apply(input);
                     branch.AdvanceNavigationTick();
+                    DetachedNativeCallbacks++;
                     if (!clock.Independent || !HasNativeRouteClockContract(branch))
                     {
                         return false;
@@ -274,6 +279,10 @@ public sealed partial class Ff7AutoplayDriver
                 {
                     LastNativeRouteProbe = $"{target.Id}, callbacks {steps.Count}: {error.Message}";
                     return false;
+                }
+                finally
+                {
+                    DetachedPhysicalPlanningWork += driver.PhysicalPlanningWork - physicalBefore;
                 }
             }
             for (long callback = 0;;)

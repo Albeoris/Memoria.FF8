@@ -9,6 +9,7 @@ internal static class PhysicalSearchContinuationTests
     internal static void Run()
     {
         CheckLongReachableGraph();
+        CheckHigherHopDetour();
         CheckExhaustedGraph();
         CheckModeSnapshotAndCancellation();
         CheckWorkAccounting();
@@ -62,6 +63,51 @@ internal static class PhysicalSearchContinuationTests
         }
         while (route.Status == Ff7AutoPlayPhysicalSearchStatus.Pending);
         Check(route is { Status: Ff7AutoPlayPhysicalSearchStatus.Exhausted, Expanded: 1537, Inputs.Length: 0 }, "A finite cyclic represented graph was truncated or falsely admitted.");
+    }
+
+    private static void CheckHigherHopDetour()
+    {
+        Ff7Actor source = Source with { MoveSpeed = 256 };
+        HashSet<int> lowerHopPreviews = [];
+        Ff7NativeMoveResult Preview(Ff7Actor actor, Ff7AutoplayInput input)
+        {
+            if (actor.Triangle == 0)
+            {
+                if (input == new Ff7AutoplayInput(1, 0))
+                {
+                    return new(actor with { X4096 = 4096, Triangle = 1 }, false, true, []);
+                }
+                if (input == new Ff7AutoplayInput(0, 1))
+                {
+                    return new(actor with { Y4096 = 4096, Triangle = 2 }, false, true, []);
+                }
+            }
+            if (actor.Triangle == 1)
+            {
+                lowerHopPreviews.Add(actor.X4096);
+                if (input == new Ff7AutoplayInput(1, 0) && actor.X4096 < 64 * 4096)
+                {
+                    return new(actor with { X4096 = actor.X4096 + 4096 }, false, true, []);
+                }
+            }
+            if (actor.Triangle == 2 && input == new Ff7AutoplayInput(0, 1))
+            {
+                return new(actor with { Y4096 = 2 * 4096, Triangle = 3 }, false, true, []);
+            }
+            return new(actor, false, false, []);
+        }
+        int Remaining(int triangle) => triangle == 2 ? 4 : triangle == 3 ? 2 : 3;
+        Ff7AutoplayDriver.PhysicalSearchCursor cursor = new(source, new(0, 2, 0), Remaining, Preview, (_, _) => true);
+        Check(cursor.Resume(new(1, TimeSpan.MaxValue)).Status == Ff7AutoPlayPhysicalSearchStatus.Pending, "The detour fixture did not preserve its two pending native alternatives.");
+        Ff7AutoPlayPhysicalRoute route = cursor.Resume(new(1, TimeSpan.MaxValue));
+        Check(route.Status == Ff7AutoPlayPhysicalSearchStatus.Progress && route.Expanded == 2 && route.Inputs.SequenceEqual(new[] { new Ff7AutoplayInput(0, 1), new Ff7AutoplayInput(0, 1) }) && lowerHopPreviews.Count == 0, "A nearby higher-hop native detour waited behind a physically costly lower-hop region.");
+        cursor = new(source, new(0, 2, 0), Remaining, Preview, (_, step) => step.Actor.Triangle != 3);
+        do
+        {
+            route = cursor.Resume(new(8, TimeSpan.MaxValue));
+        }
+        while (route.Status == Ff7AutoPlayPhysicalSearchStatus.Pending);
+        Check(route is { Status: Ff7AutoPlayPhysicalSearchStatus.Exhausted, Expanded: 66, Inputs.Length: 0 }, "Best-first guidance bypassed native admission or truncated the finite search frontier.");
     }
 
     private static void CheckModeSnapshotAndCancellation()
@@ -122,12 +168,17 @@ internal static class PhysicalSearchContinuationTests
     {
         Ff7AutoplayDriver driver = new(null!);
         Ff7AutoplayDriver.PhysicalSearchCursor cursor = CreateChain(2, false);
+        Check(driver.PlanningProgress == new Ff7AutoPlayPlanningProgress(false, 0, 0, 0), "The initial public planning counters fabricated work.");
         driver.ResumePhysicalSearch(cursor, new(1, TimeSpan.MaxValue));
         Check(driver.PhysicalPlanningWork == 1, "Physical planning did not count its actual expansion.");
+        driver.DeferPlanning();
+        Ff7AutoPlayPlanningProgress observed = driver.PlanningProgress;
+        Check(observed == new Ff7AutoPlayPlanningProgress(true, 1, 0, 0) && driver.PlanningProgress == observed, "Reading pending telemetry changed or omitted actual expanded work.");
         Ff7NativePlanningQuantum spent = new(1, TimeSpan.MaxValue);
         Check(spent.TryBeginOperation(), "The spent allowance fixture failed.");
         driver.ResumePhysicalSearch(cursor, spent);
         Check(driver.PhysicalPlanningWork == 1, "A scheduling yield reported physical work without an expansion.");
+        Check(driver.PlanningProgress == observed, "A zero-work scheduling return advanced the exposed planning counters.");
         driver.ResumePhysicalSearch(cursor, new(8, TimeSpan.MaxValue));
         Check(driver.PhysicalPlanningWork == 3, "Queue exhaustion did not account for its actual expansions.");
         driver.ResumePhysicalSearch(cursor, new(8, TimeSpan.MaxValue));

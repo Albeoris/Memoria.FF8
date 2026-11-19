@@ -225,7 +225,7 @@ public sealed partial class Ff7AutoplayDriver
         private readonly Func<Ff7Actor, Ff7NativeMoveResult, bool> allows;
         private readonly float cell;
         private readonly Dictionary<(int X, int Y, int Z, int Triangle), float> costs = new();
-        private readonly PriorityQueue<SearchNode, (int Remaining, float Score)> pending = new();
+        private readonly PriorityQueue<SearchNode, (float Score, int Remaining)> pending = new();
         private int expanded;
         private Ff7AutoPlayPhysicalRoute? completed;
         internal int Expanded => expanded;
@@ -239,7 +239,7 @@ public sealed partial class Ff7AutoplayDriver
             this.allows = allows;
             cell = Math.Max(1, source.MoveSpeed * 4);
             costs[Key(source)] = 0;
-            pending.Enqueue(new(source, null, default, 0), (remaining(source.Triangle), Vector3.Distance(Position3D(source), waypoint)));
+            pending.Enqueue(new(source, null, default, 0), (Vector3.Distance(Position3D(source), waypoint), remaining(source.Triangle)));
         }
 
         private (int X, int Y, int Z, int Triangle) Key(Ff7Actor actor)
@@ -294,7 +294,7 @@ public sealed partial class Ff7AutoplayDriver
                         costs.Clear();
                         return completed;
                     }
-                    pending.Enqueue(next, (remaining(actor.Triangle), cost + Vector3.Distance(Position3D(actor), waypoint)));
+                    pending.Enqueue(next, (cost + Vector3.Distance(Position3D(actor), waypoint), remaining(actor.Triangle)));
                 }
             }
             completed = new(Ff7AutoPlayPhysicalSearchStatus.Exhausted, [], expanded);

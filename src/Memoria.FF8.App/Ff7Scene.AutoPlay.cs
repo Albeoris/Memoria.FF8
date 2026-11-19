@@ -15,6 +15,7 @@ internal sealed partial class Ff7Scene
     public bool AutoPlayRunning => autoPlay?.Running == true;
     public bool AutoPlayPaused => autoPlay?.Paused == true;
     public string? AutoPlayError => autoPlay?.Error;
+    public Ff7AutoPlayPlanningProgress? AutoPlayPlanning => autoPlay?.PlanningProgress;
 
     public void ConfigureAutoPlayCheckpoint(string path)
     {

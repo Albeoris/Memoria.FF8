@@ -21,6 +21,7 @@ public sealed partial class Ff7AutoPlayController(Ff7Session session, Func<Ff7Au
     public string Status => $"{(Completed ? "Completed: " : "")}{(session.World is { } world ? $"World {world.Resources.World}, frame {world.Process.Tick}" : $"{session.Field.Name}, frame {session.Host.Process.Tick}")}, {Steps} steps";
     public long Steps { get; private set; }
     public IReadOnlyList<string> RecentActions => recent.ToArray();
+    public Ff7AutoPlayPlanningProgress PlanningProgress => driver.PlanningProgress;
 
     public void Start()
     {
