@@ -3,6 +3,18 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-graph-ownership-only", StringComparer.Ordinal))
+{
+    NativeGraphOwnershipTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-state-graph-only", StringComparer.Ordinal))
+{
+    NativeStateGraphTests.Run();
+    return 0;
+}
+
 if (args.Contains("--approach-context-ownership-only", StringComparer.Ordinal))
 {
     ApproachContextOwnershipTests.Run();
@@ -12,7 +24,12 @@ if (args.Contains("--approach-context-ownership-only", StringComparer.Ordinal))
 
 if (args.Contains("--native-temporal-planning-only", StringComparer.Ordinal))
 {
-    NativeTemporalPlanningTests.Run();
+    throw new ArgumentException("The fixed-ray temporal strategies were retired; use --native-state-graph-only and --native-planning-health-only.");
+}
+
+if (args.Contains("--native-planning-health-only", StringComparer.Ordinal))
+{
+    NativePlanningHealthTests.Run();
     return 0;
 }
 

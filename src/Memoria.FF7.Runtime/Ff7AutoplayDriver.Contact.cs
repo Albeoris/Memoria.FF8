@@ -99,7 +99,7 @@ public sealed partial class Ff7AutoplayDriver
     }
     internal bool? PlannedActionAdvances => navigationActionProgress;
 
-    internal Ff7AutoplayInput ChooseTargetInput(Ff7AutoPlayTarget target, IReadOnlyList<Ff7AutoPlayTarget> offeredTargets, Func<bool, Ff7AutoplayInput> choose)
+    internal Ff7AutoplayInput ChooseTargetInput(Ff7AutoPlayTarget target, IReadOnlyList<Ff7AutoPlayTarget> offeredTargets, Func<bool, Ff7AutoplayInput> choose, bool? requiredRun = null)
     {
         int? selectedLine = target.Kind is >= Ff7AutoPlayTargetKind.LineTalk and <= Ff7AutoPlayTargetKind.LineLeave ? target.Entity : null;
         Ff7AutoPlayTarget[]? retainedTargets = navigationLineTargets;
@@ -121,7 +121,7 @@ public sealed partial class Ff7AutoplayDriver
         {
             // Resume a retained walk search in its own mode before trying speculative alternatives.
             bool firstRun = obstacleSearch is null ? true : navigationRunMode ?? true;
-            foreach (bool run in new[] { firstRun, !firstRun })
+            foreach (bool run in ReadNavigationRunModes(firstRun, requiredRun))
             {
                 RestoreNavigationMode(initialState);
                 if (navigationRunMode != run)
@@ -202,6 +202,8 @@ public sealed partial class Ff7AutoplayDriver
             navigationSelectedTarget = retainedSelectedTarget;
         }
     }
+
+    internal static bool[] ReadNavigationRunModes(bool firstRun, bool? requiredRun) => requiredRun is bool selected ? [selected] : [firstRun, !firstRun];
 
     internal static bool ShouldTryWalkingAction(Ff7AutoplayInput action, bool lineRejected, bool escapePlanned)
     {

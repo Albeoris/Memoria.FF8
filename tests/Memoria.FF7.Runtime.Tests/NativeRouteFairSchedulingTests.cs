@@ -203,7 +203,7 @@ internal static class NativeRouteFairSchedulingTests
         string metadata = JsonSerializer.Serialize(state);
         Ff7AutoplayDriver driver = new(source);
         Ff7NativeRouteProbe probe = new() { SourceRelease = (candidate, actual) => Ff7AutoPlayPolicy.CanReleaseNativeSource(state, observation, target, candidate, actual) };
-        IEnumerable<int>[] modes = [driver.EnumerateNativeRoute(target, observation.Events, true, probe), driver.EnumerateNativeRoute(target, observation.Events, false, probe)];
+        IEnumerable<int>[] modes = driver.EnumerateNativeRouteModes(target, observation.Events, probe);
         long baseline = GC.GetTotalMemory(true);
         long peak = baseline;
         int scheduling = 0;

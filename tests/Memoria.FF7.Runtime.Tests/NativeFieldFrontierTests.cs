@@ -66,7 +66,7 @@ internal static class NativeFieldFrontierTests
                 returned |= tick.ScriptReturns.Any(item => item.Entity == 14 && item.Priority == 1);
             }
         };
-        using IEnumerator<int> cursor = driver.EnumerateNativeRoute(target, observation.Events, false, probe).GetEnumerator();
+        using IEnumerator<int> cursor = driver.EnumerateNativeRoute(target, observation.Events, probe).GetEnumerator();
         Stopwatch elapsed = Stopwatch.StartNew();
         int slices = 0;
         while (!returned && slices < 64 && elapsed.Elapsed < TimeSpan.FromSeconds(10) && cursor.MoveNext())

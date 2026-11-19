@@ -8,6 +8,9 @@ public sealed record Ff7AutoPlayPlanningProgress(bool Pending, long PhysicalNode
 {
     public Ff7AutoPlayNativePlanningGroup[] NativeGroups { get; init; } = [];
     public string? NativePoseKey { get; init; }
+    public long NativeGraphFrontier { get; init; }
+    public long NativeGraphVisited { get; init; }
+    public long NativeGraphExpanded { get; init; }
 }
 
 public sealed record Ff7AutoPlayPlanningPose(int X4096, int Y4096, int Z4096, int Triangle, int Direction);
@@ -19,7 +22,7 @@ public sealed record Ff7AutoPlayNativePlanningGroup(string WaitMode, bool Requir
 
 public sealed record Ff7AutoPlayNativeIdleFacts(bool PlayerLocked, bool Joining, bool LadderIncomplete, bool LadderCompleted, bool SelectedLineDisabled, Ff7AutoplayInput LastInput, Ff7Line? SelectedLine, int? NativeInputDemands = null);
 
-internal sealed record Ff7NativeCandidateSummary(Ff7NativePlanningWait WaitMode, bool RequiresIntermediate, string EventId, int Steps, long BranchTick, Ff7AutoPlayPlanningPose Pose, bool PoseChangedFromSource, bool PhysicalPending, float AdvisoryDistance, Ff7AutoPlayNativeIdleFacts? IdleState = null);
+internal sealed record Ff7NativeCandidateSummary(string WaitMode, bool RequiresIntermediate, string EventId, int Steps, long BranchTick, Ff7AutoPlayPlanningPose Pose, bool PoseChangedFromSource, bool PhysicalPending, float AdvisoryDistance, Ff7AutoPlayNativeIdleFacts? IdleState = null);
 
 internal sealed class Ff7NativeCandidateSummaries
 {

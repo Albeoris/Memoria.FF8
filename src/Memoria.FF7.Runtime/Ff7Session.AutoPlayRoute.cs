@@ -5,17 +5,15 @@ using Memoria.FF7.Events;
 
 namespace Memoria.FF7.Runtime;
 
-internal enum Ff7NativePlanningWait
-{
-    RetainPhysicalSearch,
-    AdvanceNativeTime
-}
-
 public sealed record Ff7AutoPlayRouteStep(string Before, Ff7AutoplayInput Input);
 public sealed record Ff7AutoPlayNativeRoute(string EventId, string ConditionFingerprint, long Generation, Ff7AutoPlayRouteStep[] Steps, string After, bool BattleBoundary = false, int Cursor = 0, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Ff7NativeGatewayDeparture? GatewayDeparture = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool SourceReleased = false);
 
 public sealed partial class Ff7Session
 {
+    internal Ff7SessionSave CaptureAutoPlayNavigation() => Capture(includeObservations: false);
+
+    internal Ff7Session RestoreAutoPlayNavigation(Ff7SessionSave snapshot) => Restore(installation, snapshot);
+
     internal Ff7Session ForkAutoPlayNavigation()
     {
         // Detached native execution owns no planner or coverage ledger; the caller owns its proof policy.
@@ -32,57 +30,21 @@ public sealed partial class Ff7AutoplayDriver
     internal long DetachedNativeCallbacks { get; private set; }
     private readonly Ff7NativeCandidateSummaries nativeCandidateSummaries = new();
     private long nativeCandidateId;
-    internal Ff7AutoPlayPlanningProgress PlanningProgress => new(PlanningPending, PhysicalPlanningWork + DetachedPhysicalPlanningWork, DetachedNativeCallbacks, ActiveNativeRouteCandidates) { NativeGroups = nativeCandidateSummaries.Read(), NativePoseKey = nativeCandidateSummaries.ReadPoseKey() };
+    private readonly Dictionary<long, (int Frontier, int Visited, long Expanded)> nativeGraphWork = [];
+    internal Ff7AutoPlayPlanningProgress PlanningProgress => new(PlanningPending, PhysicalPlanningWork + DetachedPhysicalPlanningWork, DetachedNativeCallbacks, ActiveNativeRouteCandidates) { NativeGroups = nativeCandidateSummaries.Read(), NativePoseKey = nativeCandidateSummaries.ReadPoseKey(), NativeGraphFrontier = nativeGraphWork.Values.Sum(item => (long)item.Frontier), NativeGraphVisited = nativeGraphWork.Values.Sum(item => (long)item.Visited), NativeGraphExpanded = nativeGraphWork.Values.Sum(item => item.Expanded) };
 
-    internal Ff7AutoPlayNativeRoute? ProveNativeRoute(Ff7AutoPlayTarget target, IReadOnlyList<Ff7AutoPlayTarget> targets, bool requireIntermediate = true, Func<Ff7Session, Ff7AutoPlayObservation, bool>? sourceRelease = null)
+    internal Ff7AutoPlayNativeRoute? ProveNativeRoute(Ff7AutoPlayTarget target, IReadOnlyList<Ff7AutoPlayTarget> targets, Func<Ff7Session, Ff7AutoPlayObservation, bool>? sourceRelease = null)
     {
         Ff7NativeRouteProbe probe = new() { SourceRelease = sourceRelease };
-        foreach (int _ in EnumerateNativeRoute(target, targets, requireIntermediate, probe))
+        foreach (int _ in EnumerateNativeRoute(target, targets, probe))
         {
         }
         return probe.Result;
     }
 
-    internal IEnumerable<int> EnumerateNativeRoute(Ff7AutoPlayTarget target, IReadOnlyList<Ff7AutoPlayTarget> targets, bool requireIntermediate, Ff7NativeRouteProbe probe, Ff7NativePlanningWait pendingWait = Ff7NativePlanningWait.RetainPhysicalSearch)
-    {
-        if (!SupportsNativeRouteTarget(target))
-        {
-            yield break;
-        }
-        if (!HasNativeRouteClockContract(session))
-        {
-            yield break;
-        }
-        Ff7Actor player = session.Host.Process.Actors.Single(actor => actor.PlayerControlled);
-        int initialDistance = ReadNativeRouteDistance(target, targets);
-        if (initialDistance == int.MaxValue)
-        {
-            yield break;
-        }
-        IEnumerable<int>[] candidates = (from run in new[] { true, false }
-                                         from direction in Directions
-                                         select EnumerateNativeRouteCandidate(target, targets, requireIntermediate, probe, player, initialDistance, run, direction, pendingWait)).ToArray();
-        foreach (int signal in EnumerateFairNativeCandidates(candidates, () => probe.Result is not null))
-        {
-            yield return signal;
-        }
-    }
+    internal IEnumerable<int> EnumerateNativeRoute(Ff7AutoPlayTarget target, IReadOnlyList<Ff7AutoPlayTarget> targets, Ff7NativeRouteProbe probe) => EnumerateNativeStateGraph(target, targets, probe);
 
-    internal IEnumerable<int>[] EnumerateNativeRouteModes(Ff7AutoPlayTarget target, IReadOnlyList<Ff7AutoPlayTarget> targets, Ff7NativeRouteProbe probe)
-    {
-        return (from wait in new[] { Ff7NativePlanningWait.RetainPhysicalSearch, Ff7NativePlanningWait.AdvanceNativeTime }
-                from intermediate in new[] { true, false }
-                select EnumerateNativeRoute(target, targets, intermediate, probe, wait)).ToArray();
-    }
-
-    internal static Ff7AutoplayInput? ReadNativePlanningWaitInput(Ff7NativePlanningWait mode, bool physicalPending, Ff7AutoplayInput input)
-    {
-        if (physicalPending && mode == Ff7NativePlanningWait.RetainPhysicalSearch)
-        {
-            return null;
-        }
-        return physicalPending ? default(Ff7AutoplayInput) : input;
-    }
+    internal IEnumerable<int>[] EnumerateNativeRouteModes(Ff7AutoPlayTarget target, IReadOnlyList<Ff7AutoPlayTarget> targets, Ff7NativeRouteProbe probe) => [EnumerateNativeRoute(target, targets, probe)];
 
     internal static IEnumerable<int> EnumerateFairNativeCandidates(IEnumerable<IEnumerable<int>> candidates, Func<bool> completed)
     {
@@ -128,245 +90,9 @@ public sealed partial class Ff7AutoplayDriver
         }
     }
 
-    private IEnumerable<int> EnumerateNativeRouteCandidate(Ff7AutoPlayTarget target, IReadOnlyList<Ff7AutoPlayTarget> targets, bool requireIntermediate, Ff7NativeRouteProbe probe, Ff7Actor player, int initialDistance, bool run, (int X, int Y, int Direction) direction, Ff7NativePlanningWait pendingWait)
-    {
-        Ff7Actor controlled = player with { MoveSpeed = unchecked((ushort)session.GetPlayerMovementSpeed(run)) };
-        Ff7NativeMoveResult move = session.Host.Movement!.StepDirection(controlled, unchecked((byte)(direction.Direction + session.Field.Triggers.ControlDirection)), session.Host.Process.Actors, session.Host.Process.BlockedTriangles, false, session.Host.Process.LineBlocked);
-        if (!move.Moved || !AllowsGatewayMove(session.Field.Triggers.Gateways, controlled, move.Actor, ReadTargetGatewayIndices(target, session.Field.Triggers.Gateways)) || !AllowsSpatialMove(controlled, move.Actor, ReadSpatialBoundaryTriangles(targets), target.Triangle))
-        {
-            yield break;
-        }
-        using Ff7Session branch = session.ForkAutoPlayNavigation();
-        ActiveNativeRouteCandidates++;
-        long candidateId = ++nativeCandidateId;
-        PeakNativeRouteCandidates = Math.Max(PeakNativeRouteCandidates, ActiveNativeRouteCandidates);
-        try
-        {
-            Ff7AutoplayDriver driver = new(branch);
-            Ff7AutoPlayDiscovery branchDiscovery = new(branch);
-            driver.ConfigureSpatialBoundaries(targets, target);
-            List<Ff7AutoPlayRouteStep> steps = [];
-            void UpdateSummary(bool physicalPending, Ff7AutoplayInput lastInput = default)
-            {
-                Ff7Actor pose = branch.Host.Process.Actors.FirstOrDefault(actor => actor.PlayerControlled) ?? player;
-                Ff7Line? line = branch.Host.Process.Lines.LastOrDefault(line => line.Entity == target.Entity);
-                bool lineTarget = target.Kind is >= Ff7AutoPlayTargetKind.LineTalk and <= Ff7AutoPlayTargetKind.LineLeave;
-                Ff7AutoPlayNativeIdleFacts idle = new(branch.Host.Process.PlayerLocked, branch.Host.Process.Join is not null, pose.Ladder is { Completed: false }, pose.Ladder is { Completed: true }, lineTarget && line?.Enabled != 1, lastInput, lineTarget ? line : null);
-                float distance = System.Numerics.Vector3.Distance(new(pose.X4096 / 4096f, pose.Y4096 / 4096f, pose.Z4096 / 4096f), target.Position);
-                nativeCandidateSummaries.Set(candidateId, new(pendingWait, requireIntermediate, target.Id, steps.Count, branch.Host.Process.Tick, new(pose.X4096, pose.Y4096, pose.Z4096, pose.Triangle, pose.Direction), pose.X4096 != player.X4096 || pose.Y4096 != player.Y4096 || pose.Z4096 != player.Z4096 || pose.Triangle != player.Triangle, physicalPending, distance, idle));
-            }
-            UpdateSummary(false);
-            bool accepted = false;
-            bool ladderObserved = false;
-            Dictionary<(int Entity, int Priority), Ff7AutoPlayTarget> recoveryOwners = [];
-            HashSet<(int Entity, int Priority)> returnedOwners = [];
-            FieldHostRequest? recoveryRequest = null;
-            Ff7AutoPlayTarget? recoveryRoot = null;
-            bool backwardCompleted = false;
-            bool returned = !requireIntermediate;
-            using Ff7NativeRouteClockWitness clock = new(branch.Machine);
-            string? boundary = null;
-            branch.InteractionScriptRequested += (entity, script, admitted) =>
-            {
-                accepted |= admitted && entity == target.Entity && script == target.Script;
-                if (admitted && targets.FirstOrDefault(item => item.Entity == entity && item.Script == script) is { } root)
-                {
-                    recoveryOwners[(entity, 1)] = root;
-                    returnedOwners.Remove((entity, 1));
-                }
-            };
-            branch.Machine.ScriptDispatched += dispatch =>
-            {
-                if (dispatch.Accepted && recoveryOwners.TryGetValue((dispatch.SourceEntity, dispatch.SourcePriority), out Ff7AutoPlayTarget? root))
-                {
-                    recoveryOwners[(dispatch.TargetEntity, dispatch.TargetPriority)] = root;
-                    returnedOwners.Remove((dispatch.TargetEntity, dispatch.TargetPriority));
-                }
-                else if (dispatch.Accepted)
-                {
-                    recoveryOwners.Remove((dispatch.TargetEntity, dispatch.TargetPriority));
-                }
-            };
-            branch.Machine.ScriptReturned += returnedOwner => returnedOwners.Add((returnedOwner.Entity, returnedOwner.Priority));
-            Ff7AutoPlayRouteStep? queuedLineStep = null;
-            branch.NativeTickCompleted += observation =>
-            {
-                if (queuedLineStep is not null)
-                {
-                    probe.QueuedLineWaitObserved?.Invoke(queuedLineStep, observation);
-                }
-            };
-            bool AdvanceCallback(long callback)
-            {
-                long physicalBefore = driver.PhysicalPlanningWork;
-                bool physicalPendingBeforeTime = false;
-                Ff7AutoplayInput resolvedInput = default;
-                try
-                {
-                    driver.BeginPlanningStep();
-                    Ff7Actor current = branch.Host.Process.Actors.Single(actor => actor.PlayerControlled);
-                    backwardCompleted |= recoveryRequest is not null && current.Ladder is { Completed: true, Step: 0 } completed && completed.RequestId == recoveryRequest.Id;
-                    Ff7AutoplayInput input;
-                    queuedLineStep = null;
-                    bool queuedLineWait = false;
-                    if (callback == 0)
-                    {
-                        input = new(direction.X, direction.Y, Run: run);
-                    }
-                    else if (current.Ladder is { Completed: false } ladder)
-                    {
-                        ladderObserved = true;
-                        if (recoveryRequest is null)
-                        {
-                            FieldVmSnapshot vm = branch.Machine.Capture();
-                            FieldHostRequest? request = vm.PendingRequests?.SingleOrDefault(item => item.Id == ladder.RequestId && item.Command is FieldActorLadder);
-                            if (request is not null)
-                            {
-                                recoveryRoot = recoveryOwners.GetValueOrDefault((request.Entity, request.Priority));
-                                if (recoveryRoot is not null)
-                                {
-                                    recoveryRequest = request;
-                                }
-                            }
-                        }
-                        input = new(Held: BackwardLadderKey(ladder.Mode), Run: false);
-                    }
-                    else if (requireIntermediate && callback < 4 && !ladderObserved || current.Ladder is not null || branch.Host.Process.PlayerLocked)
-                    {
-                        input = default;
-                    }
-                    else if (driver.ReadPendingNavigationLineRequest(targets) is not null)
-                    {
-                        input = default;
-                        queuedLineWait = true;
-                    }
-                    else
-                    {
-                        if (requireIntermediate && !ladderObserved)
-                        {
-                            return false;
-                        }
-                        returned = true;
-                        accepted = false;
-                        try
-                        {
-                            input = driver.ChooseTargetInput(target, targets, mode => driver.ApproachNativeRouteTarget(target, mode));
-                        }
-                        catch (Ff7AutoPlayNavigationUnavailableException) when (ladderObserved)
-                        {
-                            input = driver.ApproachNativeRouteTarget(target, false);
-                        }
-                    }
-                    physicalPendingBeforeTime = driver.PlanningPending;
-                    Ff7AutoplayInput? resolved = ReadNativePlanningWaitInput(pendingWait, physicalPendingBeforeTime, input);
-                    if (resolved is null)
-                    {
-                        return true;
-                    }
-                    if (driver.PlanningPending)
-                    {
-                        driver.BeginPlanningStep();
-                    }
-                    input = resolved.Value;
-                    resolvedInput = input;
-                    steps.Add(new(ReadNativeRouteFingerprint(branch), input));
-                    if (queuedLineWait)
-                    {
-                        queuedLineStep = steps[^1];
-                    }
-                    driver.Apply(input);
-                    branch.AdvanceNavigationTick();
-                    DetachedNativeCallbacks++;
-                    if (!clock.Independent || !HasNativeRouteClockContract(branch))
-                    {
-                        return false;
-                    }
-                    if (accepted && !returned)
-                    {
-                        return false;
-                    }
-                    if (branch.Host.Process.Transition is not null)
-                    {
-                        boundary = "Native source departure";
-                        if (target.Kind == Ff7AutoPlayTargetKind.Gateway && returned && branch.GatewayDeparture is { } departure && departure.GatewayIndex == target.GatewayIndex && departure.Transition.Map == target.DestinationField && branch.HasNativeGatewayDeparture(departure))
-                        {
-                            LastNativeRouteProbe = $"Accepted native gateway {departure.GatewayIndex} departure after {steps.Count} callbacks";
-                            probe.Result = new(target.Id, target.ConditionFingerprint, session.FieldGeneration, steps.ToArray(), ReadNativeRouteFingerprint(branch), GatewayDeparture: departure);
-                        }
-                        return false;
-                    }
-                    if (branch.Battle is not null || branch.World is not null || branch.FieldGeneration != session.FieldGeneration)
-                    {
-                        boundary = $"battle:{branch.Battle is not null}, world:{branch.World is not null}, generation:{branch.FieldGeneration}";
-                        if (branch.Battle is not null && (ladderObserved || !requireIntermediate) && returned && branch.FieldGeneration == session.FieldGeneration && driver.ReadNativeRouteDistance(target, targets) < initialDistance)
-                        {
-                            LastNativeRouteProbe = $"Native battle handoff after {steps.Count} callbacks; route distance {initialDistance}->{driver.ReadNativeRouteDistance(target, targets)}";
-                            probe.Result = new(target.Id, target.ConditionFingerprint, session.FieldGeneration, steps.ToArray(), ReadNativeRouteFingerprint(branch), BattleBoundary: true);
-                            return false;
-                        }
-                        return false;
-                    }
-                    if (accepted && returned)
-                    {
-                        LastNativeRouteProbe = $"Accepted {target.Id} after {steps.Count} native callbacks";
-                        probe.Result = new(target.Id, target.ConditionFingerprint, session.FieldGeneration, steps.ToArray(), ReadNativeRouteFingerprint(branch));
-                        return false;
-                    }
-                    if (returned && backwardCompleted && recoveryRequest is not null && recoveryRoot is not null && returnedOwners.Contains((recoveryRoot.Entity, 1)) && returnedOwners.Contains((recoveryRequest.Entity, recoveryRequest.Priority)) && branch.Host.Process.Actors.Single(actor => actor.PlayerControlled).Ladder is null && branch.Machine.Capture().PendingRequests?.Any(request => request.Id == recoveryRequest.Id) != true && driver.ReadNativeRouteDistance(target, targets) < initialDistance && probe.SourceRelease?.Invoke(branch, branchDiscovery.Observe()) == true)
-                    {
-                        LastNativeRouteProbe = $"Released native source refusal after {steps.Count} callbacks";
-                        probe.Result = new(target.Id, target.ConditionFingerprint, session.FieldGeneration, steps.ToArray(), ReadNativeRouteFingerprint(branch), SourceReleased: true);
-                        return false;
-                    }
-                    return true;
-                }
-                catch (Ff7AutoPlayNavigationUnavailableException error)
-                {
-                    LastNativeRouteProbe = $"{target.Id}, callbacks {steps.Count}: {error.Message}";
-                    return false;
-                }
-                finally
-                {
-                    DetachedPhysicalPlanningWork += driver.PhysicalPlanningWork - physicalBefore;
-                    UpdateSummary(physicalPendingBeforeTime, resolvedInput);
-                }
-            }
-            for (long callback = 0;;)
-            {
-                // Yield before each detached callback so a retained iterator
-                // never executes another callback without its caller's allowance.
-                probe.Progress = $"{target.Id}:run{run}:direction{direction.Direction}:callback{callback}";
-                yield return 0;
-                if (!AdvanceCallback(callback))
-                {
-                    break;
-                }
-                if (!driver.PlanningPending)
-                {
-                    callback++;
-                }
-            }
-            if (probe.Result is not null)
-            {
-                yield break;
-            }
-            LastNativeRouteProbe = $"No final admission: {target.Id}, callbacks {steps.Count}, triangle {branch.Host.Process.Actors.Single(actor => actor.PlayerControlled).Triangle}, boundary:{boundary}";
-        }
-        finally
-        {
-            ActiveNativeRouteCandidates--;
-            nativeCandidateSummaries.Remove(candidateId);
-        }
-    }
-
     internal static bool SupportsNativeRouteTarget(Ff7AutoPlayTarget target)
     {
         return target.Kind is >= Ff7AutoPlayTargetKind.LineTalk and <= Ff7AutoPlayTargetKind.LineLeave || target is { Kind: Ff7AutoPlayTargetKind.Gateway, GatewayIndex: >= 0, DestinationField: not null };
-    }
-
-    private Ff7AutoplayInput ApproachNativeRouteTarget(Ff7AutoPlayTarget target, bool run)
-    {
-        return target.Kind == Ff7AutoPlayTargetKind.Gateway ? GatewayAt(target.GatewayIndex!.Value, run) : ApproachLine(target.Entity, target.Kind, run);
     }
 
     internal static ushort BackwardLadderKey(int mode)
