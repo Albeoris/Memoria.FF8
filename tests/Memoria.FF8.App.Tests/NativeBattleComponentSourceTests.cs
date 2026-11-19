@@ -191,7 +191,7 @@ public sealed partial class NativeBattleComponentSourceTests
         {
             return PrepareOriginalEffect137Component(world, request);
         }
-        if (effect is 141 or 159 or 160 or 161 or 259 or 332 or 333 or 334 or 336 or >= 339 and <= 343)
+        if (effect is 141 or 159 or 160 or 161 or 259 or >= 332 and <= 337 or >= 339 and <= 343)
         {
             return PrepareOriginalEffect141Component(world, request);
         }

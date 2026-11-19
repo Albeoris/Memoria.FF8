@@ -14,7 +14,9 @@ public sealed partial class NativeBattleComponentSourceTests
             161 => (738, 131),
             259 or 332 or 333 => (94, 61),
             334 => (326, 67),
+            335 => (63, 77),
             336 => (354, 90),
+            337 => (813, 117),
             339 => (796, 112),
             340 => (982, 126),
             341 => (712, 84),
@@ -31,8 +33,9 @@ public sealed partial class NativeBattleComponentSourceTests
             Fixture = new([new(0, true)], [squall], true) { CombatParty = [0, 255, 255] }
         });
         BattleCombatant actor = source.Combatants.Single(candidate => candidate.IsPlayer && candidate.NativeActorIndex == 0);
-        BattleCombatant target = source.Combatants.First(candidate => !candidate.IsPlayer && candidate.IsActive && candidate.ModelId == targetModel);
-        if (actor.ModelId != 0 || target.NativeRenzokukenMagicIds.Length != 7 || !target.NativeRenzokukenMagicIds.Contains(effect))
+        bool requiresNaturalPrelude = effect is 335 or 337;
+        BattleCombatant? target = requiresNaturalPrelude ? null : source.Combatants.First(candidate => !candidate.IsPlayer && candidate.IsActive && candidate.ModelId == targetModel);
+        if (actor.ModelId != 0 || target is not null && (target.NativeRenzokukenMagicIds.Length != 7 || !target.NativeRenzokukenMagicIds.Contains(effect)))
         {
             throw new InvalidDataException("The component requires its original Renzokuken caster and target selectors.");
         }
@@ -43,6 +46,19 @@ public sealed partial class NativeBattleComponentSourceTests
         if (!source.NativeEntryReady || source.ObserveDiagnosticDrainBlockers().Count != 0 || !source.CanChoosePlayerCommand(actor.Id))
         {
             throw new InvalidDataException("The original component caster did not reach ordinary command readiness.");
+        }
+        if (requiresNaturalPrelude)
+        {
+            AdvanceOriginalRenz335337Prelude(world, source, effect);
+            target = source.Combatants.First(candidate => !candidate.IsPlayer && candidate.IsActive && candidate.ModelId == targetModel);
+            if (target.NativeRenzokukenMagicIds.Length != 7 || !target.NativeRenzokukenMagicIds.Contains(effect))
+            {
+                throw new InvalidDataException("The component requires its original Renzokuken caster and target selectors.");
+            }
+        }
+        if (target is null)
+        {
+            throw new InvalidDataException("The original Renzokuken target is absent.");
         }
         if (!target.IsActive || !target.IsAlive || target.Untargetable || target.Suspended)
         {
