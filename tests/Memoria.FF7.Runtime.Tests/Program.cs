@@ -9,6 +9,12 @@ if (args.Contains("--bounded-movement-availability-only", StringComparer.Ordinal
     return 0;
 }
 
+if (args.Contains("--native-gateway-frontier-original-only", StringComparer.Ordinal))
+{
+    NativeGatewayFrontierTests.RunOriginal();
+    return 0;
+}
+
 if (args.Contains("--native-gateway-route-only", StringComparer.Ordinal))
 {
     NativeGatewayRouteTests.Run();

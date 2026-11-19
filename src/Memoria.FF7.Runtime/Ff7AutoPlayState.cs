@@ -62,6 +62,10 @@ public sealed class Ff7AutoPlayState
             throw new InvalidDataException("The automatic play observation state is unsupported or corrupt.");
         }
         _ = new AutoPlayPlanner<Ff7AutoPlayDeferral>(Coverage);
+        if (NativeRoute is { SourceReleased: true } released && (released.BattleBoundary || released.GatewayDeparture is not null))
+        {
+            throw new InvalidDataException("A native source release cannot claim a battle or gateway completion.");
+        }
         if (NativeRoute?.GatewayDeparture is { } gateway && (gateway.Generation != NativeRoute.Generation || gateway.GatewayIndex < 0 || string.IsNullOrEmpty(gateway.Field) || gateway.Transition is null || gateway.From is null || gateway.To is null || NativeRoute.BattleBoundary))
         {
             throw new InvalidDataException("The bounded native gateway departure is corrupt.");

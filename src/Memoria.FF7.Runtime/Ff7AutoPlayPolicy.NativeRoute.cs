@@ -106,7 +106,7 @@ public sealed partial class Ff7AutoPlayPolicy
         Ff7AutoPlayTarget[] candidates = ReadNativeProbeCandidates(State, observation, completedTask);
         foreach (Ff7AutoPlayTarget target in PrioritizeNativeProbeCandidates(State, planner, observation, candidates, facts, NeedsVisitRefresh))
         {
-            Ff7NativeRouteProbe probe = new();
+            Ff7NativeRouteProbe probe = new() { SourceRelease = (branch, actual) => CanReleaseNativeSource(State, observation, target, branch, actual) };
             foreach (int _ in driver.EnumerateNativeRoute(target, observation.Events, true, probe))
             {
                 nativePlanningPhase = probe.Progress;
@@ -166,6 +166,37 @@ public sealed partial class Ff7AutoPlayPolicy
             {
                 yield break;
             }
+        }
+    }
+
+    internal static bool CanReleaseNativeSource(Ff7AutoPlayState state, Ff7AutoPlayObservation source, Ff7AutoPlayTarget target, Ff7Session candidate, Ff7AutoPlayObservation actual, bool authenticatedEntryReadiness = false)
+    {
+        if (!(actual.CanAcceptInput || authenticatedEntryReadiness && Ff7AutoPlayDiscovery.NativeControlReady(candidate)) || actual.VisitId != source.VisitId || actual.NavigationKey != source.NavigationKey || actual.Generation != source.Generation || !actual.Events.Any(item => item.Id == target.Id && item.ConditionFingerprint == target.ConditionFingerprint && item.Entity == target.Entity && item.Script == target.Script && item.Kind == target.Kind && item.DestinationField == target.DestinationField))
+        {
+            return false;
+        }
+        Ff7AutoplayDriver driver = new(candidate);
+        driver.ConfigureSpatialBoundaries(actual.Events);
+        Ff7Actor player = candidate.Host.Process.Actors.Single(actor => actor.PlayerControlled);
+        Dictionary<string, string> facts = [];
+        foreach (var entry in state.NavigationGuards.Where(entry => entry.Value.NavigationKey == source.NavigationKey && entry.Value.EventId == target.Id))
+        {
+            facts[entry.Key] = ReadMovementFailureFingerprint(driver.ReadPhysicalAvailabilityFingerprint(target, entry.Value.BlockingEntities), entry.Value.MovementFailure, candidate.Host.Process.Actors, entry.Value.BlockingEntities);
+        }
+        AutoPlayNavigationVisit navigation = state.Coverage.NavigationVisits.Single(visit => visit.Key == source.NavigationKey);
+        if (ReadComponentAvailability(state, navigation, navigation.Events.Single(item => item.Id == target.Id && item.ConditionSignature == target.ConditionFingerprint), facts, (_, guard) => guard.MovementFailure is null ? null : ReadMovementSourceInside(guard.MovementFailure, player)).Unavailable)
+        {
+            return false;
+        }
+        driver.ConfigureSpatialBoundaries(actual.Events, target);
+        try
+        {
+            Ff7AutoplayInput next = driver.ChooseTargetInput(target, actual.Events, run => target.Kind == Ff7AutoPlayTargetKind.Gateway ? driver.GatewayAt(target.GatewayIndex!.Value, run) : driver.ApproachLine(target.Entity, target.Kind, run));
+            return !driver.PlanningPending && driver.PlannedActionAdvances == true && (next.Horizontal != 0 || next.Vertical != 0);
+        }
+        catch (Ff7AutoPlayNavigationUnavailableException)
+        {
+            return false;
         }
     }
 
@@ -299,11 +330,24 @@ public sealed partial class Ff7AutoPlayPolicy
 
     private void ObserveNativeRouteBoundary()
     {
-        if (State.NativeRoute is not { } proof || proof.Cursor != proof.Steps.Length)
+        if (State.NativeRoute is not { } proof)
         {
             return;
         }
-        if (proof.After != Ff7AutoplayDriver.ReadNativeRouteFingerprint(session) || proof.BattleBoundary != (session.Battle is not null) || proof.GatewayDeparture is { } gateway && !session.HasNativeGatewayDeparture(gateway))
+        Ff7AutoPlayObservation? releaseObservation = proof.SourceReleased ? discovery.Observe() : null;
+        if (proof.Cursor != proof.Steps.Length)
+        {
+            return;
+        }
+        string actualFingerprint = Ff7AutoplayDriver.ReadNativeRouteFingerprint(session);
+        bool released = true;
+        if (proof.SourceReleased)
+        {
+            Ff7AutoPlayObservation actual = releaseObservation!;
+            Ff7AutoPlayTarget? target = actual.Events.SingleOrDefault(item => item.Id == proof.EventId && item.ConditionFingerprint == proof.ConditionFingerprint);
+            released = State.Active is { } active && target is not null && active.VisitId == actual.VisitId && active.NavigationKey == actual.NavigationKey && active.Generation == proof.Generation && active.Generation == actual.Generation && active.EventId == proof.EventId && active.ConditionFingerprint == proof.ConditionFingerprint && active.Entity == target.Entity && active.Script == target.Script && active.Kind == target.Kind && active.DestinationField == target.DestinationField && CanReleaseNativeSource(State, actual, target, session, actual, proof.After == actualFingerprint);
+        }
+        if (!released || proof.After != actualFingerprint || proof.BattleBoundary != (session.Battle is not null) || proof.GatewayDeparture is { } gateway && !session.HasNativeGatewayDeparture(gateway))
         {
             State.NativeRoute = null;
             Publish();

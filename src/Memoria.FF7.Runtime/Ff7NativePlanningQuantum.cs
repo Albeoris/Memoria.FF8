@@ -23,6 +23,7 @@ internal sealed class Ff7NativePlanningQuantum(int operationLimit = 8, TimeSpan?
 internal sealed class Ff7NativeRouteProbe
 {
     internal Ff7AutoPlayNativeRoute? Result { get; set; }
+    internal Func<Ff7Session, Ff7AutoPlayObservation, bool>? SourceRelease { get; init; }
     internal string? Progress { get; set; }
 }
 

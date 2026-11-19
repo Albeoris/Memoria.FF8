@@ -90,12 +90,18 @@ public sealed partial class Ff7AutoPlayDiscovery(Ff7Session session)
 
     public Ff7AutoPlayTarget? FindTarget(string id) => Observe().Events.SingleOrDefault(target => target.Id == id);
 
+    internal static bool NativeControlReady(Ff7Session session)
+    {
+        Ff7FieldProcess process = session.Host.Process;
+        return session.World is null && !session.HasPendingTick && session.Machine.HasCompletedInitialCycle && process.GlobalCommand == Ff7GlobalCommand.None && !process.PlayerLocked && process.Join is null && process.Transition is null && !process.Dialogues.Any(dialogue => !dialogue.Completed && session.Host.CanConfirmDialogue(dialogue.RequestId)) && process.Actors.Any(actor => actor.PlayerControlled && actor.Ladder is null && actor.Jump is null && !session.Host.HasScriptedMotion(actor));
+    }
+
     public Ff7AutoPlayObservation Observe()
     {
         string identity = session.Machine.ProgramIdentity;
         string visit = $"ff7:{session.MapId}:{identity}";
         Ff7FieldProcess process = session.Host.Process;
-        bool canAccept = session.World is null && !session.HasPendingTick && session.Machine.HasCompletedInitialCycle && process.GlobalCommand == Ff7GlobalCommand.None && !process.PlayerLocked && process.Join is null && process.Transition is null && !process.Dialogues.Any(dialogue => !dialogue.Completed && session.Host.CanConfirmDialogue(dialogue.RequestId)) && process.Actors.Any(actor => actor.PlayerControlled && actor.Ladder is null && actor.Jump is null && !session.Host.HasScriptedMotion(actor));
+        bool canAccept = NativeControlReady(session);
         List<Ff7AutoPlayTarget> events = [];
         HashSet<FieldVariableRead> persistentReads = [];
         HashSet<FieldHostRead> globalHostReads = [];
