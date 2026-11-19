@@ -150,6 +150,14 @@ public sealed partial class Ff7AutoplayDriver
                 }
             };
             branch.Machine.ScriptReturned += returnedOwner => returnedOwners.Add((returnedOwner.Entity, returnedOwner.Priority));
+            Ff7AutoPlayRouteStep? queuedLineStep = null;
+            branch.NativeTickCompleted += observation =>
+            {
+                if (queuedLineStep is not null)
+                {
+                    probe.QueuedLineWaitObserved?.Invoke(queuedLineStep, observation);
+                }
+            };
             bool AdvanceCallback(long callback)
             {
                 try
@@ -158,6 +166,8 @@ public sealed partial class Ff7AutoplayDriver
                     Ff7Actor current = branch.Host.Process.Actors.Single(actor => actor.PlayerControlled);
                     backwardCompleted |= recoveryRequest is not null && current.Ladder is { Completed: true, Step: 0 } completed && completed.RequestId == recoveryRequest.Id;
                     Ff7AutoplayInput input;
+                    queuedLineStep = null;
+                    bool queuedLineWait = false;
                     if (callback == 0)
                     {
                         input = new(direction.X, direction.Y, Run: run);
@@ -184,6 +194,11 @@ public sealed partial class Ff7AutoplayDriver
                     {
                         input = default;
                     }
+                    else if (driver.ReadPendingNavigationLineRequest(targets) is not null)
+                    {
+                        input = default;
+                        queuedLineWait = true;
+                    }
                     else
                     {
                         if (requireIntermediate && !ladderObserved)
@@ -206,6 +221,10 @@ public sealed partial class Ff7AutoplayDriver
                         return true;
                     }
                     steps.Add(new(ReadNativeRouteFingerprint(branch), input));
+                    if (queuedLineWait)
+                    {
+                        queuedLineStep = steps[^1];
+                    }
                     driver.Apply(input);
                     branch.AdvanceNavigationTick();
                     if (!clock.Independent || !HasNativeRouteClockContract(branch))

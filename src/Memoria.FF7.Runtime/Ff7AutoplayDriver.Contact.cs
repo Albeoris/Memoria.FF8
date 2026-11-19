@@ -219,18 +219,35 @@ public sealed partial class Ff7AutoplayDriver
     private bool CanSkipNavigationLine(Ff7AutoPlayTarget target)
     {
         FieldInputState input = navigationLineInput ?? throw new InvalidOperationException("Native navigation line input was not scoped.");
-        var key = (target.Entity, target.Script, input, navigationLineTalk);
+        return CanSkipNavigationLine(target, input, navigationLineTalk);
+    }
+
+    private bool CanSkipNavigationLine(Ff7AutoPlayTarget target, FieldInputState input, bool talk)
+    {
+        var key = (target.Entity, target.Script, input, talk);
         if (!navigationLineSkips.TryGetValue(key, out bool skip))
         {
             skip = session.Machine.CanSkipScriptEntryForInput(target.Entity, target.Script, input);
             if (!skip)
             {
-                FieldNavigationEntryProof proof = session.ReadNavigationEntryProof(target.Entity, target.Script, input, talkContext: navigationLineTalk);
+                FieldNavigationEntryProof proof = session.ReadNavigationEntryProof(target.Entity, target.Script, input, talkContext: talk);
                 skip = proof.Complete && proof.HasNoEffect;
             }
             navigationLineSkips.Add(key, skip);
         }
         return skip;
+    }
+
+    internal Ff7AutoPlayTarget? ReadPendingNavigationLineRequest(IReadOnlyList<Ff7AutoPlayTarget> targets)
+    {
+        navigationLineSkips.Clear();
+        FieldInputState input = ProjectNavigationInput(default, session.Machine.Input);
+        return ReadPendingNavigationLineRequest(targets, session.Host.Process.Lines, target => CanSkipNavigationLine(target, input, false));
+    }
+
+    internal static Ff7AutoPlayTarget? ReadPendingNavigationLineRequest(IReadOnlyList<Ff7AutoPlayTarget> targets, IReadOnlyList<Ff7Line> lines, Func<Ff7AutoPlayTarget, bool> canSkip)
+    {
+        return targets.FirstOrDefault(target => target.Kind is >= Ff7AutoPlayTargetKind.LineTalk and <= Ff7AutoPlayTargetKind.LineLeave && (target.ChangesField || target.MayChangeNavigation) && lines.Any(line => line.Entity == target.Entity && HasNativeLineRequest(target.Kind, line)) && !canSkip(target));
     }
 
     internal static bool HasNativeLineRequest(Ff7AutoPlayTargetKind kind, Ff7Line line)

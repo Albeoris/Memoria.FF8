@@ -25,6 +25,7 @@ internal sealed class Ff7NativeRouteProbe
     internal Ff7AutoPlayNativeRoute? Result { get; set; }
     internal Func<Ff7Session, Ff7AutoPlayObservation, bool>? SourceRelease { get; init; }
     internal string? Progress { get; set; }
+    internal Action<Ff7AutoPlayRouteStep, Ff7NativeTickObservation>? QueuedLineWaitObserved { get; init; }
 }
 
 internal sealed class Ff7NativePlanningCursor(IEnumerator<Memoria.AutoPlay.AutoPlayPlanStep?> search) : IDisposable

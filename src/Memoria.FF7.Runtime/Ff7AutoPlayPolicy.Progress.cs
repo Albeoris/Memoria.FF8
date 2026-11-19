@@ -4,11 +4,11 @@ public sealed partial class Ff7AutoPlayPolicy
 {
     internal const int FrontierIdleLimit = 7200;
 
-    private void TrackControllableFrontierProgress()
+    private void TrackControllableFrontierProgress(bool controllable, Ff7AutoplayDriver driver)
     {
         try
         {
-            TrackFrontierProgress(State, Story());
+            CommitFrontierInput(State, Story(), controllable, driver.PlanningPending, State.PendingRestore is not null);
         }
         finally
         {
@@ -18,6 +18,15 @@ public sealed partial class Ff7AutoPlayPolicy
                 published.FrontierIdleSteps = State.FrontierIdleSteps;
             }
         }
+    }
+
+    internal static void CommitFrontierInput(Ff7AutoPlayState state, int story, bool controllable, bool planningPending, bool pendingRestore)
+    {
+        if (!controllable || planningPending || pendingRestore)
+        {
+            return;
+        }
+        TrackFrontierProgress(state, story);
     }
 
     internal static void TrackFrontierProgress(Ff7AutoPlayState state, int story)

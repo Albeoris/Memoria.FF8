@@ -82,11 +82,30 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
 
     public Ff7AutoplayInput ChooseInput(Ff7AutoplayDriver driver)
     {
-        return ChooseInput(driver, new Ff7NativePlanningQuantum());
+        nativeInputReservation = null;
+        try
+        {
+            Ff7AutoplayInput input = ChooseInput(driver, new Ff7NativePlanningQuantum(), out bool controllable);
+            try
+            {
+                TrackControllableFrontierProgress(controllable, driver);
+            }
+            catch
+            {
+                RestoreUnappliedNativeInput();
+                throw;
+            }
+            return input;
+        }
+        finally
+        {
+            nativeInputReservation = null;
+        }
     }
 
-    private Ff7AutoplayInput ChooseInput(Ff7AutoplayDriver driver, Ff7NativePlanningQuantum quantum)
+    private Ff7AutoplayInput ChooseInput(Ff7AutoplayDriver driver, Ff7NativePlanningQuantum quantum, out bool controllable)
     {
+        controllable = false;
         nativePlanningQuantum = quantum;
         if (nativePlanning is not null && !CanResumeNativePlanning())
         {
@@ -126,17 +145,17 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         }
         if (State.NativeRoute is not null && resumedNativePlan is null)
         {
-            TrackControllableFrontierProgress();
+            controllable = true;
             return ReadNativeRouteInput();
         }
         if (session.Host.Process.Actors.SingleOrDefault(actor => actor.PlayerControlled) is { Ladder.Completed: false } climbing)
         {
-            TrackControllableFrontierProgress();
+            controllable = true;
             return driver.Steer(new(climbing.X4096 / 4096f, climbing.Y4096 / 4096f, climbing.Z4096 / 4096f));
         }
         if (scriptedInput.ChooseInput() is Ff7AutoplayInput nativeInput)
         {
-            TrackControllableFrontierProgress();
+            controllable = true;
             State.Status = $"Native input {scriptedInput.CurrentDemand?.Identity}";
             return nativeInput;
         }
@@ -145,11 +164,17 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         {
             return default;
         }
+        if (driver.ReadPendingNavigationLineRequest(observation.Events) is Ff7AutoPlayTarget queuedLine)
+        {
+            State.Status = $"Waiting for queued native LINE {queuedLine.Entity}/script {queuedLine.Script}";
+            Publish();
+            return default;
+        }
         if (State.DestinationField == session.MapId)
         {
             State.DestinationField = null;
         }
-        TrackControllableFrontierProgress();
+        controllable = true;
         driver.ConfigureSpatialBoundaries(observation.Events);
         Dictionary<string, string> physicalGuards = new(StringComparer.Ordinal);
         foreach (var entry in State.NavigationGuards.Where(entry => entry.Value.VisitId == observation.VisitId).ToArray())

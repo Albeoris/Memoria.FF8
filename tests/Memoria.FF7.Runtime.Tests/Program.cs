@@ -3,6 +3,24 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-input-reservation-original-only", StringComparer.Ordinal))
+{
+    NativeInputReservationTests.RunOriginal();
+    return 0;
+}
+
+if (args.Contains("--native-field-frontier-original-only", StringComparer.Ordinal))
+{
+    NativeFieldFrontierTests.RunOriginal();
+    return 0;
+}
+
+if (args.Contains("--frontier-input-accounting-only", StringComparer.Ordinal))
+{
+    FrontierInputAccountingTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-custom-lighting-only", StringComparer.Ordinal))
 {
     NativeCustomLightingTests.Run();

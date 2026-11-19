@@ -6,6 +6,8 @@ namespace Memoria.FF7.Runtime;
 
 public sealed partial class Ff7AutoPlayPolicy
 {
+    private sealed record NativeInputReservation(Ff7AutoPlayNativeRoute Before, Ff7AutoPlayNativeRoute Reserved, string? Status);
+    private NativeInputReservation? nativeInputReservation;
     private Ff7NativePlanningCursor? nativePlanning;
     private Ff7NativePlanningQuantum? nativePlanningQuantum;
     private string? nativePlanningSource;
@@ -290,10 +292,23 @@ public sealed partial class Ff7AutoPlayPolicy
             throw new NotSupportedException("The bounded native navigation continuation diverged from its authenticated source.");
         }
         Ff7AutoplayInput input = proof.Steps[proof.Cursor].Input;
-        State.NativeRoute = proof with { Cursor = proof.Cursor + 1 };
+        Ff7AutoPlayNativeRoute reserved = proof with { Cursor = proof.Cursor + 1 };
+        nativeInputReservation = new(proof, reserved, State.Status);
+        State.NativeRoute = reserved;
         State.Status = $"Following native continuation toward {proof.EventId}, callback {proof.Cursor + 1}/{proof.Steps.Length}";
         Publish();
         return input;
+    }
+
+    private void RestoreUnappliedNativeInput()
+    {
+        if (nativeInputReservation is not { } reservation || !ReferenceEquals(State.NativeRoute, reservation.Reserved) || reservation.Before.Steps[reservation.Before.Cursor].Before != Ff7AutoplayDriver.ReadNativeRouteFingerprint(session))
+        {
+            return;
+        }
+        State.NativeRoute = reservation.Before;
+        State.Status = reservation.Status;
+        Publish();
     }
 
     private void ObserveNativeFieldDeparture(Ff7NativeGatewayDeparture? departure)
