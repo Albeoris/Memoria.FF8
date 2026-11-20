@@ -8,6 +8,10 @@ internal static class ActorContactRegionTests
     internal static void Run()
     {
         Ff7Actor player = new() { Entity = 1, Slot = 0, Model = 0, PlayerControlled = true, Direction = 128 };
+        int DirectionMustNotRun(int x, int y) => throw new InvalidOperationException("Native Direction received a zero vector.");
+        Check(Ff7AutoplayDriver.ReadActorPushDesiredDirection(player, player, DirectionMustNotRun) == player.Direction, "Coincident contact ranking did not retain actual heading.");
+        Check(Ff7AutoplayDriver.ReadActorPushDesiredDirection(player, player with { X4096 = 4095, Y4096 = 2048 }, DirectionMustNotRun) == player.Direction, "Positive subunit contact deltas reached native Direction as zero.");
+        Check(Ff7AutoplayDriver.ReadActorPushDesiredDirection(player, player with { X4096 = -1 }, (x, y) => x == -1 && y == 0 ? 64 : throw new InvalidOperationException("Native signed delta changed.")) == 64, "Signed native direction quantization changed for a nonzero vector.");
         Ff7NativeMoveResult push = new(player, false, false, [6]);
         var input = Ff7AutoplayDriver.SelectActorPushInput(6, false, 128, 0, _ => push, _ => true);
         Check(input is { Talk: false, Run: false } && (input.Value.Horizontal != 0 || input.Value.Vertical != 0), "A legal zero-motion collision failed to emit its actual movement input, or became Talk.");

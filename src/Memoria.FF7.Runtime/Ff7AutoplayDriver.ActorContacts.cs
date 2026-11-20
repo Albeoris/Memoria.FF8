@@ -52,11 +52,18 @@ public sealed partial class Ff7AutoplayDriver
 
     private Ff7AutoplayInput? ReadActorPushInput(Ff7Actor player, Ff7Actor target, bool run, bool requireAdmission = true)
     {
-        int desired = session.Host.Movement!.Direction((target.X4096 - player.X4096) >> 12, (target.Y4096 - player.Y4096) >> 12);
+        int desired = ReadActorPushDesiredDirection(player, target, (x, y) => session.Host.Movement!.Direction(x, y));
         Ff7Actor controlled = player with { MoveSpeed = session.GetPlayerMovementSpeed(run) };
         return SelectActorPushInput(target.Entity, run, desired, session.Field.Triggers.ControlDirection,
-            direction => session.Host.Movement.StepDirection(controlled, direction, session.Host.Process.Actors, session.Host.Process.BlockedTriangles, playerLocked: false, lineBlocked: session.Host.Process.LineBlocked),
+            direction => session.Host.Movement!.StepDirection(controlled, direction, session.Host.Process.Actors, session.Host.Process.BlockedTriangles, playerLocked: false, lineBlocked: session.Host.Process.LineBlocked),
             preview => !requireAdmission || AllowsPlannedMove(controlled, preview));
+    }
+
+    internal static int ReadActorPushDesiredDirection(Ff7Actor player, Ff7Actor target, Func<int, int, int> direction)
+    {
+        int x = (target.X4096 - player.X4096) >> 12;
+        int y = (target.Y4096 - player.Y4096) >> 12;
+        return x == 0 && y == 0 ? player.Direction : direction(x, y);
     }
 
     internal static Ff7AutoplayInput? SelectActorPushInput(int entity, bool run, int desired, int controlDirection, Func<byte, Ff7NativeMoveResult> preview, Func<Ff7NativeMoveResult, bool> allows)

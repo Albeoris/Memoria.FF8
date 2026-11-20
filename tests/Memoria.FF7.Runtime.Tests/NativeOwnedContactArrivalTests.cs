@@ -95,4 +95,30 @@ internal static class NativeOwnedContactArrivalTests
         Console.WriteLine($"OWNED currentCF={actualCondition}, catalogWork={contactWork}");
         Console.WriteLine($"OWNED final map={session.MapId}, generation={session.FieldGeneration}, tick={session.Machine.Tick}, callbacks={controller.Steps}, preempted={preempted}, goal={policy.State.NavigationGoal}, commitment={policy.State.TravelCommitment is not null}, error={controller.Error}, elapsed={elapsed.Elapsed.TotalSeconds:F3}s; sourceUnchanged={bytes.AsSpan().SequenceEqual(File.ReadAllBytes(path))}");
     }
+    internal static void RunCatalogOriginal()
+    {
+        string path = Environment.GetEnvironmentVariable("MEMORIA_FF7_OWNED_CONTACT_SAVE") ?? throw new InvalidOperationException("Select a native owned-contact fixture.");
+        string game = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR") ?? throw new InvalidOperationException("Select original resources.");
+        byte[] bytes = File.ReadAllBytes(path);
+        using MemoryStream source = new(bytes, false);
+        Ff7SessionSave save = CombinedSessionCodec.Read(source).Ff7!;
+        using Ff7Session session = Ff7Session.Restore(Ff7Installation.Discover(game), save);
+        Ff7Actor player = session.Host.Process.Actors.Single(actor => actor.PlayerControlled);
+        Ff7Actor target = session.Host.GetActor(save.AutoPlay!.Active!.Entity);
+        Ff7AutoplayDriver driver = new(session);
+        var reachable = Ff7AutoplayDriver.ReachableTriangles(session.Field.Walkmesh, session.Host.Process.BlockedTriangles, player.Triangle);
+        var enumerate = typeof(Ff7AutoplayDriver).GetMethod("EnumerateActorContactRegion", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+        var candidates = (IEnumerable<(System.Numerics.Vector3 Point, int Triangle)>)enumerate.Invoke(driver, [target, player, reachable])!;
+        using var catalog = new Ff7AutoplayDriver.ActorContactCatalog("current-source", candidates.GetEnumerator());
+        string Native() => System.Text.Json.JsonSerializer.Serialize(new { session.Progress, Vm = session.Machine.Capture(), Process = session.Host.Capture() });
+        string before = Native();
+        Stopwatch elapsed = Stopwatch.StartNew();
+        long work = 0;
+        while (!catalog.Completed && elapsed.Elapsed < TimeSpan.FromSeconds(10))
+        {
+            work += catalog.Resume(new());
+        }
+        Check(catalog.Completed && work > 1 && before == Native() && bytes.AsSpan().SequenceEqual(File.ReadAllBytes(path)), "Actual contact catalog did not traverse all candidates without changing native source.");
+        Console.WriteLine($"PASS original complete native contact catalog: work={work}, witnesses={catalog.Contacts.Count}, callbacks=0, tick={session.Machine.Tick}, elapsed={elapsed.Elapsed.TotalSeconds:F3}s; native/source unchanged");
+    }
 }
