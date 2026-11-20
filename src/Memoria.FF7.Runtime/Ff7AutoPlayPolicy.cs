@@ -340,6 +340,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             item.UnavailableVariants = availability.UnavailableVariants;
             item.AvailabilityFingerprint = availability.Fingerprint;
         }
+        CompletePresentationActivation(observation);
         if (State.Active is { } active && (active.Returned || active.Generation != observation.Generation))
         {
             bool changedField = active.Generation != observation.Generation;
