@@ -1,3 +1,4 @@
+using Memoria.AutoPlay;
 using System.Diagnostics;
 using System.Reflection;
 using System.Text.Json;
@@ -45,6 +46,26 @@ internal static class WorldModeTopologyContinuationTests
         Check(disposed == 2, "Canceling topology planning leaked a restored catalog-only cursor.");
         Check(Ff7AutoPlayPolicy.IsInertWorldMovementEntry(inert) && Ff7AutoPlayPolicy.IsInertWorldMovementEntry(inert with { HostReads = [new(WorldHostDependencyKind.Special, 0, 8)] }), "A complete movement-independent current inert entry stayed directly actionable.");
         Check(!Ff7AutoPlayPolicy.IsInertWorldMovementEntry(transfer) && !Ff7AutoPlayPolicy.IsInertWorldMovementEntry(inert with { Complete = false }) && !Ff7AutoPlayPolicy.IsInertWorldMovementEntry(inert with { HostReads = [new(WorldHostDependencyKind.ModelDistance, 0, 1)] }) && !Ff7AutoPlayPolicy.IsInertWorldMovementEntry(inert with { HostReads = [new(WorldHostDependencyKind.Special, 0, 7)] }), "An active, unresolved, positional or unknown host-dependent entry was hidden.");
+        Queue<Ff7AutoPlayPolicy.WorldModeCandidate> pendingCandidates = new();
+        Dictionary<string, Ff7AutoPlayPolicy.WorldModeCandidate> observedCandidates = new(StringComparer.Ordinal);
+        Ff7AutoPlayPolicy.EnqueueWorldModePrerequisite(pendingCandidates, observedCandidates, wanted, false);
+        object retainedSearch = wanted.Search;
+        Ff7AutoPlayPolicy.EnqueueWorldModePrerequisite(pendingCandidates, observedCandidates, new(target, wanted.Goal), false);
+        Ff7AutoPlayPolicy.EnqueueWorldModePrerequisite(pendingCandidates, observedCandidates, unrelated, false);
+        Check(pendingCandidates.Count == 2 && ReferenceEquals(observedCandidates[target.Id].Search, retainedSearch) && ReferenceEquals(pendingCandidates.Dequeue(), wanted) && ReferenceEquals(pendingCandidates.Peek(), unrelated), "Incremental discovery duplicated old prerequisites, dropped a later chunk or replaced retained work.");
+        AutoPlayEvent readyMode = new("mode", AutoPlayEventKind.Interaction, ConditionSignature: "ready");
+        AutoPlayEventCoverage<Ff7AutoPlayDeferral> completedMode = new() { Event = readyMode, Completed = true, Conditions = new() { ConsumedEntries = new(StringComparer.Ordinal) { "ready" } } };
+        Dictionary<string, string> facts = new(StringComparer.Ordinal);
+        Check(!Ff7AutoPlayPolicy.IsWorldModeActionable(completedMode, readyMode, facts) && ReferenceEquals(Ff7AutoPlayPolicy.SelectWorldModePrerequisite(null, observedCandidates, 0, pendingCandidates.Peek()), unrelated), "A completed sole positive mode suppressed another queued prerequisite.");
+        Check(Ff7AutoPlayPolicy.IsWorldModeActionable(completedMode, readyMode with { ConditionSignature = "changed" }, facts), "A changed native mode condition retained stale completion.");
+        AutoPlayEventCoverage<Ff7AutoPlayDeferral> legacyMode = new() { Event = readyMode, Completed = true, Conditions = null, ObservedConditionSignature = "old" };
+        Check(Ff7AutoPlayPolicy.IsWorldModeActionable(legacyMode, readyMode with { ConditionSignature = "changed" }, facts) && legacyMode.Conditions is null, "Legacy completion was treated as proof of a changed native entry or mutated during projection.");
+        AutoPlayEventCoverage<Ff7AutoPlayDeferral> blockedMode = new() { Event = readyMode, UnavailableAttempts = [new("ready", "world", "guard", "blocked", "mode")] };
+        facts["guard"] = "blocked";
+        Check(!Ff7AutoPlayPolicy.IsWorldModeActionable(blockedMode, readyMode, facts), "A current blocked prerequisite stopped other queued work.");
+        facts["guard"] = "released";
+        Check(Ff7AutoPlayPolicy.IsWorldModeActionable(blockedMode, readyMode, facts), "A released native availability guard remained blocked.");
+        Check(Ff7AutoPlayPolicy.SelectWorldModePrerequisite(null, observedCandidates, 0, null) is null, "An actually empty prerequisite queue manufactured work.");
         int reverseVisits = 0;
         int transportVisits = 0;
         int probes = 0;
@@ -195,6 +216,39 @@ internal static class WorldModeTopologyContinuationTests
         var after = policy.State.Coverage.Visits.SelectMany(visit => visit.Events).Where(item => item.Event.Id == initial).Select(item => JsonSerializer.Serialize(new { item.Completed, item.Conditions, item.Routes, item.UnavailableAttempts })).ToArray();
         Check(controller.Error is null && before.SequenceEqual(after) && bytes.AsSpan().SequenceEqual(File.ReadAllBytes(path)), $"Inert eligibility changed native history/source or failed: {controller.Error}");
         Console.WriteLine($"PASS current native mode-excluded entry: callbacks={controller.Steps}, worldTick={world.Process.Tick}, controlled={world.ControlledModel}, physical={driver.PhysicalPlanningWork}, active={policy.State.Active?.EventId}, pending={driver.PlanningPending}, elapsed={elapsed.Elapsed.TotalSeconds:F3}s; inert history/source unchanged");
+    }
+
+    internal static void RunCurrentCatalog()
+    {
+        string path = Environment.GetEnvironmentVariable("MEMORIA_FF7_WORLD_CATALOG_SAVE") ?? throw new InvalidOperationException("Select a current world catalog fixture.");
+        string game = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR") ?? throw new InvalidOperationException("Select original resources.");
+        byte[] bytes = File.ReadAllBytes(path);
+        using MemoryStream input = new(bytes, false);
+        using Ff7Session session = Ff7Session.Restore(Ff7Installation.Discover(game), CombinedSessionCodec.Read(input).Ff7!);
+        Ff7WorldRuntime world = session.World ?? throw new InvalidDataException("No native world.");
+        using Ff7AutoPlayPolicy policy = new(session, (_, _) => throw new InvalidOperationException("Unexpected choice boundary."));
+        int consumed = policy.State.Coverage.Visits.Sum(visit => visit.Events.Sum(item => item.Conditions?.ConsumedEntries.Count ?? 0));
+        int routes = policy.State.Coverage.Visits.Sum(visit => visit.Events.Sum(item => item.Routes.Count));
+        Ff7AutoPlayController controller = new(session, policy.ChooseInput, advanceTick: () => session.AdvanceTick(advanceClock: false), chooseDialogueSelection: policy.ChooseDialogueSelection, readPlanningProgress: () => policy.WorkProgress, readFrontierProgress: () => policy.FrontierProgress);
+        Ff7AutoplayDriver driver = (Ff7AutoplayDriver)typeof(Ff7AutoPlayController).GetField("driver", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(controller)!;
+        controller.Start();
+        Stopwatch elapsed = Stopwatch.StartNew();
+        TimeSpan previous = TimeSpan.Zero;
+        for (int poll = 0; poll < 64 && controller.Running && session.World == world && session.Battle is null && elapsed.Elapsed < TimeSpan.FromSeconds(15); poll++)
+        {
+            TimeSpan now = elapsed.Elapsed;
+            session.AdvanceClock(now - previous);
+            previous = now;
+            controller.Advance(1);
+        }
+        Dictionary<string, Ff7AutoPlayPolicy.WorldModeCandidate> prerequisites = (Dictionary<string, Ff7AutoPlayPolicy.WorldModeCandidate>)typeof(Ff7AutoPlayPolicy).GetField("worldModePrerequisites", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(policy)!;
+        long work = prerequisites.Values.Sum(candidate => candidate.Search?.Operations ?? 0);
+        Check(controller.Error is null && (controller.Steps > 0 || driver.PlanningPending && work > 8) && bytes.AsSpan().SequenceEqual(File.ReadAllBytes(path)), $"Native catalog continuation failed: {controller.Error}; retained={work}; status={policy.Status}");
+        if (controller.Steps == 0)
+        {
+            Check(consumed == policy.State.Coverage.Visits.Sum(visit => visit.Events.Sum(item => item.Conditions?.ConsumedEntries.Count ?? 0)) && routes == policy.State.Coverage.Visits.Sum(visit => visit.Events.Sum(item => item.Routes.Count)), "Pending topology manufactured native consumption or routes.");
+        }
+        Console.WriteLine($"PASS current world catalog continuation: callbacks={controller.Steps}, tick={world.Process.Tick}, controlled={world.ControlledModel}, prerequisites={prerequisites.Count}, work={work}, physical={driver.PhysicalPlanningWork}, pending={driver.PlanningPending}, active={policy.State.Active?.EventId}, elapsed={elapsed.Elapsed.TotalSeconds:F3}s; source intact; landing unproved");
     }
 
     private static void Check(bool condition, string message)

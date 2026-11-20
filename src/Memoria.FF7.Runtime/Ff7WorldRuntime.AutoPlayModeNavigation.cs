@@ -166,21 +166,27 @@ public sealed partial class Ff7WorldRuntime
 
 internal sealed class Ff7WorldModeTopologyCursor(IEnumerator<Ff7AutoPlayWorldModeGuide?> search) : IDisposable
 {
+    private IEnumerator<Ff7AutoPlayWorldModeGuide?>? remaining = search;
     internal bool Completed { get; private set; }
     internal long Operations { get; private set; }
     internal Ff7AutoPlayWorldModeGuide? Result { get; private set; }
 
     internal void Resume(Ff7NativePlanningQuantum quantum)
     {
+        IEnumerator<Ff7AutoPlayWorldModeGuide?>? current = remaining;
+        if (current is null)
+        {
+            return;
+        }
         while (!Completed && quantum.TryBeginOperation())
         {
             Operations++;
-            if (!search.MoveNext())
+            if (!current.MoveNext())
             {
                 Completed = true;
                 Dispose();
             }
-            else if (search.Current is { } result)
+            else if (current.Current is { } result)
             {
                 Result = result;
                 Completed = true;
@@ -191,6 +197,7 @@ internal sealed class Ff7WorldModeTopologyCursor(IEnumerator<Ff7AutoPlayWorldMod
 
     public void Dispose()
     {
-        search.Dispose();
+        remaining?.Dispose();
+        remaining = null;
     }
 }

@@ -173,10 +173,7 @@ public sealed partial class Ff7AutoPlayPolicy
         }
         if (!ReferenceEquals(worldModeOwner, world) || worldModeModel != world.ControlledModel)
         {
-            foreach (WorldModeCandidate previous in worldModePrerequisites.Values)
-            {
-                previous.Search?.Dispose();
-            }
+            DisposeWorldModeCandidates(worldModePrerequisites.Values, worldModeCatalog.Values);
             worldModePrerequisites.Clear();
             worldModeCatalog.Clear();
             worldModeQueue.Clear();
@@ -217,17 +214,13 @@ public sealed partial class Ff7AutoPlayPolicy
         }
         if (!world.Process.Initialized || !world.Process.MovementEnabled || world.Process.MainState != 1 || world.ReadAutoPlaySurfaceVehicleRider() is not int rider)
         {
-            foreach (WorldModeCandidate previous in worldModePrerequisites.Values)
-            {
-                previous.Search?.Dispose();
-            }
+            DisposeWorldModeCandidates(worldModePrerequisites.Values, worldModeCatalog.Values);
             worldModePrerequisites.Clear();
             worldModeCatalog.Clear();
             worldModeQueue.Clear();
             worldModeCandidatesObserved = false;
             return;
         }
-        if (!worldModeCandidatesObserved)
         {
             List<(WorldModeCandidate Candidate, bool Visited, double Distance)> candidates = [];
             Ff7WorldEntity player = world.CaptureAutoPlayMovementState().Player;
@@ -267,8 +260,7 @@ public sealed partial class Ff7AutoPlayPolicy
             }
             foreach (var item in candidates.OrderBy(item => item.Candidate.Target.Id == State.Active?.EventId ? 0 : item.Candidate.Target.Id == State.NavigationGoal?.EventId ? 1 : 2).ThenBy(item => item.Visited).ThenBy(item => item.Distance).ThenBy(item => item.Candidate.Target.Id, StringComparer.Ordinal))
             {
-                worldModePrerequisites[item.Candidate.Target.Id] = item.Candidate;
-                worldModeQueue.Enqueue(item.Candidate);
+                EnqueueWorldModePrerequisite(worldModeQueue, worldModePrerequisites, item.Candidate, !worldModeCandidatesObserved);
             }
             worldModeCandidatesObserved = true;
         }
@@ -278,7 +270,15 @@ public sealed partial class Ff7AutoPlayPolicy
         }
         WorldModeCandidate? selected = State.Active is { Kind: Ff7AutoPlayTargetKind.WorldMesh, Accepted: false } raw && worldModePrerequisites.TryGetValue(raw.EventId, out WorldModeCandidate? prerequisite) ? prerequisite : null;
         worldModeQueue.TryPeek(out WorldModeCandidate? queued);
-        WorldModeCandidate? candidate = SelectWorldModePrerequisite(State.Active, worldModePrerequisites, worldModeCatalog.Count, queued);
+        Ff7AutoPlayObservation modeObservation = new(visitKey, world.Machine.ProgramIdentity, session.FieldGeneration, [], true, true) { NavigationKey = visitKey + ":nav:world" };
+        var modeFacts = RefreshWorldPhysicalAvailability(world, modeObservation).Facts;
+        int actionable = worldModeCatalog.Count(entry =>
+        {
+            AutoPlayEvent current = new(entry.Key, AutoPlayEventKind.Interaction, ConditionSignature: WorldCondition(entry.Value.Target) + ":rider:" + entry.Value.Goal.RiderModel);
+            AutoPlayEventCoverage<Ff7AutoPlayDeferral>? coverage = State.Coverage.Visits.SingleOrDefault(visit => visit.Visit.Key == visitKey)?.Events.SingleOrDefault(item => item.Event.Id == entry.Key);
+            return IsWorldModeActionable(coverage, current, modeFacts);
+        });
+        WorldModeCandidate? candidate = SelectWorldModePrerequisite(State.Active, worldModePrerequisites, actionable, queued);
         if (candidate is not null)
         {
             candidate.Guide = ReadWorldModeGuide(world, candidate);
@@ -313,7 +313,48 @@ public sealed partial class Ff7AutoPlayPolicy
         }
     }
 
-    internal static WorldModeCandidate? SelectWorldModePrerequisite(Ff7AutoPlayActiveEvent? active, IReadOnlyDictionary<string, WorldModeCandidate> prerequisites, int completedCount, WorldModeCandidate? queued)
+    internal static void EnqueueWorldModePrerequisite(Queue<WorldModeCandidate> queue, IDictionary<string, WorldModeCandidate> known, WorldModeCandidate observed, bool rebuild)
+    {
+        if (known.TryGetValue(observed.Target.Id, out WorldModeCandidate? retained))
+        {
+            if (rebuild)
+            {
+                queue.Enqueue(retained);
+            }
+        }
+        else
+        {
+            known.Add(observed.Target.Id, observed);
+            queue.Enqueue(observed);
+        }
+    }
+
+    internal static bool IsWorldModeActionable(AutoPlayEventCoverage<Ff7AutoPlayDeferral>? coverage, AutoPlayEvent current, IReadOnlyDictionary<string, string> facts)
+    {
+        if (coverage is null)
+        {
+            return true;
+        }
+        if (coverage.BlockedReason is not null || coverage.PolicyDeferred)
+        {
+            return false;
+        }
+        AutoPlayEventCoverage<Ff7AutoPlayDeferral> projected = new()
+        {
+            Event = current,
+            Completed = coverage.Completed,
+            Conditions = coverage.Conditions ?? (current.ConditionSignature is null ? null : new()),
+            ObservedConditionSignature = coverage.ObservedConditionSignature,
+            RouteNeedsRediscovery = coverage.RouteNeedsRediscovery,
+            UnavailableAttempts = coverage.UnavailableAttempts,
+            CompletedAvailabilityFingerprints = coverage.CompletedAvailabilityFingerprints
+        };
+        AutoPlayEventAvailability availability = ReadWorldSemanticAvailability(projected, current, AutoPlayPlanner<Ff7AutoPlayDeferral>.ReadAvailability(projected, facts));
+        projected.AvailabilityFingerprint = availability.Fingerprint;
+        return !availability.Unavailable && AutoPlayPlanner<Ff7AutoPlayDeferral>.NeedsExecution(projected);
+    }
+
+    internal static WorldModeCandidate? SelectWorldModePrerequisite(Ff7AutoPlayActiveEvent? active, IReadOnlyDictionary<string, WorldModeCandidate> prerequisites, int actionableCount, WorldModeCandidate? queued)
     {
         if (active is { Accepted: true })
         {
@@ -323,7 +364,7 @@ public sealed partial class Ff7AutoPlayPolicy
         {
             return selected;
         }
-        return completedCount == 0 ? queued : null;
+        return actionableCount == 0 ? queued : null;
     }
 
     private Ff7AutoPlayWorldModeGuide? ReadWorldModeGuide(Ff7WorldRuntime world, WorldModeCandidate candidate)
