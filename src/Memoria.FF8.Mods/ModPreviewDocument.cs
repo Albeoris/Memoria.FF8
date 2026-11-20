@@ -681,7 +681,7 @@ public sealed class ModPreviewDocument
 
     private ModPreviewComparison? CompareJunctionModel(ModFile file, ModPreviewResourcesProfile profile, CancellationToken cancellationToken)
     {
-        if (JunctionEncodedResources.Address(file.RelativePath) is not { } key)
+        if (file.Format != ModFormat.Junction || JunctionEncodedResources.ModelPreviewAddress(file.RelativePath) is not { } key)
         {
             return null;
         }
@@ -691,7 +691,7 @@ public sealed class ModPreviewDocument
             return null;
         }
         ModCatalogSnapshot selected = new(catalog.Generation, catalog.Packages, [file]);
-        if (!JunctionEncodedResources.TryPrepare(selected, out IReadOnlyList<EncodedResource> encoded, out IReadOnlyList<ModDiagnostic> diagnostics))
+        if (!JunctionEncodedResources.TryPrepareModelPreview(selected, out IReadOnlyList<EncodedResource> encoded, out IReadOnlyList<ModDiagnostic> diagnostics))
         {
             throw new InvalidDataException(string.Join(Environment.NewLine, diagnostics.Select(error => error.Message)));
         }
@@ -816,7 +816,7 @@ public sealed class ModPreviewDocument
         string extension = Path.GetExtension(path).ToLowerInvariant();
         string name = parts[^1];
         string root = parts[0].ToLowerInvariant();
-        ResourceKey? address = file.Format == ModFormat.Junction ? JunctionEncodedResources.Address(path) : null;
+        ResourceKey? address = file.Format == ModFormat.Junction ? JunctionEncodedResources.ModelPreviewAddress(path) : null;
         string[] target = (address?.Path ?? path).Split('/');
         string owner = target[0].ToLowerInvariant();
         bool moviePath = root == "movies" || (parts.Length == 1 && name.StartsWith("disc", StringComparison.OrdinalIgnoreCase));

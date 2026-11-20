@@ -59,12 +59,64 @@ public sealed class LauncherModPreviewModelTests
         }
     }
 
-    private static string FindJunctionArchive()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task JunctionBattleWeaponComparisonRendersBothModels(bool useUnchangedArchive)
+    {
+        string? game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
+        Assert.SkipUnless(Directory.Exists(game), "Configure installed Classic game resources.");
+
+        CancellationToken token = TestContext.Current.CancellationToken;
+        string root = Path.Combine(Path.GetTempPath(), "launcher-preview-weapon-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            using ModRuntime mods = new(root, watch: false);
+            ModPackageInstaller installer = new(Path.Combine(root, "state"), Path.Combine(root, "Mods"), "Classic/en/test");
+            using ModLibraryService library = new(Path.Combine(root, "cache"), installer, mods, "Classic/en/test", false);
+            await library.StopAsync();
+            string payload = useUnchangedArchive ? FindJunctionArchive("Launcher.Tests.LauncherModPreviewModelTests.2") : CreateJunctionWeaponReplacement(root, game!);
+            ModPackage package = new("Junction/fixture", "Battle weapon models", ModFormat.Junction, null, false, ModEffectiveStatus.Disabled, payload);
+            ModPreviewDocument document = await library.OpenPreviewAsync(null, package, token);
+            ModPreviewEntry entry = Assert.Single(document.Entries, item => item.Category == "Models" && item.Name.Equals("d0w003.dat", StringComparison.OrdinalIgnoreCase));
+            ModPreviewComparison pair = await CatalogPreviewPresentation.CompareAsync(document, entry, CatalogPreviewPresentation.CreateProfile(game!, null, "en"), token);
+
+            Assert.NotEmpty(Assert.IsType<EditableModel>(pair.Before.Model).Meshes);
+            Assert.NotEmpty(Assert.IsType<EditableModel>(pair.After.Model).Meshes);
+            PixelImage before = Assert.IsType<PixelImage>(pair.Before.Image);
+            PixelImage after = Assert.IsType<PixelImage>(pair.After.Image);
+            Assert.Equal((before.Width, before.Height), (after.Width, after.Height));
+            Assert.Contains(before.Pixels, pixel => pixel != before.Pixels[0]);
+            Assert.Contains(after.Pixels, pixel => pixel != after.Pixels[0]);
+            Assert.Equal(useUnchangedArchive, before.Pixels.AsSpan().SequenceEqual(after.Pixels));
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    private static string CreateJunctionWeaponReplacement(string root, string game)
+    {
+        using IResourceSource source = GameDataSourceFactory.Open(game);
+        ResourceService resources = new(source);
+        string package = Path.Combine(root, "package");
+        string path = Path.Combine(package, "direct", "battle", "D0W003.DAT");
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllBytes(path, resources.Read(new("battle/d0w002.dat")));
+        File.WriteAllText(Path.Combine(package, "mod.xml"), "<ModInfo><Name>Battle weapon fixture</Name></ModInfo>");
+        return package;
+    }
+
+    private static string FindJunctionArchive(string fixtureId = "Launcher.Tests.LauncherModPreviewModelTests.1")
     {
         string? catalog = Environment.GetEnvironmentVariable("MEMORIA_FF8_TEST_FIXTURE_CATALOG");
         Assert.SkipUnless(File.Exists(catalog), "Configure the optional fixture catalog.");
         Dictionary<string, string> fixtures = JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(catalog!))!;
-        Assert.SkipUnless(fixtures.TryGetValue("Launcher.Tests.LauncherModPreviewModelTests.1", out string? configured), "Configure the Junction enemy texture fixture.");
+        Assert.SkipUnless(fixtures.TryGetValue(fixtureId, out string? configured), $"Configure the Junction fixture {fixtureId}.");
         string fixtureRoot = Environment.GetEnvironmentVariable("MEMORIA_FF8_TEST_FIXTURES") ?? Path.GetDirectoryName(Path.GetFullPath(catalog!))!;
         string archive = Path.GetFullPath(configured!, fixtureRoot);
         Assert.True(File.Exists(archive), "The configured fixture archive is unavailable.");

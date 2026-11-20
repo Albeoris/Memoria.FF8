@@ -9,6 +9,13 @@ public static partial class JunctionEncodedResources
     private static readonly HashSet<string> FieldExtensions = new(StringComparer.Ordinal) { ".ca", ".id", ".inf", ".jsm", ".map", ".mim", ".mrt", ".msd", ".msk", ".pcb", ".pmd", ".rat", ".sfx" };
 
     public static bool TryPrepare(ModCatalogSnapshot catalog, out IReadOnlyList<EncodedResource> resources, out IReadOnlyList<ModDiagnostic> diagnostics)
+        => TryPrepare(catalog, out resources, out diagnostics, previewBattleWeapons: false);
+
+    // Weapon DATs can be decoded in isolation using their owner model. Runtime publication has a separate validation contract.
+    internal static bool TryPrepareModelPreview(ModCatalogSnapshot catalog, out IReadOnlyList<EncodedResource> resources, out IReadOnlyList<ModDiagnostic> diagnostics)
+        => TryPrepare(catalog, out resources, out diagnostics, previewBattleWeapons: true);
+
+    private static bool TryPrepare(ModCatalogSnapshot catalog, out IReadOnlyList<EncodedResource> resources, out IReadOnlyList<ModDiagnostic> diagnostics, bool previewBattleWeapons)
     {
         Dictionary<ResourceKey, EncodedResource> selected = [];
         HashSet<ResourceKey> encountered = [];
@@ -64,7 +71,7 @@ public static partial class JunctionEncodedResources
         {
             try
             {
-                ResourceKey? address = Address(file.RelativePath);
+                ResourceKey? address = Address(file.RelativePath, previewBattleWeapons);
                 if (address is not ResourceKey key)
                 {
                     continue;
@@ -91,7 +98,11 @@ public static partial class JunctionEncodedResources
         return failures.Count == 0;
     }
 
-    public static ResourceKey? Address(string relativePath)
+    internal static ResourceKey? ModelPreviewAddress(string relativePath) => Address(relativePath, previewBattleWeapons: true);
+
+    public static ResourceKey? Address(string relativePath) => Address(relativePath, previewBattleWeapons: false);
+
+    private static ResourceKey? Address(string relativePath, bool previewBattleWeapons)
     {
         string[] parts = relativePath.Replace('\\', '/').ToLowerInvariant().Split('/');
         int start = parts[0] == "direct" ? 1 : 0;
@@ -121,10 +132,10 @@ public static partial class JunctionEncodedResources
         }
         if (parts.Length - start == 2 && parts[start] == "battle")
         {
-            string body = parts[start + 1];
-            if (body.Length == 10 && body[0] == 'd' && "0123456789abcdef".Contains(body[1]) && body[2] == 'c' && !body.AsSpan(3, 3).ContainsAnyExceptInRange('0', '9') && body[6..] == ".dat")
+            string model = parts[start + 1];
+            if (model.Length == 10 && model[0] == 'd' && "0123456789abcdef".Contains(model[1]) && (model[2] == 'c' || previewBattleWeapons && model[2] == 'w') && !model.AsSpan(3, 3).ContainsAnyExceptInRange('0', '9') && model[6..] == ".dat")
             {
-                return new ResourceKey("battle/" + body);
+                return new ResourceKey("battle/" + model);
             }
             return null;
         }
