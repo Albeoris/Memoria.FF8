@@ -24,6 +24,42 @@ public sealed class LocalizationSourceExporterTests
     }
 
     [Fact]
+    public void EnglishEditionMappingChecksBankFingerprintsAndKeepsSourceOrdinals()
+    {
+        const string classic = "D0A28BF3D6B0976283BEEE1D977417A7E233EBAACA757904F1145C911434820D";
+        const string remastered = "930CAA75FB12483E061A7887B1D217C1F5613B974D4A3E8C5DEC9BE6F76B18C2";
+        const string identical = "1111111111111111111111111111111111111111111111111111111111111111";
+        const string source = "$en_bcmin1_1_0005";
+
+        Assert.True(FieldCorrespondenceCatalog.TryGetEnglishEditionKey(source, GameDataEdition.Classic, classic, GameDataEdition.Remastered, remastered, out string? remasteredKey));
+        Assert.Equal(source, remasteredKey);
+        Assert.True(FieldCorrespondenceCatalog.TryGetEnglishEditionKey(remasteredKey, GameDataEdition.Remastered, remastered, GameDataEdition.Classic, classic, out string? classicKey));
+        Assert.Equal(source, classicKey);
+        Assert.False(FieldCorrespondenceCatalog.TryGetEnglishEditionKey(source, GameDataEdition.Classic, remastered, GameDataEdition.Remastered, classic, out _));
+        Assert.False(FieldCorrespondenceCatalog.TryGetEnglishEditionKey(source, GameDataEdition.Classic, classic, GameDataEdition.Remastered, identical, out _));
+        Assert.False(FieldCorrespondenceCatalog.TryGetEnglishEditionKey("$en_bcmin1_1_9999", GameDataEdition.Classic, classic, GameDataEdition.Remastered, remastered, out _));
+        Assert.True(FieldCorrespondenceCatalog.TryGetEnglishEditionKey("$en_bccent12_0000", GameDataEdition.Remastered, identical, GameDataEdition.Classic, identical, out string? identicalKey));
+        Assert.Equal("$en_bccent12_0000", identicalKey);
+        Assert.False(FieldCorrespondenceCatalog.TryGetEnglishEditionKey("$en_unknown_0000", GameDataEdition.Remastered, identical, GameDataEdition.Classic, identical, out _));
+        Assert.False(FieldCorrespondenceCatalog.TryGetEnglishEditionKey("$fr_bccent12_0000", GameDataEdition.Remastered, identical, GameDataEdition.Classic, identical, out _));
+    }
+
+    [Fact]
+    public void ReviewedEditionTextEquivalencePreservesTheReviewedIdentityAndFingerprints()
+    {
+        const string classic = "E378FB8F198EDE3DAE858F0DED6670F9BA423AA79ABFFF7237E701DFC7F9E7F6";
+        const string remastered = "6A9E9AA4B99B98AEC966D42537E9E119BF1BC1AF668CE8B791E7EAD00934397B";
+        const string nonField = "$en_kernel_misctexts_text_0022";
+
+        Assert.True(FieldCorrespondenceCatalog.IsReviewedEditionTextEquivalent("$en_bcmin1_1_0005"));
+        Assert.False(FieldCorrespondenceCatalog.IsReviewedEditionTextEquivalent("$en_unknown_0000"));
+        Assert.True(FieldCorrespondenceCatalog.IsReviewedEditionTextEquivalent(nonField));
+        Assert.True(FieldCorrespondenceCatalog.IsReviewedEditionTextEquivalent(nonField, GameDataEdition.Classic, classic, GameDataEdition.Remastered, remastered));
+        Assert.True(FieldCorrespondenceCatalog.IsReviewedEditionTextEquivalent(nonField, GameDataEdition.Remastered, remastered, GameDataEdition.Classic, classic));
+        Assert.False(FieldCorrespondenceCatalog.IsReviewedEditionTextEquivalent(nonField, GameDataEdition.Classic, remastered, GameDataEdition.Remastered, classic));
+    }
+
+    [Fact]
     public void IndexedNamesKeepFamiliesAndRolesDistinct()
     {
         Assert.Equal("$fr_kernel_battleitems_name_0000", LocalizationSourceExporter.IndexedKey("fr", LocalizationSourceExporter.KernelTable("BattleItems", "Name"), 0));

@@ -79,6 +79,7 @@ public static partial class LocalizationProjectBuilder
         LocalizationProject project = CreateProject(request, catalogs, cancellation, includeSystem: true);
         string edition = File.Exists(Path.Combine(gameDirectory, "main.zzz")) ? "Remastered" : "Classic";
         Dictionary<string, JsonElement> manifestExtensions = new(project.Manifest.ExtensionData, StringComparer.Ordinal);
+        manifestExtensions["mappingCatalogSha256"] = JsonSerializer.SerializeToElement(FieldCorrespondenceCatalog.CatalogFingerprint);
         manifestExtensions["sourceDatasets"] = JsonSerializer.SerializeToElement(catalogs.Keys.Select(dataset => new
         {
             Id = dataset,
@@ -90,7 +91,7 @@ public static partial class LocalizationProjectBuilder
         string scriptLanguage = request.FieldScriptBaseLanguage.Equals("ja", StringComparison.OrdinalIgnoreCase) ? "jp" : request.FieldScriptBaseLanguage.ToLowerInvariant();
         progress?.Report("Reading original lettering artwork…");
         IReadOnlyList<LocalizationArtworkFile> artwork = ReadArtwork(gameDirectory, scriptLanguage, cancellation);
-        return project with { Manifest = project.Manifest with { CompatibleVariants = [edition + ":" + scriptLanguage], ExtensionData = manifestExtensions, Artwork = artwork.Select(file => file.Declaration).ToArray() }, Artwork = artwork };
+        return project with { Manifest = project.Manifest with { SourceEdition = scriptLanguage == "en" ? edition : null, CompatibleVariants = scriptLanguage == "en" ? ["Classic:en", "Remastered:en"] : [edition + ":" + scriptLanguage], ExtensionData = manifestExtensions, Artwork = artwork.Select(file => file.Declaration).ToArray() }, Artwork = artwork };
     }
 
     public static LocalizationProject CreateProject(LocalizationAuthoringRequest request, IReadOnlyDictionary<string, LocalizationSourceCatalog> catalogs, CancellationToken cancellation = default, bool includeSystem = false)

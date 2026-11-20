@@ -294,7 +294,7 @@ public static partial class LocalizationProjectIO
                     Source = manifest.SchemaVersion >= 2 || string.IsNullOrEmpty(row.Source) ? row.Source : null,
                     References = row.References.Where(pair => string.IsNullOrEmpty(pair.Value)).ToDictionary(pair => pair.Key, pair => pair.Value),
                     ReferencePresence = manifest.ReferenceLanguages.Keys.ToDictionary(key => key, key => row.ReferencePresence.TryGetValue(key, out bool present) ? present : row.References.ContainsKey(key)),
-                    Values = row.ExtensionData.Where(pair => manifest.SchemaVersion >= 2 || pair.Value.ValueKind != JsonValueKind.String).ToDictionary(pair => pair.Key, pair => pair.Value),
+                    Values = row.ExtensionData.Where(pair => (manifest.SchemaVersion >= 2 || pair.Value.ValueKind != JsonValueKind.String) && (format != "json" || pair.Key != LocalizationNativeEdition.TargetsMember)).ToDictionary(pair => pair.Key, pair => pair.Value),
                     PresentColumns = row.ExtensionData.Keys.ToArray()
                 });
                 System.IO.File.WriteAllBytes(Resolve(staging, extensionsPath), JsonBytes(extensions));
@@ -349,6 +349,7 @@ public static partial class LocalizationProjectIO
         foreach (LocalizationRecord row in project.Entries)
         {
             LocalizationTextValidation.Validate(row);
+            LocalizationNativeEdition.ValidateTargets(row, project.Manifest);
             SafeStem(row.Category);
             SafeStem(row.File);
             if (files.TryGetValue(row.File, out string? owner) && owner != row.Category + "/" + row.File)
@@ -404,6 +405,10 @@ public static partial class LocalizationProjectIO
         if (manifest.SchemaVersion is not (1 or 2) || manifest.PayloadKind != "localization")
         {
             throw new InvalidDataException("Unsupported localization manifest schema or payload kind.");
+        }
+        if (manifest.SourceEdition is string edition && (edition is not ("Classic" or "Remastered") || manifest.FieldScriptBaseLanguage != "en" || manifest.EditionBindingPaths is not null || !manifest.CompatibleVariants.Contains(edition + ":en", StringComparer.Ordinal)))
+        {
+            throw new InvalidDataException("A shared localization requires its original English edition and native resource compatibility.");
         }
         foreach (string value in new[] { manifest.ProjectId, manifest.SourceLanguage, manifest.TargetLanguage, manifest.FieldScriptBaseLanguage, manifest.MappingVersion }.Concat(manifest.ReferenceLanguages.Values))
         {

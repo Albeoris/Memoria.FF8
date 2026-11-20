@@ -262,7 +262,7 @@ public static partial class LocalizationSourceExporter
                             {
                                 gaps.Add(new("Fields", script.Field + "/" + row.Ordinal, row.Error));
                             }
-                            string key = FieldLocalizationKey.Create(language, script.Field, row.Ordinal);
+                            string key = FieldCorrespondenceCatalog.GetCanonicalKey(language, script.Field, row.Ordinal);
                             Dictionary<string, string?> metadata = new(StringComparer.Ordinal)
                             {
                                 ["Resource"] = "field/" + script.Field + "/" + script.Field + ".msd",

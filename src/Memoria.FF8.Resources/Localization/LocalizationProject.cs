@@ -37,6 +37,8 @@ public sealed record LocalizationManifest
     public IReadOnlyList<LocalizationArtworkDeclaration> Artwork { get; init; } = [];
     public string? ExtensionsPath { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? SourceEdition { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public IReadOnlyDictionary<string, string>? EditionBindingPaths { get; init; }
     [JsonExtensionData]
     public Dictionary<string, JsonElement> ExtensionData { get; init; } = new(StringComparer.Ordinal);

@@ -87,7 +87,8 @@ internal sealed class LocalizationModPreview(ModPreviewResourcesProfile profile,
         PreviewSide original = PreviewSide.Open(profile, mediaToolsDirectory, LocalizationCatalog.Empty);
         try
         {
-            LocalizationPreparation localization = LocalizationRuntime.PrepareAuthoringProject(candidates, selected.Id, original.Resources.Source, token, readOnly: true);
+            LocalizationPreparation localization = LocalizationRuntime.PrepareAuthoringProject(candidates, selected.Id, original.Resources.Source, token, readOnly: true,
+                nativeCatalog: () => LocalizationSourceExporter.Read(profile.GameDirectory, original.Resources.Source.Language, token));
             using (localization.InputRevision)
             {
                 token.ThrowIfCancellationRequested();

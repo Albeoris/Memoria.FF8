@@ -20,7 +20,13 @@ public static partial class LocalizationProjectExport
         LocalizationProject patch = new()
         {
             Manifest = source.Manifest with { ProjectId = Guid.NewGuid().ToString("D"), BaseProjectId = source.Manifest.ProjectId, Payloads = [], ExtensionsPath = null, ExtensionData = metadata },
-            Entries = source.Entries.Select(row => Snapshot(row, source.Manifest.ReferenceLanguages.Keys) with { Target = "" }).ToArray(),
+            Entries = source.Entries.Select(row =>
+            {
+                LocalizationRecord snapshot = Snapshot(row, source.Manifest.ReferenceLanguages.Keys);
+                Dictionary<string, JsonElement> metadata = new(snapshot.ExtensionData, StringComparer.Ordinal);
+                metadata.Remove(LocalizationNativeEdition.TargetsMember);
+                return snapshot with { Target = "", ExtensionData = metadata };
+            }).ToArray(),
             Artwork = source.Artwork.Select(file => CopyArtwork(file, emptyTarget: true)).ToArray(),
             EncodingFiles = source.EncodingFiles.Select(file => file with { Content = file.Content.ToArray() }).ToArray(),
             EditionBindings = source.EditionBindings.ToDictionary(pair => pair.Key, pair => (IReadOnlyList<LocalizationEditionBinding>)pair.Value.Select(binding => binding with { Native = binding.Native with { Target = "" } }).ToArray(), StringComparer.OrdinalIgnoreCase)
@@ -57,7 +63,7 @@ public static partial class LocalizationProjectExport
             throw new InvalidDataException("A mixed-target stack requires an explicit distinct composite Target identifier.");
         }
         LocalizationManifest first = projects[0].Manifest;
-        if (projects.Any(project => project.Manifest.MappingVersion != first.MappingVersion || project.Manifest.FieldScriptBaseLanguage != first.FieldScriptBaseLanguage))
+        if (projects.Any(project => project.Manifest.MappingVersion != first.MappingVersion || project.Manifest.FieldScriptBaseLanguage != first.FieldScriptBaseLanguage || project.Manifest.SourceEdition != first.SourceEdition))
         {
             throw new InvalidDataException("Flattened projects must use the same reviewed mapping version and script-base contract.");
         }
@@ -75,11 +81,20 @@ public static partial class LocalizationProjectExport
                 {
                     rows.Add(identity, Snapshot(row, first.ReferenceLanguages.Keys));
                 }
-                else if (!string.IsNullOrEmpty(row.Target))
+                else if (!string.IsNullOrEmpty(row.Target) || row.ExtensionData.ContainsKey(LocalizationNativeEdition.TargetsMember))
                 {
                     Dictionary<string, JsonElement> metadata = existing.ExtensionData.ToDictionary(pair => pair.Key, pair => pair.Value.Clone(), StringComparer.Ordinal);
                     metadata["translationContributor"] = JsonSerializer.SerializeToElement(project.Manifest.ProjectId);
-                    rows[identity] = existing with { Target = row.Target, ExtensionData = metadata };
+                    if (row.ExtensionData.TryGetValue(LocalizationNativeEdition.TargetsMember, out JsonElement authored))
+                    {
+                        var variants = metadata.TryGetValue(LocalizationNativeEdition.TargetsMember, out JsonElement retained) ? retained.EnumerateObject().ToDictionary(pair => pair.Name, pair => pair.Value.Clone(), StringComparer.Ordinal) : new Dictionary<string, JsonElement>(StringComparer.Ordinal);
+                        foreach (JsonProperty variant in authored.EnumerateObject())
+                        {
+                            variants[variant.Name] = variant.Value.Clone();
+                        }
+                        metadata[LocalizationNativeEdition.TargetsMember] = JsonSerializer.SerializeToElement(variants);
+                    }
+                    rows[identity] = existing with { Target = string.IsNullOrEmpty(row.Target) ? existing.Target : row.Target, ExtensionData = metadata };
                 }
             }
         }

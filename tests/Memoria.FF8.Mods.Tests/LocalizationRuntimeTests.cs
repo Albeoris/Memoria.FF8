@@ -60,6 +60,46 @@ public sealed class LocalizationRuntimeTests : IDisposable
     }
 
     [Fact]
+    public void SharedEditionReadsNativeAssetsAndRetainsTranslationsThroughWorkbookConversion()
+    {
+        const string common = "$en_sample_0000";
+        const string revised = "$en_sample_0001";
+        const string absent = "$en_sample_0002";
+        const string unrelated = "$en_sample_0003";
+        string initial = Path.Combine(root, "portable-json");
+        string converted = Path.Combine(root, "portable-workbook");
+        LocalizationProject project = new()
+        {
+            Manifest = new() { SourceLanguage = "en", TargetLanguage = "ru", SourceEdition = "Remastered", MappingVersion = FieldCorrespondenceCatalog.Version, CompatibleVariants = ["Classic:en", "Remastered:en"] },
+            Entries = [Row(common, "Общий"), Row(revised, "Новый") with { ExtensionData = new Dictionary<string, JsonElement> { ["Edition Targets"] = JsonSerializer.SerializeToElement(new Dictionary<string, string> { ["Classic:en"] = "Старый" }) } }, Row(absent, "Недоступный"), Row(unrelated, "Другая строка")]
+        };
+        LocalizationProjectIO.WriteNew(project, initial, "json", "single", TestContext.Current.CancellationToken);
+        LocalizationProjectIO.Convert(initial, converted, "xlsx", "single", TestContext.Current.CancellationToken);
+        ModPackage package = new("portable", "portable", ModFormat.Memoria, true, true, ModEffectiveStatus.Active, converted) { HasLocalization = true, LocalizationOnly = true };
+        ModCatalogSnapshot snapshot = new(1, [package], []);
+        LocalizationSourceEntry Native(string key, string value) => new("Menus", "sample", key, value, "en", new Dictionary<string, string?>());
+        int reads = 0;
+        LocalizationSourceCatalog Load()
+        {
+            reads++;
+            return new([Native(common, "source"), Native(revised, "old source"), Native(unrelated, "different meaning")], [], []);
+        }
+        LocalizationPreparation remastered = LocalizationRuntime.Prepare(snapshot, [package.Id], Source with { Edition = GameDataEdition.Remastered }, TestContext.Current.CancellationToken, nativeCatalog: Load);
+        using var remasteredRevision = remastered.InputRevision;
+        Assert.Equal(0, reads);
+        LocalizationPreparation classic = LocalizationRuntime.Prepare(snapshot, [package.Id], Source, TestContext.Current.CancellationToken, nativeCatalog: Load);
+        using var classicRevision = classic.InputRevision;
+
+        Assert.Equal(1, reads);
+        Assert.Equal("Новый", remastered.Catalog.Resolve(revised, "native"));
+        Assert.Equal("Общий", classic.Catalog.Resolve(common, "native"));
+        Assert.Equal("Старый", classic.Catalog.Resolve(revised, "native"));
+        Assert.Equal("native", classic.Catalog.Resolve(absent, "native"));
+        Assert.Equal("native", classic.Catalog.Resolve(unrelated, "native"));
+        Assert.Empty(LocalizationProjectIO.Read(converted).EditionBindings);
+    }
+
+    [Fact]
     public void ExplicitEmptyShadowsAWinningTranslationAndKeepsItsContributor()
     {
         const string key = "$en_kernel_misctexts_text_0119";

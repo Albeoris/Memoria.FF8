@@ -117,7 +117,7 @@ internal static class LocalizationProjectJson
             }
             foreach ((string key, JsonElement value) in row.ExtensionData.OrderBy(pair => pair.Key, StringComparer.Ordinal))
             {
-                if (manifest.SchemaVersion == 1 || key == "Field Name")
+                if (manifest.SchemaVersion == 1 || key is "Field Name" or LocalizationNativeEdition.TargetsMember)
                 {
                     values.Add(key, value);
                 }
