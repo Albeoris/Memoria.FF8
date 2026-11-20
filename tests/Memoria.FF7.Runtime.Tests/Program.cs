@@ -45,6 +45,16 @@ if (args.Contains("--clock-route-original-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--native-equivalent-transport-only", StringComparer.Ordinal))
+{
+    NativeEquivalentTransportTests.Run();
+    return 0;
+}
+if (args.Contains("--native-equivalent-transport-original-only", StringComparer.Ordinal))
+{
+    NativeEquivalentTransportTests.RunOriginal();
+    return 0;
+}
 if (args.Contains("--ordinary-alternative-only", StringComparer.Ordinal))
 {
     OrdinaryAlternativeTests.Run();

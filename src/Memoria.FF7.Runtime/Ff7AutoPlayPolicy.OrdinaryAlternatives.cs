@@ -70,6 +70,7 @@ public sealed partial class Ff7AutoPlayPolicy
         }
         var baseAvailability = CreateOrdinarySchedulingAvailability(observation, liveDriver, CreateRetainedNavigationAvailabilityReader(State));
         bool localRepair = observation.Events.SingleOrDefault(item => item.Id == expected.EventId) is { } selected && liveDriver.HasNativeGeometricContact(selected);
+        bool equivalentTransportScope = expected.TravelRoute is not null && expectedGoal is not null && observation.Events.SingleOrDefault(item => item.Id == expected.EventId && item.ConditionFingerprint == expected.ConditionFingerprint)?.EffectFingerprint is string effect && Ff7AutoPlayDiscovery.TryReadDirectTransitionEffect(effect, out _);
         bool Adopt(Ff7AutoPlayTarget target, AutoPlayPlanStep plan, string[] preceding, Ff7AutoplayDriver candidate, Func<AutoPlayNavigationVisit, AutoPlayEvent, AutoPlayEventAvailability?> availability, bool ready)
         {
             AutoPlayPlanStep? fresh = planner.PlanNavigation(observation.NavigationKey, needsRefresh: NeedsVisitRefresh, allowRemoteConditionRoutes: true, avoidFirstEvents: preceding.ToHashSet(StringComparer.Ordinal), preferredGoal: expectedGoal, readAvailability: availability);
@@ -100,7 +101,7 @@ public sealed partial class Ff7AutoPlayPolicy
         }
         foreach (bool local in new[] { true, false })
         {
-            Func<AutoPlayNavigationVisit, AutoPlayEvent, AutoPlayEventAvailability?> availability = (navigation, target) => ReadOrdinarySchedulingAvailability(baseAvailability(navigation, target), target.Id, local && navigation.Key != observation.NavigationKey);
+            Func<AutoPlayNavigationVisit, AutoPlayEvent, AutoPlayEventAvailability?> availability = (navigation, target) => ReadOrdinarySchedulingAvailability(baseAvailability(navigation, target), target.Id, local && !equivalentTransportScope && navigation.Key != observation.NavigationKey);
             (Ff7AutoPlayTarget Target, AutoPlayPlanStep Plan, string[] Preceding, Ff7AutoplayDriver Driver)? pending = null;
             bool pendingLocalWork = false;
             HashSet<string> avoid = new(StringComparer.Ordinal) { expected.EventId };
@@ -113,7 +114,8 @@ public sealed partial class Ff7AutoPlayPolicy
                     break;
                 }
                 Ff7AutoPlayTarget? target = observation.Events.SingleOrDefault(item => item.Id == plan.Event.Id && item.ConditionFingerprint == plan.Event.ConditionSignature && item.AnalysisComplete);
-                if (target is null || !IsDestinationPlan(State, plan, observation.NavigationKey) || local && plan.IsTravel || ordinaryAlternativeFailures.Contains(target.Id))
+                bool equivalentTransport = target is not null && IsCertifiedEquivalentTransport(State, expected, expectedGoal, observation, target, plan);
+                if (target is null || !IsDestinationPlan(State, plan, observation.NavigationKey) || local && plan.IsTravel && !equivalentTransport || ordinaryAlternativeFailures.Contains(target.Id))
                 {
                     continue;
                 }
@@ -135,11 +137,11 @@ public sealed partial class Ff7AutoPlayPolicy
                 catch (Ff7AutoPlayNavigationUnavailableException)
                 {
                     ordinaryAlternativeFailures.Add(target.Id);
-                    if (repair)
+                    if (repair && !equivalentTransport)
                     {
                         pending ??= (target, plan, preceding, candidate);
                     }
-                    else
+                    else if (!equivalentTransport)
                     {
                         RecordOrdinaryGoalDeferral(observation, target, candidate);
                     }
@@ -149,10 +151,10 @@ public sealed partial class Ff7AutoPlayPolicy
                 {
                     liveDriver.RecordOrdinaryAlternativeWork(candidate.PhysicalPlanningWork - work);
                 }
-                if (candidate.PlanningPending || prepared.Horizontal == 0 && prepared.Vertical == 0 && prepared.Held == 0 && !prepared.Talk)
+                if (candidate.PlanningPending || prepared.Horizontal == 0 && prepared.Vertical == 0 && prepared.Held == 0 && !prepared.Talk || equivalentTransport && candidate.PlannedActionAdvances != true)
                 {
                     pendingLocalWork |= local && candidate.PlanningPending;
-                    if (repair)
+                    if (repair && !equivalentTransport)
                     {
                         pending ??= (target, plan, preceding, candidate);
                     }
@@ -182,6 +184,25 @@ public sealed partial class Ff7AutoPlayPolicy
             }
         }
         return false;
+    }
+
+    internal static bool IsCertifiedEquivalentTransport(Ff7AutoPlayState state, Ff7AutoPlayActiveEvent expected, AutoPlayTravelGoal? goal, Ff7AutoPlayObservation observation, Ff7AutoPlayTarget target, AutoPlayPlanStep plan)
+    {
+        if (state.Active != expected || state.NavigationGoal != goal || expected.Accepted || expected.TravelRoute is not { } originalRoute || goal is null || plan.Goal != goal || !plan.IsTravel || plan.Route is not { } route || state.NativeRevalidation is not null || state.Choice is not null || expected.VisitId != observation.VisitId || expected.Generation != observation.Generation || expected.NavigationKey != observation.NavigationKey || target.Id == expected.EventId || target.ConditionFingerprint != plan.Event.ConditionSignature || target.Id != plan.Event.Id)
+        {
+            return false;
+        }
+        Ff7AutoPlayTarget? original = observation.Events.SingleOrDefault(item => item.Id == expected.EventId && item.ConditionFingerprint == expected.ConditionFingerprint);
+        if (original?.EffectFingerprint is not string fingerprint || target.EffectFingerprint != fingerprint || !Ff7AutoPlayDiscovery.TryReadDirectTransitionEffect(fingerprint, out int destination))
+        {
+            return false;
+        }
+        bool OwnsCurrentRoute(Ff7AutoPlayTarget item, AutoPlayEventRoute candidate)
+        {
+            AutoPlayEventCoverage<Ff7AutoPlayDeferral>? coverage = state.Coverage.Visits.SingleOrDefault(visit => visit.Visit.Key == observation.VisitId)?.Events.SingleOrDefault(known => known.Event.Id == item.Id);
+            return candidate.DestinationVisitKey.StartsWith($"ff7:{destination}:", StringComparison.Ordinal) && candidate.ConditionSignature == item.ConditionFingerprint && candidate.TargetId == item.Id && candidate.ObservedStoryChanged == false && (candidate.Selections is null || candidate.Selections.Count == 0) && coverage is { Completed: true } && coverage.Conditions?.HasExecutedEntry(item.ConditionFingerprint) == true && coverage.Routes.Any(known => known.DestinationVisitKey == candidate.DestinationVisitKey && known.ConditionSignature == candidate.ConditionSignature && known.TargetId == candidate.TargetId && known.ObservedStoryChanged == false && (known.Selections is null || known.Selections.Count == 0));
+        }
+        return originalRoute.DestinationVisitKey == route.DestinationVisitKey && OwnsCurrentRoute(original, originalRoute) && OwnsCurrentRoute(target, route);
     }
 
     private Ff7AutoplayInput ChooseFreshOrdinaryAlternativeInput(Ff7AutoplayDriver driver, Ff7AutoPlayTarget target, bool run)
