@@ -35,6 +35,10 @@ internal sealed class Ff7AutoPlayNativeReadiness
         {
             FieldEntitySnapshot target = vm.Entities[targetId];
             int currentPc = target.ProgramCounter;
+            if (HasFiniteHostWork(vm, process, targetId))
+            {
+                work.Add(targetId);
+            }
             if (target.WaitCounter > 0 && currentPc >= 0 && currentPc + 2 < script.Length && script[currentPc] == 0x24)
             {
                 // The executing WAIT owns a finite countdown, regardless of the following opcode.
@@ -53,7 +57,7 @@ internal sealed class Ff7AutoPlayNativeReadiness
                 {
                     continue;
                 }
-                if (target.SyncStates[priority] == FieldSyncState.Waiting && target.Priority != priority && !(target.Priority < priority && HasFinitePreemptor(vm, process, targetId)))
+                if (target.SyncStates[priority] == FieldSyncState.Waiting && target.Priority != priority && !(target.Priority < priority && HasFiniteHostWork(vm, process, targetId)))
                 {
                     continue;
                 }
@@ -98,7 +102,7 @@ internal sealed class Ff7AutoPlayNativeReadiness
         return repeatedObservations < RepeatedObservationLimit && totalObservations < ObservationLimit;
     }
 
-    private static bool HasFinitePreemptor(FieldVmSnapshot vm, Ff7FieldProcess process, int entity)
+    private static bool HasFiniteHostWork(FieldVmSnapshot vm, Ff7FieldProcess process, int entity)
     {
         FieldEntitySnapshot active = vm.Entities[entity];
         FieldHostRequest? request = (vm.PendingRequests ?? []).FirstOrDefault(request => request.Entity == entity && request.Priority == active.Priority && request.ProgramCounter == active.ProgramCounter);
