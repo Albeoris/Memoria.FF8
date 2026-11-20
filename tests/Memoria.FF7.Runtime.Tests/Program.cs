@@ -528,6 +528,12 @@ if (args.Contains("--native-transparency-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--native-model-effect-original-only", StringComparer.Ordinal))
+{
+    NativeModelEffectTests.RunReachedCheckpoint();
+    return 0;
+}
+
 if (args.Contains("--native-model-completion-only", StringComparer.Ordinal))
 {
     NativeModelCompletionTests.Run();
