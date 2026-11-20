@@ -383,7 +383,7 @@ public sealed partial class AutoPlayPlanner<TDeferral> where TDeferral : class, 
     }
 
     /// <summary>Uses recorded routes for frontiers and optional remote refreshes; returns null when neither is reachable.</summary>
-    public AutoPlayPlanStep? Plan(string currentVisitKey, Func<AutoPlayVisit, bool>? needsRefresh = null, string? refreshVisitKey = null, Func<AutoPlayVisit, AutoPlayEvent, int>? frontierPriority = null, Func<AutoPlayPlanStep, bool>? canTravel = null, AutoPlayTravelGoal? preferredGoal = null)
+    public AutoPlayPlanStep? Plan(string currentVisitKey, Func<AutoPlayVisit, bool>? needsRefresh = null, string? refreshVisitKey = null, Func<AutoPlayVisit, AutoPlayEvent, int>? frontierPriority = null, Func<AutoPlayPlanStep, bool>? canTravel = null, AutoPlayTravelGoal? preferredGoal = null, bool strongPreferredGoal = false)
     {
         Dictionary<string, AutoPlayVisitCoverage<TDeferral>> visits = IndexVisits(State.Visits, item => item.Visit.Key);
         if (!visits.TryGetValue(currentVisitKey, out AutoPlayVisitCoverage<TDeferral>? current))
@@ -430,7 +430,7 @@ public sealed partial class AutoPlayPlanner<TDeferral> where TDeferral : class, 
         if (preferredGoal is { EventId: not null } goal)
         {
             PlanCandidate? continuation = candidates.FirstOrDefault(item => item.Visit.Visit.Key == goal.NavigationKey && item.Coverage.Event.Id == goal.EventId && item.Coverage.Event.ConditionSignature == goal.Conditions && CanReach(item));
-            if (continuation is not null && !HasHigherPriorityContinuation(continuation))
+            if (continuation is not null && (strongPreferredGoal || !HasHigherPriorityContinuation(continuation)))
             {
                 return TravelToEvent(continuation) ?? new AutoPlayPlanStep(currentVisitKey, continuation.Coverage.Event, false);
             }

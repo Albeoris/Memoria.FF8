@@ -19,6 +19,7 @@ public sealed record Ff7AutoPlayGatewayTopology(string NavigationKey, string Eve
 
 /// <summary>Observational planner state; native progress and execution remain owned by the session.</summary>
 public sealed record Ff7AutoPlaySourceRevalidationTask(string NavigationKey, string EventId, string Condition, string DepartureReceiptKey, bool ArrivalAcknowledged = false);
+public sealed record Ff7AutoPlayTravelCommitment(AutoPlayTravelGoal Goal, string NavigationKey, ushort? DestinationField);
 
 public sealed class Ff7AutoPlayState
 {
@@ -35,6 +36,8 @@ public sealed class Ff7AutoPlayState
     public Ff7AutoPlaySourceRevalidationTask? NativeRevalidation { get; set; }
     public HashSet<string> SourceRevalidationAttempts { get; set; } = new(StringComparer.Ordinal);
     public AutoPlayTravelGoal? NavigationGoal { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Ff7AutoPlayTravelCommitment? TravelCommitment { get; set; }
     public Dictionary<string, Ff7AutoPlayVisitGuard> VisitGuards { get; set; } = new(StringComparer.Ordinal);
     public Dictionary<string, Ff7AutoPlayWorldVisitState> WorldVisits { get; set; } = new(StringComparer.Ordinal);
     public Ff7AutoPlayWorldDispatchReceipt? WorldDispatch { get; set; }

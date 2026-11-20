@@ -294,7 +294,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             bool nativeCompletion = active.Accepted && active.Returned || changedField && (active.TransitionOwned && active.Kind is not (Ff7AutoPlayTargetKind.WorldMesh or Ff7AutoPlayTargetKind.WorldModel) || active.Kind == Ff7AutoPlayTargetKind.Gateway && active.DestinationField == session.MapId || IsSpatialTransitionCompletion(active, session.MapId) || IsAcceptedWorldDeparture(active, State.WorldDispatch, observation.Generation, session.MapId));
             if (nativeCompletion)
             {
-                CompleteActive(observation, active, changedField);
+                CompleteActive(observation, active, changedField, driver, physicalGuards);
                 if (State.PendingRestore is not null)
                 {
                     return default;
@@ -307,6 +307,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
                 Publish();
             }
         }
+        RefreshOwnedTargetIntent(observation, driver, physicalGuards);
         if (DeferUnavailableActiveNavigation(State, observation))
         {
             Publish();
@@ -358,6 +359,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             AutoPlayPlanStep? next = resumedNativePlan;
             if (!continuingRefresh)
             {
+                next ??= ContinueOwnedTravel(observation, ordinaryAvailability);
                 next ??= planner.PlanNavigation(observation.NavigationKey, needsRefresh: NeedsVisitRefresh, preferredGoal: State.NavigationGoal, readAvailability: ordinaryAvailability);
                 next ??= planner.PlanNavigation(observation.NavigationKey, needsRefresh: NeedsVisitRefresh, allowRemoteConditionRoutes: true, preferredGoal: State.NavigationGoal, readAvailability: ordinaryAvailability);
             }
@@ -428,6 +430,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         driver.ConfigureSpatialBoundaries(observation.Events, selectedTarget);
         if (DetectMovementCycle(current))
         {
+            State.TravelCommitment = null;
             Ff7Actor player = session.Host.Process.Actors.Single(actor => actor.PlayerControlled);
             int margin = checked(player.CollisionRadius * 4096);
             Ff7AutoPlayMovementFailure failure = new(recentPositions.Min(position => position.X) - margin, recentPositions.Max(position => position.X) + margin, recentPositions.Min(position => position.Y) - margin, recentPositions.Max(position => position.Y) + margin);
@@ -456,6 +459,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         }
         catch (Ff7AutoPlayNavigationUnavailableException absence)
         {
+            State.TravelCommitment = null;
             RecordOrdinaryGoalDeferral(observation, selectedTarget, driver);
             bool retainNativeAlternatives = nativePlanningForActive && nativePlanning is not null && CanResumeNativePlanning(validateIntent: true);
             string key = ReadMovementFailureGuardKey(observation.NavigationKey, current.EventId, "physical", absence.MovementFailure, absence.BlockingEntities);
@@ -563,8 +567,9 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         };
     }
 
-    private void CompleteActive(Ff7AutoPlayObservation observation, Ff7AutoPlayActiveEvent active, bool changedField)
+    private void CompleteActive(Ff7AutoPlayObservation observation, Ff7AutoPlayActiveEvent active, bool changedField, Ff7AutoplayDriver? driver = null, IReadOnlyDictionary<string, string>? physicalGuards = null)
     {
+        bool ownedTravelArrival = IsOwnedTravelArrival(State, active, observation, changedField);
         Ff7AutoPlayActiveEvent completed = RefreshCompletedGatewayTravel(observation, active);
         if (!ReferenceEquals(completed, active))
         {
@@ -613,6 +618,11 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             State.NavigationGoal = null;
         }
         RetireConsumedEffectAliasGoal();
+        State.TravelCommitment = ownedTravelArrival && State.NavigationGoal is { EventId: not null } retained ? new(retained, observation.NavigationKey, State.DestinationField) : null;
+        if (driver is not null && physicalGuards is not null)
+        {
+            RefreshOwnedTargetIntent(observation, driver, physicalGuards);
+        }
         State.Status = "Native event completed; selecting the next frontier";
         Publish();
     }
@@ -624,6 +634,10 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
 
     private void ObserveInteraction(int entity, int script, bool accepted)
     {
+        if (accepted && State.TravelCommitment is { Goal: { } retained } && State.Active is { } owner && (owner.NavigationKey == retained.NavigationKey && owner.EventId == retained.EventId && owner.Entity == entity && owner.Script == script || owner.Entity != entity || owner.Script != script))
+        {
+            State.TravelCommitment = null;
+        }
         if (accepted && State.Active is { } active && active.Generation == session.FieldGeneration && active.Entity == entity && active.Script == script && scriptedInput.IsEntryInputSatisfied(entity, script))
         {
             Ff7AutoPlayObservation observation = ObservePlanner();
@@ -718,7 +732,11 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             return false;
         }
         state.Active = null;
-        state.NavigationGoal = null;
+        if (state.TravelCommitment is not { } commitment || commitment.Goal is null || state.NavigationGoal != commitment.Goal || state.DestinationField != commitment.DestinationField || observation.NavigationKey != commitment.NavigationKey)
+        {
+            state.NavigationGoal = null;
+            state.TravelCommitment = null;
+        }
         state.Status = "Replanning the unaccepted route after native events became available";
         return true;
     }

@@ -94,7 +94,7 @@ public sealed partial class AutoPlayPlanner<TDeferral> where TDeferral : class, 
         item.Routes.Remove(recorded);
     }
 
-    public AutoPlayPlanStep? PlanNavigation(string currentNavigationKey, Func<AutoPlayVisit, bool>? needsRefresh = null, string? refreshNavigationKey = null, Func<AutoPlayNavigationVisit, bool>? isCurrent = null, bool allowRemoteConditionRoutes = false, IReadOnlySet<string>? avoidFirstEvents = null, Func<AutoPlayPlanStep, bool>? canTravel = null, AutoPlayTravelGoal? preferredGoal = null, Func<AutoPlayNavigationVisit, AutoPlayEvent, AutoPlayEventAvailability?>? readAvailability = null)
+    public AutoPlayPlanStep? PlanNavigation(string currentNavigationKey, Func<AutoPlayVisit, bool>? needsRefresh = null, string? refreshNavigationKey = null, Func<AutoPlayNavigationVisit, bool>? isCurrent = null, bool allowRemoteConditionRoutes = false, IReadOnlySet<string>? avoidFirstEvents = null, Func<AutoPlayPlanStep, bool>? canTravel = null, AutoPlayTravelGoal? preferredGoal = null, Func<AutoPlayNavigationVisit, AutoPlayEvent, AutoPlayEventAvailability?>? readAvailability = null, bool strongPreferredGoal = false)
     {
         FindNavigationVisit(currentNavigationKey);
         AutoPlayPlanner<TDeferral> shadow = CreateNavigationView(isCurrent, allowRemoteConditionRoutes ? currentNavigationKey : null, readAvailability);
@@ -124,7 +124,7 @@ public sealed partial class AutoPlayPlanner<TDeferral> where TDeferral : class, 
         do
         {
             rejectedFirstEvents.Clear();
-            planned = shadow.Plan(currentNavigationKey, needsRefresh, refreshNavigationKey, (visit, item) => NeedsNavigationExecution(FindNavigationVisit(visit.Key), shadow.FindEvent(visit.Key, item.Id), readAvailability) ? 0 : 1, canTravel is null ? null : CheckTravel, preferredGoal);
+            planned = shadow.Plan(currentNavigationKey, needsRefresh, refreshNavigationKey, (visit, item) => NeedsNavigationExecution(FindNavigationVisit(visit.Key), shadow.FindEvent(visit.Key, item.Id), readAvailability) ? 0 : 1, canTravel is null ? null : CheckTravel, preferredGoal, strongPreferredGoal);
             if (planned is { Route: null })
             {
                 AutoPlayNavigationVisit localSource = FindNavigationVisit(planned.VisitKey);

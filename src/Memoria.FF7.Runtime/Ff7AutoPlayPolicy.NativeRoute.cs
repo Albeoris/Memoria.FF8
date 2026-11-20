@@ -5,7 +5,7 @@ using Memoria.AutoPlay;
 namespace Memoria.FF7.Runtime;
 
 internal sealed record Ff7NativeSiblingCandidate(Ff7AutoPlayTarget Target, AutoPlayPlanStep Plan, string[] AvoidFirstEvents, Ff7NativeSourceRevalidation? Revalidation = null, bool Guarded = false);
-internal sealed record Ff7NativePlanningHeader(ushort? Destination, Ff7AutoPlayActiveEvent? Active, AutoPlayTravelGoal? Goal, object? Route, object? Choice, object? Restore, Ff7AutoPlaySourceRevalidationTask? Revalidation, object Coverage, object Guards, object Visits, object Probes, object Topology, object Attempts);
+internal sealed record Ff7NativePlanningHeader(ushort? Destination, Ff7AutoPlayActiveEvent? Active, AutoPlayTravelGoal? Goal, object? Route, object? Choice, object? Restore, Ff7AutoPlaySourceRevalidationTask? Revalidation, object Coverage, object Guards, object Visits, object Probes, object Topology, object Attempts, Ff7AutoPlayTravelCommitment? TravelCommitment);
 internal sealed record Ff7NativePhysicalFailureFence(Ff7AutoPlayActiveEvent Owner, AutoPlayTravelGoal? Goal, string Source, int RunSpeed, int WalkSpeed)
 {
     internal bool Matches(Ff7AutoPlayState state, string source, int runSpeed, int walkSpeed) => state.Active == Owner && !Owner.Accepted && state.NavigationGoal == Goal && Source == source && RunSpeed == runSpeed && WalkSpeed == walkSpeed;
@@ -343,7 +343,7 @@ public sealed partial class Ff7AutoPlayPolicy
 
     internal static Ff7NativePlanningHeader ReadNativePlanningHeader(Ff7AutoPlayState state)
     {
-        return new(state.DestinationField, state.Active, state.NavigationGoal, state.NativeRoute, state.Choice, state.PendingRestore, state.NativeRevalidation, state.Coverage, state.NavigationGuards, state.VisitGuards, state.NavigationProbes, state.GatewayTopology, state.SourceRevalidationAttempts);
+        return new(state.DestinationField, state.Active, state.NavigationGoal, state.NativeRoute, state.Choice, state.PendingRestore, state.NativeRevalidation, state.Coverage, state.NavigationGuards, state.VisitGuards, state.NavigationProbes, state.GatewayTopology, state.SourceRevalidationAttempts, state.TravelCommitment);
     }
 
     private static Dictionary<string, AutoPlayEventAvailability> ReadNativePlanningAvailability(Ff7AutoPlayState state, string visitId)
@@ -387,7 +387,7 @@ public sealed partial class Ff7AutoPlayPolicy
 
     internal static string ReadNativePlanningIntent(Ff7AutoPlayState state)
     {
-        byte[] bytes = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(new { state.DestinationField, state.NavigationGoal, state.Active, state.NativeRoute, state.PendingRestore, state.Choice, state.Coverage, state.NavigationGuards, state.VisitGuards, state.NavigationProbes, state.GatewayTopology, state.SourceRevalidationAttempts, state.NativeRevalidation });
+        byte[] bytes = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(new { state.DestinationField, state.NavigationGoal, state.Active, state.NativeRoute, state.PendingRestore, state.Choice, state.Coverage, state.NavigationGuards, state.VisitGuards, state.NavigationProbes, state.GatewayTopology, state.SourceRevalidationAttempts, state.NativeRevalidation, state.TravelCommitment });
         return Convert.ToHexString(SHA256.HashData(bytes));
     }
 

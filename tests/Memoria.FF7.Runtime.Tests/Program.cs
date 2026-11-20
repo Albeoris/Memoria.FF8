@@ -319,6 +319,18 @@ if (args.Contains("--native-owned-route-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--owned-travel-continuation-only", StringComparer.Ordinal))
+{
+    OwnedTravelContinuationTests.Run();
+    return 0;
+}
+
+if (args.Contains("--owned-travel-continuation-original-only", StringComparer.Ordinal))
+{
+    OwnedTravelContinuationTests.RunOriginal();
+    return 0;
+}
+
 if (args.Contains("--world-boarding-prerequisite-only", StringComparer.Ordinal))
 {
     WorldBoardingPrerequisiteTests.Run();
