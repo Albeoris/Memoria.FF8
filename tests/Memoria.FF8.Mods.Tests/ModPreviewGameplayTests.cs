@@ -38,6 +38,11 @@ public sealed class ModPreviewGameplayTests
         ModPackage package = new("Memoria/Level-Based Stat Bonuses", "Level-Based Stat Bonuses", ModFormat.Memoria, false, false, ModEffectiveStatus.Disabled, fixture.PackagePath) { IsBundled = true };
         ModPreviewDocument document = await fixture.Open(package);
         ModPreviewEntry entry = Assert.Single(document.Entries);
+        ModPreviewTreeNode category = Assert.Single(document.Tree.Branches);
+        Assert.Equal("Gameplay (1)", category.Label);
+        ModPreviewTreeNode group = Assert.Single(category.Children);
+        Assert.Equal("Character growth (1)", group.Label);
+        Assert.Same(entry, Assert.Single(group.Children).Entry);
 
         ModPreviewComparison result = await fixture.Compare(document, entry);
         Assert.Contains("permanently", result.Before.Text);

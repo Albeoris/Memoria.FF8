@@ -73,7 +73,16 @@ public sealed class ModPreviewTree
 
         ModPreviewTreeNode Folder(string name, IEnumerable<ModPreviewEntry> entries, IEnumerable<ModPreviewTreeNode> children)
         {
-            int count = entries.Where(IsFile).Select(entry => entry.SourcePath ?? entry.Id).Distinct(StringComparer.OrdinalIgnoreCase).Count();
+            HashSet<string> countedFiles = new(StringComparer.OrdinalIgnoreCase);
+            int count = 0;
+            foreach (ModPreviewEntry entry in entries)
+            {
+                string path = entry.SourcePath ?? entry.Id;
+                if (!files.Contains(path) || countedFiles.Add(path))
+                {
+                    count++;
+                }
+            }
             return CreateFolder(name, count, children);
         }
 
