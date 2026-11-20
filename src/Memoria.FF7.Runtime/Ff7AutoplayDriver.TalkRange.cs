@@ -110,7 +110,7 @@ public sealed partial class Ff7AutoplayDriver
         return ReachableTriangles(session.Field.Walkmesh, session.Host.Process.BlockedTriangles, start);
     }
 
-    private static HashSet<int> ReachableTriangles(IReadOnlyList<PcWalkmeshTriangle> walkmesh, byte[] blockedTriangles, int start)
+    internal static HashSet<int> ReachableTriangles(IReadOnlyList<PcWalkmeshTriangle> walkmesh, byte[] blockedTriangles, int start)
     {
         HashSet<int> reachable = [start];
         Queue<int> queue = new();

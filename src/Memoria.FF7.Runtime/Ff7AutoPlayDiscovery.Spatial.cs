@@ -30,8 +30,14 @@ public sealed partial class Ff7AutoPlayDiscovery
             spatialSource = Source(spatialObservation.Reads);
         }
         persistentReads.UnionWith(spatialObservation.Reads.Where(read => read.Bank is not (FieldBank.Immediate or FieldBank.MapByte or FieldBank.MapWord)));
+        byte[] blocked = session.Host.Process.BlockedTriangles;
+        IReadOnlySet<int>? reachable = (uint)player.Triangle < session.Field.Walkmesh.Count && blocked.Length >= (session.Field.Walkmesh.Count + 7) / 8 ? Ff7AutoplayDriver.ReachableTriangles(session.Field.Walkmesh, blocked, player.Triangle) : null;
         foreach (FieldSpatialDemand demand in spatialObservation.Demands)
         {
+            if (!CanOfferSpatialTriangle(demand.SampleId, demand.TriangleOnly, reachable))
+            {
+                continue;
+            }
             var triangle = session.Field.Walkmesh[demand.SampleId];
             Ff7AutoPlayHostConditions external = ReadHostConditions(demand.HostReads, session.Progress, session.Host.Process, session.Host.ReadNativeMusicPlaying);
             globalHostReads.UnionWith(demand.HostReads.Where(read => read.Kind is FieldHostReadKind.Gil or FieldHostReadKind.ItemQuantity or FieldHostReadKind.PartyAvailable or FieldHostReadKind.MateriaCapacity));
@@ -56,6 +62,11 @@ public sealed partial class Ff7AutoPlayDiscovery
     private static bool DirectEffectOwnersEqual(FieldSpatialEffectOwner? left, FieldSpatialEffectOwner? right)
     {
         return left is null && right is null || left is not null && right is not null && left.Entity == right.Entity && left.Priority == right.Priority && left.ProgramCounter == right.ProgramCounter && left.Command == right.Command && left.ExitProgramCounters.SequenceEqual(right.ExitProgramCounters);
+    }
+
+    internal static bool CanOfferSpatialTriangle(int triangle, bool triangleOnly, IReadOnlySet<int>? reachable)
+    {
+        return !triangleOnly || reachable is null || triangle < 0 || reachable.Contains(triangle);
     }
 
     internal static string SpatialInputGuardSignature(IReadOnlyList<FieldSpatialInputGuard> guards)

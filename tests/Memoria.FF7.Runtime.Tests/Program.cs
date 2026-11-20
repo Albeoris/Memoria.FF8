@@ -3,6 +3,17 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--spatial-triangle-eligibility-only", StringComparer.Ordinal))
+{
+    SpatialTriangleEligibilityTests.Run();
+    return 0;
+}
+if (args.Contains("--spatial-triangle-eligibility-original-only", StringComparer.Ordinal))
+{
+    SpatialTriangleEligibilityTests.RunOriginal();
+    return 0;
+}
+
 if (args.Contains("--world-observation-cache-only", StringComparer.Ordinal))
 {
     WorldObservationAnalysisCacheTests.Run();
