@@ -1,14 +1,18 @@
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Albeoris.Games.FF8.Imaging;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
+using Avalonia.Threading;
 using Memoria.FF8.Mods;
 using Memoria.FF8;
+using Vector3 = System.Numerics.Vector3;
 
 namespace Memoria.Launcher;
 
@@ -36,13 +40,16 @@ internal sealed partial class LauncherWindow
     {
         using CancellationTokenSource lifetime = new();
         CancellationTokenSource? selection = null;
-        List<WriteableBitmap> bitmaps = [];
+        List<Image> comparisonImages = [];
         CatalogPreviewPresentation.WorldComparison? world = null;
         ModPreviewComparison? current = null;
         float yaw = 0.4f;
         float pose = 0;
         LauncherCatalogPreviewPlayer? player = null;
         List<Task> retiredPlayers = [];
+        HashSet<PhysicalKey> movementKeys = [];
+        DispatcherTimer movementTimer = new() { Interval = TimeSpan.FromMilliseconds(16) };
+        long lastMovement = 0;
         Window window = new()
         {
             Title = (entry?.Name ?? installed?.Name ?? "Mod") + " · Preview changes",
@@ -80,15 +87,64 @@ internal sealed partial class LauncherWindow
         controls.Children.Add(expand);
         controls.Children.Add(close);
         StackPanel playbackControls = new();
+        TextBlock flightHelp = new() { Text = "WASD Move · Q Rise · E Descend", IsVisible = false, HorizontalAlignment = HorizontalAlignment.Right };
         StackPanel footer = new() { Spacing = 8 };
         footer.Children.Add(playbackControls);
+        footer.Children.Add(flightHelp);
         footer.Children.Add(controls);
         Grid.SetRow(footer, 1);
         Grid.SetColumnSpan(footer, 2);
         root.Children.Add(footer);
         window.Content = root;
+        window.AddHandler(InputElement.KeyDownEvent, (_, key) =>
+        {
+            if (world is null || current is null || !IsMovementKey(key.PhysicalKey) || (key.KeyModifiers & (KeyModifiers.Control | KeyModifiers.Alt | KeyModifiers.Meta)) != 0)
+            {
+                return;
+            }
+            key.Handled = true;
+            movementKeys.Add(key.PhysicalKey);
+            if (!movementTimer.IsEnabled)
+            {
+                lastMovement = Stopwatch.GetTimestamp();
+                movementTimer.Start();
+            }
+        }, RoutingStrategies.Tunnel);
+        window.AddHandler(InputElement.KeyUpEvent, (_, key) =>
+        {
+            if (movementKeys.Remove(key.PhysicalKey))
+            {
+                key.Handled = true;
+                if (movementKeys.Count == 0)
+                {
+                    movementTimer.Stop();
+                }
+            }
+        }, RoutingStrategies.Tunnel);
+        movementTimer.Tick += async (_, _) =>
+        {
+            if (selection is not null || world is not { } activeWorld)
+            {
+                return;
+            }
+            Vector3 direction = new(
+                KeyAxis(PhysicalKey.D, PhysicalKey.A),
+                KeyAxis(PhysicalKey.Q, PhysicalKey.E),
+                KeyAxis(PhysicalKey.W, PhysicalKey.S));
+            long now = Stopwatch.GetTimestamp();
+            float seconds = MathF.Min(0.1f, (float)Stopwatch.GetElapsedTime(lastMovement, now).TotalSeconds);
+            lastMovement = now;
+            if (direction != Vector3.Zero)
+            {
+                const float flightSpeed = 6000;
+                Vector3 movement = Vector3.Normalize(direction) * (flightSpeed * seconds);
+                await RenderInteraction(token => activeWorld.FlyAsync(movement, token));
+            }
+        };
+        window.Deactivated += (_, _) => StopMovement();
         window.Closed += (_, _) =>
         {
+            StopMovement();
             lifetime.Cancel();
             selection?.Cancel();
             world?.Dispose();
@@ -124,6 +180,7 @@ internal sealed partial class LauncherWindow
 
             async Task ReadComparison(ModPreviewEntry item)
             {
+                StopMovement();
                 selection?.Cancel();
                 world?.Dispose();
                 world = null;
@@ -132,6 +189,7 @@ internal sealed partial class LauncherWindow
                 pose = 0;
                 RetirePlayer();
                 interaction.Children.Clear();
+                flightHelp.IsVisible = false;
                 using CancellationTokenSource requested = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
                 selection = requested;
                 ShowMessage("Comparing with the original game…");
@@ -178,6 +236,7 @@ internal sealed partial class LauncherWindow
                         ShowComparison(result);
                         if (world is { } readyWorld)
                         {
+                            flightHelp.IsVisible = true;
                             AddInteraction("West", token => readyWorld.RenderAsync(-900, 0, token));
                             AddInteraction("North", token => readyWorld.RenderAsync(0, -900, token));
                             AddInteraction("South", token => readyWorld.RenderAsync(0, 900, token));
@@ -249,50 +308,69 @@ internal sealed partial class LauncherWindow
         {
             Button button = new() { Content = label };
             interaction.Children.Add(button);
-            button.Click += async (_, _) =>
+            button.Click += async (_, _) => await RenderInteraction(render);
+        }
+
+        static bool IsMovementKey(PhysicalKey key)
+        {
+            return key is PhysicalKey.W or PhysicalKey.A or PhysicalKey.S or PhysicalKey.D or PhysicalKey.Q or PhysicalKey.E;
+        }
+
+        int KeyAxis(PhysicalKey positive, PhysicalKey negative)
+        {
+            return (movementKeys.Contains(positive) ? 1 : 0) - (movementKeys.Contains(negative) ? 1 : 0);
+        }
+
+        void StopMovement()
+        {
+            movementTimer.Stop();
+            movementKeys.Clear();
+        }
+
+        async Task RenderInteraction(Func<CancellationToken, Task<ModPreviewComparison>> render)
+        {
+            if (selection is not null)
             {
-                if (selection is not null)
+                return;
+            }
+            using CancellationTokenSource requested = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
+            selection = requested;
+            try
+            {
+                ModPreviewComparison result = await render(requested.Token);
+                if (!requested.IsCancellationRequested)
                 {
-                    return;
+                    ShowComparison(result);
                 }
-                using CancellationTokenSource requested = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
-                selection = requested;
-                try
+            }
+            catch (OperationCanceledException) when (requested.IsCancellationRequested)
+            {
+            }
+            catch (Exception error) when (error is IOException or InvalidDataException or InvalidOperationException or NotSupportedException or ArgumentException)
+            {
+                if (!requested.IsCancellationRequested)
                 {
-                    ModPreviewComparison result = await render(requested.Token);
-                    if (!requested.IsCancellationRequested)
-                    {
-                        ShowComparison(result);
-                    }
+                    StopMovement();
+                    ShowMessage(error.Message);
                 }
-                catch (OperationCanceledException) when (requested.IsCancellationRequested)
+            }
+            finally
+            {
+                if (ReferenceEquals(selection, requested))
                 {
+                    selection = null;
                 }
-                catch (Exception error) when (error is IOException or InvalidDataException or InvalidOperationException or NotSupportedException or ArgumentException)
-                {
-                    if (!requested.IsCancellationRequested)
-                    {
-                        ShowMessage(error.Message);
-                    }
-                }
-                finally
-                {
-                    if (ReferenceEquals(selection, requested))
-                    {
-                        selection = null;
-                    }
-                }
-            };
+            }
         }
 
         void ClearComparison()
         {
             comparison.Children.Clear();
-            foreach (WriteableBitmap bitmap in bitmaps)
+            foreach (Image image in comparisonImages)
             {
-                bitmap.Dispose();
+                (image.Source as WriteableBitmap)?.Dispose();
             }
-            bitmaps.Clear();
+            comparisonImages.Clear();
         }
 
         void ShowMessage(string message)
@@ -304,8 +382,14 @@ internal sealed partial class LauncherWindow
 
         void ShowComparison(ModPreviewComparison result)
         {
-            ClearComparison();
             current = result;
+            if (world is not null && comparisonImages.Count == 2 && result is { Before.Image: { } original, After.Image: { } modded })
+            {
+                UpdateImage(comparisonImages[0], original);
+                UpdateImage(comparisonImages[1], modded);
+                return;
+            }
+            ClearComparison();
             comparison.ColumnDefinitions = new ColumnDefinitions("*,*");
             comparison.ColumnSpacing = 12;
             Control before = CreateSide("Before", result.Before);
@@ -313,6 +397,13 @@ internal sealed partial class LauncherWindow
             Grid.SetColumn(after, 1);
             comparison.Children.Add(before);
             comparison.Children.Add(after);
+        }
+
+        static void UpdateImage(Image image, PixelImage pixels)
+        {
+            WriteableBitmap? previous = image.Source as WriteableBitmap;
+            image.Source = CreateModPreviewBitmap(pixels);
+            previous?.Dispose();
         }
 
         Control CreateSide(string label, ModPreviewSide side)
@@ -325,9 +416,8 @@ internal sealed partial class LauncherWindow
             {
                 Grid.SetRow(scroll, 1);
                 scroll.MaxHeight = 110;
-                WriteableBitmap bitmap = CreateModPreviewBitmap(pixels);
-                bitmaps.Add(bitmap);
-                Image image = new() { Source = bitmap, Stretch = Stretch.Uniform, IsVisible = !side.CanUseItem };
+                Image image = new() { Source = CreateModPreviewBitmap(pixels), Stretch = Stretch.Uniform, IsVisible = !side.CanUseItem };
+                comparisonImages.Add(image);
                 Grid.SetRow(image, 2);
                 pane.Children.Add(image);
                 if (side.CanUseItem)

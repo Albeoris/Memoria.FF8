@@ -8,7 +8,10 @@ using Memoria.FF8.Resources;
 namespace Memoria.FF8.Rendering;
 
 /// <summary>Location is centered native X/Z. A missing location uses an original field exit.</summary>
-public sealed record WorldMapModPreviewView(Vector2? Location = null, WorldCamera? Camera = null, int Width = 480, int Height = 270, bool ShowCharacter = true);
+public sealed record WorldMapModPreviewView(Vector2? Location = null, WorldCamera? Camera = null, int Width = 480, int Height = 270, bool ShowCharacter = true)
+{
+    public bool UseRegionalSky { get; init; }
+}
 
 public sealed record WorldMapModPreviewResult(Vector3 Position, WorldCamera Camera, PixelImage Original, PixelImage Modded);
 
@@ -198,7 +201,9 @@ public sealed class WorldMapModPreview : IDisposable
             {
                 renderer = new(Assets, view.Width, view.Height);
             }
-            WorldSky sky = view.Camera is null ? WorldTerrainSelection.SelectSky(Assets.Skies, (int)position.X, (int)position.Z, InitialStory) : Assets.Skies[camera.SkyIndex];
+            WorldSky sky = view.Camera is null || view.UseRegionalSky
+                ? WorldTerrainSelection.SelectSky(Assets.Skies, (int)position.X, (int)position.Z, InitialStory)
+                : Assets.Skies[camera.SkyIndex];
             WorldRenderFrame frame = new(position, heading, 0, 0, camera, sky, view.ShowCharacter)
             {
                 NativeMainLoopCounter = 0,

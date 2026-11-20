@@ -60,6 +60,16 @@ internal static partial class CatalogPreviewPresentation
 
         public Task<ModPreviewComparison> RenderAsync(float east, float south, CancellationToken token)
         {
+            return RenderAsync(new(east, south), Vector3.Zero, token);
+        }
+
+        public Task<ModPreviewComparison> FlyAsync(Vector3 movement, CancellationToken token)
+        {
+            return RenderAsync(Vector2.Zero, movement, token);
+        }
+
+        private Task<ModPreviewComparison> RenderAsync(Vector2 mapStep, Vector3 flightStep, CancellationToken token)
+        {
             return Task.Run(() =>
             {
                 lock (gate)
@@ -67,8 +77,28 @@ internal static partial class CatalogPreviewPresentation
                     ObjectDisposedException.ThrowIf(disposed, this);
                     token.ThrowIfCancellationRequested();
                     world ??= WorldMapModPreview.Open(profile, catalog, token);
-                    Vector2? position = frame is { } current ? new Vector2(current.Position.X + east, current.Position.Z + south) : null;
-                    frame = world.Render(new(position, frame?.Camera), token);
+                    WorldMapModPreviewView view = new();
+                    if (frame is { } current)
+                    {
+                        WorldCamera camera = current.Camera;
+                        Vector3 offset = new(mapStep.X, 0, mapStep.Y);
+                        if (flightStep != Vector3.Zero)
+                        {
+                            Vector3 forward = camera.FootFrame(current.Position).Forward with { Y = 0 };
+                            forward = Vector3.Normalize(forward);
+                            Vector3 right = Vector3.Cross(forward, Vector3.UnitY);
+                            offset += right * flightStep.X + Vector3.UnitY * flightStep.Y + forward * flightStep.Z;
+                        }
+                        float x = WorldAssets.Wrap(current.Position.X + offset.X, WorldAssets.Columns * WorldAssets.SegmentUnits);
+                        float z = WorldAssets.Wrap(current.Position.Z + offset.Z, WorldAssets.Rows * WorldAssets.SegmentUnits);
+                        if (flightStep != Vector3.Zero || camera.TargetPosition.HasValue)
+                        {
+                            float height = camera.TargetPosition?.Y ?? current.Position.Y + camera.TargetHeight * 16;
+                            camera = camera with { TargetPosition = new Vector3(x, height + offset.Y, z) };
+                        }
+                        view = new(new Vector2(x, z), camera) { UseRegionalSky = true };
+                    }
+                    frame = world.Render(view, token);
                     return new ModPreviewComparison(new("World map", frame.Original), new("World map", frame.Modded));
                 }
             }, token);

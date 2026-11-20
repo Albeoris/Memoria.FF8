@@ -1,3 +1,4 @@
+using System.Numerics;
 using Albeoris.Games.FF8.Imaging;
 using Albeoris.Games.FF8.Msd;
 using Memoria.FF8.Assets;
@@ -276,5 +277,29 @@ public sealed class ModCatalogComparisonTests
         Assert.Equal(first.Camera, second.Camera);
         Assert.Equal(second.Original.Pixels, second.Modded.Pixels);
         Assert.Contains(first.Original.Pixels.Zip(second.Original.Pixels), pair => pair.First != pair.Second);
+    }
+
+    [Fact]
+    public async Task WorldComparisonFliesOnAllThreeAxesWithBothSidesInSync()
+    {
+        var profile = new ModPreviewResourcesProfile(TestResources.GameDirectory);
+        ModPackage package = new("Memoria/synthetic", "Empty comparison", ModFormat.Memoria, true, true, ModEffectiveStatus.Active, Path.GetTempPath());
+        using CatalogPreviewPresentation.WorldComparison preview = new(profile, new(1, [package], []));
+        CancellationToken token = TestContext.Current.CancellationToken;
+        ModPreviewComparison previous = await preview.RenderAsync(0, 0, token);
+        foreach (Vector3 step in new Vector3[] { new(0, 0, 1000), new(1000, 0, 0) })
+        {
+            ModPreviewComparison moved = await preview.FlyAsync(step, token);
+            Assert.Equal(moved.Before.Image!.Pixels, moved.After.Image!.Pixels);
+            Assert.Contains(previous.Before.Image!.Pixels.Zip(moved.Before.Image.Pixels), pair => pair.First != pair.Second);
+            previous = moved;
+        }
+        ModPreviewComparison raised = await preview.FlyAsync(new(0, 1000, 0), token);
+        Assert.Equal(raised.Before.Image!.Pixels, raised.After.Image!.Pixels);
+        Assert.Contains(previous.Before.Image!.Pixels.Zip(raised.Before.Image.Pixels), pair => pair.First != pair.Second);
+
+        ModPreviewComparison lowered = await preview.FlyAsync(new(0, -1000, 0), token);
+        Assert.Equal(lowered.Before.Image!.Pixels, lowered.After.Image!.Pixels);
+        Assert.Equal(previous.Before.Image.Pixels, lowered.Before.Image.Pixels);
     }
 }
