@@ -58,7 +58,7 @@ public sealed class LauncherModPresentationTests(LauncherHeadlessFixture fixture
     {
         await fixture.Session.Dispatch(async () =>
         {
-            string root = Path.Combine(Path.GetTempPath(), "launcher-version-warning-" + Guid.NewGuid().ToString("N"));
+            string root = DistributionPaths.GetFullPath(Path.Combine(Path.GetTempPath(), "launcher-version-warning-" + Guid.NewGuid().ToString("N")));
             Directory.CreateDirectory(root);
             try
             {
