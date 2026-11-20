@@ -22,6 +22,7 @@ public static partial class ModPreviewResources
 
         IReadOnlyList<NativeTextureVariant> nativeTargets = [];
         LegacyTextureTarget? legacyTarget = null;
+        JunctionFieldMaterial? junctionFieldMaterial = null;
         ModCatalogSnapshot package = new(catalog.Generation, catalog.Packages.Where(candidate => candidate.Id.Equals(file.PackageId, StringComparison.OrdinalIgnoreCase)), catalog.Files.Where(candidate => candidate.PackageId.Equals(file.PackageId, StringComparison.OrdinalIgnoreCase) && candidate.Format == file.Format));
         ITextureReplacementResolver replacement;
         if (file.Format == ModFormat.Memoria && file.RelativePath.StartsWith("textures/", StringComparison.OrdinalIgnoreCase))
@@ -46,6 +47,11 @@ public static partial class ModPreviewResources
             legacyTarget = target;
             replacement = new FfnxTextureResolver(package);
         }
+        else if (FindUnqualifiedJunctionFieldMaterial(file) is { } fieldMaterial)
+        {
+            junctionFieldMaterial = fieldMaterial;
+            replacement = new FfnxTextureResolver(package);
+        }
         else if (file.Format == ModFormat.Demaster && FindDemasterTextureTarget(file.RelativePath) is { } demaster)
         {
             legacyTarget = demaster;
@@ -60,6 +66,11 @@ public static partial class ModPreviewResources
         ResourceService resources = new(source, language);
         resources.Prepare(replacement).Commit();
         using GameAssets assets = new(gameDirectory, resources: resources);
+
+        if (junctionFieldMaterial is { } unqualified)
+        {
+            return CompareUnqualifiedFieldMaterial(unqualified);
+        }
 
         foreach (NativeTextureVariant native in nativeTargets)
         {
@@ -167,7 +178,40 @@ public static partial class ModPreviewResources
             return comparison;
         }
 
-        ModPreviewComparison CompareModelMaterials(ModelCatalogEntry entry, IReadOnlyList<TextureBuildContext> materials, int selectedIndex, TextureBuildContext selected, ModPreviewComparison comparison, string? sheetVariant = null)
+        ModPreviewComparison? CompareUnqualifiedFieldMaterial(JunctionFieldMaterial target)
+        {
+            DecodedModImage decoded = ModImageDecoder.Decode(file);
+            PixelImage image = decoded.Image;
+            foreach (ModelCatalogEntry model in assets.EnumerateFieldModelSources(cancellationToken))
+            {
+                if (model.LoadError is not null || !model.Name.StartsWith(target.Name, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+                IReadOnlyList<TextureBuildContext> materials = assets.LoadCatalogModelMaterialUnit(model);
+                string member = $"model/{model.ModelIndex}/{target.Kind}/{target.Name}/texture/{target.Slot}";
+                if ((uint)target.Slot >= materials.Count)
+                {
+                    continue;
+                }
+                TextureBuildContext material = materials[target.Slot];
+                if (material.Layout != "classic-field-model" || material.Key.Subresource != member)
+                {
+                    continue;
+                }
+                if (image.Width % material.LogicalWidth != 0 || image.Height % material.LogicalHeight != 0 || image.Width / material.LogicalWidth != image.Height / material.LogicalHeight)
+                {
+                    continue;
+                }
+                string name = $"{model.Name} · texture {target.Slot}";
+                // The package path identifies the material even without an FFNx palette selector.
+                TextureValue texture = new(image, material.LogicalWidth, material.LogicalHeight, $"{file.PackageId}/{file.RelativePath}@{file.Revision}", decoded.MipLevels) { IsReplacement = true };
+                return CompareModelMaterials(model, materials, target.Slot, material, new(new(name), new(name)), previewTexture: texture);
+            }
+            return null;
+        }
+
+        ModPreviewComparison CompareModelMaterials(ModelCatalogEntry entry, IReadOnlyList<TextureBuildContext> materials, int selectedIndex, TextureBuildContext selected, ModPreviewComparison comparison, string? sheetVariant = null, TextureValue? previewTexture = null)
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (replacement is NativeTextureMods native && entry.Category != "World character"
@@ -189,7 +233,7 @@ public static partial class ModPreviewResources
                 TextureBuildContext material = index == selectedIndex ? selected : materials[index];
                 string? variant = index == selectedIndex ? sheetVariant : null;
                 original[index] = ModelTexture(resources.ResolveOriginalForExport(material), variant);
-                modded[index] = ModelTexture(resources.ResolveForExport(material), variant);
+                modded[index] = index == selectedIndex && previewTexture is not null ? previewTexture : ModelTexture(resources.ResolveForExport(material), variant);
             }
             if (fieldModel is not null)
             {
@@ -332,6 +376,10 @@ public static partial class ModPreviewResources
             }
             return ("Textures", legacy.Owner == "cards/cards" ? "Triple Triad" : "Menu artwork", name);
         }
+        if (FindUnqualifiedJunctionFieldMaterial(file) is { } fieldMaterial)
+        {
+            return ("Textures", "Field models", $"{fieldMaterial.Name} / texture {fieldMaterial.Slot}");
+        }
         return null;
 
         static string WorldTextureGroup(string? member) => member?.Split('/') switch
@@ -410,6 +458,18 @@ public static partial class ModPreviewResources
     }
 
     private static string DescribeTextureContext(TextureBuildContext context) => $"{Path.GetFileNameWithoutExtension(context.Key.Owner.Path)} / {context.Key.Subresource} / palette {context.Key.Palette}";
+
+    private sealed record JunctionFieldMaterial(string Kind, string Name, int Slot);
+
+    private static JunctionFieldMaterial? FindUnqualifiedJunctionFieldMaterial(ModFile file)
+    {
+        if (file.Format != ModFormat.Junction)
+        {
+            return null;
+        }
+        Match match = Regex.Match(file.RelativePath.ToLowerInvariant(), @"\Amods/textures/(?:eng/)?field/model/(main|second)_chr/([a-z0-9]{4})-(0|[1-9][0-9]*)\.(?:png|dds)\z", RegexOptions.CultureInvariant);
+        return match.Success && int.TryParse(match.Groups[3].ValueSpan, NumberStyles.None, CultureInfo.InvariantCulture, out int slot) ? new(match.Groups[1].Value, match.Groups[2].Value, slot) : null;
+    }
 
     private sealed record LegacyTextureTarget(string Owner, string? Member = null, int? Palette = null, string? Field = null, string? Model = null, string? Layout = null, int? ModelPalette = null, IReadOnlyList<string>? Members = null, string? NativeMember = null)
     {

@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Text.Json;
 using Albeoris.Games.FF8.Imaging;
 using Memoria.FF8;
 using Memoria.FF8.Assets;
@@ -10,6 +11,55 @@ namespace Memoria.Launcher.Tests;
 
 public sealed class LauncherModPreviewFieldModelTests
 {
+    [Theory]
+    [InlineData("p011", "glfurin1", 6)]
+    [InlineData("p025", "gpbig1a", 9)]
+    public async Task JunctionTextureWithoutPaletteSuffixRendersOnTheSourceFieldModel(string modelName, string fieldName, int modelIndex)
+    {
+        string? game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
+        string? catalog = Environment.GetEnvironmentVariable("MEMORIA_FF8_TEST_FIXTURE_CATALOG");
+        Assert.SkipUnless(Directory.Exists(game) && File.Exists(catalog), "Configure installed Classic game resources and the optional fixture catalog.");
+        Dictionary<string, string> fixtures = JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(catalog!))!;
+        Assert.SkipUnless(fixtures.TryGetValue("Launcher.Tests.LauncherModPreviewFieldModelTests.1", out string? configured), "Configure the Junction field texture fixture.");
+        string fixtureRoot = Environment.GetEnvironmentVariable("MEMORIA_FF8_TEST_FIXTURES") ?? Path.GetDirectoryName(Path.GetFullPath(catalog!))!;
+        string archive = Path.GetFullPath(configured!, fixtureRoot);
+        string root = Path.Combine(Path.GetTempPath(), "launcher-preview-field-texture-" + Guid.NewGuid().ToString("N"));
+        CancellationToken token = TestContext.Current.CancellationToken;
+        try
+        {
+            using ModRuntime mods = new(root, watch: false);
+            ModPackageInstaller installer = new(Path.Combine(root, "state"), Path.Combine(root, "Mods"), "Classic/en/test");
+            using ModLibraryService library = new(Path.Combine(root, "cache"), installer, mods, "Classic/en/test", false);
+            await library.StopAsync();
+            ModPackage package = new("Junction/fixture", "Field texture fixture", ModFormat.Junction, null, false, ModEffectiveStatus.Disabled, archive);
+            ModPreviewDocument document = await library.OpenPreviewAsync(null, package, token);
+            ModPreviewEntry entry = Assert.Single(document.Entries, item => item.Id == $"mods/textures/field/model/second_chr/{modelName}-0.png");
+            Assert.Equal("Field models", entry.Group);
+
+            ModPreviewComparison comparison = await CatalogPreviewPresentation.CompareAsync(document, entry, CatalogPreviewPresentation.CreateProfile(game!, null, "en"), token);
+            FieldModel original = Assert.IsType<FieldModel>(comparison.Before.FieldModel);
+            FieldModel changed = Assert.IsType<FieldModel>(comparison.After.FieldModel);
+            Assert.Equal(modelName, original.TextureResourceName);
+            Assert.Contains($"{fieldName}/{modelIndex}", comparison.Before.Text);
+            Assert.Same(original.Faces, changed.Faces);
+            Assert.Same(original.Animations, changed.Animations);
+            PixelImage before = Assert.IsType<PixelImage>(comparison.Before.Image);
+            PixelImage after = Assert.IsType<PixelImage>(comparison.After.Image);
+            Assert.Equal((480, 360), (before.Width, before.Height));
+            Assert.Equal((before.Width, before.Height), (after.Width, after.Height));
+            Assert.Contains(before.Pixels, pixel => pixel != before.Pixels[0]);
+            Assert.Contains(after.Pixels, pixel => pixel != after.Pixels[0]);
+            Assert.False(before.Pixels.AsSpan().SequenceEqual(after.Pixels));
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
     [Fact]
     public void FieldModelComparisonStaysUprightAndUsesNativeFaceCullingOnBothSides()
     {

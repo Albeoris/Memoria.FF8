@@ -154,6 +154,26 @@ public sealed class ModPreviewTextureAtlasTests
         Assert.Equal(lastColor, Assert.IsType<PixelImage>(lastComparison.After.Image)[0, 0]);
     }
 
+    [Fact]
+    public async Task KeepsAnImageWithNoMatchingFieldMaterialInTheStandaloneView()
+    {
+        string? game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
+        Assert.SkipUnless(Directory.Exists(game), "Configure optional installed game resources.");
+
+        await using PreviewFixture fixture = new();
+        PixelImage image = new(128, 128);
+        image[25, 40] = new(190, 35, 70, 255);
+        fixture.Write("mods/textures/field/model/second_chr/p011-99.png", LocalizationArtworkExporter.EncodePng(image));
+        ModPreviewDocument document = await fixture.Open();
+        ModPreviewEntry entry = Assert.Single(document.Entries);
+
+        ModPreviewComparison comparison = await document.CompareAsync(entry, new(game!), TestContext.Current.CancellationToken);
+        Assert.False(comparison.Before.HasModel);
+        Assert.False(comparison.After.HasModel);
+        Assert.Null(comparison.Before.Image);
+        Assert.Equal(image.Pixels, Assert.IsType<PixelImage>(comparison.After.Image).Pixels);
+    }
+
     [Theory]
     [InlineData(ModFormat.Junction)]
     [InlineData(ModFormat.Memoria)]
