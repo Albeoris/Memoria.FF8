@@ -242,13 +242,15 @@ internal static class WorldModeTopologyContinuationTests
             controller.Advance(1);
         }
         Dictionary<string, Ff7AutoPlayPolicy.WorldModeCandidate> prerequisites = (Dictionary<string, Ff7AutoPlayPolicy.WorldModeCandidate>)typeof(Ff7AutoPlayPolicy).GetField("worldModePrerequisites", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(policy)!;
-        long work = prerequisites.Values.Sum(candidate => candidate.Search?.Operations ?? 0);
+        Dictionary<string, Ff7AutoPlayPolicy.WorldModeCandidate> catalog = (Dictionary<string, Ff7AutoPlayPolicy.WorldModeCandidate>)typeof(Ff7AutoPlayPolicy).GetField("worldModeCatalog", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(policy)!;
+        Ff7AutoPlayPolicy.WorldModeCandidate[] jobs = prerequisites.Values.Concat(catalog.Values).Distinct().ToArray();
+        long work = jobs.Sum(candidate => candidate.Search?.Operations ?? 0);
         Check(controller.Error is null && (controller.Steps > 0 || driver.PlanningPending && work > 8) && bytes.AsSpan().SequenceEqual(File.ReadAllBytes(path)), $"Native catalog continuation failed: {controller.Error}; retained={work}; status={policy.Status}");
         if (controller.Steps == 0)
         {
             Check(consumed == policy.State.Coverage.Visits.Sum(visit => visit.Events.Sum(item => item.Conditions?.ConsumedEntries.Count ?? 0)) && routes == policy.State.Coverage.Visits.Sum(visit => visit.Events.Sum(item => item.Routes.Count)), "Pending topology manufactured native consumption or routes.");
         }
-        Console.WriteLine($"PASS current world catalog continuation: callbacks={controller.Steps}, tick={world.Process.Tick}, controlled={world.ControlledModel}, prerequisites={prerequisites.Count}, work={work}, physical={driver.PhysicalPlanningWork}, pending={driver.PlanningPending}, active={policy.State.Active?.EventId}, elapsed={elapsed.Elapsed.TotalSeconds:F3}s; source intact; landing unproved");
+        Console.WriteLine($"PASS current world catalog continuation: callbacks={controller.Steps}, tick={world.Process.Tick}, controlled={world.ControlledModel}, prerequisites={prerequisites.Count}, jobs={jobs.Length}, work={work}, physical={driver.PhysicalPlanningWork}, pending={driver.PlanningPending}, active={policy.State.Active?.EventId}, elapsed={elapsed.Elapsed.TotalSeconds:F3}s; source intact; landing unproved");
     }
 
     private static void Check(bool condition, string message)

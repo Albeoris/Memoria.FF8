@@ -327,6 +327,7 @@ public sealed partial class Ff7AutoPlayPolicy
 
     private Ff7AutoPlayObservation ObserveWorldPlanner(Ff7WorldRuntime world)
     {
+        using IDisposable observationScope = world.BeginAutoPlayObservation();
         Ff7WorldProcess native = world.Process;
         WorldSnapshot vm = native.Vm;
         bool ready = native.Initialized && native.ControlledModel >= 0 && native.MovementEnabled && native.MainState == 1 && native.Dialogue is not { Completed: false };

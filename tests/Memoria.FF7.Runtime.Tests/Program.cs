@@ -3,6 +3,12 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--world-observation-cache-only", StringComparer.Ordinal))
+{
+    WorldObservationAnalysisCacheTests.Run();
+    return 0;
+}
+
 if (args.Contains("--world-catalog-continuation-original-only", StringComparer.Ordinal))
 {
     WorldModeTopologyContinuationTests.RunCurrentCatalog();
