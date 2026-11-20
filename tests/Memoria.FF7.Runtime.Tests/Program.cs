@@ -3,6 +3,18 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--actor-contact-region-only", StringComparer.Ordinal))
+{
+    ActorContactRegionTests.Run();
+    return 0;
+}
+
+if (args.Contains("--actor-contact-region-original-only", StringComparer.Ordinal))
+{
+    ActorContactRegionTests.RunOriginal();
+    return 0;
+}
+
 if (args.Contains("--spatial-triangle-eligibility-only", StringComparer.Ordinal))
 {
     SpatialTriangleEligibilityTests.Run();

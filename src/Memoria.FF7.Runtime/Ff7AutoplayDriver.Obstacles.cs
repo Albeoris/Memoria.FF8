@@ -107,7 +107,7 @@ public sealed partial class Ff7AutoplayDriver
             obstacleSpeed = player.MoveSpeed;
         }
         string context = $"{ReadPhysicalApproachContext(player, target, destination)}|source:{player.Slot}:{player.X4096}:{player.Y4096}:{player.Z4096}:{player.Triangle}:{player.Direction}:{player.MoveSpeed}:{player.PlayerControlled}:{player.MovementFacingDisabled}|waypoint:{waypoint}:{nextTriangle}|mode:{navigationRunMode}|control:{session.Field.Triggers.ControlDirection}|input:{navigationLineInput}|talk:{navigationLineTalk}|targets:{string.Join(';', navigationLineTargets?.Select(candidate => $"{candidate.Id}:{candidate.ConditionFingerprint}") ?? [])}";
-        context = ReadPhysicalFailureGuideContext(context, routeDistance, approachAdviceExclusions, navigationTalkContactGoal is null ? "route-progress:1" : "native-fresh-contact:1");
+        context = ReadPhysicalFailureGuideContext(context, routeDistance, approachAdviceExclusions, navigationTalkContactGoal is null ? "route-progress:1" : navigationSelectedTarget?.Kind == Ff7AutoPlayTargetKind.ActorContact ? "native-actor-push:2" : "native-fresh-contact:2");
         UpdatePhysicalApproachContext(context);
         if (TakeEscapeStep(player, movement, out input))
         {
@@ -144,7 +144,7 @@ public sealed partial class Ff7AutoplayDriver
             {
                 throw new Ff7AutoPlayNavigationUnavailableException(-1, "This exact native source and local guide already exhausted its represented physical search.", blockingEntities, target, destination, ReadApproachRegion(session.Field.Walkmesh, player, nextTriangle)) { PhysicalFailure = receipt };
             }
-            obstacleSearch = new(player, waypoint, triangle => routeDistance[triangle], Preview, AllowsPlannedMove, navigationTalkContactGoal);
+            obstacleSearch = new(player, navigationTalkContactGoal is null ? waypoint : target, triangle => routeDistance[triangle], Preview, AllowsPlannedMove, navigationTalkContactGoal);
             List<PhysicalSearchGuide> guides = [new(obstacleSearch, waypoint, nextTriangle, [])];
             if (nextTriangle >= 0 && nextTriangle != player.Triangle)
             {
@@ -163,7 +163,7 @@ public sealed partial class Ff7AutoplayDriver
                     }
                     var triangle = session.Field.Walkmesh[selected];
                     Vector3 alternativeWaypoint = (triangle.A + triangle.B + triangle.C) / 3;
-                    PhysicalSearchCursor cursor = new(player, alternativeWaypoint, triangle => distance[triangle], Preview, AllowsPlannedMove, navigationTalkContactGoal);
+                    PhysicalSearchCursor cursor = new(player, navigationTalkContactGoal is null ? alternativeWaypoint : target, triangle => distance[triangle], Preview, AllowsPlannedMove, navigationTalkContactGoal);
                     guides.Add(new(cursor, alternativeWaypoint, selected, selectedExclusions.ToArray()));
                 }
             }

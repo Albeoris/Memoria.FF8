@@ -22,19 +22,7 @@ public sealed partial class Ff7AutoplayDriver
         {
             return default;
         }
-        Vector3 position = new(target.X4096 / 4096f, target.Y4096 / 4096f, target.Z4096 / 4096f);
-        Ff7AutoplayInput input = Steer(position, run);
-        if (input.Horizontal != 0 || input.Vertical != 0)
-        {
-            var direction = Directions.Single(value => value.X == input.Horizontal && value.Y == input.Vertical);
-            Ff7Actor controlled = player with { MoveSpeed = unchecked((ushort)session.GetPlayerMovementSpeed(run)) };
-            Ff7NativeMoveResult probe = session.Host.Movement!.StepDirection(controlled, (byte)((direction.Direction + session.Field.Triggers.ControlDirection) & 255), process.Actors, process.BlockedTriangles, playerLocked: false, lineBlocked: process.LineBlocked);
-            if (probe.PushEntities.Contains(entity) && AllowsPlannedMove(controlled, probe))
-            {
-                return input;
-            }
-        }
-        return Approach(position, target.Triangle, run);
+        return ChooseActorContactRegion(target, player, run);
     }
 
     internal Ff7AutoplayInput ChooseTargetInput(Ff7AutoPlayTarget target, Func<Ff7AutoplayInput> choose)
@@ -250,6 +238,7 @@ public sealed partial class Ff7AutoplayDriver
     {
         if (navigationModeIntent != intent)
         {
+            CancelActorContactCatalog();
             ClearParkedNavigationModes();
             ResetObstacleEscape();
             navigationModeGoal = null;
