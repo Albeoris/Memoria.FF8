@@ -11,6 +11,16 @@ public sealed partial class Ff7AutoPlayPolicy
         {
             return;
         }
+        if ((uint)planned.Script >= 32 || (uint)admission.Script >= 32 || (uint)admission.Entity >= session.Field.Scripts.Entities.Count)
+        {
+            return;
+        }
+        int expectedEntry = session.Field.Scripts.Entities[planned.Entity].ScriptOffsets[planned.Script];
+        int actualEntry = session.Field.Scripts.Entities[admission.Entity].ScriptOffsets[admission.Script];
+        if (expectedEntry != actualEntry)
+        {
+            return;
+        }
         Ff7AutoPlayObservation observation = ObservePlanner();
         Ff7AutoPlayTarget? expected = observation.Events.SingleOrDefault(target => target.Id == planned.EventId);
         Ff7AutoPlayTarget? actual = observation.Events.SingleOrDefault(target => target.Entity == admission.Entity && target.Script == admission.Script && target.Kind is >= Ff7AutoPlayTargetKind.ActorTalk and <= Ff7AutoPlayTargetKind.LineLeave);
@@ -18,8 +28,6 @@ public sealed partial class Ff7AutoPlayPolicy
         {
             return;
         }
-        int expectedEntry = session.Field.Scripts.Entities[planned.Entity].ScriptOffsets[planned.Script];
-        int actualEntry = session.Field.Scripts.Entities[admission.Entity].ScriptOffsets[admission.Script];
         Ff7AutoPlayActiveEvent? adopted = AdoptEffectAlias(planned, expected, actual, admission, expectedEntry, actualEntry);
         if (adopted is null)
         {

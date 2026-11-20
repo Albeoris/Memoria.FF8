@@ -91,11 +91,16 @@ public sealed partial class Ff7AutoPlayDiscovery(Ff7Session session)
 
     internal static string? ReadEffectFingerprint(string program, int entity, int entry, int priority, string canonicalVariables, string externalConditions, FieldScriptAnalysis analysis, FieldScriptEntryDependencies dependencies, bool hostConditionsComplete, bool hasEntryInput)
     {
-        if (priority != 1 || !analysis.Complete || !analysis.InputIndependent || analysis.StochasticPresentation is not null || analysis.HostReads.Length != 0 || !dependencies.Complete || dependencies.HostReads.Length != 0 || !hostConditionsComplete || hasEntryInput)
+        if (!CanReadEffectFingerprint(priority, analysis, dependencies, hostConditionsComplete, hasEntryInput))
         {
             return null;
         }
         return CombineConditionFingerprints($"effect-entry:1:{program}:{entity}:{entry}:{priority}:{canonicalVariables}", externalConditions);
+    }
+
+    private static bool CanReadEffectFingerprint(int priority, FieldScriptAnalysis analysis, FieldScriptEntryDependencies dependencies, bool hostConditionsComplete, bool hasEntryInput)
+    {
+        return priority == 1 && analysis.Complete && analysis.InputIndependent && analysis.StochasticPresentation is null && analysis.HostReads.Length == 0 && dependencies.Complete && dependencies.HostReads.Length == 0 && hostConditionsComplete && !hasEntryInput;
     }
 
     public Ff7AutoPlayTarget? FindTarget(string id) => Observe().Events.SingleOrDefault(target => target.Id == id);
@@ -243,9 +248,13 @@ public sealed partial class Ff7AutoPlayDiscovery(Ff7Session session)
                 fingerprint = CombineConditionFingerprints(fingerprint, entryContract);
             }
             int? destination = analysis.DestinationFields.Length == 1 ? analysis.DestinationFields[0] : null;
-            int canonicalScript = Enumerable.Range(0, 32).First(index => session.Field.Scripts.Entities[entity].ScriptOffsets[index] == entry);
-            string canonical = analysis.Complete && dependencies.Complete ? session.Machine.ReadScriptAnalysisFingerprint(entity, canonicalScript, dependencies.Reads) : string.Empty;
-            string? effectFingerprint = ReadEffectFingerprint(identity, entity, entry, 1, canonical, external.Fingerprint, analysis, dependencies, external.Complete, entryInput is not null);
+            string? effectFingerprint = null;
+            if (CanReadEffectFingerprint(1, analysis, dependencies, external.Complete, entryInput is not null))
+            {
+                int canonicalScript = Enumerable.Range(0, 32).First(index => session.Field.Scripts.Entities[entity].ScriptOffsets[index] == entry);
+                string canonical = session.Machine.ReadScriptAnalysisFingerprint(entity, canonicalScript, dependencies.Reads);
+                effectFingerprint = ReadEffectFingerprint(identity, entity, entry, 1, canonical, external.Fingerprint, analysis, dependencies, external.Complete, entryInput is not null);
+            }
             events.Add(new(id, entity, script, kind, fingerprint, analysis.ChangesStory, position, triangle, DestinationField: destination, SegmentStart: start, SegmentEnd: end, AnalysisComplete: analysis.Complete && dependencies.Complete && external.Complete, SupportReason: analysis.Reason ?? dependencies.Reason ?? external.Reason, MayChangeNavigation: analysis.MayChangeNavigation, EntryInputContract: entryContract, ChangesField: analysis.DestinationFields.Length > 0) { EffectFingerprint = effectFingerprint, EntryInputDemand = entryInput, PossibleDestinationFields = analysis.DestinationFields.ToArray(), UnblockedTriangles = analysis.UnblockedTriangles.ToArray() });
         }
     }
