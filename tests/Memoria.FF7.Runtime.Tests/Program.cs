@@ -3,6 +3,18 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-synchronous-triangle-setup-only", StringComparer.Ordinal))
+{
+    NativeSynchronousTriangleSetupTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-synchronous-triangle-setup-original-only", StringComparer.Ordinal))
+{
+    NativeSynchronousTriangleSetupTests.RunOriginal();
+    return 0;
+}
+
 if (args.Contains("--native-camera-tracking-original-only", StringComparer.Ordinal))
 {
     NativeCameraCompletionTests.RunTrackingOriginal();

@@ -13,6 +13,55 @@ internal sealed class Ff7AutoPlayNativeReadiness
     private int repeatedObservations;
     private int totalObservations;
 
+    internal bool ShouldWaitForSynchronousTriangleSetup(long generation, string source, FieldVmSnapshot vm, Ff7FieldProcess process, ReadOnlySpan<byte> script, Func<int, int, int> readScriptEntry)
+    {
+        HashSet<int> work = [];
+        for (int childId = 0; childId < vm.Entities.Length; childId++)
+        {
+            FieldEntitySnapshot child = vm.Entities[childId];
+            int priority = child.Priority;
+            if (!HasAdmittedContinuation(child, script, allowReturn: true) || priority >= child.SyncStates.Length || priority >= child.SyncOwners.Length || child.SyncStates[priority] != FieldSyncState.Waiting)
+            {
+                continue;
+            }
+            int parentId = child.SyncOwners[priority];
+            if ((uint)parentId >= vm.Entities.Length)
+            {
+                continue;
+            }
+            FieldEntitySnapshot parent = vm.Entities[parentId];
+            int pc = parent.ProgramCounter;
+            if (!HasAdmittedContinuation(parent, script) || pc + 2 >= script.Length || script[pc] != 0x03 || script[pc + 1] != childId || script[pc + 2] >> 5 != priority)
+            {
+                continue;
+            }
+            int entry = readScriptEntry(childId, script[pc + 2] & 31);
+            bool current = false;
+            bool triangles = false;
+            bool complete = false;
+            for (int cursor = entry; (uint)cursor < script.Length; cursor += 4)
+            {
+                current |= cursor == child.ProgramCounter;
+                if (script[cursor] == 0)
+                {
+                    complete = true;
+                    break;
+                }
+                if (script[cursor] != 0x6D || cursor + 3 >= script.Length || script[cursor + 3] > 1 || (script[cursor + 1] | script[cursor + 2] << 8) / 8 >= process.BlockedTriangles.Length)
+                {
+                    break;
+                }
+                triangles = true;
+            }
+            if (current && triangles && complete)
+            {
+                work.Add(childId);
+                work.Add(parentId);
+            }
+        }
+        return work.Count != 0 && ObserveWork(generation, $"{source}:synchronous-triangle-setup", vm, process, work);
+    }
+
     internal static bool HasFiniteCameraCompletion(Ff7FieldProcess process)
     {
         if (process.GlobalCommand != Ff7GlobalCommand.None || process.Transition is not null || process.Join is not null || process.Movie is { Playing: true })
@@ -343,9 +392,9 @@ internal sealed class Ff7AutoPlayNativeReadiness
         return repeatedObservations < RepeatedObservationLimit && totalObservations < ObservationLimit;
     }
 
-    private static bool HasAdmittedContinuation(FieldEntitySnapshot owner, ReadOnlySpan<byte> script)
+    private static bool HasAdmittedContinuation(FieldEntitySnapshot owner, ReadOnlySpan<byte> script, bool allowReturn = false)
     {
-        if (owner.Priority is < 0 or >= 7 || (uint)owner.ProgramCounter >= script.Length || script[owner.ProgramCounter] == 0 || owner.SavedProgramCounters.Length != 8)
+        if (owner.Priority is < 0 or >= 7 || (uint)owner.ProgramCounter >= script.Length || !allowReturn && script[owner.ProgramCounter] == 0 || owner.SavedProgramCounters.Length != 8)
         {
             return false;
         }
