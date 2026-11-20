@@ -167,7 +167,7 @@ public sealed partial class Ff7AutoPlayPolicy
         }
         if (State.Active is null)
         {
-            var readRetainedAvailability = CreateRetainedNavigationAvailabilityReader(State);
+            var readRetainedAvailability = CreateOrdinarySchedulingAvailability(observation, driver, CreateRetainedNavigationAvailabilityReader(State));
             AutoPlayEventAvailability? ReadAvailability(AutoPlayNavigationVisit navigation, AutoPlayEvent target)
             {
                 if (navigation.VisitKey != observation.VisitId)

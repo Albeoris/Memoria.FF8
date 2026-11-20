@@ -3,6 +3,18 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-world-route-cycle-only", StringComparer.Ordinal))
+{
+    NativeWorldRouteCycleTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-world-route-cycle-original-only", StringComparer.Ordinal))
+{
+    NativeWorldRouteCycleTests.RunOriginal();
+    return 0;
+}
+
 if (args.Contains("--owned-local-alternative-original-only", StringComparer.Ordinal))
 {
     NativeOwnedContactArrivalTests.RunAlternativeOriginal();

@@ -13,15 +13,19 @@ public sealed partial class Ff7AutoPlayPolicy
     private string? ordinaryNoReadySource;
     private Ff7NativePlanningHeader? ordinaryNoReadyHeader;
     private long ordinaryNoReadyGeneration;
-    private readonly Dictionary<(string Navigation, string Event), (string Condition, string Physical)> ordinaryDeferredGoals = [];
+    private readonly Dictionary<(string Navigation, string Event), (string Condition, string Physical, string? Progress)> ordinaryDeferredGoals = [];
 
     private void RecordOrdinaryGoalDeferral(Ff7AutoPlayObservation observation, Ff7AutoPlayTarget target, Ff7AutoplayDriver driver)
     {
-        ordinaryDeferredGoals[(observation.NavigationKey, target.Id)] = (target.ConditionFingerprint, driver.ReadPhysicalAvailabilityFingerprint(target));
+        ordinaryDeferredGoals[(observation.NavigationKey, target.Id)] = (target.ConditionFingerprint, driver.ReadPhysicalAvailabilityFingerprint(target), State.FrontierProgressKey);
     }
 
     private Func<AutoPlayNavigationVisit, AutoPlayEvent, AutoPlayEventAvailability?> CreateOrdinarySchedulingAvailability(Ff7AutoPlayObservation observation, Ff7AutoplayDriver driver, Func<AutoPlayNavigationVisit, AutoPlayEvent, AutoPlayEventAvailability?> underlying)
     {
+        foreach (var entry in ordinaryDeferredGoals.Where(entry => entry.Value.Progress != State.FrontierProgressKey).ToArray())
+        {
+            ordinaryDeferredGoals.Remove(entry.Key);
+        }
         foreach (Ff7AutoPlayTarget target in observation.Events)
         {
             var key = (observation.NavigationKey, target.Id);
@@ -33,9 +37,19 @@ public sealed partial class Ff7AutoPlayPolicy
         return (navigation, target) =>
         {
             AutoPlayEventAvailability? actual = underlying(navigation, target);
-            bool deferredGoal = ordinaryDeferredGoals.TryGetValue((navigation.Key, target.Id), out var deferred) && deferred.Condition == target.ConditionSignature;
+            bool deferredGoal = false;
+            if (ordinaryDeferredGoals.TryGetValue((navigation.Key, target.Id), out var deferred))
+            {
+                var source = State.Coverage.Visits.Single(visit => visit.Visit.Key == navigation.VisitKey);
+                deferredGoal = MatchesOrdinaryGoalDeferral(deferred.Condition, target.ConditionSignature, deferred.Progress, State.FrontierProgressKey, NeedsVisitRefresh(new(navigation.Key, source.Visit.Region)));
+            }
             return ReadOrdinarySchedulingAvailability(actual, target.Id, deferredGoal);
         };
+    }
+
+    internal static bool MatchesOrdinaryGoalDeferral(string condition, string? currentCondition, string? progress, string? currentProgress, bool sourceNeedsRefresh)
+    {
+        return condition == currentCondition && progress == currentProgress && !sourceNeedsRefresh;
     }
 
     internal static AutoPlayEventAvailability? ReadOrdinarySchedulingAvailability(AutoPlayEventAvailability? actual, string eventId, bool deferred)
