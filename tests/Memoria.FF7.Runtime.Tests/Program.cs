@@ -3,6 +3,18 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-owned-contact-arrival-only", StringComparer.Ordinal))
+{
+    NativeOwnedContactArrivalTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-owned-contact-arrival-original-only", StringComparer.Ordinal))
+{
+    NativeOwnedContactArrivalTests.RunOriginal();
+    return 0;
+}
+
 if (args.Contains("--actor-contact-region-only", StringComparer.Ordinal))
 {
     ActorContactRegionTests.Run();

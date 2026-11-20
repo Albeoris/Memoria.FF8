@@ -14,6 +14,16 @@ public sealed partial class Ff7AutoPlayPolicy
         return coverage is { Available: true, BlockedReason: null, PolicyDeferred: false } && coverage.Event.ConditionSignature == target.ConditionFingerprint && (freshContactApproach || coverage.Conditions?.HasExecutedEntry(target.ConditionFingerprint) != true);
     }
 
+    internal static bool CanPreserveUnchangedOwnedTarget(Ff7AutoPlayState state, Ff7AutoPlayObservation observation, Ff7AutoPlayTarget target, AutoPlayEventAvailability? availability)
+    {
+        if (target.Kind == Ff7AutoPlayTargetKind.ActorTalk || !target.AnalysisComplete || !observation.CanAcceptInput || !observation.Events.Contains(target) || state.NavigationGoal is not { EventId: not null, Conditions: not null } goal || target.Id != goal.EventId || target.ConditionFingerprint != goal.Conditions || availability?.Unavailable == true || !CanContinueOwnedTravel(state, observation))
+        {
+            return false;
+        }
+        var coverage = state.Coverage.Visits.SingleOrDefault(visit => visit.Visit.Key == observation.VisitId)?.Events.SingleOrDefault(item => item.Event.Id == target.Id);
+        return coverage is { Available: true, BlockedReason: null, PolicyDeferred: false } && coverage.Event.ConditionSignature == target.ConditionFingerprint;
+    }
+
     private void RefreshOwnedTargetIntent(Ff7AutoPlayObservation observation, Ff7AutoplayDriver driver, IReadOnlyDictionary<string, string> physicalGuards)
     {
         if (State.TravelCommitment is not { Goal: { EventId: not null } goal } commitment || State.NavigationGoal != goal || State.DestinationField != commitment.DestinationField || State.NativeRoute is not null || State.Choice is not null || State.PendingRestore is not null || !observation.CanAcceptInput || !State.Coverage.NavigationVisits.Any(visit => visit.Key == goal.NavigationKey && visit.VisitKey == observation.VisitId))
@@ -29,8 +39,8 @@ public sealed partial class Ff7AutoPlayPolicy
         {
             return;
         }
-        Ff7AutoPlayTarget? target = observation.Events.SingleOrDefault(item => item.Id == goal.EventId && item.Kind == Ff7AutoPlayTargetKind.ActorTalk && item.AnalysisComplete);
-        if (target is null || !session.Host.Process.Actors.Any(actor => actor.EntityBound && actor.Entity == target.Entity && !actor.PlayerControlled && actor.TalkEnabled))
+        Ff7AutoPlayTarget? target = observation.Events.SingleOrDefault(item => item.Id == goal.EventId && item.AnalysisComplete);
+        if (target is null)
         {
             State.TravelCommitment = null;
             return;
@@ -40,6 +50,19 @@ public sealed partial class Ff7AutoPlayPolicy
         var coverage = State.Coverage.Visits.Single(visit => visit.Visit.Key == observation.VisitId).Events.Single(item => item.Event.Id == target.Id);
         var facts = new Dictionary<string, IReadOnlyDictionary<string, string>?> { [observation.NavigationKey] = physicalGuards };
         AutoPlayEventAvailability? availability = ReadNavigationAvailability(current, currentEvent, observation, driver, facts);
+        if (target.Kind != Ff7AutoPlayTargetKind.ActorTalk)
+        {
+            if (!CanPreserveUnchangedOwnedTarget(State, observation, target, availability))
+            {
+                State.TravelCommitment = null;
+            }
+            return;
+        }
+        if (!session.Host.Process.Actors.Any(actor => actor.EntityBound && actor.Entity == target.Entity && !actor.PlayerControlled && actor.TalkEnabled))
+        {
+            State.TravelCommitment = null;
+            return;
+        }
         bool consumedIntermediate = coverage.Conditions?.HasExecutedEntry(target.ConditionFingerprint) == true;
         bool freshContactApproach = consumedIntermediate && ReadFreshTalkContact(driver, observation, target) is not null;
         if (!CanRefreshOwnedActorTarget(State, observation, target, session.Host.Process.Actors.SingleOrDefault(actor => actor.EntityBound && actor.Entity == target.Entity), availability, freshContactApproach))
