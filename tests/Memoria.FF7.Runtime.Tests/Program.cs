@@ -255,6 +255,12 @@ if (args.Contains("--native-equivalent-transport-original-only", StringComparer.
     NativeEquivalentTransportTests.RunOriginal();
     return 0;
 }
+if (args.Contains("--world-source-choice-only", StringComparer.Ordinal))
+{
+    WorldSourceChoiceTests.Run();
+    return 0;
+}
+
 if (args.Contains("--presentation-activation-only", StringComparer.Ordinal))
 {
     PresentationActivationTests.Run();

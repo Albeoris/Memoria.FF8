@@ -85,6 +85,11 @@ public sealed partial class Ff7AutoPlayPolicy
                     return default;
                 }
             }
+            else if (field is { Accepted: true, Returned: true, TransitionOwned: false } && TryDetachReturnedWorldChoiceSource(State, session.MapId, session.FieldGeneration, world.Process, session.Machine.Capture(), session.Host.Capture(), File.Exists))
+            {
+                State.Status = "Resuming the returned native field choice after its completed handoff";
+                Publish();
+            }
             else if (field.Generation != session.FieldGeneration || IsInterruptedUnacceptedFieldPlan(field, session.FieldGeneration, world.Process, session.Machine.Capture(), session.Host.Process))
             {
                 State.Status = "A different native event interrupted the planned contact";
@@ -582,6 +587,15 @@ public sealed partial class Ff7AutoPlayPolicy
     internal static bool IsInterruptedUnacceptedFieldPlan(Ff7AutoPlayActiveEvent active, long generation, Ff7WorldProcess world, FieldVmSnapshot source, Ff7FieldProcess process)
     {
         if (active.Accepted || active.Returned || active.TransitionOwned || active.CompletionRecorded || active.Generation != generation || active.Kind is Ff7AutoPlayTargetKind.WorldMesh or Ff7AutoPlayTargetKind.WorldModel or Ff7AutoPlayTargetKind.WorldControl || process.GlobalCommand != Ff7GlobalCommand.Transition || process.Transition is not { Map: >= 1 and <= 64 } transition || transition.Map != world.EntrySelector)
+        {
+            return false;
+        }
+        return HasCompletedFieldWorldHandoff(world, source, process);
+    }
+
+    internal static bool HasCompletedFieldWorldHandoff(Ff7WorldProcess world, FieldVmSnapshot source, Ff7FieldProcess process)
+    {
+        if (process.GlobalCommand != Ff7GlobalCommand.Transition || process.Transition is not { Map: >= 1 and <= 64 } transition || transition.Map != world.EntrySelector)
         {
             return false;
         }
