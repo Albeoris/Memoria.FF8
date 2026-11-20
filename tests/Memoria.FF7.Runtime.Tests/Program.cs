@@ -3,6 +3,12 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-line-component-original-only", StringComparer.Ordinal))
+{
+    NativeLineOwnershipTests.RunComponentOriginal();
+    return 0;
+}
+
 if (args.Contains("--native-transport-region-only", StringComparer.Ordinal))
 {
     NativeTransportRegionTests.Run();

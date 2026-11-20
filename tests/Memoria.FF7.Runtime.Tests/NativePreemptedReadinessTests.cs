@@ -40,7 +40,31 @@ internal static class NativePreemptedReadinessTests
         Check(!new Ff7AutoPlayNativeReadiness().ShouldWait(1, "source", countdown, process, new byte[] { 0, 90, 0, 0, 0, 0 }, []), "A stale counter without an executing WAIT authenticated finite work.");
         CheckCompletedSynchronousReturn();
         CheckMoviePreparation();
+        CheckPlayerControlAcquisition();
         CheckOriginal();
+    }
+
+    private static void CheckPlayerControlAcquisition()
+    {
+        int[] saved = new int[8];
+        saved[7] = 2;
+        FieldEntitySnapshot child = new(0, 6, 0, saved, new FieldSyncState[8], Enumerable.Repeat(-1, 8).ToArray(), ModelBound: true);
+        FieldVmSnapshot vm = new(1, FieldMachine.SemanticProfile, "admitted-player-child", 1, true, new byte[1280], new byte[256], [child]);
+        Ff7FieldProcess process = new() { Actors = [new() { Slot = 0, Entity = 0, Model = 0, EntityBound = true, PlayerControlled = true }] };
+        byte[] script = [0x33, 1, 0];
+        string before = JsonSerializer.Serialize(new { vm, process });
+        Check(Ff7AutoPlayNativeReadiness.HasPendingPlayerControlAcquisition(vm, process, script), "An admitted current player child could not acquire native control before speculation.");
+        Check(!Ff7AutoPlayNativeReadiness.HasPendingPlayerControlAcquisition(vm, process, [0x33, 0, 0]), "An unlock opcode was mistaken for pending control acquisition.");
+        Check(!Ff7AutoPlayNativeReadiness.HasPendingPlayerControlAcquisition(vm, process, [0x4A, 1, 0]), "An unrelated control opcode authenticated player acquisition.");
+        Check(!Ff7AutoPlayNativeReadiness.HasPendingPlayerControlAcquisition(vm, process, [0x33]), "A truncated control opcode authenticated acquisition.");
+        foreach (FieldEntitySnapshot wrong in new[] { child with { Priority = 7 }, child with { SavedProgramCounters = new int[8] }, child with { ModelBound = false }, child with { ProgramCounter = 2 }, child with { SavedProgramCounters = [0, 0, 0, 0, 0, 0, 0, 3] } })
+        {
+            Check(!Ff7AutoPlayNativeReadiness.HasPendingPlayerControlAcquisition(vm with { Entities = [wrong] }, process, script), "An unadmitted, unrelated or invalid native continuation authenticated acquisition.");
+        }
+        Check(!Ff7AutoPlayNativeReadiness.HasPendingPlayerControlAcquisition(vm, process with { Actors = [process.Actors[0] with { Entity = 1 }] }, script), "A different native player owner inherited acquisition.");
+        Check(!Ff7AutoPlayNativeReadiness.HasPendingPlayerControlAcquisition(vm, process with { Actors = [] }, script), "An absent controlled actor authenticated acquisition.");
+        Check(!Ff7AutoPlayNativeReadiness.HasPendingPlayerControlAcquisition(vm, process with { PlayerLocked = true }, script), "Already-owned control required another acquisition wait.");
+        Check(before == JsonSerializer.Serialize(new { vm, process }), "Control readiness changed native state.");
     }
 
     private static void CheckMoviePreparation()

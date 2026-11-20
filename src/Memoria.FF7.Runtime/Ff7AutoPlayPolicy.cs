@@ -162,6 +162,21 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         }
     }
 
+    internal static bool RetireStaleUnacceptedNavigation(Ff7AutoPlayState state, Ff7AutoPlayObservation observation)
+    {
+        if (!observation.CanAcceptInput || state.NativeRoute is not null || state.PendingRestore is not null || state.Choice is not null || state.Active is not { Accepted: false, Returned: false, TransitionOwned: false, CompletionRecorded: false, NavigationKey: not null } active || active.Kind is < Ff7AutoPlayTargetKind.ActorTalk or > Ff7AutoPlayTargetKind.Gateway || active.Generation != observation.Generation || active.VisitId != observation.VisitId || active.NavigationKey == observation.NavigationKey)
+        {
+            return false;
+        }
+        AutoPlayEventCoverage<Ff7AutoPlayDeferral>? coverage = state.Coverage.Visits.SingleOrDefault(visit => visit.Visit.Key == active.VisitId)?.Events.SingleOrDefault(item => item.Event.Id == active.EventId);
+        if (coverage?.Conditions?.ActiveEntry == active.ConditionFingerprint)
+        {
+            coverage.Conditions.ActiveEntry = null;
+        }
+        state.Active = null;
+        return true;
+    }
+
     internal static bool ShouldWaitForEntryFade(Ff7FadeProcess? fade)
     {
         return fade is { EntryCurve: true, Type: 1, Position: > 0, Speed: > 0, Completed: false };
@@ -244,7 +259,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             return default;
         }
         FieldVmSnapshot readinessVm = session.Machine.Capture();
-        if (Ff7AutoPlayNativeReadiness.HasCompletedSynchronousReturn(readinessVm, session.Field.Scripts.Data.Span) || Ff7AutoPlayNativeReadiness.HasReadyMoviePreparation(readinessVm, session.Host.Process, session.Field.Scripts.Data.Span))
+        if (Ff7AutoPlayNativeReadiness.HasCompletedSynchronousReturn(readinessVm, session.Field.Scripts.Data.Span) || Ff7AutoPlayNativeReadiness.HasReadyMoviePreparation(readinessVm, session.Host.Process, session.Field.Scripts.Data.Span) || Ff7AutoPlayNativeReadiness.HasPendingPlayerControlAcquisition(readinessVm, session.Host.Process, session.Field.Scripts.Data.Span))
         {
             CancelNativePlanning("native-synchronous-return");
             driver.BeginPlanningStep();
@@ -340,6 +355,12 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
                 State.Active = null;
                 Publish();
             }
+        }
+        if (RetireStaleUnacceptedNavigation(State, observation))
+        {
+            CancelNativePlanning("native-navigation-component-changed");
+            State.Status = "Replanning from the current native navigation component";
+            Publish();
         }
         RefreshOwnedTargetIntent(observation, driver, physicalGuards);
         if (DeferUnavailableActiveNavigation(State, observation))

@@ -13,6 +13,18 @@ internal sealed class Ff7AutoPlayNativeReadiness
     private int repeatedObservations;
     private int totalObservations;
 
+    internal static bool HasPendingPlayerControlAcquisition(FieldVmSnapshot vm, Ff7FieldProcess process, ReadOnlySpan<byte> script)
+    {
+        Ff7Actor? player = process.Actors.SingleOrDefault(actor => actor.PlayerControlled);
+        if (process.PlayerLocked || player is not { EntityBound: true } || (uint)player.Entity >= vm.Entities.Length)
+        {
+            return false;
+        }
+        FieldEntitySnapshot owner = vm.Entities[player.Entity];
+        int pc = owner.ProgramCounter;
+        return owner.ModelBound && HasAdmittedContinuation(owner, script) && pc + 1 < script.Length && script[pc] == 0x33 && script[pc + 1] == 1;
+    }
+
     internal static bool HasReadyMoviePreparation(FieldVmSnapshot vm, Ff7FieldProcess process, ReadOnlySpan<byte> script)
     {
         if (process.GlobalCommand != Ff7GlobalCommand.None)

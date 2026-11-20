@@ -59,6 +59,61 @@ internal static class NativeLineOwnershipTests
         Console.WriteLine($"PASS original normal-policy preparation to native movie handoff: {controller.Steps} callbacks/{elapsed.Elapsed.TotalSeconds:F3}s; zero native graph work; source unchanged. External movie playback/LINE departure not simulated.");
     }
 
+    internal static void RunComponentOriginal()
+    {
+        string path = Environment.GetEnvironmentVariable("MEMORIA_FF7_LINE_OWNERSHIP_SAVE") ?? throw new InvalidOperationException("Select a native component-transition fixture.");
+        byte[] bytes = File.ReadAllBytes(path);
+        using MemoryStream input = new(bytes, false);
+        Ff7SessionSave saved = CombinedSessionCodec.Read(input).Ff7!;
+        using Ff7Session session = Ff7Session.Restore(Ff7Installation.Discover(Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR")!), saved);
+        Ff7AutoPlayObservation observation = new Ff7AutoPlayDiscovery(session).Observe();
+        Ff7AutoPlayTarget target = observation.Events.Single(target => target.Id == "line:1:entity:6:script:2");
+        Ff7AutoPlayActiveEvent stale = saved.AutoPlay!.Active!;
+        int entry = session.Field.Scripts.Entities[target.Entity].ScriptOffsets[target.Script];
+        bool admitted = false;
+        bool returned = false;
+        bool jumpCompleted = false;
+        bool childReturned = false;
+        int childEntity = -1;
+        int childPriority = -1;
+        FieldActorJump? jump = null;
+        session.Machine.InstructionExecuted += (entity, priority, pc, _) => admitted |= entity == target.Entity && priority == 1 && pc == entry;
+        session.Machine.ScriptDispatched += dispatch =>
+        {
+            if (admitted && dispatch.SourceEntity == target.Entity && dispatch.SourcePriority == 1 && dispatch.Accepted)
+            {
+                childEntity = dispatch.TargetEntity;
+                childPriority = dispatch.TargetPriority;
+            }
+        };
+        session.Machine.ScriptReturned += receipt =>
+        {
+            returned |= admitted && receipt.Entity == target.Entity && receipt.Priority == 1;
+            childReturned |= jump is not null && receipt.Entity == childEntity && receipt.Priority == childPriority;
+        };
+        session.Host.NativeOperationExecuted += (request, reply) =>
+        {
+            if (request.Command is FieldActorJump command && request.Entity == childEntity && request.Priority == childPriority)
+            {
+                jump = command;
+                jumpCompleted |= reply.Completed;
+            }
+        };
+        using Ff7AutoPlayPolicy policy = new(session, (_, _) => throw new InvalidOperationException("Unexpected choice."));
+        Ff7AutoPlayController controller = new(session, policy.ChooseInput, chooseDialogueSelection: policy.ChooseDialogueSelection, advanceTick: () => session.AdvanceTick(advanceClock: false));
+        controller.Start();
+        Stopwatch watch = Stopwatch.StartNew();
+        while (controller.Running && controller.Steps < 512 && !(returned && childReturned && jumpCompleted) && watch.Elapsed < TimeSpan.FromSeconds(8))
+        {
+            controller.Advance(1);
+        }
+        Ff7Actor player = session.Host.Process.Actors.Single(actor => actor.PlayerControlled);
+        Check(controller.Error is null && admitted && returned && childReturned && jumpCompleted && jump is not null && player.Triangle == jump.Triangle, $"Normal policy failed to replan and finish the actual native child: {controller.Error}; callbacks={controller.Steps}, jump={jump}, childReturned={childReturned}");
+        Check(!policy.State.Coverage.Visits.Single(visit => visit.Visit.Key == stale.VisitId).Events.Single(item => item.Event.Id == stale.EventId).Conditions!.HasExecutedEntry(stale.ConditionFingerprint), "Retiring a stale planned component fabricated execution of its lower LINE.");
+        Check(bytes.AsSpan().SequenceEqual(File.ReadAllBytes(path)), "The component fixture changed.");
+        Console.WriteLine($"PASS original normal-policy stale component replan, actual upper LINE admission, owned JUMP completion/child RET and lower-component arrival: {controller.Steps} callbacks/{watch.Elapsed.TotalSeconds:F3}s; source unchanged.");
+    }
+
     private static void Check(bool condition, string message)
     {
         if (!condition)

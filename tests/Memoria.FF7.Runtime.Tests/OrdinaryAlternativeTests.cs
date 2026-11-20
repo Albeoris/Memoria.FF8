@@ -6,11 +6,33 @@ internal static class OrdinaryAlternativeTests
 {
     internal static void Run()
     {
+        CheckStaleNavigationRetirement();
         CheckUnknownContactTravelSibling();
         CheckAdoption(false);
         CheckAdoption(true);
         CheckDeferredLeafDoesNotCreateTransportCycle();
         Console.WriteLine("PASS ordinary alternative shared selection, atomic owner/goal adoption, stale-plan refusal and unconsumed history.");
+    }
+
+    private static void CheckStaleNavigationRetirement()
+    {
+        Ff7AutoPlayActiveEvent planned = new("visit", "line", "current", 2, 1, 5, Ff7AutoPlayTargetKind.LineEnter, null, 641, "witness", NavigationKey: "lower");
+        Ff7AutoPlayObservation observed = new("visit", "program", 2, [], true, true) { NavigationKey = "upper" };
+        Ff7AutoPlayState state = new() { Active = planned, DestinationField = 99, NavigationGoal = new("lower", "line", "current") };
+        AutoPlayEventCoverage<Ff7AutoPlayDeferral> coverage = new() { Event = new("line", AutoPlayEventKind.Interaction, ConditionSignature: "current"), Available = true, Conditions = new() { ActiveEntry = "current", ConsumedEntries = new(StringComparer.Ordinal) { "older" } }, Routes = [new("destination", "older", false, [], "line")] };
+        state.Coverage.Visits.Add(new() { Visit = new("visit", "program"), Events = [coverage] });
+        string history = JsonSerializer.Serialize(withCopy());
+        Check(Ff7AutoPlayPolicy.RetireStaleUnacceptedNavigation(state, observed) && state.Active is null && coverage.Conditions.ActiveEntry is null, "A stale unadmitted source plan survived a real component change.");
+        Check(state.DestinationField == 99 && state.NavigationGoal == new AutoPlayTravelGoal("lower", "line", "current") && history == JsonSerializer.Serialize(withCopy()), "Stale plan retirement changed intent or actual event history.");
+        foreach (Ff7AutoPlayActiveEvent owner in new[] { planned with { Accepted = true }, planned with { Returned = true }, planned with { TransitionOwned = true }, planned with { CompletionRecorded = true }, planned with { Generation = 1 }, planned with { VisitId = "other" }, planned with { NavigationKey = "upper" }, planned with { NavigationKey = null } })
+        {
+            state.Active = owner;
+            Check(!Ff7AutoPlayPolicy.RetireStaleUnacceptedNavigation(state, observed) && state.Active == owner, "Accepted/returned/transition ownership or a different source was retired.");
+        }
+        state.Active = planned;
+        Check(!Ff7AutoPlayPolicy.RetireStaleUnacceptedNavigation(state, observed with { CanAcceptInput = false }), "An unready native owner was preempted.");
+
+        object withCopy() => new { coverage.Event, coverage.Available, coverage.Completed, coverage.Conditions.ConsumedEntries, coverage.Routes, coverage.UnavailableAttempts, coverage.Unavailable };
     }
 
     private static void CheckUnknownContactTravelSibling()
