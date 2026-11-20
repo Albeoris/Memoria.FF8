@@ -104,6 +104,7 @@ public sealed partial class Ff7AutoPlayDiscovery(Ff7Session session)
 
     private readonly Dictionary<(int Entity, int Script), FieldScriptInputDemand?> entryInputs = [];
     private string? analysisAllocation;
+    private readonly Dictionary<(int Entity, int Script), bool> entryDialogueEffects = [];
     private readonly Ff7AutoPlayEntryReadiness entryReadiness = new();
 
     internal static string? ReadEffectFingerprint(string program, int entity, int entry, int priority, string canonicalVariables, string externalConditions, FieldScriptAnalysis analysis, FieldScriptEntryDependencies dependencies, bool hostConditionsComplete, bool hasEntryInput)
@@ -165,6 +166,7 @@ public sealed partial class Ff7AutoPlayDiscovery(Ff7Session session)
             analyses.Clear();
             entryDependencies.Clear();
             entryInputs.Clear();
+            entryDialogueEffects.Clear();
             analysisAllocation = allocation;
         }
         foreach (Ff7Actor actor in process.Actors.Where(actor => actor.EntityBound && !actor.PlayerControlled).OrderBy(actor => actor.Entity))
@@ -275,6 +277,18 @@ public sealed partial class Ff7AutoPlayDiscovery(Ff7Session session)
                 int canonicalScript = Enumerable.Range(0, 32).First(index => session.Field.Scripts.Entities[entity].ScriptOffsets[index] == entry);
                 string canonical = session.Machine.ReadScriptAnalysisFingerprint(entity, canonicalScript, dependencies.Reads);
                 effectFingerprint = ReadEffectFingerprint(identity, entity, entry, 1, canonical, external.Fingerprint, analysis, dependencies, external.Complete, entryInput is not null);
+            }
+            if (effectFingerprint is null && entryInput is not null && !session.Host.Process.PlayerLocked && !session.Host.Process.MenuDisabled && analysis.Complete && dependencies.Complete && analysis.HostReads.Length == 0 && dependencies.HostReads.Length == 0 && external.Complete && dependencies.Reads.Length == 0)
+            {
+                if (!entryDialogueEffects.TryGetValue((entity, script), out bool proved))
+                {
+                    proved = session.Machine.ProveEntryInputDialogueEffect(entity, script);
+                    entryDialogueEffects[(entity, script)] = proved;
+                }
+                if (proved)
+                {
+                    effectFingerprint = $"effect-entry-input-dialogue:1:{identity}:{entity}:{entry}:1:{entryContract}";
+                }
             }
             if (analysis.Complete && analysis.DestinationFields.Any(field => field > 64 && field < short.MaxValue))
             {

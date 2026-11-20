@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Numerics;
 using System.Text.Json;
 using Memoria.AutoPlay;
@@ -10,6 +10,7 @@ internal static class NativeEffectAliasTests
 {
     internal static void Run()
     {
+        CheckInputGatedDialogueProof();
         FieldScriptAnalysis analysis = Analyze([0x60, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0]);
         Check(analysis.Complete && analysis.InputIndependent, "A deterministic native transition was not eligible for input-independent effect identity.");
         FieldScriptEntryDependencies dependencies = new(true, null, [], []);
@@ -44,6 +45,35 @@ internal static class NativeEffectAliasTests
         AutoPlayEvent legacy = JsonSerializer.Deserialize<AutoPlayEvent>("{\"Id\":\"legacy\",\"Kind\":0,\"ConditionSignature\":\"unchanged\"}")!;
         Check(legacy.EffectFingerprint is null && legacy.ConditionSignature == "unchanged" && !Ff7AutoPlayPolicy.HasConsumedEffectAlias(state, "source", legacy), "Old metadata-null observations changed condition identity or gained alias suppression.");
         Console.WriteLine("PASS native effect alias identity, input/host exclusions, real-owner adoption, current consumption and old metadata compatibility");
+    }
+
+    private static void CheckInputGatedDialogueProof()
+    {
+        FieldMachine Machine(byte[] body)
+        {
+            ushort[][] entries = [new ushort[32], new ushort[32]];
+            entries[1][1] = entries[1][2] = 2;
+            FieldMachine machine = new(new FieldProgram([0, 0, .. body], entries));
+            machine.Initialize();
+            return machine;
+        }
+        byte[] message = [0x40, 0, 0];
+        byte[] Gate(byte[] body) => [0x31, 0x20, 0x02, checked((byte)(body.Length + 1)), .. body, 0];
+        Check(Machine(Gate(message)).ProveEntryInputDialogueEffect(1, 1) && Machine(Gate([0x33, 1, 0x4A, 1, .. message, 0x33, 0, 0x4A, 0])).ProveEntryInputDialogueEffect(1, 1), "A literal entry-button dialogue body did not receive its narrow effect proof.");
+        foreach (byte[] rejected in new byte[][] { [.. message, 0x31, 0x20, 0x02, 1], [0x01, 1, 1, .. message], [0x80, 0x10, 0, 1, .. message], [0x48, 0, 0, 0, 0, 1, 0], [0x99, 0, 0, .. message], [0x10, 1, .. message], [0x33, 2, .. message], [0x33, 1, .. message], [0x4A, 1, .. message], [0x33, 0, .. message] })
+        {
+            Check(!Machine(Gate(rejected)).ProveEntryInputDialogueEffect(1, 1), "A late input, child request, write, choice, random, jump or unknown control acquired a linear dialogue proof.");
+        }
+        Check(!Machine([0x31, 0x20, 0x02, 1, .. message, 0]).ProveEntryInputDialogueEffect(1, 1), "A non-RET rejected-input branch acquired a dialogue effect proof.");
+        Ff7AutoPlayTarget first = new("first", 1, 1, Ff7AutoPlayTargetKind.LineCross, "first-condition", false, default, EntryInputContract: "pressed-mapped-mask") { EffectFingerprint = "effect-entry-input-dialogue:1:exact-native-entry" };
+        var second = first with { Id = "actual", Script = 2, Kind = Ff7AutoPlayTargetKind.LinePush, ConditionFingerprint = "actual-condition" };
+        Ff7AutoPlayActiveEvent planned = new("visit", first.Id, first.ConditionFingerprint, 1, 1, 1, first.Kind, null, 1, "before");
+        FieldExternalScriptAdmission admission = new(1, 2, 1, true, true);
+        var adopted = Ff7AutoPlayPolicy.AdoptEffectAlias(planned, first, second, admission, 2, 2);
+        Check(adopted is { Script: 2, EventId: "actual", Accepted: false } && adopted.ConditionFingerprint == second.ConditionFingerprint, "A proved gated alias lost actual script/condition ownership.");
+        Check(Ff7AutoPlayPolicy.AdoptEffectAlias(planned, first, second with { EntryInputContract = "different-mask" }, admission, 2, 2) is null && Ff7AutoPlayPolicy.AdoptEffectAlias(planned, first with { EffectFingerprint = null }, second with { EffectFingerprint = null }, admission, 2, 2) is null, "Different input or null proof acquired alias ownership.");
+        FieldScriptInputDemand demand = Machine(Gate(message)).ReadEntryInputDemand(1, 1)!;
+        Check(!Ff7AutoPlayScriptedInput.IsInputSatisfied(demand, new()) && Ff7AutoPlayScriptedInput.IsInputSatisfied(demand, new(Pressed: 0x20)), "A real admitted native input gate was assumed without its actual button edge.");
     }
 
     private static FieldScriptAnalysis Analyze(byte[] body)

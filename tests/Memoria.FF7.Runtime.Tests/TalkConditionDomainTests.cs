@@ -106,6 +106,44 @@ internal static class TalkConditionDomainTests
         Console.WriteLine($"PASS original condition-aware native talk admission; callbacks={controller.Steps}; actualCF={admitted}; triangle={session.Host.Process.Actors.Single(actor => actor.PlayerControlled).Triangle}; elapsed={elapsed.Elapsed.TotalSeconds:F3}s; App elapsed clock bridge active; old goal credit/source unchanged");
     }
 
+    internal static void RunSiblingOriginal()
+    {
+        string path = Environment.GetEnvironmentVariable("MEMORIA_FF7_TALK_CONDITION_SAVE") ?? throw new InvalidOperationException("Select a native contact fixture.");
+        string game = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR") ?? throw new InvalidOperationException("Select original resources.");
+        byte[] bytes = File.ReadAllBytes(path);
+        using MemoryStream input = new(bytes, writable: false);
+        using Ff7Session session = Ff7Session.Restore(Ff7Installation.Discover(game), CombinedSessionCodec.Read(input).Ff7!);
+        using Ff7AutoPlayPolicy policy = new(session, (_, _) => throw new InvalidOperationException("The sibling continuation reached a choice boundary."));
+        var old = policy.State.Active ?? throw new InvalidOperationException("The fixture lacks an ordinary contact owner.");
+        var oldCoverage = policy.State.Coverage.Visits.Single(visit => visit.Visit.Key == old.VisitId).Events.Single(item => item.Event.Id == old.EventId);
+        string history = JsonSerializer.Serialize(new { oldCoverage.Completed, oldCoverage.Routes, oldCoverage.Conditions!.ConsumedEntries, oldCoverage.Conditions.ConsumedExits });
+        int sourceMap = session.MapId;
+        string? admission = null;
+        session.NativeInteractionScriptRequested += request =>
+        {
+            if (request.Accepted && request.Started)
+            {
+                admission = $"{request.Entity}/{request.Script}";
+                Check(request.Entity != old.Entity || request.Script != old.Script, "An unknown contact search replayed its consumed interaction.");
+            }
+        };
+        Ff7AutoPlayController controller = new(session, policy.ChooseInput, advanceTick: () => session.AdvanceTick(advanceClock: false), chooseDialogueSelection: policy.ChooseDialogueSelection, readPlanningProgress: () => policy.WorkProgress, readFrontierProgress: () => policy.FrontierProgress);
+        controller.Start();
+        Stopwatch elapsed = Stopwatch.StartNew();
+        TimeSpan previous = TimeSpan.Zero;
+        for (int poll = 0; poll < 2048 && controller.Running && session.MapId == sourceMap && session.Battle is null && controller.Steps < 128 && elapsed.Elapsed < TimeSpan.FromSeconds(10); poll++)
+        {
+            TimeSpan now = elapsed.Elapsed;
+            session.AdvanceClock(now - previous);
+            previous = now;
+            controller.Advance(1);
+        }
+        Check(controller.Error is null && session.MapId != sourceMap, $"Unknown-contact sibling scheduling reached no field handoff: map={session.MapId}, steps={controller.Steps}, owner={policy.State.Active?.EventId}, goal={policy.State.NavigationGoal}, admission={admission}, status={policy.Status}, error={controller.Error}.");
+        Check(history == JsonSerializer.Serialize(new { oldCoverage.Completed, oldCoverage.Routes, oldCoverage.Conditions!.ConsumedEntries, oldCoverage.Conditions.ConsumedExits }), "Sibling travel credited the unknown contact owner.");
+        Check(bytes.AsSpan().SequenceEqual(File.ReadAllBytes(path)), "Sibling continuation changed its original source.");
+        Console.WriteLine($"PASS original unknown-contact sibling native field handoff {sourceMap}->{session.MapId}; callbacks={controller.Steps}; admission={admission}; owner={policy.State.Active?.EventId}; goal={policy.State.NavigationGoal}; elapsed={elapsed.Elapsed.TotalSeconds:F3}s; source/contact history unchanged");
+    }
+
     private static void Check(bool condition, string message)
     {
         if (!condition)

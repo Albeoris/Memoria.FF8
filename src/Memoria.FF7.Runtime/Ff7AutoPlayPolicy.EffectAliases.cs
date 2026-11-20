@@ -28,6 +28,10 @@ public sealed partial class Ff7AutoPlayPolicy
         {
             return;
         }
+        if (actual.EntryInputContract is not null && !scriptedInput.IsEntryInputSatisfied(actual.Entity, actual.Script))
+        {
+            return;
+        }
         Ff7AutoPlayActiveEvent? adopted = AdoptEffectAlias(planned, expected, actual, admission, expectedEntry, actualEntry);
         if (adopted is null)
         {
@@ -44,11 +48,16 @@ public sealed partial class Ff7AutoPlayPolicy
 
     internal static Ff7AutoPlayActiveEvent? AdoptEffectAlias(Ff7AutoPlayActiveEvent planned, Ff7AutoPlayTarget expected, Ff7AutoPlayTarget actual, FieldExternalScriptAdmission admission, int expectedEntry, int actualEntry)
     {
-        if (planned.Accepted || planned.Returned || planned.TransitionOwned || planned.CompletionRecorded || !admission.Accepted || !admission.Started || admission.Priority != 1 || planned.EventId != expected.Id || planned.ConditionFingerprint != expected.ConditionFingerprint || planned.Entity != expected.Entity || expected.Entity != actual.Entity || admission.Entity != actual.Entity || admission.Script != actual.Script || expectedEntry != actualEntry || expected.EffectFingerprint is null || expected.EffectFingerprint != actual.EffectFingerprint || !expected.AnalysisComplete || !actual.AnalysisComplete || expected.EntryInputContract is not null || actual.EntryInputContract is not null)
+        if (planned.Accepted || planned.Returned || planned.TransitionOwned || planned.CompletionRecorded || !admission.Accepted || !admission.Started || admission.Priority != 1 || planned.EventId != expected.Id || planned.ConditionFingerprint != expected.ConditionFingerprint || planned.Entity != expected.Entity || expected.Entity != actual.Entity || admission.Entity != actual.Entity || admission.Script != actual.Script || expectedEntry != actualEntry || expected.EffectFingerprint is null || expected.EffectFingerprint != actual.EffectFingerprint || !expected.AnalysisComplete || !actual.AnalysisComplete || !HasCompatibleEffectAliasInput(expected, actual))
         {
             return null;
         }
         return planned with { EventId = actual.Id, Script = actual.Script, Kind = actual.Kind, ConditionFingerprint = actual.ConditionFingerprint, NavigationProbeKey = null, EntryAvailabilityFingerprint = null, TravelRoute = null, TravelSelections = null };
+    }
+
+    internal static bool HasCompatibleEffectAliasInput(Ff7AutoPlayTarget expected, Ff7AutoPlayTarget actual)
+    {
+        return expected.EntryInputContract is null && actual.EntryInputContract is null || expected.EntryInputContract is not null && expected.EntryInputContract == actual.EntryInputContract && expected.EffectFingerprint?.StartsWith("effect-entry-input-dialogue:1:", StringComparison.Ordinal) == true;
     }
 
     internal static bool HasConsumedEffectAlias(Ff7AutoPlayState state, string visitId, AutoPlayEvent observed)
