@@ -3,6 +3,18 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--transition-exploration-original-only", StringComparer.Ordinal))
+{
+    NativeAutoPlayTransitionGuardTests.RunExplorationOriginal();
+    return 0;
+}
+
+if (args.Contains("--native-transition-guard-only", StringComparer.Ordinal))
+{
+    NativeAutoPlayTransitionGuardTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-synchronous-triangle-setup-only", StringComparer.Ordinal))
 {
     NativeSynchronousTriangleSetupTests.Run();

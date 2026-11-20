@@ -1,4 +1,6 @@
 using Memoria.FF7.Runtime;
+using Memoria.AutoPlay;
+using Memoria.FF7.Resources;
 
 internal static class NativeAutoPlayTransitionGuardTests
 {
@@ -6,6 +8,7 @@ internal static class NativeAutoPlayTransitionGuardTests
     {
         ExternalPublicationsDoNotConcealTransitionCycles();
         OriginalPublicationWitnesses();
+        AuthenticatedStaticSourceExploration();
         Ff7AutoPlayTransitionGuard guard = new();
         for (int generation = 0; generation < 6; generation++)
         {
@@ -22,6 +25,89 @@ internal static class NativeAutoPlayTransitionGuardTests
         {
             Check(!guard.Observe("field-a", 1, "unchanged-native-progress"), "Repeated observation of one native generation advanced transition history.");
         }
+    }
+
+    private static void AuthenticatedStaticSourceExploration()
+    {
+        string visit = "ff7:385:" + new string('A', 64);
+        AutoPlayEventCoverage<Ff7AutoPlayDeferral> Source(string id, string condition)
+        {
+            AutoPlayConditionCoverage conditions = new();
+            conditions.ConsumedEntries.Add(condition);
+            return new() { Event = new(id, AutoPlayEventKind.Transition, ConditionSignature: condition), Completed = true, Conditions = conditions, Routes = [new("destination", condition, false, null, TargetId: id)] };
+        }
+        Ff7AutoPlayState State(params AutoPlayEventCoverage<Ff7AutoPlayDeferral>[] entries)
+        {
+            Ff7AutoPlayState state = new();
+            state.Coverage.Visits.Add(new() { Visit = new(visit, "program"), Events = entries.ToList() });
+            return state;
+        }
+        Ff7AutoPlayTransitionGuard finite = new();
+        List<AutoPlayEventCoverage<Ff7AutoPlayDeferral>> completed = [];
+        for (int generation = 0; generation <= 12; generation++)
+        {
+            if (generation is 2 or 4 or 6)
+            {
+                completed.Add(Source($"gateway:{generation / 2 - 1}", "executed"));
+            }
+            Check(finite.Observe(generation % 2 == 0 ? "a" : "b", generation, "material", State(completed.ToArray())) == (generation == 12), "Finite distinct native gateway exploration or its later unchanged cycle was misclassified.");
+        }
+        foreach (string invalid in new[] { "legacy", "offered", "attempt", "wrong-condition", "wrong-target", "unknown", "duplicate", "new-condition", "restored-ledger" })
+        {
+            Ff7AutoPlayTransitionGuard guard = new();
+            for (int generation = 0; generation <= 6; generation++)
+            {
+                var source = Source(invalid == "unknown" ? $"dynamic:{generation}" : "gateway:0", "condition:" + (invalid == "new-condition" ? generation : 0));
+                if (invalid == "legacy")
+                {
+                    source.Conditions = null;
+                }
+                if (invalid == "offered")
+                {
+                    source.Completed = false;
+                }
+                if (invalid == "attempt")
+                {
+                    source.Routes.Clear();
+                    source.Unavailable = true;
+                }
+                if (invalid == "wrong-condition")
+                {
+                    source.Conditions!.ConsumedEntries.Clear();
+                }
+                if (invalid == "wrong-target")
+                {
+                    source.Routes = [new("destination", "condition:0", false, null, TargetId: "gateway:1")];
+                }
+                var state = invalid == "restored-ledger" && generation > 0 ? State() : invalid == "duplicate" ? State(source, source) : State(source);
+                Check(guard.Observe(generation % 2 == 0 ? "a" : "b", generation, "material", state) == (generation == 6), $"{invalid} source publications concealed a true unchanged cycle.");
+            }
+        }
+        Console.WriteLine("PASS finite authenticated static source exploration; duplicate, condition, offered, attempt, legacy and restored-ledger cycle negatives");
+    }
+
+    internal static void RunExplorationOriginal()
+    {
+        string path = Environment.GetEnvironmentVariable("MEMORIA_FF7_TRANSITION_EXPLORATION_SAVE")!;
+        byte[] bytes = File.ReadAllBytes(path);
+        using MemoryStream stream = new(bytes, false);
+        using Ff7Session session = Ff7Session.Restore(Ff7Installation.Discover(Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR")!), CombinedSessionCodec.Read(stream).Ff7!);
+        using Ff7AutoPlayPolicy policy = new(session, (_, _) => throw new InvalidOperationException("Unexpected choice boundary."));
+        bool admitted = false;
+        session.NativeInteractionScriptRequested += request => admitted |= request.Entity == 14 && request.Script == 1 && request.Accepted;
+        Ff7AutoPlayController controller = new(session, policy.ChooseInput, advanceTick: () => session.AdvanceTick(advanceClock: false), chooseDialogueSelection: policy.ChooseDialogueSelection, readPlanningProgress: () => policy.WorkProgress, readFrontierProgress: () => policy.FrontierProgress);
+        controller.Start();
+        var elapsed = System.Diagnostics.Stopwatch.StartNew();
+        int polls = 0;
+        while (controller.Running && !admitted && polls++ < 2000 && elapsed.Elapsed.TotalSeconds < 30)
+        {
+            controller.Advance(1);
+        }
+        var aliases = policy.State.Coverage.Visits.Single(visit => visit.Visit.Key.StartsWith("ff7:385:", StringComparison.Ordinal)).Events;
+        Check(aliases.Count(item => item.Completed && item.Conditions?.ConsumedEntries.Count > 0) == 3, "The finite distinct gateway sources did not complete.");
+        Console.WriteLine($"Original finite gateway exploration: callbacks={controller.Steps}, tick={session.Machine.Tick}, actor14Admitted={admitted}, active={policy.State.Active?.EventId}, physical={controller.PlanningProgress.PhysicalNodes}, detached={controller.PlanningProgress.DetachedNativeCallbacks}, error={controller.Error}");
+        Check(controller.Error is null && admitted, "Normal policy did not progress from finite gateway exploration to the next native source.");
+        Check(bytes.AsSpan().SequenceEqual(File.ReadAllBytes(path)), "The standalone source changed.");
     }
 
     private static void ExternalPublicationsDoNotConcealTransitionCycles()
