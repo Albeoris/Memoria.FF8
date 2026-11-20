@@ -606,7 +606,7 @@ public sealed partial class MenuController
                 bool reveal = !side.CanUseItem || menus.modPreviewUseItem;
                 CatalogMediaSide? media = menus.ModMediaSide(slot);
                 var image = media?.Image ?? side.Image;
-                float textHeight = image is null ? area.Height - 31 * scale : 60 * scale;
+                float textHeight = image is null ? area.Height - 31 * scale : (media is null ? 60 : 80) * scale;
                 UiRect body = new(area.X, area.Y + 31 * scale, area.Width, Math.Max(0, textHeight));
                 UiLabel label = (UiLabel)scroll.Children[0];
                 if (scroll.Bounds != body || label.Text != side.Text)
@@ -623,7 +623,22 @@ public sealed partial class MenuController
                 {
                     float top = area.Y + 31 * scale + textHeight;
                     float bottom = side.CanUseItem ? use.Bounds.Y - 8 : area.Bottom;
-                    canvas.RasterImage(image, new(area.X, top, area.Width, Math.Max(0, bottom - top)), slot, media?.ImageRevision ?? 0);
+                    UiRect pictureArea = new(area.X, top, area.Width, Math.Max(0, bottom - top));
+                    canvas.RasterImage(image, pictureArea, slot, media?.ImageRevision ?? 0);
+                    if (!pictureArea.IsEmpty && media is not null && menus.modPreviewMedia?.Playback is { IsPlaying: true } playback && media.PlayingVideoRate(playback.PositionSeconds) is { } rate)
+                    {
+                        (double pictureWidth, double pictureHeight) = media.FitVideoPicture(pictureArea.Width, pictureArea.Height);
+                        float fontSize = 15 * scale;
+                        float badgeWidth = canvas.MeasureText(rate, fontSize, (float)pictureWidth).Width + 12 * scale;
+                        float badgeHeight = 23 * scale;
+                        if (pictureWidth >= badgeWidth + 12 && pictureHeight >= badgeHeight + 12)
+                        {
+                            UiRect badge = new(pictureArea.X + (pictureArea.Width + (float)pictureWidth) / 2 - badgeWidth - 6,
+                                pictureArea.Y + (pictureArea.Height - (float)pictureHeight) / 2 + 6, badgeWidth, badgeHeight);
+                            canvas.Fill(badge, new UiColor(0, 0, 0, 192));
+                            canvas.Text(rate, fontSize, new(badge.X + 6 * scale, badge.Y, badge.Width - 12 * scale, badge.Height), new UiColor(255, 255, 255), UiAlignment.Center, UiTextFlow.SingleLine);
+                        }
+                    }
                 }
             }
         }

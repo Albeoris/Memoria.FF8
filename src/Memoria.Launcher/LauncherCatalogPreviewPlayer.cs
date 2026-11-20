@@ -169,8 +169,9 @@ internal sealed class LauncherCatalogPreviewPlayer
             updatingTimeline = false;
         }
         time.Text = moving ? $"Seeking… {Format(timeline.Value)}" : $"{Format(Playback.PositionSeconds)} / {Format(Playback.DurationSeconds)}";
-        before.Update(Playback.Before);
-        after.Update(Playback.After);
+        double? playingPosition = Playback.IsPlaying ? Playback.PositionSeconds : null;
+        before.Update(Playback.Before, playingPosition);
+        after.Update(Playback.After, playingPosition);
     }
 
     private void SetStatus(string message)
@@ -207,6 +208,9 @@ internal sealed class LauncherCatalogPreviewPlayer
         private readonly string unavailable;
         private readonly TextBlock description = new() { TextWrapping = TextWrapping.Wrap };
         private readonly Image video = new() { Stretch = Stretch.Uniform };
+        private readonly Grid videoSurface = new() { ClipToBounds = true };
+        private readonly TextBlock rate = new() { Name = "VideoFrameRate", Foreground = Brushes.White, FontWeight = FontWeight.SemiBold };
+        private readonly Border rateBadge;
         private CatalogMediaSide? side;
         private string? error;
         private long revision;
@@ -219,15 +223,29 @@ internal sealed class LauncherCatalogPreviewPlayer
             Grid pane = new() { RowDefinitions = new RowDefinitions("Auto,Auto,*"), RowSpacing = 8, Margin = new Thickness(10) };
             pane.Children.Add(new TextBlock { Text = label, FontSize = 19, FontWeight = FontWeight.SemiBold });
             Grid.SetRow(description, 1);
-            Grid.SetRow(video, 2);
+            rateBadge = new()
+            {
+                Child = rate,
+                Background = new SolidColorBrush(Color.FromArgb(192, 0, 0, 0)),
+                CornerRadius = new CornerRadius(4),
+                Padding = new Thickness(6, 2),
+                HorizontalAlignment = HorizontalAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Top,
+                IsVisible = false,
+                IsHitTestVisible = false
+            };
+            videoSurface.Children.Add(video);
+            videoSurface.Children.Add(rateBadge);
+            videoSurface.SizeChanged += (_, _) => PositionRateBadge();
+            Grid.SetRow(videoSurface, 2);
             pane.Children.Add(description);
-            pane.Children.Add(video);
+            pane.Children.Add(videoSurface);
             Control = pane;
         }
 
         public Control Control { get; }
 
-        public void Update(CatalogMediaSide input)
+        public void Update(CatalogMediaSide input, double? playingPosition)
         {
             bool replaced = !ReferenceEquals(side, input);
             if (replaced || error != input.Error)
@@ -236,6 +254,13 @@ internal sealed class LauncherCatalogPreviewPlayer
                 error = input.Error;
             }
             side = input;
+            string? fps = playingPosition is double seconds ? input.PlayingVideoRate(seconds) : null;
+            rate.Text = fps;
+            rateBadge.IsVisible = fps is not null;
+            if (replaced)
+            {
+                PositionRateBadge();
+            }
             if (input.Image is not { } image)
             {
                 video.IsVisible = false;
@@ -262,6 +287,17 @@ internal sealed class LauncherCatalogPreviewPlayer
                 Marshal.Copy(row, 0, IntPtr.Add(target.Address, y * target.RowBytes), row.Length);
             }
             video.InvalidateVisual();
+        }
+
+        private void PositionRateBadge()
+        {
+            if (side is null)
+            {
+                return;
+            }
+            Size viewport = videoSurface.Bounds.Size;
+            (double width, double height) = side.FitVideoPicture(viewport.Width, viewport.Height);
+            rateBadge.Margin = new Thickness(0, (viewport.Height - height) / 2 + 6, (viewport.Width - width) / 2 + 6, 0);
         }
 
         public void Dispose()

@@ -39,6 +39,8 @@ internal sealed class CatalogMediaSide : IDisposable
     public double DurationSeconds => asset?.Duration ?? 0;
     public bool HasAudio => asset?.AudioDuration > 0 && !Volatile.Read(ref audioFailed);
     public bool HasVideo => asset?.VideoDuration > 0;
+    public string? VideoDetails => asset?.VideoDetails;
+    public string? AudioDetails => asset?.AudioDetails;
     public string? Error { get; private set; }
     public PixelImage? Image { get; private set; }
     public long ImageRevision { get; private set; }
@@ -47,6 +49,19 @@ internal sealed class CatalogMediaSide : IDisposable
 
     public long VideoAvailableThrough => videoWorker is null || videoWorker.IsCompleted ? long.MaxValue : Volatile.Read(ref videoAvailableThrough);
     public bool AudioAvailable => Volatile.Read(ref audioFailed) || audioPcm is null || audioPcm.HasBufferedFrame || audioPcm.IsCompleted;
+
+    public string? PlayingVideoRate(double positionSeconds)
+    {
+        return Image is not null && asset is { } source && positionSeconds < source.VideoDuration ? source.VideoRateText : null;
+    }
+
+    public (double Width, double Height) FitVideoPicture(double viewportWidth, double viewportHeight)
+    {
+        // The decoder centers the scaled picture inside a padded preview frame.
+        double scale = Math.Min(viewportWidth / Width, viewportHeight / Height);
+        double aspect = asset?.VideoAspectRatio ?? (double)Width / Height;
+        return (Math.Min(Width, Height * aspect) * scale, Math.Min(Height, Width / aspect) * scale);
+    }
 
     public static CatalogMediaSide Unavailable(string? name, string error) => new(name, error: error);
 

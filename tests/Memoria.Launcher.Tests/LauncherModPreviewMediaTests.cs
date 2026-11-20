@@ -62,6 +62,9 @@ public sealed class LauncherModPreviewMediaTests(LauncherHeadlessFixture fixture
                     Assert.Equal(video, media.Playback.Before.Image is not null);
                     Assert.Equal(video, media.Playback.After.Image is not null);
 
+                    CheckPane(player.Before, media.Playback.Before, playing: false);
+                    CheckPane(player.After, media.Playback.After, playing: false);
+
                     Slider slider = Assert.Single(player.Controls.GetVisualDescendants().OfType<Slider>());
                     Assert.True(slider.Bounds.Width > 400);
                     Assert.True(slider.Maximum > 12);
@@ -78,6 +81,8 @@ public sealed class LauncherModPreviewMediaTests(LauncherHeadlessFixture fixture
                     Assert.Equal("Sound · After", sound.Content);
                     Assert.True(media.Playback.PositionSeconds >= position);
                     Assert.Equal("Pause", play.Content);
+                    CheckPane(player.Before, media.Playback.Before, playing: true);
+                    CheckPane(player.After, media.Playback.After, playing: true);
 
                     CatalogMediaPlayback previous = media.Playback;
                     double target = slider.Maximum * 0.7;
@@ -90,11 +95,33 @@ public sealed class LauncherModPreviewMediaTests(LauncherHeadlessFixture fixture
                     Assert.True(media.Playback.IsPlaying);
                     Assert.InRange(media.Playback.PositionSeconds, target - 0.01, target + 1);
                     Assert.Equal(video, media.Playback.After.Image is not null);
+                    play.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    CheckPane(player.Before, media.Playback.Before, playing: false);
+                    CheckPane(player.After, media.Playback.After, playing: false);
                 }
                 finally
                 {
                     window.Close();
                     await player.StopAsync();
+                }
+
+                void CheckPane(Control pane, CatalogMediaSide side, bool playing)
+                {
+                    Dispatcher.UIThread.RunJobs();
+                    TextBlock[] texts = pane.GetVisualDescendants().OfType<TextBlock>().ToArray();
+                    Assert.Contains(texts, text => text.Text?.Contains("Audio", StringComparison.Ordinal) == true &&
+                        text.Text.Contains("Hz", StringComparison.Ordinal) && text.Text.Contains("channel", StringComparison.Ordinal));
+                    Assert.Equal(video, texts.Any(text => text.Text?.Contains(" × ", StringComparison.Ordinal) == true));
+                    TextBlock fps = Assert.Single(texts, text => text.Name == "VideoFrameRate");
+                    Border badge = Assert.IsType<Border>(fps.Parent);
+                    Assert.Equal(playing && video, badge.IsVisible);
+                    if (playing && video)
+                    {
+                        Assert.Equal(side.PlayingVideoRate(media.Playback.PositionSeconds), fps.Text);
+                        Grid surface = Assert.IsType<Grid>(badge.Parent);
+                        Assert.True(badge.Bounds.Left > surface.Bounds.Width / 2);
+                        Assert.True(badge.Bounds.Top < surface.Bounds.Height / 2);
+                    }
                 }
 
                 Button FindButton(string label) => Assert.Single(player.Controls.GetVisualDescendants().OfType<Button>(), button => Equals(button.Content, label));

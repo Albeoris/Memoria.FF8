@@ -39,6 +39,8 @@ public sealed class CatalogMediaPlaybackTests
         Assert.True(playback.Before.HasAudio);
         Assert.True(playback.After.HasAudio);
         Assert.False(playback.IsPlaying);
+        Assert.Equal("Before.wav\nAudio · 44100 Hz · 2 channels · pcm_s16le · 1411.2 kb/s", CatalogMediaComparison.Describe(playback.Before, "").Text);
+        Assert.Null(playback.Before.PlayingVideoRate(0));
 
         playback.ListenAfter = false;
         playback.SetPlaying(true);
@@ -120,6 +122,9 @@ public sealed class CatalogMediaPlaybackTests
             Assert.Equal(14d, playback.DurationSeconds);
             Assert.True(playback.Before.Image![320, 180].R < 20);
             Assert.True(playback.After.Image![320, 180].R > 200);
+            Assert.Contains("Video · 160 × 90 · 17 FPS · mpeg4", CatalogMediaComparison.Describe(playback.Before, "").Text);
+            Assert.Equal("17 FPS", playback.Before.PlayingVideoRate(0));
+            Assert.Equal("48 FPS", playback.After.PlayingVideoRate(0));
 
             Assert.True(playback.Before.HasAudio);
             Assert.True(playback.After.HasAudio);
@@ -140,6 +145,8 @@ public sealed class CatalogMediaPlaybackTests
             await using CatalogMediaPlayback seek = await playback.SeekAsync(12, token);
             playback.Dispose();
             Assert.Equal(12d, seek.PositionSeconds);
+            Assert.Null(seek.Before.PlayingVideoRate(seek.PositionSeconds));
+            Assert.Equal("48 FPS", seek.After.PlayingVideoRate(seek.PositionSeconds));
             Assert.True(seek.Before.Image![320, 180].R > 200);
             Assert.True(seek.Before.Image[320, 180].G > 200);
             Assert.True(seek.After.Image![320, 180].R > 200);

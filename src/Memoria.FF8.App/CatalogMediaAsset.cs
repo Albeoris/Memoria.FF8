@@ -14,7 +14,7 @@ internal sealed class CatalogMediaAsset
     private readonly MovieFileVersion? version;
     private int references = 1;
 
-    private CatalogMediaAsset(string path, bool temporary, MovieFileVersion? version, string ffmpeg, double videoDuration, double audioDuration, double videoFrameSeconds)
+    private CatalogMediaAsset(string path, bool temporary, MovieFileVersion? version, string ffmpeg, double videoDuration, double audioDuration, double? framesPerSecond, double? videoAspectRatio, string? videoDetails, string? audioDetails)
     {
         Path = path;
         this.temporary = temporary;
@@ -22,7 +22,11 @@ internal sealed class CatalogMediaAsset
         FFmpeg = ffmpeg;
         VideoDuration = videoDuration;
         AudioDuration = audioDuration;
-        VideoFrameSeconds = videoFrameSeconds;
+        VideoFrameSeconds = framesPerSecond is double fps ? 1 / fps : 1;
+        VideoRateText = FormatFrameRate(framesPerSecond);
+        VideoAspectRatio = videoAspectRatio;
+        VideoDetails = videoDetails;
+        AudioDetails = audioDetails;
     }
 
     public string Path { get; }
@@ -30,6 +34,10 @@ internal sealed class CatalogMediaAsset
     public double VideoDuration { get; }
     public double AudioDuration { get; }
     public double VideoFrameSeconds { get; }
+    public string? VideoRateText { get; }
+    public double? VideoAspectRatio { get; }
+    public string? VideoDetails { get; }
+    public string? AudioDetails { get; }
     public double Duration => Math.Max(VideoDuration, AudioDuration);
 
     public static async Task<CatalogMediaAsset> OpenAsync(string ffprobe, string ffmpeg, ModPreviewMediaInput input, bool video, CancellationToken token)
@@ -64,7 +72,7 @@ internal sealed class CatalogMediaAsset
             }
             MovieFileVersion? sourceVersion = MovieFileVersion.Capture(path);
             ProcessStartInfo probe = CreateStart(ffprobe, path);
-            Add(probe, "-show_entries", "stream=codec_type,start_time,duration,avg_frame_rate:stream_disposition=attached_pic:stream_tags=DURATION:format=start_time,duration", "-of", "json", "-i", path);
+            Add(probe, "-show_entries", "stream=codec_type,codec_name,start_time,duration,width,height,avg_frame_rate,sample_rate,channels,bit_rate:stream_disposition=attached_pic:stream_tags=DURATION:format=start_time,duration", "-of", "json", "-i", path);
             byte[] json = await AudioDecodeProcess.RunAsync(probe, null, token, TimeSpan.FromSeconds(20)).ConfigureAwait(false);
             using JsonDocument result = JsonDocument.Parse(json);
             JsonElement root = result.RootElement;
@@ -72,7 +80,10 @@ internal sealed class CatalogMediaAsset
             double origin = format.ValueKind == JsonValueKind.Object ? ReadTime(format, "start_time") ?? 0 : 0;
             double videoDuration = 0;
             double audioDuration = 0;
-            double videoFrameSeconds = 1;
+            double? framesPerSecond = null;
+            double? videoAspectRatio = null;
+            string? videoDetails = null;
+            string? audioDetails = null;
             bool foundVideo = false;
             bool foundAudio = false;
             foreach (JsonElement stream in root.GetProperty("streams").EnumerateArray())
@@ -82,12 +93,26 @@ internal sealed class CatalogMediaAsset
                 {
                     foundVideo = true;
                     videoDuration = ReadStreamEnd(stream, origin);
-                    videoFrameSeconds = ReadVideoFrameSeconds(stream);
+                    framesPerSecond = ReadFrameRate(stream);
+                    int? width = ReadPositiveInt(stream, "width");
+                    int? height = ReadPositiveInt(stream, "height");
+                    string? resolution = null;
+                    if (width is int w && height is int h)
+                    {
+                        videoAspectRatio = (double)w / h;
+                        resolution = FormattableString.Invariant($"{w} × {h}");
+                    }
+                    videoDetails = DescribeStream("Video", stream, resolution, FormatFrameRate(framesPerSecond));
                 }
                 if (!foundAudio && type == "audio")
                 {
                     foundAudio = true;
                     audioDuration = ReadStreamEnd(stream, origin);
+                    int? sampleRate = ReadPositiveInt(stream, "sample_rate");
+                    int? channels = ReadPositiveInt(stream, "channels");
+                    audioDetails = DescribeStream(input.WriteWave is null ? "Audio" : "Audio (rendered)", stream,
+                        sampleRate is int hz ? FormattableString.Invariant($"{hz} Hz") : null,
+                        channels is int count ? FormattableString.Invariant($"{count} {(count == 1 ? "channel" : "channels")}") : null);
                 }
             }
 
@@ -103,7 +128,7 @@ internal sealed class CatalogMediaAsset
             double videoEnd = foundVideo ? (videoDuration > 0 ? videoDuration : duration) : 0;
             double audioEnd = foundAudio ? (audioDuration > 0 ? audioDuration : duration) : 0;
             sourceVersion?.Validate();
-            return new(path, temporary is not null, sourceVersion, ffmpeg, videoEnd, audioEnd, videoFrameSeconds);
+            return new(path, temporary is not null, sourceVersion, ffmpeg, videoEnd, audioEnd, framesPerSecond, videoAspectRatio, videoDetails, audioDetails);
         }
         catch
         {
@@ -140,7 +165,43 @@ internal sealed class CatalogMediaAsset
             double.IsFinite(seconds) && Math.Abs(seconds) < long.MaxValue / (double)CatalogMediaPlayback.SampleRate ? seconds : null;
     }
 
-    private static double ReadVideoFrameSeconds(JsonElement stream)
+    private static int? ReadPositiveInt(JsonElement stream, string property)
+    {
+        if (!stream.TryGetProperty(property, out JsonElement value))
+        {
+            return null;
+        }
+        int number = 0;
+        bool parsed = value.ValueKind switch
+        {
+            JsonValueKind.Number => value.TryGetInt32(out number),
+            JsonValueKind.String => int.TryParse(value.GetString(), CultureInfo.InvariantCulture, out number),
+            _ => false
+        };
+        return parsed && number > 0 ? number : null;
+    }
+
+    private static string DescribeStream(string label, JsonElement stream, params string?[] characteristics)
+    {
+        List<string> parts = [label];
+        parts.AddRange(characteristics.OfType<string>());
+        if (stream.TryGetProperty("codec_name", out JsonElement codec) && codec.ValueKind == JsonValueKind.String && codec.GetString() is { Length: > 0 } name && name != "unknown")
+        {
+            parts.Add(name);
+        }
+        if (ReadPositiveInt(stream, "bit_rate") is int bitrate)
+        {
+            parts.Add(FormattableString.Invariant($"{bitrate / 1000d:0.###} kb/s"));
+        }
+        return string.Join(" · ", parts);
+    }
+
+    private static string? FormatFrameRate(double? framesPerSecond)
+    {
+        return framesPerSecond is double rate ? FormattableString.Invariant($"{rate:0.##} FPS") : null;
+    }
+
+    private static double? ReadFrameRate(JsonElement stream)
     {
         if (stream.TryGetProperty("avg_frame_rate", out JsonElement value) && value.GetString() is { } text)
         {
@@ -148,10 +209,10 @@ internal sealed class CatalogMediaAsset
             if (parts.Length == 2 && int.TryParse(parts[0], CultureInfo.InvariantCulture, out int numerator) && numerator > 0 &&
                 int.TryParse(parts[1], CultureInfo.InvariantCulture, out int denominator) && denominator > 0)
             {
-                return (double)denominator / numerator;
+                return (double)numerator / denominator;
             }
         }
-        return 1;
+        return null;
     }
 
     private static void Materialize(ModPreviewMediaInput input, string path, CancellationToken token)

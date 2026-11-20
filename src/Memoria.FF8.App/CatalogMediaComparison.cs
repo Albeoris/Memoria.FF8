@@ -68,10 +68,23 @@ internal sealed class CatalogMediaComparison(ModPreviewMediaSources sources, Cat
         {
             return new(unavailable);
         }
+        List<string> lines = [side.Name];
+        if (side.VideoDetails is { } video)
+        {
+            lines.Add(video);
+        }
+        if (side.AudioDetails is { } audio)
+        {
+            lines.Add(audio);
+        }
+        else if (side.HasVideo)
+        {
+            lines.Add("No audio track.");
+        }
         if (side.Error is { Length: > 0 } error)
         {
-            return new($"{side.Name}\n{error}");
+            lines.Add(error);
         }
-        return new(side.HasVideo && !side.HasAudio ? $"{side.Name}\nNo audio track." : side.Name);
+        return new(string.Join("\n", lines));
     }
 }
