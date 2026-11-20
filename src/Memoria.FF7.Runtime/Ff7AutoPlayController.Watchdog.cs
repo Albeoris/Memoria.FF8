@@ -4,15 +4,20 @@ namespace Memoria.FF7.Runtime;
 
 public sealed partial class Ff7AutoPlayController
 {
-    private void ObserveProgress(string progress)
+    private void ObserveProgress(string progress, Ff7SessionSave? observation = null)
     {
-        semanticWatchdog.Observe(progress, readFrontierProgress?.Invoke());
+        bool advancedMovie = observation is not null && movieProgress.Observe(observation, session.Machine);
+        if (observation is null)
+        {
+            movieProgress.Reset();
+        }
+        semanticWatchdog.Observe(progress, readFrontierProgress?.Invoke(), advancedMovie);
         progress += ":physical-planning:" + driver.PhysicalPlanningWork;
         if (readPlanningProgress?.Invoke() is string planning)
         {
             progress += ":planning:" + planning;
         }
-        if (progressWatchdog.Observe(progress))
+        if (progressWatchdog.Observe(progress, advancedMovie))
         {
             deadline.Reset();
         }
@@ -88,7 +93,7 @@ internal sealed class Ff7AutoPlayProgressWatchdog
         idleSteps = 0;
     }
 
-    public bool Observe(string progress)
+    public bool Observe(string progress, bool advancedMovie = false)
     {
         if (recentProgress.Add(progress))
         {
@@ -97,6 +102,11 @@ internal sealed class Ff7AutoPlayProgressWatchdog
             {
                 recentProgress.Remove(progressOrder.Dequeue());
             }
+            idleSteps = 0;
+            return true;
+        }
+        if (advancedMovie)
+        {
             idleSteps = 0;
             return true;
         }
@@ -125,13 +135,56 @@ internal sealed class Ff7AutoPlaySemanticWatchdog
         observationPending = true;
     }
 
-    public bool Observe(string nativeProgress, string? frontierProgress)
+    public bool Observe(string nativeProgress, string? frontierProgress, bool advancedMovie = false)
     {
-        if (!observationPending)
+        if (!observationPending && !advancedMovie)
         {
             return false;
         }
         observationPending = false;
-        return progress.Observe(nativeProgress + ":frontier:" + frontierProgress);
+        return progress.Observe(nativeProgress + ":frontier:" + frontierProgress, advancedMovie);
+    }
+}
+
+/// <summary>Recognizes actual frame advancement within an authenticated native movie owner, without treating owner allocation as progress.</summary>
+internal sealed class Ff7AutoPlayMovieProgress
+{
+    private sealed record Owner(object Machine, long Generation, string Program, long Request, int Movie, int Entity, int Priority, int ProgramCounter);
+    private Owner? owner;
+    private int highestFrame;
+
+    public void Reset()
+    {
+        owner = null;
+        highestFrame = -1;
+    }
+
+    public bool Observe(Ff7SessionSave state, object machine)
+    {
+        Ff7FieldProcess process = state.Process;
+        if (state.World is not null || process.Movie is not { Playing: true, Completed: false, RequestId: long id, Frame: >= 0 } movie || process.GlobalCommand != Ff7GlobalCommand.Movie || process.GlobalRequestId != id)
+        {
+            Reset();
+            return false;
+        }
+        FieldHostRequest? request = (state.Vm.PendingRequests ?? []).SingleOrDefault(request => request.Id == id);
+        if (request is not { Command: FieldMovieCommand { Operation: FieldMovieOperation.Play }, Priority: >= 0 and < 8 } || (uint)request.Entity >= state.Vm.Entities.Length || state.Vm.Entities[request.Entity].Priority != request.Priority || state.Vm.Entities[request.Entity].ProgramCounter != request.ProgramCounter)
+        {
+            Reset();
+            return false;
+        }
+        Owner current = new(machine, state.FieldGeneration, state.Vm.ProgramIdentity, id, movie.PreparedId, request.Entity, request.Priority, request.ProgramCounter);
+        if (owner != current)
+        {
+            owner = current;
+            highestFrame = movie.Frame;
+            return false;
+        }
+        if (movie.Frame <= highestFrame)
+        {
+            return false;
+        }
+        highestFrame = movie.Frame;
+        return true;
     }
 }

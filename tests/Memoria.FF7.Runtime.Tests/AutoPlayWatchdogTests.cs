@@ -6,6 +6,7 @@ internal static class AutoPlayWatchdogTests
 {
     public static void Run()
     {
+        AuthenticatedReplayedMoviesRenewProgress();
         PlanningPollsDoNotSpendSemanticCallbacks();
         OwnedBlockingAnimationFramesRenewProgress();
         FieldAllocationsDoNotRenewSemanticProgress();
@@ -90,6 +91,134 @@ internal static class AutoPlayWatchdogTests
             Check(initial != baseline, "Unowned animation retained the genuine blocking phase witness.");
         }
         Check(initial == Ff7AutoPlayController.FieldProgress(field with { Vm = field.Vm with { PendingRequests = [request with { Id = 99 }] }, Process = field.Process with { AnimationRequests = [new(99, 0)] } }), "Reallocating an otherwise identical blocking request invented progress.");
+    }
+
+    private static Ff7SessionSave MovieState()
+    {
+        FieldHostRequest request = new(1, 0, 6, 10, new FieldMovieCommand(FieldMovieOperation.Play));
+        return new()
+        {
+            ResourceProfile = "profile",
+            Language = "en",
+            FieldName = "transport",
+            FieldGeneration = 1,
+            Vm = new(1, FieldMachine.SemanticProfile, "movie-program", 1, true, new byte[1280], new byte[256], [new(10, 6, 0, new int[8], new FieldSyncState[8], Enumerable.Repeat(-1, 8).ToArray())], PendingRequests: [request]),
+            Progress = new() { InitialKernelData = [], Characters = [], Party = [], Inventory = [], Materia = [] },
+            Process = new() { Movie = new(15, true, 0, false, 1), GlobalCommand = Ff7GlobalCommand.Movie, GlobalRequestId = 1 }
+        };
+    }
+
+    private static void AuthenticatedReplayedMoviesRenewProgress()
+    {
+        CheckReplayedMovie(MovieState(), 49);
+        Ff7SessionSave state = MovieState();
+        object machine = new();
+        Ff7AutoPlayMovieProgress movie = new();
+        Check(!movie.Observe(state, machine), "An occurrence allocation alone invented movie progress.");
+        Check(movie.Observe(state with { Process = state.Process with { Movie = state.Process.Movie! with { Frame = 1 } } }, machine), "Actual increasing frame did not renew its authenticated movie owner.");
+        Check(!movie.Observe(state, machine) && !movie.Observe(state with { Process = state.Process with { Movie = state.Process.Movie! with { Frame = 1 } } }, machine), "Backward/repeated frames renewed progress.");
+        Check(!movie.Observe(state with { FieldGeneration = 2 }, machine), "A field occurrence alone renewed movie progress.");
+        Check(!movie.Observe(state with { FieldGeneration = 2 }, new object()), "A new machine alone renewed movie progress.");
+        Ff7SessionSave newRequest = state with { Vm = state.Vm with { PendingRequests = [state.Vm.PendingRequests![0] with { Id = 2 }] }, Process = state.Process with { Movie = state.Process.Movie! with { RequestId = 2 }, GlobalRequestId = 2 } };
+        Check(!movie.Observe(newRequest, machine), "A new request alone renewed movie progress.");
+        foreach (Ff7SessionSave wrong in new[]
+        {
+            state with { Process = state.Process with { GlobalCommand = Ff7GlobalCommand.None } },
+            state with { Process = state.Process with { GlobalRequestId = 2 } },
+            state with { Process = state.Process with { Movie = state.Process.Movie! with { Playing = false } } },
+            state with { Process = state.Process with { Movie = state.Process.Movie! with { Completed = true } } },
+            state with { Vm = state.Vm with { PendingRequests = [] } },
+            state with { Vm = state.Vm with { Entities = [state.Vm.Entities[0] with { Priority = 7 }] } },
+            state with { Vm = state.Vm with { Entities = [state.Vm.Entities[0] with { ProgramCounter = 11 }] } },
+            state with { Vm = state.Vm with { PendingRequests = [state.Vm.PendingRequests![0] with { Command = new FieldMovieCommand(FieldMovieOperation.Prepare, 15) }] } }
+        })
+        {
+            movie.Reset();
+            Check(!movie.Observe(wrong, machine) && !movie.Observe(wrong with { Process = wrong.Process with { Movie = wrong.Process.Movie! with { Frame = 1 } } }, machine), "An unowned/wrong native movie request renewed progress.");
+        }
+        Ff7AutoPlayProgressWatchdog frozen = new();
+        movie.Reset();
+        frozen.Observe(Ff7AutoPlayController.FieldProgress(state), movie.Observe(state, machine));
+        for (int step = 1; step < Ff7AutoPlayProgressWatchdog.IdleStepLimit; step++)
+        {
+            Ff7SessionSave reallocated = state with { FieldGeneration = step + 1 };
+            Check(!frozen.Observe(Ff7AutoPlayController.FieldProgress(reallocated), movie.Observe(reallocated, machine)), "Frozen movie owner allocations bypassed the unchanged watchdog.");
+        }
+        ExpectTimeout(() => frozen.Observe(Ff7AutoPlayController.FieldProgress(state), movie.Observe(state, machine)));
+        Ff7AutoPlayProgressWatchdog unowned = new();
+        for (int frame = 0; frame < 49; frame++)
+        {
+            unowned.Observe(Ff7AutoPlayController.FieldProgress(state with { Process = state.Process with { Movie = state.Process.Movie! with { Frame = frame } } }));
+        }
+        movie.Reset();
+        ExpectTimeout(() =>
+        {
+            for (int frame = 0; frame < 49; frame++)
+            {
+                Ff7SessionSave wrong = state with { Process = state.Process with { GlobalRequestId = 2, Movie = state.Process.Movie! with { Frame = frame } } };
+                for (int poll = 0; poll < 40; poll++)
+                {
+                    unowned.Observe(Ff7AutoPlayController.FieldProgress(wrong), movie.Observe(wrong, machine));
+                }
+            }
+        });
+    }
+
+    private static void CheckReplayedMovie(Ff7SessionSave source, int frameCount)
+    {
+        Ff7AutoPlayProgressWatchdog old = new();
+        Ff7AutoPlayProgressWatchdog current = new();
+        Ff7AutoPlaySemanticWatchdog semantic = new();
+        Ff7AutoPlayMovieProgress movie = new();
+        object first = new();
+        object second = new();
+        int initial = source.Process.Movie!.Frame;
+        for (int frame = initial; frame < initial + frameCount; frame++)
+        {
+            Ff7SessionSave phase = source with { Process = source.Process with { Movie = source.Process.Movie with { Frame = frame } } };
+            string progress = Ff7AutoPlayController.FieldProgress(phase);
+            old.Observe(progress);
+            current.Observe(progress, movie.Observe(phase, first));
+            semantic.NativeAdvanced();
+            semantic.Observe(progress, null);
+        }
+        bool oldFailed = false;
+        for (int frame = initial; frame < initial + frameCount; frame++)
+        {
+            Ff7SessionSave phase = source with { FieldGeneration = source.FieldGeneration + 1, Process = source.Process with { Movie = source.Process.Movie with { Frame = frame } } };
+            string progress = Ff7AutoPlayController.FieldProgress(phase);
+            for (int poll = 0; poll < 40; poll++)
+            {
+                if (!oldFailed)
+                {
+                    try
+                    {
+                        old.Observe(progress);
+                    }
+                    catch (TimeoutException)
+                    {
+                        oldFailed = true;
+                    }
+                }
+                bool advanced = movie.Observe(phase, second);
+                current.Observe(progress, advanced);
+                semantic.NativeAdvanced();
+                semantic.Observe(progress, null, advanced);
+            }
+        }
+        Check(oldFailed, "The warm repeated-frame case did not reproduce the old guard's false positive.");
+        Check(!current.Observe(Ff7AutoPlayController.FieldProgress(source)), "Movie progress erased the general seen-state history.");
+    }
+
+    internal static void RunMovieOriginal()
+    {
+        string path = Environment.GetEnvironmentVariable("MEMORIA_FF7_MOVIE_PROGRESS_SAVE") ?? throw new InvalidOperationException("Select an authenticated native movie-phase fixture.");
+        byte[] bytes = File.ReadAllBytes(path);
+        using MemoryStream input = new(bytes, false);
+        Ff7SessionSave source = CombinedSessionCodec.Read(input).Ff7!;
+        CheckReplayedMovie(source, 49);
+        Check(bytes.AsSpan().SequenceEqual(File.ReadAllBytes(path)), "The native movie phase fixture changed.");
+        Console.WriteLine("PASS original-backed repeated owned movie phase observations: old guard fails, advancing authenticated replay survives; native source never restored/mutated and file unchanged.");
     }
 
     private static void PlanningPollsDoNotSpendSemanticCallbacks()

@@ -12,6 +12,7 @@ public sealed partial class Ff7AutoPlayController(Ff7Session session, Func<Ff7Au
     private readonly Ff7AutoPlayTransitionGuard transitions = new();
     private readonly Ff7AutoPlayProgressWatchdog progressWatchdog = new();
     private readonly Ff7AutoPlaySemanticWatchdog semanticWatchdog = new();
+    private readonly Ff7AutoPlayMovieProgress movieProgress = new();
     private Ff7SessionSave lastSafe = session.Capture();
 
     public bool Running { get; private set; }
@@ -35,6 +36,7 @@ public sealed partial class Ff7AutoPlayController(Ff7Session session, Func<Ff7Au
         transitions.Reset();
         progressWatchdog.Reset();
         semanticWatchdog.Reset();
+        movieProgress.Reset();
         CaptureCheckpoint();
     }
 
@@ -145,7 +147,7 @@ public sealed partial class Ff7AutoPlayController(Ff7Session session, Func<Ff7Au
                 transitions.Observe(session);
                 Ff7SessionSave observed = session.Capture();
                 string progress = observed.World is { } world ? $"battles:{observed.Progress.CompletedBattles.Length}:{WorldProgress(world)}" : FieldProgress(observed);
-                ObserveProgress(progress);
+                ObserveProgress(progress, observed);
                 driver.BeginPlanningStep();
                 Ff7AutoplayInput input = continuingTick ? default : chooseInput(driver);
                 if (driver.PlanningPending)

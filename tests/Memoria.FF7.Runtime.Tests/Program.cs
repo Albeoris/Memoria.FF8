@@ -3,6 +3,12 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--autoplay-movie-progress-original-only", StringComparer.Ordinal))
+{
+    AutoPlayWatchdogTests.RunMovieOriginal();
+    return 0;
+}
+
 if (args.Contains("--native-transport-choice-original-only", StringComparer.Ordinal))
 {
     NativeTransportRegionTests.RunChoiceOriginal();
