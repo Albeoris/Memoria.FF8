@@ -3,6 +3,22 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--world-mode-terrain-only", StringComparer.Ordinal))
+{
+    WorldModeTerrainEligibilityTests.Run();
+    return 0;
+}
+if (args.Contains("--world-mode-terrain-original-only", StringComparer.Ordinal))
+{
+    WorldModeTopologyContinuationTests.RunCurrentInertEntry(terrainMode: true);
+    return 0;
+}
+if (args.Contains("--world-input-masks-only", StringComparer.Ordinal))
+{
+    WorldInputTests.Run();
+    return 0;
+}
+
 if (args.Contains("--world-inert-entry-original-only", StringComparer.Ordinal))
 {
     WorldModeTopologyContinuationTests.RunCurrentInertEntry();

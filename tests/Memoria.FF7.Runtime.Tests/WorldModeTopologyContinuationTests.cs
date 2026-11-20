@@ -165,9 +165,9 @@ internal static class WorldModeTopologyContinuationTests
         public int ReadSpecial(int selector, int activeModel) => throw new InvalidOperationException("Read-only eligibility sampled the live native host.");
     }
 
-    internal static void RunCurrentInertEntry()
+    internal static void RunCurrentInertEntry(bool terrainMode = false)
     {
-        string path = Environment.GetEnvironmentVariable("MEMORIA_FF7_WORLD_INERT_SAVE") ?? throw new InvalidOperationException("Select a current native inert-entry fixture.");
+        string path = Environment.GetEnvironmentVariable(terrainMode ? "MEMORIA_FF7_WORLD_TERRAIN_SAVE" : "MEMORIA_FF7_WORLD_INERT_SAVE") ?? throw new InvalidOperationException("Select a current native inert-entry fixture.");
         string game = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR") ?? throw new InvalidOperationException("Select original resources.");
         byte[] bytes = File.ReadAllBytes(path);
         using MemoryStream source = new(bytes, false);
@@ -177,7 +177,7 @@ internal static class WorldModeTopologyContinuationTests
         string initial = policy.State.Active?.EventId ?? throw new InvalidDataException("No current raw target.");
         Ff7AutoPlayWorldScriptObservation target = world.ReadAutoPlayFrontierCatalog(26, 18).Scripts.Single(item => item.Id == initial);
         var current = world.ReadAutoPlayMeshEntryForModel(target, world.ControlledModel);
-        Check(Ff7AutoPlayPolicy.IsInertWorldMovementEntry(current), "The current fixture no longer supplies the proved inert target.");
+        Check(terrainMode ? world.ReadAutoPlayCurrentModeTerrainEligibility(target) == false : Ff7AutoPlayPolicy.IsInertWorldMovementEntry(current), "The current fixture no longer supplies the proved current-mode exclusion.");
         var before = policy.State.Coverage.Visits.SelectMany(visit => visit.Events).Where(item => item.Event.Id == initial).Select(item => JsonSerializer.Serialize(new { item.Completed, item.Conditions, item.Routes, item.UnavailableAttempts })).ToArray();
         Ff7AutoPlayController controller = new(session, policy.ChooseInput, advanceTick: () => session.AdvanceTick(advanceClock: false), chooseDialogueSelection: policy.ChooseDialogueSelection, readPlanningProgress: () => policy.WorkProgress, readFrontierProgress: () => policy.FrontierProgress);
         Ff7AutoplayDriver driver = (Ff7AutoplayDriver)typeof(Ff7AutoPlayController).GetField("driver", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(controller)!;
@@ -194,7 +194,7 @@ internal static class WorldModeTopologyContinuationTests
         }
         var after = policy.State.Coverage.Visits.SelectMany(visit => visit.Events).Where(item => item.Event.Id == initial).Select(item => JsonSerializer.Serialize(new { item.Completed, item.Conditions, item.Routes, item.UnavailableAttempts })).ToArray();
         Check(controller.Error is null && before.SequenceEqual(after) && bytes.AsSpan().SequenceEqual(File.ReadAllBytes(path)), $"Inert eligibility changed native history/source or failed: {controller.Error}");
-        Console.WriteLine($"PASS current native inert entry excluded: callbacks={controller.Steps}, worldTick={world.Process.Tick}, controlled={world.ControlledModel}, physical={driver.PhysicalPlanningWork}, active={policy.State.Active?.EventId}, pending={driver.PlanningPending}, elapsed={elapsed.Elapsed.TotalSeconds:F3}s; inert history/source unchanged");
+        Console.WriteLine($"PASS current native mode-excluded entry: callbacks={controller.Steps}, worldTick={world.Process.Tick}, controlled={world.ControlledModel}, physical={driver.PhysicalPlanningWork}, active={policy.State.Active?.EventId}, pending={driver.PlanningPending}, elapsed={elapsed.Elapsed.TotalSeconds:F3}s; inert history/source unchanged");
     }
 
     private static void Check(bool condition, string message)

@@ -498,6 +498,26 @@ public sealed partial class Ff7WorldRuntime
         return Resources.World switch { 2 => Ff7WorldVisibility.ResolveUnderwaterBlock(chunkX, chunkZ), 3 => Ff7WorldVisibility.ResolveSnowBlock(chunkX, chunkZ), _ => Ff7WorldVisibility.ResolveBlockIndex((chunkZ >> 2) * 9 + (chunkX >> 2), mapState) };
     }
 
+    private uint ReadNativeTerrainMask(int previousTerrain, int model, bool dismount, int queryControlledModel, int queryDismountPhase)
+    {
+        return model switch
+        {
+            SubmarineModel when queryDismountPhase == 2 => 0x21B6F83u,
+            SubmarineModel => SubmarineTerrainMask,
+            3 when queryDismountPhase == 2 => 0x021B6F83u,
+            5 when entities.TryGetValue(model, out Ff7WorldEntity? aircraft) && (aircraft.Flags & 128) != 0 => queryDismountPhase == 2 ? 0x70u : uint.MaxValue,
+            5 => queryDismountPhase == 2 ? 0x20800u : 0x70u,
+            6 => queryDismountPhase == 2 ? 0x21B6F83u : 0x331B6F13u,
+            8 => 0x04040008u,
+            100 => 1u << 7,
+            _ when model is 0 or 1 or 2 or YellowChocoboModel && model == queryControlledModel && (previousTerrain & 31) is 13 or 14 => 0x20006000u,
+            YellowChocoboModel => YellowChocoboTerrainMask,
+            19 => dismount ? YellowChocoboTerrainMask : ChocoboTerrainMask(chocoboTint),
+            0 or 1 or 2 => 0x721B6F83u,
+            _ => uint.MaxValue
+        };
+    }
+
     private (int Height, int Terrain)? QueryTerrain(int x, int z, int previousHeight, int previousTerrain, int model, bool dismount = false)
     {
         return QueryTerrain(x, z, previousHeight, previousTerrain, model, dismount, out _);
@@ -517,22 +537,7 @@ public sealed partial class Ff7WorldRuntime
         Ff7WorldTerrainReference[]? cache = entityCache ? RequireEntity(model).TerrainCache : input.TerrainCache;
         int queryControlledModel = adviceControlledModel ?? controlledModel;
         int queryDismountPhase = adviceDismountPhase ?? vehicle?.DismountPhase ?? 0;
-        uint mask = model switch
-        {
-            SubmarineModel when queryDismountPhase == 2 => 0x21B6F83u,
-            SubmarineModel => SubmarineTerrainMask,
-            3 when queryDismountPhase == 2 => 0x021B6F83u,
-            5 when entities.TryGetValue(model, out Ff7WorldEntity? aircraft) && (aircraft.Flags & 128) != 0 => queryDismountPhase == 2 ? 0x70u : uint.MaxValue,
-            5 => queryDismountPhase == 2 ? 0x20800u : 0x70u,
-            6 => queryDismountPhase == 2 ? 0x21B6F83u : 0x331B6F13u,
-            8 => 0x04040008u,
-            100 => 1u << 7,
-            _ when model is 0 or 1 or 2 or YellowChocoboModel && model == queryControlledModel && (previousTerrain & 31) is 13 or 14 => 0x20006000u,
-            YellowChocoboModel => YellowChocoboTerrainMask,
-            19 => dismount ? YellowChocoboTerrainMask : ChocoboTerrainMask(chocoboTint),
-            0 or 1 or 2 => 0x721B6F83u,
-            _ => uint.MaxValue
-        };
+        uint mask = ReadNativeTerrainMask(previousTerrain, model, dismount, queryControlledModel, queryDismountPhase);
         bool Allowed(PcWorldTriangle face) => (mask & (1u << face.Terrain)) != 0 && (!(dismount || queryDismountPhase == 2 && model is 3 or 6 or SubmarineModel) || (face.TerrainAndScript & 0xE0) != 0xE0);
         foreach (Ff7WorldTerrainReference cached in cache ?? [])
         {

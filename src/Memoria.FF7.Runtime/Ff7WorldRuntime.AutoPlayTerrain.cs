@@ -6,6 +6,31 @@ internal sealed record Ff7AutoPlayWorldTerrainPoint(int X, int Z, int Height, in
 
 public sealed partial class Ff7WorldRuntime
 {
+    internal bool? ReadAutoPlayCurrentModeTerrainEligibility(Ff7AutoPlayWorldScriptObservation target)
+    {
+        Ff7WorldBridgeState bridge = input.Bridge ?? initialBridge;
+        if (Resources.World != 0 || !target.Complete || !entities.TryGetValue(controlledModel, out Ff7WorldEntity? player) || (player.Flags & 128) != 0 || player.AttachedModel is not null || vehicle is { FlightState: not 0 } or { DismountPhase: not 0 } || vehicle?.TinyBroncoFlightEnabled == true || bridge is { Phase: not 0 } or { DriftX: not 0 } or { DriftZ: not 0 } or { Deformation: not null } || deformedCollisionMeshes.Count != 0)
+        {
+            return null;
+        }
+        uint mask = 0;
+        for (int previousTerrain = 0; previousTerrain < 32; previousTerrain++)
+        {
+            mask |= ReadNativeTerrainMask(previousTerrain, controlledModel, false, controlledModel, 0);
+        }
+        return ReadAutoPlayTerrainEligibility(target.Faces.Select(face => face.Terrain), mask == uint.MaxValue ? null : mask);
+    }
+
+    internal static bool? ReadAutoPlayTerrainEligibility(IEnumerable<int> terrain, uint? mask)
+    {
+        int[] faces = terrain.ToArray();
+        if (mask is null || faces.Length == 0 || faces.Any(value => value is < 0 or > 31))
+        {
+            return null;
+        }
+        return faces.Any(value => (mask.Value & (1u << value)) != 0);
+    }
+
     /// <summary>Samples the native terrain selector for the current controlled model without changing its execution cache. A point sample does not prove that a complete movement or collision footprint can reach it.</summary>
     internal Ff7AutoPlayWorldTerrainPoint? ReadAutoPlayTerrain(int x, int z)
     {

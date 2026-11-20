@@ -296,9 +296,9 @@ public sealed partial class Ff7AutoPlayPolicy
             throw new NotSupportedException(target.Reason ?? "The native world frontier has an unsupported source dependency.");
         }
         observation = ObserveWorldPlanner(world);
-        if (IsInertWorldMovementEntry(world.ReadAutoPlayMeshEntryForModel(target, world.ControlledModel)))
+        if (IsInertWorldMovementEntry(world.ReadAutoPlayMeshEntryForModel(target, world.ControlledModel)) || world.ReadAutoPlayCurrentModeTerrainEligibility(target) == false)
         {
-            State.Status = "The observed native entry is inert in the current traversal context";
+            State.Status = "The observed native entry requires a different traversal context";
             return observation;
         }
         string condition = WorldCondition(target);
@@ -404,7 +404,7 @@ public sealed partial class Ff7AutoPlayPolicy
             {
                 continue;
             }
-            if (IsInertWorldMovementEntry(world.ReadAutoPlayMeshEntryForModel(target, world.ControlledModel)))
+            if (IsInertWorldMovementEntry(world.ReadAutoPlayMeshEntryForModel(target, world.ControlledModel)) || world.ReadAutoPlayCurrentModeTerrainEligibility(target) == false)
             {
                 events.Remove(target.Id);
                 if (State.Active is { Kind: Ff7AutoPlayTargetKind.WorldMesh, Accepted: false } planned && planned.EventId == target.Id)
