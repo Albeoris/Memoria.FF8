@@ -736,6 +736,12 @@ if (args.Contains("--native-effect-alias-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--native-post-pickup-line-original-only", StringComparer.Ordinal))
+{
+    NativePostPickupLineTests.RunOriginal();
+    return 0;
+}
+
 if (args.Contains("--native-reactor-entry-original-only", StringComparer.Ordinal))
 {
     NativeReactorEntryTests.RunOriginal();
