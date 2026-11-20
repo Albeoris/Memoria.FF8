@@ -179,7 +179,7 @@ public sealed class Ff7NativeMovement
         // The final crossing uses the last head probe, as does the native field movement contract.
         int finalCorrection = Cross(ref finalTriangle, candidateX, candidateY, lastProbeX, lastProbeY, blockedTriangles, out candidateZ);
         // NG-087: The original laboratory clears the movement rejection flags for physical slot 1.
-        bool nativeCollisionException = map == 263 && actor.Slot == 1;
+        bool nativeCollisionException = HasNativeCollisionOverride(actor);
         bool moved = nativeCollisionException || headCorrection == 0 && leftCorrection == 0 && rightCorrection == 0 && !headContact && !leftContact && !rightContact && finalCorrection == 0;
         Ff7Actor result = actor with { Direction = (actor.MovementFacingDisabled ?? 0) == 0 ? moveDirection : actor.Direction, Triangle = finalTriangle };
         if (moved)
@@ -187,6 +187,15 @@ public sealed class Ff7NativeMovement
             result = result with { X4096 = candidateX, Y4096 = candidateY, Z4096 = unchecked(candidateZ << 12) };
         }
         return new Ff7NativeMoveResult(result, false, moved, pushed.Order().ToArray(), clearLine, result with { X4096 = candidateX, Y4096 = candidateY, Z4096 = unchecked(candidateZ << 12) });
+    }
+
+    internal bool HasNativeCollisionOverride(Ff7Actor actor) => map == 263 && actor.Slot == 1;
+
+    internal static int ReadMaximumPlanarStep(int moveSpeed)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(moveSpeed);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(moveSpeed, ushort.MaxValue);
+        return (moveSpeed + 255) / 256;
     }
 
     public static int PlanarDistance(int dx, int dy)

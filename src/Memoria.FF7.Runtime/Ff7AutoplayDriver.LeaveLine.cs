@@ -85,7 +85,7 @@ public sealed partial class Ff7AutoplayDriver
         return Approach(goal.Point, goal.Triangle, run);
     }
 
-    private static bool Contains(PcWalkmeshTriangle triangle, Vector3 point, out float height)
+    internal static bool Contains(PcWalkmeshTriangle triangle, Vector3 point, out float height)
     {
         static float Cross(Vector3 a, Vector3 b, Vector3 p) => (b.X - a.X) * (p.Y - a.Y) - (b.Y - a.Y) * (p.X - a.X);
         float ab = Cross(triangle.A, triangle.B, point);

@@ -255,6 +255,12 @@ if (args.Contains("--native-equivalent-transport-original-only", StringComparer.
     NativeEquivalentTransportTests.RunOriginal();
     return 0;
 }
+if (args.Contains("--gateway-crossing-availability-only", StringComparer.Ordinal))
+{
+    GatewayCrossingAvailabilityTests.Run();
+    return 0;
+}
+
 if (args.Contains("--productive-ordinary-search-only", StringComparer.Ordinal))
 {
     ProductiveOrdinarySearchTests.Run();

@@ -208,6 +208,10 @@ public sealed partial class Ff7AutoPlayDiscovery(Ff7Session session)
                 {
                     continue;
                 }
+                if (!CanOfferGateway(gateway))
+                {
+                    continue;
+                }
                 Vector3 start = gateway.A;
                 Vector3 end = gateway.B;
                 events.Add(new($"gateway:{index}", -1, -1, Ff7AutoPlayTargetKind.Gateway, $"{identity}:gateway:{index}:{gateway.DestinationField}:{gateway.DestinationTriangle}:native-transfer:1", false, (start + end) / 2, GatewayIndex: index, DestinationField: gateway.DestinationField, SegmentStart: start, SegmentEnd: end));
