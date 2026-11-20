@@ -3,6 +3,18 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-gateway-boundary-only", StringComparer.Ordinal))
+{
+    NativeGatewayBoundaryTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-gateway-boundary-original-only", StringComparer.Ordinal))
+{
+    NativeGatewayBoundaryTests.RunOriginal();
+    return 0;
+}
+
 if (args.Contains("--world-inactive-bridge-terrain-original-only", StringComparer.Ordinal))
 {
     WorldModeTerrainEligibilityTests.RunOriginal();

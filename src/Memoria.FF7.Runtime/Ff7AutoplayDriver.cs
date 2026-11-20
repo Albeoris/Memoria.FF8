@@ -155,19 +155,45 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
             return default;
         }
         Ff7Actor controlled = player with { MoveSpeed = unchecked((ushort)session.GetPlayerMovementSpeed(run)) };
-        foreach (var direction in Directions)
+        if (ReadGatewayCrossingInput(gateway, controlled, run) is Ff7AutoplayInput crossing)
         {
-            Ff7NativeMoveResult step = session.Host.Movement!.StepDirection(controlled, unchecked((byte)(direction.Direction + session.Field.Triggers.ControlDirection)), session.Host.Process.Actors, session.Host.Process.BlockedTriangles, false, session.Host.Process.LineBlocked);
-            if (step.Moved && Ff7Session.CrossesGateway(gateway, controlled, step.Actor) && AllowsPlannedMove(controlled, step))
-            {
-                return new(direction.X, direction.Y, Run: run);
-            }
+            navigationActionProgress = true;
+            return crossing;
         }
         Vector3 position = Position3D(player);
         int distance = Ff7Session.DistanceToSegment(gateway.A, gateway.B, new(player.X4096 >> 12, player.Y4096 >> 12, player.Z4096 >> 12), out Vector3 nearest);
         if (distance >= 0 && distance < unchecked(player.CollisionRadius * player.CollisionRadius))
         {
-            return Approach(ReadGatewayCrossingTarget(gateway, position, nearest, player.CollisionRadius), player.Triangle, run);
+            Vector3 target = ReadGatewayCrossingTarget(gateway, position, nearest, player.CollisionRadius);
+            bool Reached(Ff7Actor actor) => ReadGatewayCrossingInput(gateway, actor, run) is not null;
+            Ff7AutoplayInput? direct = PreviewGoalInput(controlled, target, session.Field.Triggers.ControlDirection, session.Host.Movement!, session.Host.Process.Actors, session.Host.Process.BlockedTriangles, session.Host.Process.LineBlocked, AllowsPlannedMove, Reached, run);
+            if (direct is Ff7AutoplayInput proved)
+            {
+                navigationActionProgress = true;
+                return proved;
+            }
+            var crossingContacts = DiscoverGatewayContacts(session.Field.Walkmesh, session.Host.Process.BlockedTriangles, player, gateway);
+            if (crossingContacts.Count == 0)
+            {
+                throw new Ff7AutoPlayNavigationUnavailableException(-1, "FFVII gateway has no reachable native floor contact.");
+            }
+            var crossingContact = SelectFloorContact(crossingContacts, target, null);
+            string? previousContext = navigationTalkContactContext;
+            Func<Ff7Actor, bool>? previousGoal = navigationTalkContactGoal;
+            bool previousRequiresSearch = navigationTalkContactRequiresSearch;
+            navigationTalkContactContext = $"native-gateway-crossing:1:{session.FieldGeneration}:{gateway.A}:{gateway.B}:{gateway.DestinationField}:{gateway.DestinationTriangle}";
+            navigationTalkContactGoal = Reached;
+            navigationTalkContactRequiresSearch = true;
+            try
+            {
+                return Approach(target, crossingContact.Triangle, run);
+            }
+            finally
+            {
+                navigationTalkContactContext = previousContext;
+                navigationTalkContactGoal = previousGoal;
+                navigationTalkContactRequiresSearch = previousRequiresSearch;
+            }
         }
         var contacts = DiscoverGatewayContacts(session.Field.Walkmesh, session.Host.Process.BlockedTriangles, player, gateway);
         if (contacts.Count == 0)
@@ -176,6 +202,20 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
         }
         var selected = ChooseFloorContact(contacts, player);
         return Approach(selected.Point, selected.Triangle, run);
+    }
+
+    private Ff7AutoplayInput? ReadGatewayCrossingInput(PcFieldGateway gateway, Ff7Actor actor, bool run)
+    {
+        Ff7Actor controlled = actor with { MoveSpeed = unchecked((ushort)session.GetPlayerMovementSpeed(run)) };
+        foreach (var direction in Directions)
+        {
+            Ff7NativeMoveResult step = session.Host.Movement!.StepDirection(controlled, unchecked((byte)(direction.Direction + session.Field.Triggers.ControlDirection)), session.Host.Process.Actors, session.Host.Process.BlockedTriangles, false, session.Host.Process.LineBlocked);
+            if (step.Moved && Ff7Session.CrossesGateway(gateway, controlled, step.Actor) && AllowsPlannedMove(controlled, step))
+            {
+                return new(direction.X, direction.Y, Run: run);
+            }
+        }
+        return null;
     }
 
     internal static Vector3 ReadGatewayCrossingTarget(PcFieldGateway gateway, Vector3 position, Vector3 nearest, int collisionRadius)

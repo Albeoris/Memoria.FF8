@@ -107,7 +107,7 @@ public sealed partial class Ff7AutoplayDriver
             obstacleSpeed = player.MoveSpeed;
         }
         string context = $"{ReadPhysicalApproachContext(player, target, destination)}|source:{player.Slot}:{player.X4096}:{player.Y4096}:{player.Z4096}:{player.Triangle}:{player.Direction}:{player.MoveSpeed}:{player.PlayerControlled}:{player.MovementFacingDisabled}|waypoint:{waypoint}:{nextTriangle}|mode:{navigationRunMode}|control:{session.Field.Triggers.ControlDirection}|input:{navigationLineInput}|talk:{navigationLineTalk}|targets:{string.Join(';', navigationLineTargets?.Select(candidate => $"{candidate.Id}:{candidate.ConditionFingerprint}") ?? [])}";
-        context = ReadPhysicalFailureGuideContext(context, routeDistance, approachAdviceExclusions, navigationTalkContactGoal is null ? "route-progress:1" : navigationSelectedTarget?.Kind == Ff7AutoPlayTargetKind.ActorContact ? "native-actor-push:2" : "native-fresh-contact:2");
+        context = ReadPhysicalFailureGuideContext(context, routeDistance, approachAdviceExclusions, navigationTalkContactGoal is null ? "route-progress:1" : navigationSelectedTarget?.Kind == Ff7AutoPlayTargetKind.Gateway ? "native-gateway-crossing:1" : navigationSelectedTarget?.Kind == Ff7AutoPlayTargetKind.ActorContact ? "native-actor-push:2" : "native-fresh-contact:2");
         UpdatePhysicalApproachContext(context);
         if (TakeEscapeStep(player, movement, out input))
         {
