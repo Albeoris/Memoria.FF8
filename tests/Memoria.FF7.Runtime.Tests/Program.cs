@@ -315,6 +315,12 @@ if (args.Contains("--world-boarding-prerequisite-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--world-boarding-prerequisite-original-only", StringComparer.Ordinal))
+{
+    WorldBoardingPrerequisiteTests.RunOriginal();
+    return 0;
+}
+
 if (args.Contains("--world-destination-goal-only", StringComparer.Ordinal))
 {
     WorldDestinationGoalTests.Run();

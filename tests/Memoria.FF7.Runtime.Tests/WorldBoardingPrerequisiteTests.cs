@@ -1,6 +1,9 @@
 using System.Text.Json;
 using Memoria.AutoPlay;
 using Memoria.FF7.Runtime;
+using Memoria.FF7.Resources;
+using Memoria.FF7.Events;
+using System.Reflection;
 
 internal static class WorldBoardingPrerequisiteTests
 {
@@ -79,6 +82,60 @@ internal static class WorldBoardingPrerequisiteTests
         {
         }
         Check(state.FrontierIdleSteps == Ff7AutoPlayPolicy.FrontierIdleLimit && JsonSerializer.Serialize(state.Coverage) == coverageBefore, "The real input limit changed or fabricated coverage while supervising transport work.");
+    }
+
+    internal static void RunOriginal()
+    {
+        string game = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR") ?? throw new InvalidOperationException("Select original resources.");
+        string path = Environment.GetEnvironmentVariable("MEMORIA_FF7_WORLD_BOARDING_SAVE") ?? throw new InvalidOperationException("Select an external ready world fixture.");
+        byte[] original = File.ReadAllBytes(path);
+        using MemoryStream input = new(original);
+        CombinedSessionSave envelope = CombinedSessionCodec.Read(input);
+        using Ff7Session session = Ff7Session.Restore(Ff7Installation.Discover(game), envelope.Ff7!);
+        Ff7WorldRuntime world = session.World ?? throw new InvalidDataException("The fixture has no actual World allocation.");
+        string nativeBefore = JsonSerializer.Serialize(session.Capture() with { AutoPlay = null, EventCoverage = null });
+        using Ff7AutoPlayPolicy policy = new(session, (_, _) => throw new InvalidOperationException("Unexpected choice boundary."));
+        Ff7AutoplayDriver driver = new(session);
+        Ff7AutoplayInput selected = default;
+        int polls = 0;
+        MethodInfo choose = typeof(Ff7AutoPlayPolicy).GetMethod("ChooseInput", BindingFlags.Instance | BindingFlags.NonPublic, [typeof(Ff7AutoplayDriver), typeof(Ff7NativePlanningQuantum), typeof(bool).MakeByRefType()])!;
+        var elapsed = System.Diagnostics.Stopwatch.StartNew();
+        do
+        {
+            driver.BeginPlanningStep();
+            selected = (Ff7AutoplayInput)choose.Invoke(policy, [driver, new Ff7NativePlanningQuantum(1, TimeSpan.FromSeconds(1)), false])!;
+            polls++;
+        }
+        while (driver.PlanningPending && elapsed.Elapsed < TimeSpan.FromSeconds(30));
+        Check(polls > 1, "The native prerequisite regression did not exercise retained caller work across scheduling quanta.");
+        Check(nativeBefore == JsonSerializer.Serialize(session.Capture() with { AutoPlay = null, EventCoverage = null }) && original.SequenceEqual(File.ReadAllBytes(path)), "Normal policy selection changed native execution or its source fixture before input application.");
+        Ff7AutoPlayActiveEvent active = policy.State.Active ?? throw new Exception("No actual native event was selected.");
+        Ff7AutoPlayWorldModelScriptObservation? contact = world.ReadAutoPlayModelFrontiers().SingleOrDefault(item => item.Id == active.EventId);
+        Check(!driver.PlanningPending && contact is { Complete: true } && contact.Analysis.Transitions.Any(transition => transition.Operation == WorldOperation.BoardTransport), "Ordinary world planning did not select an actual offered boarding prerequisite.");
+        AutoPlayTravelGoal intended = policy.State.NavigationGoal ?? throw new Exception("Native boarding was selected without a downstream entry goal.");
+        Check(intended.EventId is not null && intended.EventId != active.EventId, "Boarding's goal is not its downstream native entry.");
+        int controlled = world.ControlledModel;
+        Ff7AutoPlayController controller = new(session, policy.ChooseInput, chooseDialogueSelection: policy.ChooseDialogueSelection);
+        controller.Start();
+        int callbacks = 0;
+        elapsed.Restart();
+        while (controller.Running && session.World is not null && world.ControlledModel == controlled && session.Battle is null && elapsed.Elapsed < TimeSpan.FromSeconds(30) && callbacks < 512)
+        {
+            controller.Advance(1);
+            callbacks++;
+        }
+        Check(session.World is not null && world.ControlledModel != controlled, "Ordinary selected native boarding did not actually change the controlled model.");
+        Check(policy.State.NavigationGoal == intended, "Actual native boarding lost or replaced its downstream entry goal.");
+        elapsed.Restart();
+        int postBoardSlices = 0;
+        while (controller.Running && session.World is not null && policy.State.Active?.WorldModeGoal is null && session.Battle is null && elapsed.Elapsed < TimeSpan.FromSeconds(30) && postBoardSlices < 128)
+        {
+            controller.Advance(1);
+            postBoardSlices++;
+        }
+        Check(policy.State.Active?.WorldModeGoal?.TargetEventId == intended.EventId, "The first native vehicle-to-rider goal displaced the boarding plan's proved downstream entry.");
+        Check(original.SequenceEqual(File.ReadAllBytes(path)), "Native boarding continuation changed its standalone source.");
+        Console.WriteLine($"PASS native boarding: scheduling polls={polls}, actual callbacks={controller.Steps}, controlled={controlled}->{world.ControlledModel}, downstream={intended.EventId}, first native mode={policy.State.Active?.WorldModeGoal?.TargetEventId}; source unchanged.");
     }
 
     private static void Check(bool value, string message)

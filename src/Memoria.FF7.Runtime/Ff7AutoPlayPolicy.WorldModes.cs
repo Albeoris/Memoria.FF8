@@ -26,10 +26,19 @@ public sealed partial class Ff7AutoPlayPolicy
         return !visit.Events.Any(item => item.Available && item.BlockedReason is null && !item.PolicyDeferred && !HasConsumedWorldEntry(item, item.Event.ConditionSignature) && readAvailability(item.Event)?.Unavailable != true);
     }
 
-    internal static IEnumerable<AutoPlayPlanStep?> EnumerateWorldBoardingPrerequisites(string visitKey, string navigationKey, IReadOnlyList<AutoPlayEvent> destinations, IReadOnlyList<AutoPlayEvent> boarding, Func<AutoPlayEvent, AutoPlayEvent, bool> connected)
+    internal static IEnumerable<AutoPlayPlanStep?> EnumerateWorldBoardingPrerequisites(string visitKey, string navigationKey, IReadOnlyList<AutoPlayEvent> destinations, IReadOnlyList<AutoPlayEvent> boarding, Func<AutoPlayEvent, AutoPlayEvent, bool> connected, Func<AutoPlayEvent, bool>? prepareDestination = null)
     {
         foreach (AutoPlayEvent destination in destinations)
         {
+            if (prepareDestination is not null)
+            {
+                bool eligible = prepareDestination(destination);
+                yield return null;
+                if (!eligible)
+                {
+                    continue;
+                }
+            }
             foreach (AutoPlayEvent contact in boarding)
             {
                 if (connected(contact, destination))
@@ -42,9 +51,9 @@ public sealed partial class Ff7AutoPlayPolicy
         }
     }
 
-    private AutoPlayPlanStep? PlanWorldBoardingPrerequisite(Ff7WorldRuntime world, Ff7AutoPlayObservation observation, Ff7AutoplayDriver driver, Func<AutoPlayEvent, AutoPlayEventAvailability?> readAvailability)
+    private AutoPlayPlanStep? PlanWorldBoardingPrerequisite(Ff7WorldRuntime world, Ff7AutoPlayObservation observation, Ff7AutoplayDriver driver, Func<AutoPlayEvent, AutoPlayEventAvailability?> readAvailability, string? selectedBoarding = null)
     {
-        if (world.ReadAutoPlaySurfaceVehicleRider() is not null || !ShouldPlanWorldBoardingPrerequisite(State, observation.VisitId, readAvailability))
+        if (State.DestinationField is not null || world.ReadAutoPlaySurfaceVehicleRider() is not null || selectedBoarding is null && !ShouldPlanWorldBoardingPrerequisite(State, observation.VisitId, readAvailability))
         {
             CancelWorldBoardingPlanning();
             return null;
@@ -60,7 +69,7 @@ public sealed partial class Ff7AutoPlayPolicy
                 targets[item.Event.Id] = (chunk, script);
             }
         }
-        Dictionary<string, Ff7AutoPlayWorldModelScriptObservation> contacts = worldModelCatalog.Values.Where(contact => contact.Complete && contact.Analysis.Transitions.Any(transition => transition.Operation == Memoria.FF7.Events.WorldOperation.BoardTransport && transition.Model is not null) && coverage.TryGetValue(contact.Id, out var item) && Eligible(item) && readAvailability(item.Event)?.Unavailable != true).ToDictionary(contact => contact.Id, StringComparer.Ordinal);
+        Dictionary<string, Ff7AutoPlayWorldModelScriptObservation> contacts = worldModelCatalog.Values.Where(contact => (selectedBoarding is null || contact.Id == selectedBoarding) && contact.Complete && contact.Analysis.Transitions.Any(transition => transition.Operation == Memoria.FF7.Events.WorldOperation.BoardTransport && transition.Model is not null) && coverage.TryGetValue(contact.Id, out var item) && Eligible(item) && readAvailability(item.Event)?.Unavailable != true).ToDictionary(contact => contact.Id, StringComparer.Ordinal);
         if (targets.Count == 0 || contacts.Count == 0)
         {
             CancelWorldBoardingPlanning();
@@ -73,7 +82,13 @@ public sealed partial class Ff7AutoPlayPolicy
         {
             CancelWorldBoardingPlanning();
             worldBoardingPlanningContext = context;
+            Dictionary<string, Ff7AutoPlayWorldScriptObservation> prepared = new(StringComparer.Ordinal);
             worldBoardingPlanning = new(EnumerateWorldBoardingPrerequisites(observation.VisitId, observation.NavigationKey, destinations, boarding, (contact, target) =>
+            {
+                nativePlanningWork++;
+                // A nonpositive projection is advice only; it publishes no native unavailability or completion.
+                return world.ReadAutoPlayBoardingAdvice(contacts[contact.Id], prepared[target.Id]).Connected;
+            }, target =>
             {
                 nativePlanningWork++;
                 var source = targets[target.Id];
@@ -89,8 +104,8 @@ public sealed partial class Ff7AutoPlayPolicy
                     // Reobserve changed or unresolved entries; this is not a native route failure.
                     return false;
                 }
-                // A nonpositive projection is advice only; it publishes no native unavailability or completion.
-                return world.ReadAutoPlayBoardingAdvice(contacts[contact.Id], current).Connected;
+                prepared[target.Id] = current;
+                return true;
             }).GetEnumerator());
         }
         worldBoardingPlanning.Resume(nativePlanningQuantum ?? new());
