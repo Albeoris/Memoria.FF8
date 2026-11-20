@@ -3,6 +3,12 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-movie-readiness-original-only", StringComparer.Ordinal))
+{
+    NativeLineOwnershipTests.RunMovieOriginal();
+    return 0;
+}
+
 if (args.Contains("--native-line-ownership-original-only", StringComparer.Ordinal))
 {
     NativeLineOwnershipTests.RunOriginal();

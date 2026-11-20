@@ -13,6 +13,28 @@ internal sealed class Ff7AutoPlayNativeReadiness
     private int repeatedObservations;
     private int totalObservations;
 
+    internal static bool HasReadyMoviePreparation(FieldVmSnapshot vm, Ff7FieldProcess process, ReadOnlySpan<byte> script)
+    {
+        if (process.GlobalCommand != Ff7GlobalCommand.None)
+        {
+            return false;
+        }
+        foreach (FieldHostRequest request in vm.PendingRequests ?? [])
+        {
+            if (request.Command is not FieldMovieCommand { Operation: FieldMovieOperation.Prepare } movie || process.Movie is not { Playing: false } prepared || prepared.PreparedId != movie.MovieId || (uint)request.Entity >= vm.Entities.Length)
+            {
+                continue;
+            }
+            FieldEntitySnapshot owner = vm.Entities[request.Entity];
+            int pc = owner.ProgramCounter;
+            if (owner.Priority == request.Priority && pc == request.ProgramCounter && pc >= 0 && pc + 1 < script.Length && script[pc] == 0xF8 && script[pc + 1] == movie.MovieId)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     internal static bool HasCompletedSynchronousReturn(FieldVmSnapshot vm, ReadOnlySpan<byte> script)
     {
         for (int ownerId = 0; ownerId < vm.Entities.Length; ownerId++)

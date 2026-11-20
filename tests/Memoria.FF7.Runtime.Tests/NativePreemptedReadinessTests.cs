@@ -39,7 +39,32 @@ internal static class NativePreemptedReadinessTests
         Check(new Ff7AutoPlayNativeReadiness().ShouldWait(1, "source", countdown, process, new byte[] { 0x24, 90, 0, 0xF8, 47, 0xF9 }, []), "A finite countdown depended on the identity of its following opcode.");
         Check(!new Ff7AutoPlayNativeReadiness().ShouldWait(1, "source", countdown, process, new byte[] { 0, 90, 0, 0, 0, 0 }, []), "A stale counter without an executing WAIT authenticated finite work.");
         CheckCompletedSynchronousReturn();
+        CheckMoviePreparation();
         CheckOriginal();
+    }
+
+    private static void CheckMoviePreparation()
+    {
+        FieldEntitySnapshot owner = new(0, 6, 0, new int[8], new FieldSyncState[8], Enumerable.Repeat(-1, 8).ToArray());
+        FieldHostRequest request = new(1, 0, 6, 0, new FieldMovieCommand(FieldMovieOperation.Prepare, 17));
+        FieldVmSnapshot vm = new(1, FieldMachine.SemanticProfile, "prepared-movie", 1, true, new byte[1280], new byte[256], [owner], PendingRequests: [request]);
+        Ff7FieldProcess process = new() { Movie = new(17, false, 0, false, null) };
+        byte[] script = [0xF8, 17];
+        string before = JsonSerializer.Serialize(new { vm, process });
+        Check(Ff7AutoPlayNativeReadiness.HasReadyMoviePreparation(vm, process, script), "A completed current native preparation could not return on its next poll.");
+        Check(!Ff7AutoPlayNativeReadiness.HasReadyMoviePreparation(vm, process with { GlobalCommand = Ff7GlobalCommand.Movie }, script), "A busy native global command authenticated preparation.");
+        Check(!Ff7AutoPlayNativeReadiness.HasReadyMoviePreparation(vm, process with { Movie = process.Movie! with { Playing = true } }, script), "An active movie authenticated a preparation return.");
+        Check(!Ff7AutoPlayNativeReadiness.HasReadyMoviePreparation(vm, process with { Movie = null }, script), "A missing prepared resource authenticated return.");
+        Check(!Ff7AutoPlayNativeReadiness.HasReadyMoviePreparation(vm, process with { Movie = process.Movie! with { PreparedId = 18 } }, script), "A different prepared resource authenticated return.");
+        Check(!Ff7AutoPlayNativeReadiness.HasReadyMoviePreparation(vm, process, [0xF8, 18]), "Different native operands authenticated return.");
+        Check(!Ff7AutoPlayNativeReadiness.HasReadyMoviePreparation(vm, process, [0xF9, 17]), "A different current opcode authenticated preparation.");
+        Check(!Ff7AutoPlayNativeReadiness.HasReadyMoviePreparation(vm, process, [0xF8]), "A truncated current opcode authenticated preparation.");
+        Check(!Ff7AutoPlayNativeReadiness.HasReadyMoviePreparation(vm with { PendingRequests = [] }, process, script), "An unowned prepared movie authenticated return.");
+        Check(!Ff7AutoPlayNativeReadiness.HasReadyMoviePreparation(vm with { PendingRequests = [request with { Entity = 1 }] }, process, script), "A missing request owner authenticated preparation.");
+        Check(!Ff7AutoPlayNativeReadiness.HasReadyMoviePreparation(vm with { PendingRequests = [request with { Priority = 5 }] }, process, script), "A different current priority authenticated preparation.");
+        Check(!Ff7AutoPlayNativeReadiness.HasReadyMoviePreparation(vm with { PendingRequests = [request with { ProgramCounter = 1 }] }, process, script), "A stale request PC authenticated preparation.");
+        Check(!Ff7AutoPlayNativeReadiness.HasReadyMoviePreparation(vm with { PendingRequests = [request with { Command = new FieldMovieCommand(FieldMovieOperation.Play) }] }, process, script), "Pending playback inherited preparation completion.");
+        Check(before == JsonSerializer.Serialize(new { vm, process }), "Preparation readiness changed native state.");
     }
 
     private static void CheckCompletedSynchronousReturn()

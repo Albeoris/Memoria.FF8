@@ -239,11 +239,12 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             Publish();
             return default;
         }
-        if (Ff7AutoPlayNativeReadiness.HasCompletedSynchronousReturn(session.Machine.Capture(), session.Field.Scripts.Data.Span))
+        FieldVmSnapshot readinessVm = session.Machine.Capture();
+        if (Ff7AutoPlayNativeReadiness.HasCompletedSynchronousReturn(readinessVm, session.Field.Scripts.Data.Span) || Ff7AutoPlayNativeReadiness.HasReadyMoviePreparation(readinessVm, session.Host.Process, session.Field.Scripts.Data.Span))
         {
             CancelNativePlanning("native-synchronous-return");
             driver.BeginPlanningStep();
-            State.Status = "Waiting for an owned native synchronous return";
+            State.Status = "Waiting for an owned native setup completion";
             Publish();
             return default;
         }
