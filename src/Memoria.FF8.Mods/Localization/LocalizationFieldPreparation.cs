@@ -42,7 +42,7 @@ internal static class LocalizationFieldPreparation
         }
         FieldMessageContext? presentation = null;
         int tagLength = 0;
-        string target = record.Target!;
+        string target = LocalizationValue.RenderTarget(record.Target!);
         if (target.StartsWith("{X", StringComparison.Ordinal) || target.StartsWith("{W", StringComparison.Ordinal) || target.StartsWith("{F", StringComparison.Ordinal))
         {
             if (!FieldMessageContext.TryParseTag(0, target, out presentation, out tagLength))
@@ -101,6 +101,10 @@ internal static class LocalizationFieldPreparation
             int? Operand(int index) => index < call.Operands.Length ? call.Operands[index] : null;
             if (choice)
             {
+                if (record.Target == LocalizationValue.EmptyTarget)
+                {
+                    throw new InvalidDataException($"{record.Key}: an empty target cannot supply native choice options.");
+                }
                 if (!call.Dynamic && (Operand(2) is null || Operand(3) is null))
                 {
                     throw new InvalidDataException($"{record.Key}: static choice binding lacks its proven operands.");

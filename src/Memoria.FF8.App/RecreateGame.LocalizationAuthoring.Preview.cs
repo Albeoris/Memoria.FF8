@@ -4,6 +4,7 @@ using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Resources;
+using Memoria.FF8.Resources.Localization;
 using Memoria.FF8.Resources.Text;
 using Memoria.FF8.Runtime;
 using Memoria.FF8.Ui;
@@ -67,7 +68,7 @@ internal sealed partial class RecreateGame
 
     private DialogueDocument ParseAuthoringPreview(string target, bool originalCompatible)
     {
-        string body = authoringSyntax.Parse(target).Body;
+        string body = authoringSyntax.Parse(LocalizationValue.RenderTarget(target)).Body;
         if (localizationWorkbench.Session?.Base.Identity.Category == "System")
         {
             object?[] arguments = editingAuthoringBinding?.Arguments.ToArray() ?? [];

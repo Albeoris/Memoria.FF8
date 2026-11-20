@@ -6,9 +6,15 @@ namespace Memoria.FF8.Resources.Localization;
 
 public sealed record LocalizationValue(string Text, string PackageId, string ProjectId)
 {
+    public const string EmptyTarget = "{Empty}";
+
     public LocalizationFieldText? Field { get; init; }
     public string? Category { get; init; }
     public string? File { get; init; }
+
+    public string RenderedText => RenderTarget(Text);
+
+    public static string RenderTarget(string target) => target == EmptyTarget ? "" : target;
 }
 
 public sealed record LocalizationCallBinding(int Operation, int? MessageId, bool Dynamic, int? FirstChoice, int? LastChoice, int? InitialChoice, int? CancelChoice)
@@ -22,7 +28,7 @@ public sealed record LocalizationFieldText(string Body, string ScriptHash, int? 
     public ImmutableArray<LocalizationChoiceLineMapEntry> ChoiceLineMap { get; init; } = [];
 }
 
-/// <summary>One fully validated, immutable presentation generation. Empty targets never shadow another layer.</summary>
+/// <summary>One fully validated, immutable presentation generation. Only explicit targets shadow another layer.</summary>
 public sealed class LocalizationCatalog
 {
     public static LocalizationCatalog Empty { get; } = new([]);
@@ -149,7 +155,7 @@ public sealed class LocalizationCatalog
         {
             contributor = Values.GetValueOrDefault(key);
         }
-        string value = contributor?.Text ?? original;
+        string value = contributor?.RenderedText ?? original;
         return new(value, new(resolvedKey, original, value, value)
         {
             PackageId = contributor?.PackageId,
@@ -160,7 +166,7 @@ public sealed class LocalizationCatalog
         });
     }
 
-    public string Resolve(string key, string original) => Values.TryGetValue(key, out LocalizationValue? value) ? value.Text : original;
+    public string Resolve(string key, string original) => Values.TryGetValue(key, out LocalizationValue? value) ? value.RenderedText : original;
 
     public string ResolveAliases(IReadOnlyList<string> keys, string original)
     {
@@ -170,7 +176,7 @@ public sealed class LocalizationCatalog
             {
                 if (layer.Values.TryGetValue(key, out LocalizationValue? value) && !string.IsNullOrEmpty(value.Text))
                 {
-                    return value.Text;
+                    return value.RenderedText;
                 }
             }
         }

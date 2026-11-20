@@ -16,17 +16,22 @@ public static class LocalizationTextValidation
         {
             return;
         }
-        if (row.Target.Any(character => char.IsControl(character) && character is not ('\r' or '\n' or '\t')))
+        if (row.Target != LocalizationValue.EmptyTarget && row.Target.Contains(LocalizationValue.EmptyTarget, StringComparison.Ordinal))
+        {
+            throw new InvalidDataException($"{row.Key}: {LocalizationValue.EmptyTarget} must be the entire target.");
+        }
+        string target = LocalizationValue.RenderTarget(row.Target);
+        if (target.Any(character => char.IsControl(character) && character is not ('\r' or '\n' or '\t')))
         {
             throw new InvalidDataException($"{row.Key}: translated text contains a raw control character.");
         }
         string? source = row.Category == "System" && row.File == SystemTextCatalog.File && SystemSources.TryGetValue(row.Key, out string? authored) ? authored : row.SourcePresent ? row.Source : null;
         if (row.Category == "System" && LocalizationCompositeFormatValidation.TryReadSource(source ?? "", out var composite))
         {
-            LocalizationCompositeFormatValidation.Validate(composite!, row.Target, row.Key);
+            LocalizationCompositeFormatValidation.Validate(composite!, target, row.Key);
             return;
         }
-        Dictionary<string, int> translated = Placeholders(row.Target, row.Key, out _);
+        Dictionary<string, int> translated = Placeholders(target, row.Key, out _);
         if (source is not null)
         {
             Dictionary<string, int> required = Placeholders(source, row.Key, out bool nativeSource);

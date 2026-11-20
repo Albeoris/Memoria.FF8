@@ -29,6 +29,31 @@ public sealed class LocalizationRuntimeTests : IDisposable
     }
 
     [Fact]
+    public void ExplicitEmptyShadowsAWinningTranslationAndKeepsItsContributor()
+    {
+        const string key = "$en_kernel_misctexts_text_0119";
+        LocalizationRecord suffix = new() { Category = "Battle", File = "kernel_misctexts_text", Key = key, Source = "s", Target = "translated" };
+        ModPackage first = Package("suffix", suffix);
+        ModPackage second = Package("suppress", suffix with { Target = LocalizationValue.EmptyTarget });
+        LocalizationPreparation result = LocalizationRuntime.Prepare(new(1, [first, second], []), [first.Id, second.Id], Source, TestContext.Current.CancellationToken);
+
+        Assert.Equal(LocalizationValue.EmptyTarget, LocalizationProjectIO.Read(second.RootDirectory).Entries.Single().Target);
+        Assert.Equal("", result.Catalog.Resolve(key, "s"));
+        Assert.Equal("", result.Catalog.ResolveAliases([key], "s"));
+        BoundLocalizationText bound = result.Catalog.ResolveText(key, "s");
+        Assert.Equal("", bound.Text);
+        Assert.Equal(second.Id, bound.Binding.PackageId);
+    }
+
+    [Theory]
+    [InlineData("The value is {Var 2}", "{Empty}")]
+    [InlineData("source", "Text {Empty}")]
+    public void EmptyTargetCannotRemoveRequiredArgumentsOrAppearWithinProse(string source, string target)
+    {
+        Assert.Throws<InvalidDataException>(() => LocalizationTextValidation.Validate(Row("$en_sample_0000", target) with { Source = source, SourcePresent = true }));
+    }
+
+    [Fact]
     public void NewMultiplePackagesNeedAnExplicitSelection()
     {
         ModPackage first = Package("base", Row("$en_sample_0000", "base"));
@@ -73,11 +98,24 @@ public sealed class LocalizationRuntimeTests : IDisposable
         Assert.Null(prepared.Catalog.ResolveField("$en_bgroom_6_0000", 9, Hash, 0, 2, 0, 255));
     }
 
+    [Fact]
+    public void ExplicitEmptyKeepsTheFieldMessageBinding()
+    {
+        const string key = "$en_bgroom_6_0000";
+        ModPackage package = Package("field-empty", FieldRow(key, LocalizationValue.EmptyTarget, choice: false));
+        LocalizationPreparation prepared = LocalizationRuntime.Prepare(new(1, [package], []), [package.Id], Source, TestContext.Current.CancellationToken);
+
+        LocalizationFieldText? translated = prepared.Catalog.ResolveField(key, 9, Hash, null, null, null, null);
+        Assert.NotNull(translated);
+        Assert.Equal("", translated.Body);
+    }
+
     [Theory]
     [InlineData("Да{Line}Нет")]
     [InlineData("{F0L2B0C255}Да{Line}Нет{Line}Ещё")]
     [InlineData("{F2L3B3C255}Заголовок{Line}Подсказка{Line}Да{Line}Нет")]
     [InlineData("{F2L3B2C255}Да{Line}Нет")]
+    [InlineData("{Empty}")]
     public void IncompatibleChoiceEditsAreRejectedBeforePublication(string target)
     {
         ModPackage package = Package("bad-choice", FieldRow("$en_bgroom_6_0000", target));
@@ -159,9 +197,9 @@ public sealed class LocalizationRuntimeTests : IDisposable
 
     private static LocalizationRecord Row(string key, string target) => new() { Category = "Menus", File = "sample", Key = key, Source = "source", Target = target };
 
-    private static LocalizationRecord FieldRow(string key, string target)
+    private static LocalizationRecord FieldRow(string key, string target, bool choice = true)
     {
-        FieldCompatibilityContext call = new(new(0, 0, 0, 0, 9, 36), "ASK", [0, 0, 0, 1, 0, 255], 0, true, false, [], null);
+        FieldCompatibilityContext call = new(new(0, 0, 0, 0, 9, 36), choice ? "ASK" : "MES", choice ? [0, 0, 0, 1, 0, 255] : [0, 0], 0, true, false, [], null);
         return new() { Category = "Fields", File = "bgroom_6", Key = key, Source = "Да{Line}Нет", Target = target, ExtensionData = new Dictionary<string, JsonElement> { ["sourceContext"] = JsonSerializer.SerializeToElement(new Dictionary<string, string> { ["JSM SHA256"] = Hash, ["Call Contexts"] = JsonSerializer.Serialize(new[] { call }) }) } };
     }
 

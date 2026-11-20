@@ -66,6 +66,8 @@ System messages can be templates containing numbered arguments such as `{0}` and
 
 Preserve required dynamic placeholders such as `{Var 2}`, `{Char Squall}` or key/name tokens, including their occurrence counts. Their contents come from runtime owners, including player-assigned names. Unicode translation text does not need to fit the original game's byte encoding.
 
+Use `{Empty}` as the entire target to suppress a string in the game. A blank target inherits the next available translation or the original text. Explicit suppression must still satisfy the original string's argument and choice contracts.
+
 Field presentation metadata, when present, is a leading tag with complete blocks in this order: `XY` position, `WH` size, then `FLBC` choices. For example, `{F1L2B1C2}` describes choices on zero-based lines 1–2, initially selecting line 1 and cancelling to line 2. This is a syntax illustration, not a new native choice contract.
 
 For `ASK`/`AASK`, **F** and **L** identify the first and last selectable lines; **B** identifies the initial line and **C** the native cancellation result. A translated heading may move selectable lines, but the number/order of semantic options and the relative initial/cancel identities must remain unchanged. An out-of-range native cancel result must also remain unchanged. The translated body must contain the declared lines, and window sizes must be positive.

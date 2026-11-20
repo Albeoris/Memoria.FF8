@@ -30,7 +30,7 @@ public static class LocalizationBindingValidation
                 bool information = known?.Metadata.GetValueOrDefault("Structure") == "information-body-v1";
                 if (Metadata("Structure") == "information-body-v1" || information)
                 {
-                    if (!information || !NativeTutorialInformationText.ValidateTarget(known!.Text, row.Target!))
+                    if (!information || !NativeTutorialInformationText.ValidateTarget(known!.Text, LocalizationValue.RenderTarget(row.Target!)))
                     {
                         throw new InvalidDataException($"{row.Key}: translated Information text must preserve its original conditions, links and value operands.");
                     }

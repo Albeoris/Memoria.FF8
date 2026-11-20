@@ -877,6 +877,7 @@ internal sealed partial class RecreateGame
 
     private string FormatAuthoringDialogueTemplate(string template)
     {
+        template = LocalizationValue.RenderTarget(template);
         return editingAuthoringHit?.FormatTemplate is { } format ? format(template) : template;
     }
 
