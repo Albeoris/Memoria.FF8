@@ -18,7 +18,7 @@ public sealed record TextureCatalogEntry(TextureTarget Target, string Name, stri
         _ => $"{Reader}:{ResourcePath}"
     };
     internal string Reader { get; init; } = "";
-    internal ModelCatalogEntry? Model { get; init; }
+    public ModelCatalogEntry? Model { get; internal init; }
     internal int Index { get; init; }
     internal int Section { get; init; }
 

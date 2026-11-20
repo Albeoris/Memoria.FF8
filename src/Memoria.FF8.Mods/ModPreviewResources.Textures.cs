@@ -115,11 +115,13 @@ public static partial class ModPreviewResources
                 {
                     continue;
                 }
-                foreach (TextureBuildContext context in assets.LoadCatalogModelMaterialUnit(model))
+                IReadOnlyList<TextureBuildContext> materials = assets.LoadCatalogModelMaterialUnit(model);
+                for (int index = 0; index < materials.Count; index++)
                 {
+                    TextureBuildContext context = materials[index];
                     if (legacyTarget.Matches(TextureTarget.FromContext(context), context.Layout) && SelectModelPreviewPalette(context, legacyTarget.ModelPalette) is { } material && CompareContext(material, $"{model.Name} / {material.Key.Subresource}") is { } comparison)
                     {
-                        return comparison;
+                        return CompareModelMaterials(model, materials, index, material, comparison);
                     }
                 }
             }
@@ -139,7 +141,63 @@ public static partial class ModPreviewResources
         }
         return null;
 
-        ModPreviewComparison? CompareEntry(TextureCatalogEntry entry) => CompareContext(assets.LoadCatalogTexture(entry), entry.Name);
+        ModPreviewComparison? CompareEntry(TextureCatalogEntry entry)
+        {
+            TextureBuildContext context = assets.LoadCatalogTexture(entry);
+            ModPreviewComparison? comparison = CompareContext(context, entry.Name);
+            if (comparison is null || entry.Model is not { } model)
+            {
+                return comparison;
+            }
+            IReadOnlyList<TextureBuildContext> materials = assets.LoadCatalogModelMaterialUnit(model);
+            string member = context.Key.Subresource.Replace("/registered/", "/", StringComparison.Ordinal);
+            for (int index = 0; index < materials.Count; index++)
+            {
+                TextureBuildContext material = materials[index];
+                if (material.Key.Owner == context.Key.Owner && material.Key.Subresource == member)
+                {
+                    return CompareModelMaterials(model, materials, index, context, comparison);
+                }
+                if (material.NativeSheet is { } sheet && sheet.Owner == context.Key.Owner && sheet.Subresource == member && sheet.Palette == context.Key.Palette)
+                {
+                    return CompareModelMaterials(model, materials, index, material, comparison, context.RequestedVariant);
+                }
+            }
+            return comparison;
+        }
+
+        ModPreviewComparison CompareModelMaterials(ModelCatalogEntry entry, IReadOnlyList<TextureBuildContext> materials, int selectedIndex, TextureBuildContext selected, ModPreviewComparison comparison, string? sheetVariant = null)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (replacement is NativeTextureMods native && entry.Category != "World character"
+                && NativeTextureMods.TryPrepare(package, out NativeTextureMods packageTextures, out _, cancellationToken, previous: native))
+            {
+                resources.Prepare(packageTextures).Commit();
+            }
+            EditableModel model = assets.LoadCatalogModel(entry);
+            if (materials.Count != model.Textures.Count)
+            {
+                throw new InvalidDataException("The model's material directory does not match its texture slots.");
+            }
+            PixelImage[] original = new PixelImage[materials.Count];
+            PixelImage[] modded = new PixelImage[materials.Count];
+            for (int index = 0; index < materials.Count; index++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                TextureBuildContext material = index == selectedIndex ? selected : materials[index];
+                TextureValue before = resources.ResolveOriginalForExport(material);
+                TextureValue after = resources.ResolveForExport(material);
+                string? variant = index == selectedIndex ? sheetVariant : null;
+                original[index] = ModelPixels(before, variant);
+                modded[index] = ModelPixels(after, variant);
+            }
+            return new(new(comparison.Before.Text) { Model = model with { Textures = original } }, new(comparison.After.Text) { Model = model with { Textures = modded } });
+        }
+
+        static PixelImage ModelPixels(TextureValue value, string? variant)
+        {
+            return variant is not null && value.Variants?.TryGetValue(variant, out PixelImage? image) == true ? image : value.Image;
+        }
 
         bool IsSelectedReplacement(TextureValue texture)
         {
@@ -155,27 +213,16 @@ public static partial class ModPreviewResources
                 return null;
             }
             IReadOnlyList<TextureBuildContext> materials = assets.LoadCatalogModelMaterialUnit(entry);
-            TextureBuildContext? selected = materials.FirstOrDefault(target.Matches);
-            if (selected is null)
-            {
-                return null;
-            }
-            TextureValue selectedTexture = resources.ResolveForExport(selected);
-            if (!IsSelectedReplacement(selectedTexture))
-            {
-                return null;
-            }
-            EditableModel model = assets.LoadCatalogModel(entry);
-            PixelImage[] before = new PixelImage[materials.Count];
-            PixelImage[] after = new PixelImage[materials.Count];
             for (int index = 0; index < materials.Count; index++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 TextureBuildContext material = materials[index];
-                before[index] = resources.ResolveOriginalForExport(material).Image;
-                after[index] = ReferenceEquals(material, selected) ? selectedTexture.Image : resources.ResolveForExport(material).Image;
+                if (target.Matches(material) && IsSelectedReplacement(resources.ResolveForExport(material)))
+                {
+                    return CompareModelMaterials(entry, materials, index, material, new(new(entry.Name), new(entry.Name)));
+                }
             }
-            return new(new(entry.Name) { Model = model with { Textures = before } }, new(entry.Name) { Model = model with { Textures = after } });
+            return null;
         }
 
         ModPreviewComparison? CompareContext(TextureBuildContext context, string name)
