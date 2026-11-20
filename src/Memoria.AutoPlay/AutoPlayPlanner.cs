@@ -16,7 +16,11 @@ public enum AutoPlayBlockKind
 public sealed record AutoPlayVisit(string Key, string Region);
 
 /// <summary>ChangesStory is supplied by script-write analysis; Order permits explicit policy overrides.</summary>
-public sealed record AutoPlayEvent(string Id, AutoPlayEventKind Kind, string? DestinationVisitKey = null, bool ChangesStory = false, int Order = 0, string? ConditionSignature = null, IReadOnlyList<string>? Variants = null);
+public sealed record AutoPlayEvent(string Id, AutoPlayEventKind Kind, string? DestinationVisitKey = null, bool ChangesStory = false, int Order = 0, string? ConditionSignature = null, IReadOnlyList<string>? Variants = null)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? EffectFingerprint { get; init; }
+}
 
 public sealed class AutoPlayConditionCoverage
 {

@@ -104,6 +104,10 @@ public sealed partial class Ff7AutoPlayPolicy
         if (state.WorldVisits.TryGetValue(navigation.VisitKey, out Ff7AutoPlayWorldVisitState? world))
         {
             var aggregate = state.Coverage.Visits.Single(visit => visit.Visit.Key == navigation.VisitKey).Events.Single(item => item.Event.Id == observed.Id);
+            if (HasConsumedEffectAlias(state, navigation.VisitKey, observed))
+            {
+                return new(true, new(StringComparer.Ordinal) { observed.Id }, $"consumed-effect-alias:{observed.EffectFingerprint}");
+            }
             AutoPlayEventCoverage<Ff7AutoPlayDeferral> scoped = new() { Event = observed, UnavailableAttempts = aggregate.UnavailableAttempts };
             Dictionary<string, string> facts = aggregate.UnavailableAttempts.GroupBy(attempt => attempt.GuardKey, StringComparer.Ordinal).ToDictionary(group => group.Key, group => world.ObservedPhysicalGuards.GetValueOrDefault(group.Key) ?? group.Last().GuardFingerprint, StringComparer.Ordinal);
             return ReadWorldSemanticAvailability(aggregate, observed, AutoPlayPlanner<Ff7AutoPlayDeferral>.ReadAvailability(scoped, facts));
@@ -133,6 +137,10 @@ public sealed partial class Ff7AutoPlayPolicy
     internal static AutoPlayEventAvailability ReadComponentAvailability(Ff7AutoPlayState state, AutoPlayNavigationVisit navigation, AutoPlayEvent observed, IReadOnlyDictionary<string, string> facts, Func<string, Ff7AutoPlayNavigationGuard, bool?>? readSourceInside = null, Func<string, Ff7AutoPlayNavigationGuard, bool>? includeRefusal = null)
     {
         var aggregate = state.Coverage.Visits.Single(visit => visit.Visit.Key == navigation.VisitKey).Events.Single(item => item.Event.Id == observed.Id);
+        if (HasConsumedEffectAlias(state, navigation.VisitKey, observed))
+        {
+            return new(true, new(StringComparer.Ordinal) { observed.Id }, $"consumed-effect-alias:{observed.EffectFingerprint}");
+        }
         AutoPlayEventCoverage<Ff7AutoPlayDeferral> scoped = new() { Event = observed, UnavailableAttempts = aggregate.UnavailableAttempts.Where(attempt => state.NavigationGuards.TryGetValue(attempt.GuardKey, out var guard) && guard.NavigationKey == navigation.Key && !IsUncertifiedMovementAdvice(attempt.GuardKey, guard) && (includeRefusal is null || includeRefusal(attempt.GuardKey, guard)) && (guard.MovementFailure is null || (readSourceInside is null ? guard.MovementSourceInside : readSourceInside(attempt.GuardKey, guard)) != false)).ToList() };
         return ReadGatewayTopologyAvailability(state, navigation, observed, AutoPlayPlanner<Ff7AutoPlayDeferral>.ReadAvailability(scoped, facts))!;
     }

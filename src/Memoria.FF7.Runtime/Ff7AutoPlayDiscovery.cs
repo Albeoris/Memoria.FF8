@@ -23,6 +23,7 @@ public enum Ff7AutoPlayTargetKind
 
 public sealed record Ff7AutoPlayTarget(string Id, int Entity, int Script, Ff7AutoPlayTargetKind Kind, string ConditionFingerprint, bool ChangesStory, Vector3 Position, int? Triangle = null, int? GatewayIndex = null, int? DestinationField = null, Vector3? SegmentStart = null, Vector3? SegmentEnd = null, bool AnalysisComplete = true, string? SupportReason = null, bool MayChangeNavigation = false, string? EntryInputContract = null, bool ChangesField = false)
 {
+    public string? EffectFingerprint { get; init; }
     public Ff7AutoPlaySpatialOwner? SpatialOwner { get; init; }
     public int[]? SpatialDestinations { get; init; }
     /// <summary>Analyzed possible field destinations for planning; does not establish transition ownership or completion.</summary>
@@ -87,6 +88,15 @@ public sealed partial class Ff7AutoPlayDiscovery(Ff7Session session)
     private readonly Dictionary<(int Entity, int Script), FieldScriptInputDemand?> entryInputs = [];
     private string? analysisAllocation;
     private readonly Ff7AutoPlayEntryReadiness entryReadiness = new();
+
+    internal static string? ReadEffectFingerprint(string program, int entity, int entry, int priority, string canonicalVariables, string externalConditions, FieldScriptAnalysis analysis, FieldScriptEntryDependencies dependencies, bool hostConditionsComplete, bool hasEntryInput)
+    {
+        if (priority != 1 || !analysis.Complete || !analysis.InputIndependent || analysis.StochasticPresentation is not null || analysis.HostReads.Length != 0 || !dependencies.Complete || dependencies.HostReads.Length != 0 || !hostConditionsComplete || hasEntryInput)
+        {
+            return null;
+        }
+        return CombineConditionFingerprints($"effect-entry:1:{program}:{entity}:{entry}:{priority}:{canonicalVariables}", externalConditions);
+    }
 
     public Ff7AutoPlayTarget? FindTarget(string id) => Observe().Events.SingleOrDefault(target => target.Id == id);
 
@@ -233,7 +243,10 @@ public sealed partial class Ff7AutoPlayDiscovery(Ff7Session session)
                 fingerprint = CombineConditionFingerprints(fingerprint, entryContract);
             }
             int? destination = analysis.DestinationFields.Length == 1 ? analysis.DestinationFields[0] : null;
-            events.Add(new(id, entity, script, kind, fingerprint, analysis.ChangesStory, position, triangle, DestinationField: destination, SegmentStart: start, SegmentEnd: end, AnalysisComplete: analysis.Complete && dependencies.Complete && external.Complete, SupportReason: analysis.Reason ?? dependencies.Reason ?? external.Reason, MayChangeNavigation: analysis.MayChangeNavigation, EntryInputContract: entryContract, ChangesField: analysis.DestinationFields.Length > 0) { EntryInputDemand = entryInput, PossibleDestinationFields = analysis.DestinationFields.ToArray(), UnblockedTriangles = analysis.UnblockedTriangles.ToArray() });
+            int canonicalScript = Enumerable.Range(0, 32).First(index => session.Field.Scripts.Entities[entity].ScriptOffsets[index] == entry);
+            string canonical = analysis.Complete && dependencies.Complete ? session.Machine.ReadScriptAnalysisFingerprint(entity, canonicalScript, dependencies.Reads) : string.Empty;
+            string? effectFingerprint = ReadEffectFingerprint(identity, entity, entry, 1, canonical, external.Fingerprint, analysis, dependencies, external.Complete, entryInput is not null);
+            events.Add(new(id, entity, script, kind, fingerprint, analysis.ChangesStory, position, triangle, DestinationField: destination, SegmentStart: start, SegmentEnd: end, AnalysisComplete: analysis.Complete && dependencies.Complete && external.Complete, SupportReason: analysis.Reason ?? dependencies.Reason ?? external.Reason, MayChangeNavigation: analysis.MayChangeNavigation, EntryInputContract: entryContract, ChangesField: analysis.DestinationFields.Length > 0) { EffectFingerprint = effectFingerprint, EntryInputDemand = entryInput, PossibleDestinationFields = analysis.DestinationFields.ToArray(), UnblockedTriangles = analysis.UnblockedTriangles.ToArray() });
         }
     }
 }

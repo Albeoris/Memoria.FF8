@@ -730,6 +730,18 @@ if (args.Contains("--world-semantic-availability-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--native-effect-alias-only", StringComparer.Ordinal))
+{
+    NativeEffectAliasTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-effect-alias-original-only", StringComparer.Ordinal))
+{
+    NativeEffectAliasTests.RunOriginal();
+    return 0;
+}
+
 if (args.Contains("--autoplay-world-policy-only", StringComparer.Ordinal))
 {
     AutoPlayWorldPolicyTests.Run();

@@ -23,6 +23,7 @@ public sealed record FieldScriptAnalysis(bool Complete, string? Reason, string F
 {
     public FieldHostRead[] HostReads { get; init; } = [];
     public bool MayChangeNavigation { get; init; }
+    public bool InputIndependent { get; init; }
     public FieldStochasticPresentation? StochasticPresentation { get; init; }
     public int[] ExitProgramCounters { get; init; } = [];
     public int[] UnblockedTriangles { get; init; } = [];
@@ -146,6 +147,7 @@ public sealed partial class FieldMachine
         HashSet<int> destinations = [];
         HashSet<int> unblockedTriangles = [];
         HashSet<int> exits = [];
+        bool inputIndependent = true;
         Dictionary<int, bool> physicalExits = [];
         HashSet<string> physicalPredicates = [];
         HashSet<FieldVariableRead> physicalBytes = [];
@@ -203,6 +205,7 @@ public sealed partial class FieldMachine
                 byte controls = location.Controls;
                 bool physicalValid = location.PhysicalValid;
                 byte opcode = program.Read(pc);
+                inputIndependent &= opcode is not (0x30 or 0x31 or 0x32);
                 if (owner == entity && physicalPredicates.Contains(PredicateIdentity(pc)))
                 {
                     bool returned = controls == 0 && physicalValid;
@@ -402,6 +405,7 @@ public sealed partial class FieldMachine
                 }
                 foreach (FieldCommand command in detached.inspection.Commands)
                 {
+                    inputIndependent &= command is FieldTransitionCommand or FieldPartyProjection;
                     if (navigationInvariant is not null && command is FieldActorBind or FieldPartyCharacter or FieldPartyJoin or FieldPartySplit or FieldActorProperty { Property: FieldActorPropertyKind.PlayerCharacter })
                     {
                         navigationInvariant.MayChangePartyAllocation = true;
@@ -479,6 +483,6 @@ public sealed partial class FieldMachine
             reason ??= error.Message;
             fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes($"{program.Identity}:{entity}:{script}:unsupported")));
         }
-        return new(reason is null, reason, fingerprint, changesStory, dependencies, visited.Select(value => value.Pc).Distinct().Order().ToArray(), destinations.Order().ToArray()) { HostReads = hostReads.OrderBy(read => read.Kind).ThenBy(read => read.Parameter).ThenBy(read => read.Selector).ToArray(), MayChangeNavigation = mayChangeNavigation, ExitProgramCounters = exits.Order().ToArray(), UnblockedTriangles = unblockedTriangles.Order().ToArray() };
+        return new(reason is null, reason, fingerprint, changesStory, dependencies, visited.Select(value => value.Pc).Distinct().Order().ToArray(), destinations.Order().ToArray()) { HostReads = hostReads.OrderBy(read => read.Kind).ThenBy(read => read.Parameter).ThenBy(read => read.Selector).ToArray(), MayChangeNavigation = mayChangeNavigation, InputIndependent = reason is null && inputIndependent, ExitProgramCounters = exits.Order().ToArray(), UnblockedTriangles = unblockedTriangles.Order().ToArray() };
     }
 }

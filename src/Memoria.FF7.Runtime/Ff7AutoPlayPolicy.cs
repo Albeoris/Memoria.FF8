@@ -29,6 +29,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         discovery = new(session);
         choices = new(session, planner, State, writeChoiceCheckpoint);
         scriptedInput = new(session);
+        session.NativeInteractionScriptRequested += ObserveEffectAliasAdmission;
         session.InteractionScriptRequested += ObserveInteraction;
         session.NativeTickCompleted += ObserveTick;
         session.NativeFieldDeparting += ObserveNativeFieldDeparture;
@@ -600,6 +601,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             }
             State.NavigationGoal = null;
         }
+        RetireConsumedEffectAliasGoal();
         State.Status = "Native event completed; selecting the next frontier";
         Publish();
     }
@@ -634,7 +636,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         {
             nativeDestinationHints[(observation.VisitId, target.Id)] = target.DestinationField!.Value;
         }
-        AutoPlayEvent[] events = observation.Events.Where(target => target.AnalysisComplete).Select(target => new AutoPlayEvent(target.Id, target.Kind == Ff7AutoPlayTargetKind.Gateway ? AutoPlayEventKind.Transition : AutoPlayEventKind.Interaction, ChangesStory: target.ChangesStory, Order: TargetOrder(target), ConditionSignature: target.ConditionFingerprint)).ToArray();
+        AutoPlayEvent[] events = observation.Events.Where(target => target.AnalysisComplete).Select(target => new AutoPlayEvent(target.Id, target.Kind == Ff7AutoPlayTargetKind.Gateway ? AutoPlayEventKind.Transition : AutoPlayEventKind.Interaction, ChangesStory: target.ChangesStory, Order: TargetOrder(target), ConditionSignature: target.ConditionFingerprint) { EffectFingerprint = target.EffectFingerprint }).ToArray();
         bool plannerChanged = NativePlannerObservationChanged(State, observation, events);
         State.VisitGuards.TryGetValue(observation.VisitId, out Ff7AutoPlayVisitGuard? previousGuard);
         planner.Observe(new(observation.VisitId, observation.ProgramIdentity), events);
@@ -879,6 +881,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
     public void Dispose()
     {
         CancelNativePlanning();
+        session.NativeInteractionScriptRequested -= ObserveEffectAliasAdmission;
         session.InteractionScriptRequested -= ObserveInteraction;
         session.NativeTickCompleted -= ObserveTick;
         session.NativeFieldDeparting -= ObserveNativeFieldDeparture;
