@@ -5,6 +5,7 @@ internal static class NativeNavigationEntryProofTests
 {
     public static void Run()
     {
+        NativeDirectTransitionProofTests.Run();
         IdempotentControlPublications();
         PartyMembershipBranches();
         DeadDirectionQueryPublication();

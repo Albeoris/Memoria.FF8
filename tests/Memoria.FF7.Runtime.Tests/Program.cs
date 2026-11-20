@@ -754,6 +754,18 @@ if (args.Contains("--native-effect-alias-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--native-direct-transition-alias-only", StringComparer.Ordinal))
+{
+    NativeDirectTransitionAliasTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-direct-transition-alias-original-only", StringComparer.Ordinal))
+{
+    NativeDirectTransitionAliasTests.RunOriginal();
+    return 0;
+}
+
 if (args.Contains("--native-line-touch-region-only", StringComparer.Ordinal))
 {
     NativeLineTouchRegionTests.Run();

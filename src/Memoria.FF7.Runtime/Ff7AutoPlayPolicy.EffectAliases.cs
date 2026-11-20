@@ -62,6 +62,15 @@ public sealed partial class Ff7AutoPlayPolicy
         {
             return false;
         }
+        if (observed.EffectFingerprint.StartsWith("native-field-transition:", StringComparison.Ordinal))
+        {
+            if (!Ff7AutoPlayDiscovery.TryReadDirectTransitionEffect(observed.EffectFingerprint, out int map))
+            {
+                return false;
+            }
+            string destination = "ff7:" + map.ToString(System.Globalization.CultureInfo.InvariantCulture) + ":";
+            return visit.Events.Any(item => item.Event.Id != observed.Id && item.Completed && item.Event.EffectFingerprint == observed.EffectFingerprint && item.Event.ConditionSignature is string condition && item.Conditions?.HasExecutedEntry(condition) == true && item.Routes.Any(route => route.ConditionSignature == condition && route.TargetId == item.Event.Id && route.DestinationVisitKey.StartsWith(destination, StringComparison.Ordinal) && route.ObservedStoryChanged == false && (route.Selections is null || route.Selections.Count == 0)));
+        }
         return visit.Events.Any(item => item.Event.Id != observed.Id && item.Completed && item.Event.EffectFingerprint == observed.EffectFingerprint && item.Event.ConditionSignature is string condition && item.Conditions?.HasExecutedEntry(condition) == true && (item.ObservedConditionSignature == condition || item.Routes.Any(route => route.ConditionSignature == condition)));
     }
 

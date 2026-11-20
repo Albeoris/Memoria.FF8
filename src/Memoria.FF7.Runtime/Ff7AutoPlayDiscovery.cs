@@ -259,6 +259,11 @@ public sealed partial class Ff7AutoPlayDiscovery(Ff7Session session)
                 string canonical = session.Machine.ReadScriptAnalysisFingerprint(entity, canonicalScript, dependencies.Reads);
                 effectFingerprint = ReadEffectFingerprint(identity, entity, entry, 1, canonical, external.Fingerprint, analysis, dependencies, external.Complete, entryInput is not null);
             }
+            if (analysis.Complete && analysis.DestinationFields.Any(field => field > 64 && field < short.MaxValue))
+            {
+                FieldNavigationEntryProof direct = session.ReadNavigationEntryProof(entity, script, session.Machine.Input, directTransition: true);
+                effectFingerprint = ReadDirectTransitionEffectFingerprint(direct) ?? effectFingerprint;
+            }
             events.Add(new(id, entity, script, kind, fingerprint, analysis.ChangesStory, position, triangle, DestinationField: destination, SegmentStart: start, SegmentEnd: end, AnalysisComplete: analysis.Complete && dependencies.Complete && external.Complete, SupportReason: analysis.Reason ?? dependencies.Reason ?? external.Reason, MayChangeNavigation: analysis.MayChangeNavigation, EntryInputContract: entryContract, ChangesField: analysis.DestinationFields.Length > 0) { EffectFingerprint = effectFingerprint, EntryInputDemand = entryInput, PossibleDestinationFields = analysis.DestinationFields.ToArray(), UnblockedTriangles = analysis.UnblockedTriangles.ToArray() });
         }
     }

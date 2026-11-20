@@ -1,7 +1,11 @@
 namespace Memoria.FF7.Events;
 
 public sealed record FieldNavigationEntryPoint(int Entity, int Script);
-public sealed record FieldNavigationEntryProof(bool Complete, bool HasNoEffect, string? Reason, FieldVariableRead[] Reads);
+public sealed record FieldNavigationEntryProof(bool Complete, bool HasNoEffect, string? Reason, FieldVariableRead[] Reads)
+{
+    public FieldTransitionCommand? DirectTransition { get; init; }
+    public string? DirectGuardFingerprint { get; init; }
+}
 public sealed record FieldNavigationControlState(bool PlayerLocked, bool MenuDisabled, int PlayerEntity, int PlayerAnimationStatus, IReadOnlyList<FieldNavigationEntryPoint> PossibleEntries);
 
 public sealed partial class FieldMachine
@@ -110,6 +114,16 @@ public sealed partial class FieldMachine
     /// <summary>Proves an entry has no observable effect and returns within one native handler quantum. The caller must supply every possible external variable publication and competing external script entry before dispatch; this method includes all captured owners, saved continuations and native child requests.</summary>
     public FieldNavigationEntryProof ProveNavigationEntryHasNoEffect(int entity, int script, FieldInputState projectedInput, IReadOnlyList<FieldVariableRead> externalWrites, IReadOnlyList<FieldNavigationEntryPoint> possibleExternalEntries, int instructionBudget = 8192, FieldNavigationControlState? controls = null, bool allInputs = false)
     {
+        return ProveNavigationEntry(entity, script, projectedInput, externalWrites, possibleExternalEntries, instructionBudget, controls, allInputs, false);
+    }
+
+    public FieldNavigationEntryProof ProveNavigationEntryDirectTransition(int entity, int script, FieldInputState projectedInput, IReadOnlyList<FieldVariableRead> externalWrites, IReadOnlyList<FieldNavigationEntryPoint> possibleExternalEntries, int instructionBudget = 8192)
+    {
+        return ProveNavigationEntry(entity, script, projectedInput, externalWrites, possibleExternalEntries, instructionBudget, null, false, true);
+    }
+
+    private FieldNavigationEntryProof ProveNavigationEntry(int entity, int script, FieldInputState projectedInput, IReadOnlyList<FieldVariableRead> externalWrites, IReadOnlyList<FieldNavigationEntryPoint> possibleExternalEntries, int instructionBudget, FieldNavigationControlState? controls, bool allInputs, bool directTransition)
+    {
         ArgumentNullException.ThrowIfNull(projectedInput);
         ArgumentNullException.ThrowIfNull(externalWrites);
         ArgumentNullException.ThrowIfNull(possibleExternalEntries);
@@ -132,6 +146,8 @@ public sealed partial class FieldMachine
             detached.entities[entity].Wait = 0;
             detached.Input = projectedInput;
             bool publishesControls = false;
+            FieldTransitionCommand? transition = null;
+            List<object> transitionGuards = [];
             HashSet<FieldVariableRead> queryOutputs = [];
             string? ProveReturn(int pc, int handlers, HashSet<int> ancestors, HashSet<FieldVariableRead> unknown)
             {
@@ -145,6 +161,20 @@ public sealed partial class FieldMachine
                 }
                 detached.entities[entity].Pc = pc;
                 byte opcode = program.Read(pc);
+                if (directTransition)
+                {
+                    if (opcode == 0x60)
+                    {
+                        detached.inspection = new();
+                        detached.Execute(entity);
+                        transition = detached.inspection.Commands.SingleOrDefault() as FieldTransitionCommand;
+                        return transition is { Map: > 64 and < 32767 } ? null : "The entry has no supported literal field transition.";
+                    }
+                    if (opcode is not (0x10 or 0x11 or >= 0x14 and <= 0x19))
+                    {
+                        return "A direct field transition reaches a return, effect, input or unsupported instruction.";
+                    }
+                }
                 if (opcode == 0)
                 {
                     return null;
@@ -209,6 +239,10 @@ public sealed partial class FieldMachine
                 if (opcode is >= 0x14 and <= 0x19)
                 {
                     FieldConditional condition = detached.ReadConditional(entity, opcode);
+                    if (directTransition)
+                    {
+                        transitionGuards.Add(new { Opcode = opcode, condition.LeftSource, condition.RightSource, condition.Left, condition.Right, condition.Operation });
+                    }
                     bool IsUnknown(FieldVariableRead read) => detached.Variables.SpatialSourceBytes(read).Any(source => unknown.Contains(source) || queryOutputs.Contains(source));
                     if (IsUnknown(condition.LeftSource) || IsUnknown(condition.RightSource))
                     {
@@ -363,7 +397,25 @@ public sealed partial class FieldMachine
                     }
                 }
             }
-            return new(true, true, null, reads.OrderBy(read => read.Bank).ThenBy(read => read.Operand).ThenBy(read => read.Word).ToArray());
+            FieldVariableRead[] footprint = reads.OrderBy(read => read.Bank).ThenBy(read => read.Operand).ThenBy(read => read.Word).ToArray();
+            string? guardFingerprint = null;
+            if (directTransition)
+            {
+                if (transition is null)
+                {
+                    return Reject("The entry did not publish a direct field transition.");
+                }
+                byte[] guard = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(new
+                {
+                    Contract = "native-direct-field-transition:1",
+                    program.Identity,
+                    Transition = transition,
+                    Guards = transitionGuards,
+                    Inputs = footprint.Select(read => new { read.Bank, read.Operand, read.Word, Value = read.Word ? Variables.ReadWord(read.Bank, read.Operand) : Variables.ReadByte(read.Bank, unchecked((byte)read.Operand)) }).ToArray()
+                });
+                guardFingerprint = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(guard));
+            }
+            return new(true, !directTransition, null, footprint) { DirectTransition = transition, DirectGuardFingerprint = guardFingerprint };
         }
         catch (Exception error) when (error is InputInspectionBoundaryException or FieldExecutionException or InvalidDataException or NotSupportedException or ArgumentException or IndexOutOfRangeException)
         {
