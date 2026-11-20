@@ -112,6 +112,10 @@ internal static class NavigationModeSchedulingTests
         }
         Ff7AutoplayInput input = driver.ChooseNavigationModes("source", "contact", new(), Source, Choose, _ => true);
         Check(driver.PlanningPending && input == default && Parked(driver) == 2 && cursors.Count == 2, "A nonterminal greedy walk displaced the owned actual-contact search phase.");
+        Check(driver.HasRetainedPhysicalSearch, "A real pending mode cursor lost its current-step physical ownership certificate.");
+        driver.BeginPlanningStep();
+        driver.DeferPlanning();
+        Check(!driver.HasRetainedPhysicalSearch, "A generic or stale planning flag inherited physical ownership from the preceding poll.");
         driver.ChooseNavigationModes("source", "contact", new(), Source, Choose, _ => true);
         Check(cursors[true].Expanded > 0 && cursors[false].Expanded > 0 && (bool)Field("navigationTalkContactSearchPhase").GetValue(driver)!, "The actual-contact phase was lost when its sibling mode resumed.");
         input = driver.ChooseNavigationModes("source", "contact", new(), Source, run => !run ? new(Talk: true, Run: false) : Choose(run), _ => true);

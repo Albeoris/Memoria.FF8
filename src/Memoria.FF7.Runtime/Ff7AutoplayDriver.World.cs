@@ -33,10 +33,15 @@ public sealed partial class Ff7AutoplayDriver
     private string? worldTerrainGuideContext;
     internal bool PlanningPending { get; private set; }
 
-    internal void BeginPlanningStep() => PlanningPending = false;
+    internal void BeginPlanningStep()
+    {
+        PlanningPending = false;
+        physicalSearchPreparedThisStep = false;
+    }
 
     internal void DeferPlanning()
     {
+        physicalSearchPreparedThisStep = false;
         PlanningPending = true;
     }
 

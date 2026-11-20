@@ -267,6 +267,7 @@ public sealed partial class Ff7AutoplayDriver
         private Ff7AutoPlayPhysicalRoute? completed;
         private GuideWorkset? guideWorkset;
         internal int Expanded => guideWorkset?.Expanded ?? expanded;
+        internal bool HasPendingWork => guideWorkset?.HasPendingWork ?? (completed is null && pending.Count > 0);
         internal PhysicalSearchGuide? WinningGuide => guideWorkset?.Winner;
 
         private sealed class GuideWorkset(PhysicalSearchGuide[] guides)
@@ -274,6 +275,7 @@ public sealed partial class Ff7AutoplayDriver
             private readonly Queue<PhysicalSearchGuide> pending = new(guides);
             private Ff7AutoPlayPhysicalRoute? completed;
             internal PhysicalSearchGuide? Winner { get; private set; }
+            internal bool HasPendingWork => completed is null && pending.Count > 0;
             internal int Expanded
             {
                 get

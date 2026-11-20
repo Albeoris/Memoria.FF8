@@ -183,6 +183,8 @@ public sealed partial class Ff7AutoplayDriver
         obstacleSearchContext = state.ObstacleSearchContext;
     }
     internal bool? PlannedActionAdvances => navigationActionProgress;
+    private bool physicalSearchPreparedThisStep;
+    internal bool HasRetainedPhysicalSearch => physicalSearchPreparedThisStep && PlanningPending && (obstacleSearch is { HasPendingWork: true, Expanded: > 0 } || parkedNavigationModes.Values.Any(mode => mode.ObstacleSearch is { HasPendingWork: true, Expanded: > 0 }));
     internal bool PreparingNavigationMode => preparingNavigationMode;
 
     internal Ff7AutoplayInput ChooseTargetInput(Ff7AutoPlayTarget target, IReadOnlyList<Ff7AutoPlayTarget> offeredTargets, Func<bool, Ff7AutoplayInput> choose, bool? requiredRun = null)
@@ -365,6 +367,7 @@ public sealed partial class Ff7AutoplayDriver
             {
                 nextPendingNavigationRun = !firstRun;
                 DeferPlanning();
+                physicalSearchPreparedThisStep = true;
                 return default;
             }
             if (idle is Ff7AutoplayInput waiting && !rejected)

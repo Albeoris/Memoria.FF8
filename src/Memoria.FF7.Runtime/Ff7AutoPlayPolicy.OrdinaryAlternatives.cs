@@ -62,10 +62,22 @@ public sealed partial class Ff7AutoPlayPolicy
         return state.Active == expected && expected.Generation == observation.Generation && expected.VisitId == observation.VisitId && !expected.Accepted && !expected.Returned && !expected.TransitionOwned && !expected.CompletionRecorded && state.NavigationGoal is { EventId: not null, Conditions: not null } goal && goal.NavigationKey == observation.NavigationKey && expected.NavigationKey == goal.NavigationKey && expected.EventId == goal.EventId && expected.ConditionFingerprint == goal.Conditions && CanContinueOwnedTravel(state, observation);
     }
 
+    internal static bool CanRetainProductiveOrdinarySearch(Ff7AutoPlayState state, Ff7AutoPlayObservation observation, Ff7AutoPlayActiveEvent expected, bool retainedPhysicalWork, bool actualLegProgress, bool unknownContactSearch)
+    {
+        return retainedPhysicalWork && actualLegProgress && !unknownContactSearch && state.Active == expected && expected is { Accepted: false, Returned: false, TransitionOwned: false, CompletionRecorded: false } && expected.Kind is >= Ff7AutoPlayTargetKind.ActorTalk and <= Ff7AutoPlayTargetKind.Gateway && expected.Generation == observation.Generation && expected.VisitId == observation.VisitId && expected.NavigationKey == observation.NavigationKey && state.NativeRoute is null && state.PendingRestore is null && state.Choice is null && observation.Events.Any(target => target.Id == expected.EventId && target.ConditionFingerprint == expected.ConditionFingerprint && target.AnalysisComplete);
+    }
+
     private bool TryChooseOrdinaryAlternative(Ff7AutoplayDriver liveDriver, out Ff7AutoplayInput input)
     {
         input = default;
         if (ordinaryObservation is not { } observation || ordinaryPhysicalGuards is not { } facts || State.Active is not { Accepted: false } expected || State.NativeRoute is not null || State.PendingRestore is not null || session.Battle is not null || session.World is not null || expected.VisitId != observation.VisitId || expected.NavigationKey != observation.NavigationKey || expected.Generation != observation.Generation)
+        {
+            return false;
+        }
+        Ff7Actor? player = session.Host.Process.Actors.SingleOrDefault(actor => actor.PlayerControlled);
+        string expectedLeg = $"{expected.NavigationKey}:{expected.EventId}:{expected.Generation}:{ReadTalkContactMovementIdentity(expected)}:{expected.ConditionFingerprint}";
+        bool progressedLeg = ordinaryLegIdentity == expectedLeg && ordinaryLegStart is { } start && player is not null && start != (player.X4096, player.Y4096, player.Z4096);
+        if (CanRetainProductiveOrdinarySearch(State, observation, expected, liveDriver.HasRetainedPhysicalSearch, progressedLeg, OwnsUnknownTalkContactSearch(expected, unknownTalkContactSearchOwner)))
         {
             return false;
         }

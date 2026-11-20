@@ -17,6 +17,8 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
     private readonly Ff7AutoPlayNativeReadiness nativeReadiness = new();
     private readonly Ff7AutoPlayNativeReadiness navigationPreparation = new();
     private string? movementEvent;
+    private string? ordinaryLegIdentity;
+    private (int X, int Y, int Z)? ordinaryLegStart;
     private long movementSampleTick = -1;
 
     public Ff7AutoPlayPolicy(Ff7Session session, Func<string, Ff7SessionSave, string> writeChoiceCheckpoint, Action<Ff7SessionSave>? checkpointBeforeWorldBattle = null)
@@ -963,6 +965,12 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         if (actor is null)
         {
             return false;
+        }
+        string legIdentity = $"{identity}:{active.ConditionFingerprint}";
+        if (ordinaryLegIdentity != legIdentity)
+        {
+            ordinaryLegIdentity = legIdentity;
+            ordinaryLegStart = (actor.X4096, actor.Y4096, actor.Z4096);
         }
         return ObserveMovementCycle(recentPositions, actor, session.Host.Process.Tick, ref movementSampleTick);
     }
