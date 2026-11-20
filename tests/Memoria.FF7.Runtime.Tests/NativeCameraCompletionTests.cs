@@ -68,6 +68,35 @@ internal static class NativeCameraCompletionTests
             Check(advancing.ShouldWaitForCameraCompletion(1, "source", vm, process with { CameraScroll = process.CameraScroll! with { Step = step } }, script), "Actual camera progress exhausted the frozen-work allowance.");
         }
         Check(before == JsonSerializer.Serialize(new { vm, process }), "Readiness changed native source facts.");
+        Ff7FieldProcess tracked = new() { CameraTracking = new(3, 0, 80, 0, 0), CameraFocusOffset = 0, Actors = [new() { Slot = 0, Entity = 0, Model = 0 }] };
+        string trackedBefore = JsonSerializer.Serialize(tracked);
+        Check(Wait(vm, tracked) && Wait(vm, tracked with { CameraTracking = tracked.CameraTracking! with { Mode = 2 } }), "A finite native target-camera wait was rejected.");
+        Check(Wait(vm, tracked with { CameraTracking = tracked.CameraTracking! with { Step = 80 } }), "The final target-camera interpolation callback was stranded.");
+        foreach (Ff7FieldProcess bad in new[]
+        {
+            tracked with { CameraTracking = tracked.CameraTracking! with { Mode = 1 } },
+            tracked with { CameraTracking = tracked.CameraTracking! with { Steps = 0 } },
+            tracked with { CameraTracking = tracked.CameraTracking! with { Step = -1 } },
+            tracked with { CameraTracking = tracked.CameraTracking! with { Step = 81 } },
+            tracked with { CameraTracking = tracked.CameraTracking! with { Slot = 1 } },
+            tracked with { CameraFocusOffset = null },
+            tracked with { CameraScroll = process.CameraScroll }
+        })
+        {
+            Check(!Wait(vm, bad), "Persistent, invalid or competing target-camera work authenticated finite readiness.");
+        }
+        Ff7AutoPlayNativeReadiness trackingFrozen = new();
+        for (int i = 0; i <= Ff7AutoPlayNativeReadiness.RepeatedObservationLimit; i++)
+        {
+            waiting = trackingFrozen.ShouldWaitForCameraCompletion(1, "source", vm with { Tick = i }, tracked, script);
+        }
+        Check(!waiting, "A frozen target camera retained planning indefinitely.");
+        Ff7AutoPlayNativeReadiness trackingAdvancing = new();
+        for (int step = 0; step <= 80; step++)
+        {
+            Check(trackingAdvancing.ShouldWaitForCameraCompletion(1, "source", vm, tracked with { CameraTracking = tracked.CameraTracking! with { Step = step } }, script), "Actual target-camera progress exhausted frozen readiness.");
+        }
+        Check(trackedBefore == JsonSerializer.Serialize(tracked), "Target-camera readiness changed source facts.");
         Console.WriteLine("PASS authenticated bounded current camera wait, terminal callback, owner checks and source purity");
     }
 
@@ -103,6 +132,39 @@ internal static class NativeCameraCompletionTests
         Check(controller.Error is null && prepared && cameraCompleted, "Normal policy did not complete the actual camera and prepare its native movie.");
         Check(bytes.AsSpan().SequenceEqual(File.ReadAllBytes(path)), "The standalone source changed.");
         Console.WriteLine("PASS original current camera completion and native movie preparation without planning");
+    }
+
+    internal static void RunTrackingOriginal()
+    {
+        string path = Environment.GetEnvironmentVariable("MEMORIA_FF7_CAMERA_COMPLETION_SAVE") ?? throw new InvalidOperationException("Select a native camera fixture.");
+        string game = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR") ?? throw new InvalidOperationException("Select resources.");
+        byte[] bytes = File.ReadAllBytes(path);
+        using MemoryStream stream = new(bytes, false);
+        using Ff7Session session = Ff7Session.Restore(Ff7Installation.Discover(game), CombinedSessionCodec.Read(stream).Ff7!);
+        Check(session.Host.Process.CameraTracking is { Completed: false, Mode: 2 or 3 }, "The fixture has no finite target-camera wait.");
+        long requestId = session.Machine.Capture().PendingRequests!.Single(request => request.Command is FieldCameraCommand { Operation: FieldCameraOperation.Wait }).Id;
+        using Ff7AutoPlayPolicy policy = new(session, (_, _) => throw new InvalidOperationException("Unexpected choice boundary."));
+        Ff7AutoPlayController controller = new(session, policy.ChooseInput, advanceTick: () => session.AdvanceTick(advanceClock: false), chooseDialogueSelection: policy.ChooseDialogueSelection, readPlanningProgress: () => policy.WorkProgress, readFrontierProgress: () => policy.FrontierProgress);
+        controller.Start();
+        Stopwatch elapsed = Stopwatch.StartNew();
+        int polls = 0;
+        bool completed = false;
+        while (controller.Running && polls < 64 && elapsed.Elapsed < TimeSpan.FromSeconds(5))
+        {
+            controller.Advance(1);
+            polls++;
+            Check(controller.PlanningProgress.PhysicalNodes == 0 && controller.PlanningProgress.DetachedNativeCallbacks == 0, "Current target-camera wait started physical or detached graph work.");
+            completed |= session.Host.Process.CameraTracking?.Completed == true;
+            if (completed && !session.Machine.Capture().PendingRequests!.Any(request => request.Id == requestId))
+            {
+                break;
+            }
+        }
+        Console.WriteLine($"Original target-camera continuation: callbacks={controller.Steps}, polls={polls}, tick={session.Machine.Tick}, tracking={session.Host.Process.CameraTracking}, physical={controller.PlanningProgress.PhysicalNodes}, detached={controller.PlanningProgress.DetachedNativeCallbacks}, error={controller.Error}");
+        Check(controller.Error is null && completed, "Normal policy did not complete the actual finite target camera.");
+        Check(!session.Machine.Capture().PendingRequests!.Any(request => request.Id == requestId), "The completed target-camera wait did not return to its admitted owner.");
+        Check(bytes.AsSpan().SequenceEqual(File.ReadAllBytes(path)), "The standalone source changed.");
+        Console.WriteLine("PASS original finite target-camera completion without planning");
     }
 
     private static void Check(bool condition, string message)

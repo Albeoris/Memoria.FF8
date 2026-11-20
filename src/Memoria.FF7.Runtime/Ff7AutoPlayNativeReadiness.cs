@@ -13,14 +13,22 @@ internal sealed class Ff7AutoPlayNativeReadiness
     private int repeatedObservations;
     private int totalObservations;
 
-    internal static bool HasFiniteCameraScroll(Ff7FieldProcess process)
+    internal static bool HasFiniteCameraCompletion(Ff7FieldProcess process)
     {
-        return process.GlobalCommand == Ff7GlobalCommand.None && process.Transition is null && process.Join is null && process.Movie is not { Playing: true } && process.CameraTracking is not { Completed: false } && process.CameraScroll is { Completed: false, Mode: 5 or 6, Steps: > 0, Step: >= 0 } scroll && scroll.Step <= scroll.Steps;
+        if (process.GlobalCommand != Ff7GlobalCommand.None || process.Transition is not null || process.Join is not null || process.Movie is { Playing: true })
+        {
+            return false;
+        }
+        if (process.CameraTracking is { Completed: false } tracking)
+        {
+            return tracking.Mode is 2 or 3 && tracking.Steps > 0 && tracking.Step >= 0 && tracking.Step <= tracking.Steps && process.CameraFocusOffset is not null && process.Actors.Count(actor => actor.Slot == tracking.Slot) == 1 && process.CameraScroll is not { Completed: false };
+        }
+        return process.CameraScroll is { Completed: false, Mode: 5 or 6, Steps: > 0, Step: >= 0 } scroll && scroll.Step <= scroll.Steps;
     }
 
     internal bool ShouldWaitForCameraCompletion(long generation, string source, FieldVmSnapshot vm, Ff7FieldProcess process, ReadOnlySpan<byte> script)
     {
-        if (!HasFiniteCameraScroll(process))
+        if (!HasFiniteCameraCompletion(process))
         {
             return false;
         }

@@ -236,7 +236,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             State.Status = $"Native input {scriptedInput.CurrentDemand?.Identity}";
             return nativeInput;
         }
-        if (Ff7AutoPlayNativeReadiness.HasFiniteCameraScroll(session.Host.Process) && cameraCompletion.ShouldWaitForCameraCompletion(session.FieldGeneration, session.Field.Name, session.Machine.Capture(), session.Host.Process, session.Field.Scripts.Data.Span))
+        if (Ff7AutoPlayNativeReadiness.HasFiniteCameraCompletion(session.Host.Process) && cameraCompletion.ShouldWaitForCameraCompletion(session.FieldGeneration, session.Field.Name, session.Machine.Capture(), session.Host.Process, session.Field.Scripts.Data.Span))
         {
             CancelNativePlanning("native-camera-completion");
             driver.BeginPlanningStep();

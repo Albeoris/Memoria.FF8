@@ -3,6 +3,12 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-camera-tracking-original-only", StringComparer.Ordinal))
+{
+    NativeCameraCompletionTests.RunTrackingOriginal();
+    return 0;
+}
+
 if (args.Contains("--native-camera-completion-only", StringComparer.Ordinal))
 {
     NativeCameraCompletionTests.Run();
