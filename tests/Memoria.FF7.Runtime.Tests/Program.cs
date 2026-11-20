@@ -9,6 +9,12 @@ if (args.Contains("--actor-contact-region-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--actor-contact-policy-original-only", StringComparer.Ordinal))
+{
+    ActorContactRegionTests.RunPolicyOriginal();
+    return 0;
+}
+
 if (args.Contains("--actor-contact-region-original-only", StringComparer.Ordinal))
 {
     ActorContactRegionTests.RunOriginal();

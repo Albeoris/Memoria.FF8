@@ -113,6 +113,7 @@ public sealed partial class Ff7AutoplayDriver
     }
 
     private readonly Dictionary<bool, NavigationModeState> parkedNavigationModes = [];
+    private readonly Dictionary<bool, Ff7AutoPlayNavigationUnavailableException> failedNavigationModes = [];
     private Ff7NativePlanningQuantum? navigationModeQuantum;
     private bool preparingNavigationMode;
     private bool nextPendingNavigationRun = true;
@@ -124,6 +125,7 @@ public sealed partial class Ff7AutoplayDriver
     private void ClearParkedNavigationModes(bool preserveSelection = false)
     {
         parkedNavigationModes.Clear();
+        failedNavigationModes.Clear();
         nextPendingNavigationRun = true;
         if (!preserveSelection)
         {
@@ -279,6 +281,12 @@ public sealed partial class Ff7AutoplayDriver
         {
             foreach (bool run in ReadNavigationRunModes(firstRun, requiredRun))
             {
+                if (failedNavigationModes.TryGetValue(run, out Ff7AutoPlayNavigationUnavailableException? retainedFailure))
+                {
+                    failure = retainedFailure;
+                    rejected = true;
+                    continue;
+                }
                 RestoreNavigationMode(parkedNavigationModes.TryGetValue(run, out NavigationModeState? parked) ? parked : initialState);
                 bool previousPreparing = preparingNavigationMode;
                 preparingNavigationMode = true;
@@ -339,6 +347,7 @@ public sealed partial class Ff7AutoplayDriver
                         throw;
                     }
                     parkedNavigationModes.Remove(run);
+                    failedNavigationModes[run] = blocked;
                     failure = blocked;
                     rejected = true;
                 }
