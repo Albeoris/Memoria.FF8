@@ -7,6 +7,7 @@ internal static class NativeNavigationPreparationTests
 {
     public static void Run()
     {
+        CheckFadePrefix();
         byte[] script = [0x24, 30, 0, 0x6D, 6, 0, 0, 0];
         FieldScriptAnalysis analysis = new(true, null, "navigation-prelude", false, [], [0, 3, 7], [])
         {
@@ -57,6 +58,46 @@ internal static class NativeNavigationPreparationTests
         Check(before == JsonSerializer.Serialize(new { vm, process }), "Readiness changed native facts.");
         RunOriginal();
         Console.WriteLine("PASS admitted autonomous navigation preparation");
+    }
+
+    private static void CheckFadePrefix()
+    {
+        byte[] script = [0x6B, 0, 0, 0, 0, 0, 8, 2, 0, 0x6C, 0x64, 0, 0, 0, 9, 1, 0x6D, 6, 0, 0, 0];
+        FieldScriptAnalysis analysis = new(true, null, "finite-fade-prelude", false, [], [0, 9, 10, 16, 20], [])
+        {
+            MayChangeNavigation = true,
+            UnblockedTriangles = [6],
+            InstructionSites = [new(0, 0), new(0, 9), new(0, 10), new(0, 16), new(0, 20)]
+        };
+        Check(Ff7AutoPlayNativeReadiness.IsAutonomousNavigationPreparation(analysis, 1, [0x40], script), "A finite literal fade/camera prefix was rejected.");
+        foreach ((int index, byte value) in new (int, byte)[] { (1, 0x10), (2, 1), (6, 0), (7, 7), (11, 0x10) })
+        {
+            byte[] unsupported = (byte[])script.Clone();
+            unsupported[index] = value;
+            Check(!Ff7AutoPlayNativeReadiness.IsAutonomousNavigationPreparation(analysis, 1, [0x40], unsupported), "A variable, zero-speed, persistent tint or unsupported camera qualified finite preparation.");
+        }
+        FieldScriptAnalysis remaining = analysis with { InstructionSites = [new(0, 9), new(0, 10), new(0, 16), new(0, 20)] };
+        Check(!Ff7AutoPlayNativeReadiness.IsAutonomousNavigationPreparation(remaining, 1, [0x40], script), "An unpaired future fade wait qualified through unrelated work.");
+        Check(!Ff7AutoPlayNativeReadiness.IsAutonomousNavigationPreparation(analysis with { InstructionSites = [new(1, 0), new(0, 9), new(0, 10), new(0, 16), new(0, 20)] }, 2, [0x40], script), "A different entity's fade authenticated a future wait.");
+        byte[] childEntries = [0x02, 1, 1, 0x02, 1, 2, 0, .. script];
+        FieldScriptAnalysis childAnalysis = analysis with { InstructionSites = [new(0, 0), new(0, 3), new(0, 6), new(1, 7), new(1, 16), new(1, 17), new(1, 23), new(1, 27)] };
+        Check(!Ff7AutoPlayNativeReadiness.IsAutonomousNavigationPreparation(childAnalysis, 2, [0x40], childEntries, rootEntity: 0), "A later child-entry producer authenticated an earlier requested child wait.");
+        int[] saved = new int[8];
+        saved[7] = 20;
+        FieldEntitySnapshot owner = new(9, 6, 0, saved, new FieldSyncState[8], Enumerable.Repeat(-1, 8).ToArray());
+        FieldVmSnapshot vm = new(1, FieldMachine.SemanticProfile, "finite-fade-prelude", 1, true, new byte[1280], new byte[256], [owner]);
+        Ff7FieldProcess process = new() { BlockedTriangles = [0x40] };
+        Ff7AutoPlayNativeReadiness readiness = new();
+        for (int position = 0; position < 80; position++)
+        {
+            Ff7FadeProcess fade = new(2, position, 1, 0, 0, 0, false);
+            Check(readiness.ShouldWaitForNavigationPreparation(1, "source", vm, process with { FadeState = fade }, script, (_, _) => remaining), "Actual fade advancement was mistaken for a frozen native wait.");
+        }
+        foreach (Ff7FadeProcess fade in new[] { new Ff7FadeProcess(7, 20, 1, 0, 0, 0, false), new Ff7FadeProcess(2, 0, 0, 0, 0, 0, false) })
+        {
+            Check(!Ff7AutoPlayNativeReadiness.IsAutonomousNavigationPreparation(remaining, 1, [0x40], script, vm, fade), "A current persistent or zero-speed fade authenticated waiting.");
+        }
+        Check(!Ff7AutoPlayNativeReadiness.IsAutonomousNavigationPreparation(remaining, 1, [0x40], script, vm with { Entities = [owner with { Priority = 7 }] }, new(2, 1, 1, 0, 0, 0, false)), "An ambient owner inherited finite fade waiting.");
     }
 
     private static void RunOriginal()

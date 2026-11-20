@@ -24,7 +24,7 @@ internal sealed class Ff7AutoPlayNativeReadiness
                 continue;
             }
             FieldScriptAnalysis analysis = analyze(entity, owner.ProgramCounter);
-            if (IsAutonomousNavigationPreparation(analysis, vm.Entities.Length, process.BlockedTriangles, script))
+            if (IsAutonomousNavigationPreparation(analysis, vm.Entities.Length, process.BlockedTriangles, script, vm, process.FadeState, entity))
             {
                 work.Add(entity);
                 work.UnionWith(analysis.InstructionSites.Select(site => site.Entity));
@@ -37,11 +37,15 @@ internal sealed class Ff7AutoPlayNativeReadiness
         return ObserveWork(generation, navigationKey, vm, process, work, includeCamera: true);
     }
 
-    internal static bool IsAutonomousNavigationPreparation(FieldScriptAnalysis analysis, int entityCount, byte[] blockedTriangles, ReadOnlySpan<byte> script)
+    internal static bool IsAutonomousNavigationPreparation(FieldScriptAnalysis analysis, int entityCount, byte[] blockedTriangles, ReadOnlySpan<byte> script, FieldVmSnapshot? vm = null, Ff7FadeProcess? fade = null, int? rootEntity = null)
     {
         if (!analysis.Complete || analysis.Reads.Length != 0 || analysis.HostReads.Length != 0 || !analysis.UnblockedTriangles.Any(triangle => triangle >= 0 && triangle / 8 < blockedTriangles.Length && (blockedTriangles[triangle / 8] & 1 << (triangle % 8)) != 0) || analysis.InstructionSites.Length == 0)
         {
             return false;
+        }
+        if (rootEntity is null && analysis.InstructionSites.All(site => site.Entity == analysis.InstructionSites[0].Entity))
+        {
+            rootEntity = analysis.InstructionSites[0].Entity;
         }
         Dictionary<int, HashSet<int>> calls = [];
         foreach (FieldScriptInstructionSite site in analysis.InstructionSites)
@@ -65,6 +69,34 @@ internal sealed class Ff7AutoPlayNativeReadiness
                         calls.Add(site.Entity, targets);
                     }
                     targets.Add(script[pc + 1]);
+                    break;
+                case 0x64:
+                    if (pc + 5 >= script.Length || script[pc + 1] != 0)
+                    {
+                        return false;
+                    }
+                    break;
+                case 0x6B:
+                    if (!IsFiniteLiteralFade(script, pc))
+                    {
+                        return false;
+                    }
+                    break;
+                case 0x6C:
+                    bool paired = false;
+                    foreach (FieldScriptInstructionSite preceding in analysis.InstructionSites)
+                    {
+                        if (site.Entity == rootEntity && preceding.Entity == site.Entity && preceding.ProgramCounter + 9 == pc && IsFiniteLiteralFade(script, preceding.ProgramCounter))
+                        {
+                            paired = true;
+                            break;
+                        }
+                    }
+                    bool currentWait = vm is not null && (uint)site.Entity < vm.Entities.Length && vm.Entities[site.Entity].ProgramCounter == pc && HasAdmittedContinuation(vm.Entities[site.Entity], script) && (fade is { Type: 0 } or { Type: 1 or 2, Speed: > 0 });
+                    if (!paired && !currentWait)
+                    {
+                        return false;
+                    }
                     break;
                 case 0x00:
                 case 0x24:
@@ -105,6 +137,11 @@ internal sealed class Ff7AutoPlayNativeReadiness
             return true;
         }
         return calls.Keys.All(IsAcyclic);
+    }
+
+    private static bool IsFiniteLiteralFade(ReadOnlySpan<byte> script, int pc)
+    {
+        return pc >= 0 && pc + 8 < script.Length && script[pc] == 0x6B && script[pc + 1] == 0 && script[pc + 2] == 0 && script[pc + 6] > 0 && script[pc + 7] is 1 or 2;
     }
 
     internal static bool HasPendingPlayerControlAcquisition(FieldVmSnapshot vm, Ff7FieldProcess process, ReadOnlySpan<byte> script)
@@ -257,6 +294,7 @@ internal sealed class Ff7AutoPlayNativeReadiness
         string fingerprint = JsonSerializer.Serialize(new
         {
             Camera = includeCamera ? new { process.CameraScroll, process.CameraTracking, process.CameraX, process.CameraY } : null,
+            Fade = includeCamera ? process.FadeState : null,
             Entities = work.Order().Select(entity => new { Entity = entity, State = vm.Entities[entity] }),
             Actors = process.Actors.Where(actor => work.Contains(actor.Entity)).Select(actor => new { actor.Entity, actor.X4096, actor.Y4096, actor.Z4096, actor.Triangle, actor.Direction, actor.Animation, actor.AnimationFrame16, actor.AnimationFinished, actor.TurnStep, actor.Offset, actor.Ladder, actor.Jump }),
             Motions = process.Motions.Where(motion => work.Contains(motion.Entity)).Select(motion => new { motion.Entity, motion.TargetX, motion.TargetY, motion.Completed }),
