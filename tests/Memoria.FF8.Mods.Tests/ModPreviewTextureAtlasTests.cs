@@ -1,5 +1,7 @@
+using System.Runtime.InteropServices;
 using Albeoris.Games.FF8.Imaging;
 using Memoria.FF8.Assets.Localization;
+using Memoria.FF8.Rendering;
 
 namespace Memoria.FF8.Mods.Tests;
 
@@ -32,6 +34,57 @@ public sealed class ModPreviewTextureAtlasTests
         Assert.Contains(icons, entry => entry.Name == "Player wins");
         Assert.Contains(icons, entry => entry.Name == "Combo");
         Assert.Equal(new[] { "Draw", "Opponent wins", "Player wins" }, document.Entries.Where(entry => entry.SourcePath == OutcomePage).Select(entry => entry.Name));
+    }
+
+    [Fact]
+    public async Task ListsEachBattleArenaOnceAndSkipsUnusedDottedStageOwners()
+    {
+        await using PreviewFixture fixture = new();
+        fixture.Write("mods/textures/battle/A0STG030.X-0_00.dds", []);
+        fixture.Write("mods/textures/eng/battle/A0STG030.X-0_01.png", []);
+        fixture.Write("mods/textures/battle/.A0STG030.X-0_02.dds", []);
+        fixture.Write("mods/textures/battle/.A0STG031.X-0_00.dds", []);
+        fixture.Write("mods/textures/battle/A0STG030.X-0_f0_4_0_243.dds", []);
+        fixture.Write("mods/textures/battle/C0M001.DAT-0_00.dds", []);
+
+        ModPreviewDocument document = await fixture.Open();
+
+        ModPreviewEntry arena = Assert.Single(document.Entries, entry => entry.Category == "Battle arenas");
+        Assert.Equal("A0STG030", arena.Name);
+        Assert.Equal(arena, document.Tree.InitialPath[^1].Entry);
+        ModPreviewEntry model = Assert.Single(document.Entries, entry => entry != arena);
+        Assert.Equal("C0M001.DAT-0_00", model.Name);
+    }
+
+    [Fact]
+    public async Task ComparesTheInstalledBattleArenaUsingTheSelectedPackageTextures()
+    {
+        string? game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
+        Assert.SkipUnless(Directory.Exists(game), "Configure optional installed game resources.");
+
+        await using PreviewFixture fixture = new();
+        PixelImage texture = new(1, 1);
+        texture[0, 0] = new(255, 0, 255);
+        fixture.Write("mods/textures/battle/A0STG030.X-0_00.png", LocalizationArtworkExporter.EncodePng(texture));
+        fixture.Write("mods/textures/battle/.A0STG030.X-0_01.dds", []);
+        ModPreviewDocument document = await fixture.Open();
+        ModPreviewEntry arena = Assert.Single(document.Entries);
+        ModPreviewResourcesProfile profile = new(game!)
+        {
+            RenderBattleStage = stage =>
+            {
+                BattleRenderer renderer = new(320, 240);
+                byte[] pixels = renderer.Render(stage, [], BattleCamera.FromNative(stage.IntroductionCameras[0]));
+                return new(320, 240, MemoryMarshal.Cast<byte, Rgba32>(pixels).ToArray());
+            }
+        };
+
+        ModPreviewComparison result = await document.CompareAsync(arena, profile, TestContext.Current.CancellationToken);
+
+        PixelImage before = Assert.IsType<PixelImage>(result.Before.Image);
+        PixelImage after = Assert.IsType<PixelImage>(result.After.Image);
+        Assert.True(before.Pixels.Distinct().Count() > 2);
+        Assert.False(before.Pixels.SequenceEqual(after.Pixels));
     }
 
     [Fact]

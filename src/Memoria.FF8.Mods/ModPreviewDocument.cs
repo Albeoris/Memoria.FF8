@@ -40,6 +40,7 @@ public sealed record ModPreviewComparison(ModPreviewSide Before, ModPreviewSide 
 public sealed record ModPreviewResourcesProfile(string GameDirectory, string? ModelSourceDirectory = null, string? Language = null)
 {
     public Func<FieldAssets, PixelImage>? RenderField { get; init; }
+    public Func<BattleStage, PixelImage>? RenderBattleStage { get; init; }
     public Func<FieldAssets, IReadOnlyList<FieldBackgroundPatch>, PixelImage>? RenderFieldPatch { get; init; }
     public Func<FieldAssets, FieldAssets, IReadOnlyList<FieldScenePatch>, Func<int, FieldAssets>, CancellationToken, ModPreviewComparison>? CompareFieldScene { get; init; }
     public string? Ff7GameDirectory { get; init; }
@@ -88,6 +89,7 @@ public sealed class ModPreviewDocument
     private readonly Lazy<LocalizationProject> localization;
     private readonly SemaphoreSlim comparisonGate = new(1, 1);
     private const string FieldScenePrefix = "scene:field/";
+    private const string BattleStagePrefix = "scene:battle/";
 
     private ModPreviewDocument(ModPackage package, List<ModFile> files, JunctionManifestMetadata? junction, ModCatalogSnapshot? preferences)
     {
@@ -105,7 +107,23 @@ public sealed class ModPreviewDocument
         this.files = files.ToDictionary(file => file.RelativePath, StringComparer.OrdinalIgnoreCase);
         this.junction = junction;
         localization = new(() => LocalizationProjectIO.ReadForAuthoring(package.RootDirectory));
-        List<ModPreviewEntry> entries = files.Where(file => !file.RelativePath.EndsWith(TextureModMapping.Extension, StringComparison.OrdinalIgnoreCase)).SelectMany(file => GetEntries(file, junction?.VideoExtension)).ToList();
+        List<ModPreviewEntry> entries = [];
+        HashSet<int> battleStages = [];
+        foreach (ModFile file in files)
+        {
+            if (FfnxTextureResolver.DescribeStagePreview(file) is { } stage)
+            {
+                if (stage.IsReplacement && battleStages.Add(stage.Id))
+                {
+                    entries.Add(new($"{BattleStagePrefix}{stage.Id:D3}", "Battle arenas", "Stages", $"A0STG{stage.Id:D3}") { SourcePath = file.RelativePath });
+                }
+                continue;
+            }
+            if (!file.RelativePath.EndsWith(TextureModMapping.Extension, StringComparison.OrdinalIgnoreCase))
+            {
+                entries.AddRange(GetEntries(file, junction?.VideoExtension));
+            }
+        }
         entries.AddRange(ModPreviewResources.DescribeBundledGameplay(package));
         entries.AddRange(ModPreviewResources.DescribeFieldGameplay(catalog));
         if (package.HasLocalization)
@@ -236,6 +254,10 @@ public sealed class ModPreviewDocument
     private ModPreviewComparison Compare(ModPreviewEntry entry, ModPreviewResourcesProfile profile, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        if (entry.Id.StartsWith(BattleStagePrefix, StringComparison.Ordinal) && int.TryParse(entry.Id.AsSpan(BattleStagePrefix.Length), NumberStyles.None, CultureInfo.InvariantCulture, out int stageId))
+        {
+            return CompareBattleStage(entry.Name, stageId, profile, cancellationToken);
+        }
         if (entry.Id.StartsWith(FieldScenePrefix, StringComparison.Ordinal) && profile.RenderField is { } renderField)
         {
             return CompareField(entry.Id[FieldScenePrefix.Length..], profile, renderField, cancellationToken);
@@ -306,6 +328,31 @@ public sealed class ModPreviewDocument
             return CompareField(field, profile, render, cancellationToken);
         }
         return new(new("Original resource preview unavailable."), new($"{file.RelativePath}\nThis resource type does not have a comparison view."));
+    }
+
+    private ModPreviewComparison CompareBattleStage(string name, int stageId, ModPreviewResourcesProfile profile, CancellationToken cancellationToken)
+    {
+        if (profile.RenderBattleStage is not { } render)
+        {
+            throw new NotSupportedException("Battle arena rendering is unavailable in this preview.");
+        }
+        using IResourceSource source = GameDataSourceFactory.OpenTextureAuthoring(profile.GameDirectory, profile.ModelSourceDirectory, profile.Language);
+        ResourceService resources = new(source, profile.Language);
+        using BattleAssets assets = new(profile.GameDirectory, resources);
+        BattleStage stage = assets.LoadStage(stageId);
+        cancellationToken.ThrowIfCancellationRequested();
+        PixelImage before = render(stage);
+        // Each arena material already requests its own palette. This frame needs only that image.
+        using ResourceService.PreparationJob job = resources.BeginPrepare(new FfnxTextureResolver(catalog) { IncludeBattlePaletteVariants = false });
+        do
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+        }
+        while (!job.Advance(TimeSpan.MaxValue, 1));
+        job.Prepared!.Commit();
+        cancellationToken.ThrowIfCancellationRequested();
+        PixelImage after = render(stage);
+        return new(new(name, before), new(name, after));
     }
 
     private ModPreviewComparison CompareFieldPatch(ModFile file, ModPreviewResourcesProfile profile, CancellationToken cancellationToken)

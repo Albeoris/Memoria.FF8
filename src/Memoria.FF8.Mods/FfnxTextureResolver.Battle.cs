@@ -4,6 +4,45 @@ namespace Memoria.FF8.Mods;
 
 public sealed partial class FfnxTextureResolver
 {
+    internal bool IncludeBattlePaletteVariants { get; init; } = true;
+
+    internal static (int Id, bool IsReplacement)? DescribeStagePreview(ModFile file)
+    {
+        if (file.Format != ModFormat.Junction || !TextureModPaths.IsImage(file.RelativePath))
+        {
+            return null;
+        }
+        ReadOnlySpan<char> path = file.RelativePath.AsSpan();
+        const string root = "mods/textures/";
+        if (!path.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+        path = path[root.Length..];
+        if (path.StartsWith("eng/", StringComparison.OrdinalIgnoreCase))
+        {
+            path = path[4..];
+        }
+        if (!path.StartsWith("battle/", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+        path = path[7..];
+        // A leading dot is literal in FFNx. No original stage has that owner.
+        bool dotted = path.StartsWith(".", StringComparison.Ordinal);
+        if (dotted)
+        {
+            path = path[1..];
+        }
+        ReadOnlySpan<char> stem = path[..^Path.GetExtension(path).Length];
+        if (stem.Length < 14 || !stem.StartsWith("a0stg", StringComparison.OrdinalIgnoreCase) || !stem[8..].StartsWith(".x-0_", StringComparison.OrdinalIgnoreCase)
+            || !Number(stem[5..8].ToString(), out int id))
+        {
+            return null;
+        }
+        return (id, !dotted && PaletteNumber(stem[13..].ToString(), out _));
+    }
+
     private TextureReplacement? ResolveBattle(TextureBuildContext context)
     {
         TextureSourceAddress? address = context.NativeAlias;
@@ -18,9 +57,9 @@ public sealed partial class FfnxTextureResolver
         int horizontalPageWidth = context.Region.BitsPerPixel is 4 or 8 ? 64 * (16 / context.Region.BitsPerPixel) : 0;
         int verticalPageHeight = horizontalPageWidth > 0 ? owner.EndsWith(".x", StringComparison.Ordinal) ? 256 : 128 : 0;
         TextureReplacement? result = ReadPalette(palette);
-        if (result is null)
+        if (result is null || !IncludeBattlePaletteVariants)
         {
-            return null;
+            return result;
         }
         string[] roots = context.Source.Language is null or "en" ? ["mods/textures/eng/", "mods/textures/"] : ["mods/textures/"];
         Dictionary<string, Albeoris.Games.FF8.Imaging.PixelImage> variants = [];

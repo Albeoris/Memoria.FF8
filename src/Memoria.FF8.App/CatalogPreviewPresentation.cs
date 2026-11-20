@@ -14,11 +14,20 @@ internal static partial class CatalogPreviewPresentation
         return new(directory, models, language)
         {
             RenderField = RenderField,
+            RenderBattleStage = RenderBattleStage,
             RenderFieldPatch = RenderFieldPatch
         };
     }
 
     public static PixelImage RenderField(FieldAssets field) => RenderFieldPatch(field, []);
+
+    private static PixelImage RenderBattleStage(BattleStage stage)
+    {
+        BattleRenderer renderer = new(640, 480);
+        BattleCamera camera = stage.IntroductionCameras.TryGetValue(0, out BattleStageCamera? introduction) ? BattleCamera.FromNative(introduction) : BattleCamera.NativeInitial;
+        byte[] rgba = renderer.Render(stage, [], camera);
+        return new(renderer.Width, renderer.Height, MemoryMarshal.Cast<byte, Rgba32>(rgba).ToArray());
+    }
 
     private static PixelImage RenderFieldPatch(FieldAssets field, IReadOnlyList<FieldBackgroundPatch> patches)
     {
