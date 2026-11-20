@@ -47,6 +47,7 @@ public sealed partial class Ff7AutoPlayPolicy
             observedWorld.NativeHostOperationObserved -= ObserveWorldHostOperation;
         }
         observedWorld = world;
+        CancelWorldBoardingPlanning();
         worldCatalogs.Clear();
         worldModelCatalog.Clear();
         worldChunkQueue.Clear();
@@ -132,7 +133,6 @@ public sealed partial class Ff7AutoPlayPolicy
         {
             (observation, destinationTargets) = ObserveRequestedWorldDestination(world, observation);
         }
-        TrackFrontierProgress(State, Story());
         if (State.Active is null && State.Choice is not null && choices.CompleteAtControlReturn())
         {
             Publish();
@@ -167,6 +167,10 @@ public sealed partial class Ff7AutoPlayPolicy
             State.Active = null;
             State.NavigationGoal = null;
         }
+        if (State.Active is not null)
+        {
+            TrackFrontierProgress(State, Story());
+        }
         if (State.Active is null)
         {
             var readRetainedAvailability = CreateRetainedNavigationAvailabilityReader(State);
@@ -180,7 +184,15 @@ public sealed partial class Ff7AutoPlayPolicy
                 return ReadWorldSemanticAvailability(coverage, target, AutoPlayPlanner<Ff7AutoPlayDeferral>.ReadAvailability(coverage, physicalGuards));
             }
             HashSet<string>? avoid = destinationTargets is null ? null : ResolveWorldDestinationGoal(State, observation, destinationTargets, target => ReadAvailability(State.Coverage.NavigationVisits.Single(visit => visit.Key == observation.NavigationKey), target));
-            AutoPlayPlanStep? next = planner.PlanNavigation(observation.NavigationKey, needsRefresh: destinationTargets is null ? NeedsVisitRefresh : null, preferredGoal: State.NavigationGoal, avoidFirstEvents: avoid, readAvailability: ReadAvailability);
+            AutoPlayPlanStep? next = PlanWorldBoardingPrerequisite(world, observation, driver, candidate => ReadAvailability(State.Coverage.NavigationVisits.Single(visit => visit.Key == observation.NavigationKey), candidate));
+            CommitFrontierInput(State, Story(), controllable: true, driver.PlanningPending, State.PendingRestore is not null);
+            if (driver.PlanningPending)
+            {
+                State.Status = "Inspecting native transport prerequisites for unconsumed world entries";
+                Publish();
+                return default;
+            }
+            next ??= planner.PlanNavigation(observation.NavigationKey, needsRefresh: destinationTargets is null ? NeedsVisitRefresh : null, preferredGoal: State.NavigationGoal, avoidFirstEvents: avoid, readAvailability: ReadAvailability);
             if (destinationTargets is null && ShouldDiscoverWorldChunk(State, observation.VisitId, next, !visited.DiscoveryComplete && worldChunkQueue.Count != 0) && ObserveNextWorldChunk(world))
             {
                 State.Status = "Discovering the next native world collision chunk";

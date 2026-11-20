@@ -132,7 +132,8 @@ public sealed partial class FieldMachine
             detached.entities[entity].Wait = 0;
             detached.Input = projectedInput;
             bool publishesControls = false;
-            string? ProveReturn(int pc, int handlers, HashSet<int> ancestors)
+            HashSet<FieldVariableRead> queryOutputs = [];
+            string? ProveReturn(int pc, int handlers, HashSet<int> ancestors, HashSet<FieldVariableRead> unknown)
             {
                 if (handlers >= 8)
                 {
@@ -158,8 +159,32 @@ public sealed partial class FieldMachine
                     detached.entities[entity].Pc = pc;
                     detached.Advance(entity, distance + 2);
                     int absent = detached.entities[entity].Pc;
-                    string? presentFailure = ProveReturn(present, handlers + 1, new(ancestors));
-                    return presentFailure is not null ? presentFailure : ProveReturn(absent, handlers + 1, new(ancestors));
+                    string? presentFailure = ProveReturn(present, handlers + 1, new(ancestors), new(unknown));
+                    return presentFailure is not null ? presentFailure : ProveReturn(absent, handlers + 1, new(ancestors), new(unknown));
+                }
+                if (opcode is 0x73 or 0xB7)
+                {
+                    // Use the native query decoder, but do not sample a physical heading as invariant.
+                    HashSet<FieldVariableRead> written = detached.Variables.SpatialSourceBytes(new((FieldBank)(program.Read(pc + 1) & 15), program.Read(pc + 3), false)).ToHashSet();
+                    detached.Variables.WriteObserved = write => written.UnionWith(detached.Variables.SpatialSourceBytes(write));
+                    detached.inspection = new() { StopAtHost = true, ActorReply = _ => new(true) };
+                    bool yielded;
+                    try
+                    {
+                        yielded = detached.Execute(entity);
+                    }
+                    finally
+                    {
+                        detached.Variables.WriteObserved = null;
+                        detached.inspection = new() { StopAtHost = true };
+                    }
+                    if (yielded || written.Any(write => write.Bank != FieldBank.MapByte))
+                    {
+                        return "The query does not publish only field-local scratch bytes synchronously.";
+                    }
+                    queryOutputs.UnionWith(written);
+                    unknown.UnionWith(written);
+                    return ProveReturn(detached.entities[entity].Pc, handlers + 1, ancestors, unknown);
                 }
                 if (opcode is 0x33 or 0x4A)
                 {
@@ -170,11 +195,23 @@ public sealed partial class FieldMachine
                     }
                     publishesControls = true;
                     detached.Advance(entity, 2);
-                    return ProveReturn(detached.entities[entity].Pc, handlers + 1, ancestors);
+                    return ProveReturn(detached.entities[entity].Pc, handlers + 1, ancestors, unknown);
                 }
                 if (opcode is >= 0x14 and <= 0x19)
                 {
                     FieldConditional condition = detached.ReadConditional(entity, opcode);
+                    bool IsUnknown(FieldVariableRead read) => detached.Variables.SpatialSourceBytes(read).Any(source => unknown.Contains(source) || queryOutputs.Contains(source));
+                    if (IsUnknown(condition.LeftSource) || IsUnknown(condition.RightSource))
+                    {
+                        bool word = opcode >= 0x16;
+                        int branchOffset = word ? 7 : 5;
+                        bool wide = (opcode & 1) != 0;
+                        int distance = wide ? unchecked((short)(program.Read(pc + branchOffset) | program.Read(pc + branchOffset + 1) << 8)) : program.Read(pc + branchOffset);
+                        int matched = pc + branchOffset + (wide ? 2 : 1);
+                        int unmatched = pc + branchOffset + distance;
+                        string? matchedFailure = ProveReturn(matched, handlers + 1, new(ancestors), new(unknown));
+                        return matchedFailure is not null ? matchedFailure : ProveReturn(unmatched, handlers + 1, new(ancestors), new(unknown));
+                    }
                     if (condition.LeftSource.Bank != FieldBank.Immediate)
                     {
                         reads.Add(condition.LeftSource);
@@ -192,9 +229,9 @@ public sealed partial class FieldMachine
                 {
                     return "The entry yields before its read-only return.";
                 }
-                return ProveReturn(detached.entities[entity].Pc, handlers + 1, ancestors);
+                return ProveReturn(detached.entities[entity].Pc, handlers + 1, ancestors, unknown);
             }
-            string? returnFailure = ProveReturn(program.Entry(entity, script), 0, []);
+            string? returnFailure = ProveReturn(program.Entry(entity, script), 0, [], []);
             if (returnFailure is not null)
             {
                 return Reject(returnFailure);
@@ -249,6 +286,14 @@ public sealed partial class FieldMachine
                     if (!producer.Complete)
                     {
                         return Reject(producer.Reason ?? "A producer has an incomplete native write contract.");
+                    }
+                    if (queryOutputs.Count != 0)
+                    {
+                        FieldScriptEntryDependencies consumers = AnalyzeEntryDependenciesCore(root.Entity, 0, root.Pc, producer, remaining);
+                        if (!consumers.Complete || consumers.Reads.SelectMany(Variables.SpatialSourceBytes).Any(queryOutputs.Contains))
+                        {
+                            return Reject("A current, suspended, pending or external native consumer can observe the query scratch publication.");
+                        }
                     }
                     if (invariant.Writes.Overlaps(immutable))
                     {

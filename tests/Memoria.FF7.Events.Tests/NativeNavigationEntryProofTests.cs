@@ -7,6 +7,7 @@ internal static class NativeNavigationEntryProofTests
     {
         IdempotentControlPublications();
         PartyMembershipBranches();
+        DeadDirectionQueryPublication();
         var stable = Create();
         string before = JsonSerializer.Serialize(stable.Machine.Capture());
         FieldNavigationEntryProof proof = Prove(stable.Machine);
@@ -257,6 +258,55 @@ internal static class NativeNavigationEntryProofTests
             machine = FieldMachine.Restore(program, snapshot, host);
         }
         return (machine, host);
+    }
+
+    private static void DeadDirectionQueryPublication()
+    {
+        (FieldMachine Machine, FieldProgram Program) CreateQuery(byte flag = 1, byte[]? consumer = null, string? location = null)
+        {
+            byte[] body = [0, 0, 0xB7, 0x05, 0, 6, 0x14, 0x50, 6, 128, 0, 2, 0, 0x14, 0x10, 20, 1, 0, 7, 0, 0, 0, 0, 0, 0, 0x80, 0x10, 30, 1, 0];
+            ushort[][] entries = [new ushort[32], new ushort[32]];
+            entries[1][5] = 2;
+            if (consumer is not null)
+            {
+                entries[0][1] = checked((ushort)body.Length);
+            }
+            FieldProgram program = new([.. body, .. consumer ?? []], entries);
+            FieldMachine machine = new(program, host: new RejectHost());
+            machine.Initialize();
+            machine.Variables.WriteByte(FieldBank.Persistent0Byte, 20, flag);
+            FieldVmSnapshot snapshot = machine.Capture();
+            snapshot.Entities[0] = snapshot.Entities[0] with { ModelBound = true };
+            if (location == "active")
+            {
+                snapshot.Entities[0] = snapshot.Entities[0] with { ProgramCounter = body.Length };
+            }
+            if (location == "saved")
+            {
+                snapshot.Entities[0].SavedProgramCounters[6] = body.Length;
+            }
+            if (location == "pending")
+            {
+                snapshot.Entities[0] = snapshot.Entities[0] with { ProgramCounter = body.Length, Priority = 1 };
+                snapshot = snapshot with { PendingRequests = [new(1, 0, 1, body.Length, new FieldControlCommand(FieldControlKind.PlayerLocked, 0))], NextRequestId = 2 };
+            }
+            return (FieldMachine.Restore(program, snapshot, new RejectHost()), program);
+        }
+        var closed = CreateQuery();
+        string before = JsonSerializer.Serialize(closed.Machine.Capture());
+        Check(Prove(closed.Machine).HasNoEffect, "A dead field-local direction publication with both native successors returning was not proved.");
+        Check(before == JsonSerializer.Serialize(closed.Machine.Capture()), "Direction-query proof changed native state or dispatched a live query.");
+        Check(!Prove(CreateQuery(0).Machine).HasNoEffect, "One heading's return hid another heading's reachable effect.");
+        Check(!Prove(closed.Machine, [new(FieldBank.Persistent0Byte, 20, false)]).HasNoEffect, "An external write invalidating the terminal guard was ignored.");
+        byte[] reader = [0x16, 0x60, 5, 0, 0, 0, 0, 5, 0];
+        foreach (string location in new[] { "active", "saved", "pending" })
+        {
+            Check(!Prove(CreateQuery(consumer: reader, location: location).Machine).HasNoEffect, "A captured consumer of a query output's word alias was ignored.");
+        }
+        var external = CreateQuery(consumer: reader);
+        Check(!Prove(external.Machine, entries: [new(0, 1)]).HasNoEffect, "An external entry could observe a query output's word alias.");
+        var writer = CreateQuery(consumer: [0x80, 0x10, 20, 0, 0], location: "active");
+        Check(!Prove(writer.Machine).HasNoEffect, "The immutable-guard producer closure lost a native writer.");
     }
 
     private static void Check(bool condition, string message)

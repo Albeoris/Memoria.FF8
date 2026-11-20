@@ -309,6 +309,12 @@ if (args.Contains("--native-owned-route-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--world-boarding-prerequisite-only", StringComparer.Ordinal))
+{
+    WorldBoardingPrerequisiteTests.Run();
+    return 0;
+}
+
 if (args.Contains("--world-destination-goal-only", StringComparer.Ordinal))
 {
     WorldDestinationGoalTests.Run();
@@ -733,6 +739,12 @@ if (args.Contains("--world-semantic-availability-only", StringComparer.Ordinal))
 if (args.Contains("--native-effect-alias-only", StringComparer.Ordinal))
 {
     NativeEffectAliasTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-post-pickup-cycle-original-only", StringComparer.Ordinal))
+{
+    NativePostPickupLineTests.RunCycleOriginal();
     return 0;
 }
 

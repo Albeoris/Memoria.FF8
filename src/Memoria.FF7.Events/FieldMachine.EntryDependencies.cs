@@ -21,6 +21,16 @@ public sealed partial class FieldMachine
         {
             throw new ArgumentOutOfRangeException(nameof(entity));
         }
+        return AnalyzeEntryDependenciesCore(entity, script, program.Entry(entity, script), full, instructionBudget);
+    }
+
+    private FieldScriptEntryDependencies AnalyzeEntryDependenciesCore(int entity, int script, int entry, FieldScriptAnalysis full, int instructionBudget)
+    {
+        ArgumentNullException.ThrowIfNull(full);
+        if ((uint)entity >= entities.Length || script is < 0 or > 31 || instructionBudget is < 1 or > 65536)
+        {
+            throw new ArgumentOutOfRangeException(nameof(entity));
+        }
         if (!full.Complete)
         {
             return new(false, full.Reason, full.Reads, full.HostReads);
@@ -29,7 +39,7 @@ public sealed partial class FieldMachine
         Dictionary<string, EntryDefinitions> incoming = new(StringComparer.Ordinal);
         HashSet<FieldVariableRead> external = [];
         HashSet<FieldHostRead> externalHosts = [];
-        pending.Enqueue((new(entity, program.Entry(entity, script), []), new([], [])));
+        pending.Enqueue((new(entity, entry, []), new([], [])));
         int instructions = 0;
         try
         {
