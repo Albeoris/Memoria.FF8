@@ -14,6 +14,7 @@ internal static class NativeGoalFairnessTests
         CheckFamilyFairness();
         CheckStaleWinner();
         CheckIntentFences();
+        CheckOwnedNativeSiblingCommitments();
         Console.WriteLine("Native multi-goal selection, retained fairness, atomic owner/goal/proof and intent checks passed.");
     }
 
@@ -187,6 +188,76 @@ internal static class NativeGoalFairnessTests
         Check(Ff7AutoPlayPolicy.NativePlannerObservationChanged(observed, observation, [native with { ConditionSignature = "changed" }]), "A supported native condition change did not invalidate the pending candidate pool.");
         observed.Coverage.Visits[0].Events[0].Completed = true;
         Check(Ff7AutoPlayPolicy.NativePlannerObservationChanged(observed, observation, [native]), "New topology rediscovery failed to invalidate the pending candidate pool.");
+    }
+
+    private static Fixture OwnedFixture()
+    {
+        Fixture fixture = Create();
+        AutoPlayTravelGoal goal = new("remote", "frontier", "fresh");
+        fixture.State.NavigationGoal = goal;
+        fixture.State.TravelCommitment = new(goal, fixture.Observation.NavigationKey, fixture.State.DestinationField);
+        return fixture;
+    }
+
+    private static void CheckOwnedNativeSiblingCommitments()
+    {
+        Fixture owned = OwnedFixture();
+        AutoPlayTravelGoal goal = owned.State.NavigationGoal!;
+        AutoPlayPlanStep same = owned.Sibling.Plan with { Goal = goal };
+        AutoPlayPlanStep different = same with { Goal = new("left", "slow", "slow-condition") };
+        string before = JsonSerializer.Serialize(owned.State);
+        Check(Ff7AutoPlayPolicy.MatchesCommittedNativeSibling(owned.State, owned.Observation, same), "An authenticated native sibling toward the same ultimate goal was excluded.");
+        Check(!Ff7AutoPlayPolicy.MatchesCommittedNativeSibling(owned.State, owned.Observation, different), "A native sibling stole an authenticated trip for a different ultimate goal.");
+        Ff7NativeSiblingCandidate[] candidates = Ff7AutoPlayPolicy.ReadNativeSiblingCandidates(owned.State, owned.Planner, owned.Observation);
+        Check(candidates.Length > 0 && candidates.All(candidate => candidate.Plan.Goal == goal), "Native candidate enumeration ignored its owned ultimate goal.");
+        Check(Ff7AutoPlayPolicy.ReselectNativeSiblingPlan(owned.State, owned.Planner, owned.Observation, owned.Sibling)?.Goal == goal, "Fresh native sibling reselection lost the authenticated ultimate goal.");
+        Check(before == JsonSerializer.Serialize(owned.State), "Owned native sibling filtering changed state or coverage.");
+        Check(Adopt(owned, same), "A freshly revalidated same-goal native sibling could not be adopted.");
+
+        Fixture race = Create();
+        race.State.TravelCommitment = new(race.State.NavigationGoal!, race.Observation.NavigationKey, race.State.DestinationField);
+        before = JsonSerializer.Serialize(race.State);
+        Check(!Adopt(race, race.Sibling.Plan) && before == JsonSerializer.Serialize(race.State), "A proof selected before commitment stole the current trip at publication.");
+
+        foreach (Action<Fixture> invalidate in new Action<Fixture>[]
+        {
+            fixture => fixture.State.TravelCommitment = null,
+            fixture => fixture.State.TravelCommitment = fixture.State.TravelCommitment! with { NavigationKey = "another-source" },
+            fixture => fixture.State.NavigationGoal = new("left", "slow", "slow-condition"),
+            fixture => fixture.State.DestinationField = 10,
+            fixture =>
+            {
+                var coverage = fixture.State.Coverage.Visits[0].Events.Single(item => item.Event.Id == "frontier");
+                coverage.Conditions ??= new();
+                coverage.Conditions.ConsumedEntries.Add("fresh");
+            },
+            fixture =>
+            {
+                int index = fixture.State.Coverage.NavigationVisits.FindIndex(visit => visit.Key == "remote");
+                AutoPlayNavigationVisit remote = fixture.State.Coverage.NavigationVisits[index];
+                fixture.State.Coverage.NavigationVisits[index] = remote with { Events = remote.Events.Select(item => item with { ConditionSignature = "changed" }).ToArray() };
+            }
+        })
+        {
+            Fixture released = OwnedFixture();
+            invalidate(released);
+            Check(Ff7AutoPlayPolicy.MatchesCommittedNativeSibling(released.State, released.Observation, different), "A released, stale, consumed or superseded commitment permanently pinned native siblings.");
+        }
+
+        Fixture sourceOnly = Create();
+        AutoPlayTravelGoal pendingSource = new("remote");
+        sourceOnly.State.NavigationGoal = pendingSource;
+        sourceOnly.State.TravelCommitment = new(pendingSource, sourceOnly.Observation.NavigationKey, sourceOnly.State.DestinationField);
+        AutoPlayPlanStep sourcePlan = sourceOnly.Sibling.Plan with { Goal = pendingSource };
+        Check(Ff7AutoPlayPolicy.MatchesCommittedNativeSibling(sourceOnly.State, sourceOnly.Observation, sourcePlan, sourceGoalPending: true), "A proved pending source-only trip lost its native sibling.");
+        Check(!Ff7AutoPlayPolicy.MatchesCommittedNativeSibling(sourceOnly.State, sourceOnly.Observation, sourceOnly.Sibling.Plan, sourceGoalPending: true), "A native event goal replaced an authenticated pending source-only trip.");
+        Check(Ff7AutoPlayPolicy.MatchesCommittedNativeSibling(sourceOnly.State, sourceOnly.Observation, sourceOnly.Sibling.Plan, sourceGoalPending: false), "An unproved or already refreshed source-only goal prevented ordinary fairness.");
+        bool NeedsRefresh(AutoPlayVisit visit) => visit.Key == pendingSource.NavigationKey;
+        Ff7NativeSiblingCandidate[] sourceCandidates = Ff7AutoPlayPolicy.ReadNativeSiblingCandidates(sourceOnly.State, sourceOnly.Planner, sourceOnly.Observation, NeedsRefresh, sourceGoalPending: true);
+        Check(sourceCandidates.Length > 0 && sourceCandidates.All(candidate => candidate.Plan.Goal == pendingSource), "Source-only native enumeration did not preserve its authenticated refresh goal.");
+        Ff7NativeSiblingCandidate candidate = sourceCandidates.Single(item => item.Target.Id == sourceOnly.Sibling.Target.Id);
+        AutoPlayPlanStep? fresh = Ff7AutoPlayPolicy.ReselectNativeSiblingPlan(sourceOnly.State, sourceOnly.Planner, sourceOnly.Observation, candidate, NeedsRefresh, sourceGoalPending: true);
+        Check(fresh?.Goal == pendingSource, "Source-only native reselection lost the pending-source fence.");
     }
 
     private static void Check(bool value, string reason)
