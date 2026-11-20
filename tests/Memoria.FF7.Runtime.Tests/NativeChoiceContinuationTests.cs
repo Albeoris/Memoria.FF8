@@ -11,6 +11,7 @@ internal static class NativeChoiceContinuationTests
 {
     internal static void Run()
     {
+        TalkConditionDomainTests.Run();
         Ff7SessionSave primary = Fixture(100);
         Ff7SessionSave better = Fixture(200);
         FieldChoiceServiceProof proof = new(true, [6], [9], [0]);

@@ -430,7 +430,11 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         driver.ConfigureSpatialBoundaries(observation.Events, selectedTarget);
         if (DetectMovementCycle(current))
         {
-            State.TravelCommitment = null;
+            bool retryTalkContact = RotateFailedTalkContact(current) && ReadFreshTalkContact(driver, observation, selectedTarget) is not null;
+            if (!retryTalkContact)
+            {
+                State.TravelCommitment = null;
+            }
             Ff7Actor player = session.Host.Process.Actors.Single(actor => actor.PlayerControlled);
             int margin = checked(player.CollisionRadius * 4096);
             Ff7AutoPlayMovementFailure failure = new(recentPositions.Min(position => position.X) - margin, recentPositions.Max(position => position.X) + margin, recentPositions.Min(position => position.Y) - margin, recentPositions.Max(position => position.Y) + margin);
@@ -439,6 +443,12 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             string fingerprint = ReadMovementFailureFingerprint(driver.ReadPhysicalAvailabilityFingerprint(selectedTarget), failure, session.Host.Process.Actors);
             State.NavigationGuards[key] = CaptureMovementGuardObservation(State.NavigationGuards[key], fingerprint);
             planner.MarkUnavailable(current.VisitId, current.EventId, new(selectedTarget.ConditionFingerprint, current.VisitId, key, fingerprint, current.EventId));
+            if (retryTalkContact)
+            {
+                State.Status = "Trying another native talk contact after a movement cycle";
+                Publish();
+                return default;
+            }
             RecordOrdinaryGoalDeferral(observation, selectedTarget, driver);
             State.Active = null;
             State.Status = "Replanning after a native navigation cycle";
@@ -459,6 +469,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         }
         catch (Ff7AutoPlayNavigationUnavailableException absence)
         {
+            RotateFailedTalkContact(current);
             State.TravelCommitment = null;
             RecordOrdinaryGoalDeferral(observation, selectedTarget, driver);
             bool retainNativeAlternatives = nativePlanningForActive && nativePlanning is not null && CanResumeNativePlanning(validateIntent: true);
@@ -869,7 +880,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
 
     private bool DetectMovementCycle(Ff7AutoPlayActiveEvent active)
     {
-        string identity = $"{active.NavigationKey}:{active.EventId}:{active.Generation}";
+        string identity = $"{active.NavigationKey}:{active.EventId}:{active.Generation}:{ReadTalkContactMovementIdentity(active)}";
         if (movementEvent != identity)
         {
             movementEvent = identity;

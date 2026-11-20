@@ -24,6 +24,7 @@ public sealed record Ff7AutoPlayChoicePreference(int Selection, string NativeCon
 
 public sealed class Ff7AutoPlayState
 {
+    public Dictionary<string, Ff7AutoPlayTalkConditionDomain> TalkConditionDomains { get; set; } = new(StringComparer.Ordinal);
     public int Version { get; set; } = 1;
     public AutoPlayPlannerState<Ff7AutoPlayDeferral> Coverage { get; set; } = new();
     public ushort? DestinationField { get; set; }

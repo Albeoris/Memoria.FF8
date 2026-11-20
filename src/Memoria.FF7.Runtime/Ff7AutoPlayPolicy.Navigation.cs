@@ -32,6 +32,10 @@ public sealed partial class Ff7AutoPlayPolicy
         {
             return ReadRetainedNavigationAvailability(State, navigation, observed);
         }
+        if (ReadTalkConditionAvailability(navigation, observed, observation) is { } talk)
+        {
+            return talk;
+        }
         ObserveGatewayTopology(navigation, observed, observation);
         if (navigation.VisitKey != observation.VisitId && !State.VisitGuards.ContainsKey(navigation.VisitKey))
         {

@@ -85,6 +85,23 @@ public sealed partial class Ff7AutoPlayDiscovery(Ff7Session session)
             return entry;
         }
     }
+    internal FieldScriptEntryDependencies? ReadTalkContactDependencies(Ff7AutoPlayTarget target)
+    {
+        return target.AnalysisComplete && analyses.TryGetValue((target.Entity, target.Script), out FieldScriptAnalysis? analysis) && analysis.Complete && analysis.StochasticPresentation is null && !HasTalkContactInputReads(analysis, session.Field.Scripts.Data.Span) ? entryDependencies.Read(session.Machine, target.Entity, target.Script, analysis) : null;
+    }
+
+    internal static bool HasTalkContactInputReads(FieldScriptAnalysis analysis, ReadOnlySpan<byte> code)
+    {
+        foreach (FieldScriptInstructionSite site in analysis.InstructionSites)
+        {
+            if ((uint)site.ProgramCounter >= code.Length || code[site.ProgramCounter] is 0x30 or 0x31 or 0x32)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private readonly Dictionary<(int Entity, int Script), FieldScriptInputDemand?> entryInputs = [];
     private string? analysisAllocation;
     private readonly Ff7AutoPlayEntryReadiness entryReadiness = new();

@@ -7,20 +7,36 @@ namespace Memoria.FF7.Runtime;
 
 public sealed partial class Ff7AutoplayDriver
 {
+    private string? navigationTalkContactContext;
+
+    internal Ff7AutoplayInput TalkToContact(int entity, Vector3 point, int triangle, bool run, string context)
+    {
+        string? previous = navigationTalkContactContext;
+        navigationTalkContactContext = context;
+        try
+        {
+            return ChooseBoundaryInput(() => ChooseNativeTalkContactInput(session.Host.GetActor(entity), run, triangle) ?? Approach(point, triangle, run));
+        }
+        finally
+        {
+            navigationTalkContactContext = previous;
+        }
+    }
+
     internal Ff7AutoplayInput ChooseNativeTalkGuideInput(int entity, Vector3 contact, bool run)
     {
         Ff7Actor target = session.Host.GetActor(entity);
         return ChooseNativeTalkContactInput(target, run) ?? Steer(contact, run);
     }
 
-    private Ff7AutoplayInput? ChooseNativeTalkContactInput(Ff7Actor target, bool run)
+    private Ff7AutoplayInput? ChooseNativeTalkContactInput(Ff7Actor target, bool run, int? contactTriangle = null)
     {
         if (!target.TalkEnabled)
         {
             return null;
         }
         Ff7Actor player = session.Host.Process.Actors.Single(actor => actor.PlayerControlled);
-        if (session.GetTalkTarget()?.Entity == target.Entity)
+        if (session.GetTalkTarget()?.Entity == target.Entity && (contactTriangle is null || player.Triangle == contactTriangle))
         {
             return new(Talk: true, Run: run);
         }
@@ -37,7 +53,7 @@ public sealed partial class Ff7AutoplayDriver
         foreach (var direction in Directions.OrderBy(direction => Math.Abs(((direction.Direction + session.Field.Triggers.ControlDirection - desired + 128) & 255) - 128)))
         {
             Ff7NativeMoveResult preview = movement.StepDirection(controlled, (byte)((direction.Direction + session.Field.Triggers.ControlDirection) & 255), session.Host.Process.Actors, session.Host.Process.BlockedTriangles, playerLocked: false, lineBlocked: session.Host.Process.LineBlocked);
-            if (AllowsPlannedMove(controlled, preview) && session.PreviewTalkTarget(preview.Actor)?.Entity == target.Entity)
+            if (AllowsPlannedMove(controlled, preview) && session.PreviewTalkTarget(preview.Actor)?.Entity == target.Entity && (contactTriangle is null || preview.Actor.Triangle == contactTriangle))
             {
                 navigationActionProgress = true;
                 return new(direction.X, direction.Y, Run: run);

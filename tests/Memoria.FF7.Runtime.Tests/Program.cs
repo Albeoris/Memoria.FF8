@@ -319,6 +319,12 @@ if (args.Contains("--native-owned-route-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--talk-condition-domain-original-only", StringComparer.Ordinal))
+{
+    TalkConditionDomainTests.RunOriginal();
+    return 0;
+}
+
 if (args.Contains("--native-choice-continuation-only", StringComparer.Ordinal))
 {
     NativeChoiceContinuationTests.Run();

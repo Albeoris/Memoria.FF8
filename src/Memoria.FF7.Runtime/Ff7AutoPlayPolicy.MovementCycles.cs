@@ -41,7 +41,7 @@ public sealed partial class Ff7AutoPlayPolicy
     {
         return target.Kind switch
         {
-            Ff7AutoPlayTargetKind.ActorTalk => driver.TalkTo(target.Entity, run),
+            Ff7AutoPlayTargetKind.ActorTalk => ChooseConditionAwareTalkInput(driver, target, run),
             Ff7AutoPlayTargetKind.ActorContact => driver.Contact(target.Entity, run),
             Ff7AutoPlayTargetKind.Gateway => driver.GatewayAt(target.GatewayIndex!.Value, run),
             Ff7AutoPlayTargetKind.AutonomousSpatial => driver.Approach(target.Position, target.Triangle, run),

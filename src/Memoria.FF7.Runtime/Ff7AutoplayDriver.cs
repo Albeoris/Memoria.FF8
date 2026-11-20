@@ -313,7 +313,7 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
             advancing |= LocalProgress(probe.Actor);
             Vector2 position = new(probe.Actor.X4096 / 4096f, probe.Actor.Y4096 / 4096f);
             float distance = Vector2.DistanceSquared(position, new(waypoint.X, waypoint.Y));
-            int remaining = finalApproach ? 0 : routeDistance[probe.Actor.Triangle];
+            int remaining = finalApproach && targetTriangle is null ? 0 : routeDistance[probe.Actor.Triangle];
             if (remaining < bestRouteDistance || remaining == bestRouteDistance && distance < best)
             {
                 best = distance;
@@ -356,7 +356,7 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
 
     private string ReadApproachGuideContext(Ff7Actor player, Vector3 target, int destination)
     {
-        return ReadApproachAdvisoryContext(session.FieldGeneration, target, destination, navigationSelectedTarget, player, session.GetPlayerMovementSpeed(navigationRunMode ?? true), navigationRunMode, session.Host.Process.MapJumpDisabled, session.Host.Process.BlockedTriangles, CaptureSpatialBoundaryTriangles(), admittedSpatialTriangle, admittedGateways ?? new HashSet<int>(), ReadNavigationOwnedPortals(session.Field.Walkmesh), session.Host.Process.Actors, session.Host.Process.Lines);
+        return ReadApproachAdvisoryContext(session.FieldGeneration, target, destination, navigationSelectedTarget, player, session.GetPlayerMovementSpeed(navigationRunMode ?? true), navigationRunMode, session.Host.Process.MapJumpDisabled, session.Host.Process.BlockedTriangles, CaptureSpatialBoundaryTriangles(), admittedSpatialTriangle, admittedGateways ?? new HashSet<int>(), ReadNavigationOwnedPortals(session.Field.Walkmesh), session.Host.Process.Actors, session.Host.Process.Lines, navigationTalkContactContext);
     }
 
     internal void UpdateApproachGuideContext(string context)
@@ -371,9 +371,9 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
         ResetObstacleEscape();
     }
 
-    internal static string ReadApproachAdvisoryContext(long generation, Vector3 point, int destination, Ff7AutoPlayTarget? selected, Ff7Actor player, int speed, bool? run, bool mapJumpDisabled, byte[] blocked, IEnumerable<int> boundaries, int? admittedTriangle, IEnumerable<int> gateways, IEnumerable<(int From, int To)> ownedPortals, IReadOnlyList<Ff7Actor> actors, IReadOnlyList<Ff7Line> lines)
+    internal static string ReadApproachAdvisoryContext(long generation, Vector3 point, int destination, Ff7AutoPlayTarget? selected, Ff7Actor player, int speed, bool? run, bool mapJumpDisabled, byte[] blocked, IEnumerable<int> boundaries, int? admittedTriangle, IEnumerable<int> gateways, IEnumerable<(int From, int To)> ownedPortals, IReadOnlyList<Ff7Actor> actors, IReadOnlyList<Ff7Line> lines, string? stableContactContext = null)
     {
-        string target = selected is null ? $"point:{point}" : $"event:{selected.Id}:{selected.Entity}:{selected.Script}:{selected.Kind}:{selected.ConditionFingerprint}:{selected.EntryInputContract}:{selected.DestinationField}:{selected.GatewayIndex}";
+        string target = selected is null ? $"point:{point}" : $"event:{selected.Id}:{selected.Entity}:{selected.Script}:{selected.Kind}:{stableContactContext ?? selected.ConditionFingerprint}:{selected.EntryInputContract}:{selected.DestinationField}:{selected.GatewayIndex}";
         StringBuilder facts = new($"{generation}:{target}:{destination}:{player.Slot}:{player.Entity}:{player.Model}:{player.CollisionRadius}:{player.MovementFacingDisabled}:{speed}:{run}:{mapJumpDisabled}:{admittedTriangle}:{Convert.ToHexString(blocked)}");
         foreach (var edge in ownedPortals.OrderBy(edge => edge.From).ThenBy(edge => edge.To))
         {
@@ -397,7 +397,7 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
 
     private string ReadPhysicalApproachContext(Ff7Actor player, Vector3 target, int destination)
     {
-        return ReadPhysicalGeometryContext(ReadApproachGuideContext(player, target, destination), session.Host.Process.Actors, session.Host.Process.Lines, session.Host.Process.LineBlocked);
+        return ReadPhysicalGeometryContext(ReadApproachGuideContext(player, target, destination) + "|native-condition:" + navigationSelectedTarget?.ConditionFingerprint, session.Host.Process.Actors, session.Host.Process.Lines, session.Host.Process.LineBlocked);
     }
 
     internal static string ReadPhysicalGeometryContext(string advisory, IReadOnlyList<Ff7Actor> actors, IReadOnlyList<Ff7Line> lines, bool lineBlocked)

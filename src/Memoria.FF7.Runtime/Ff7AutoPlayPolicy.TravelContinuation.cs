@@ -4,14 +4,14 @@ namespace Memoria.FF7.Runtime;
 
 public sealed partial class Ff7AutoPlayPolicy
 {
-    internal static bool CanRefreshOwnedActorTarget(Ff7AutoPlayState state, Ff7AutoPlayObservation observation, Ff7AutoPlayTarget target, Ff7Actor? actor, AutoPlayEventAvailability? availability)
+    internal static bool CanRefreshOwnedActorTarget(Ff7AutoPlayState state, Ff7AutoPlayObservation observation, Ff7AutoPlayTarget target, Ff7Actor? actor, AutoPlayEventAvailability? availability, bool freshContactApproach = false)
     {
         if (state.TravelCommitment is not { Goal: { EventId: not null } goal } commitment || state.NavigationGoal != goal || state.DestinationField != commitment.DestinationField || observation.NavigationKey != commitment.NavigationKey || !observation.CanAcceptInput || !state.Coverage.NavigationVisits.Any(visit => visit.Key == goal.NavigationKey && visit.VisitKey == observation.VisitId) || target.Id != goal.EventId || target.Id != $"actor:{target.Entity}:script:{target.Script}" || target.Kind != Ff7AutoPlayTargetKind.ActorTalk || !target.AnalysisComplete || actor is not { EntityBound: true, PlayerControlled: false, TalkEnabled: true } || actor.Entity != target.Entity || availability is null || availability.Unavailable)
         {
             return false;
         }
         var coverage = state.Coverage.Visits.SingleOrDefault(visit => visit.Visit.Key == observation.VisitId)?.Events.SingleOrDefault(item => item.Event.Id == target.Id);
-        return coverage is { Available: true, BlockedReason: null, PolicyDeferred: false } && coverage.Event.ConditionSignature == target.ConditionFingerprint && coverage.Conditions?.HasExecutedEntry(target.ConditionFingerprint) != true;
+        return coverage is { Available: true, BlockedReason: null, PolicyDeferred: false } && coverage.Event.ConditionSignature == target.ConditionFingerprint && (freshContactApproach || coverage.Conditions?.HasExecutedEntry(target.ConditionFingerprint) != true);
     }
 
     private void RefreshOwnedTargetIntent(Ff7AutoPlayObservation observation, Ff7AutoplayDriver driver, IReadOnlyDictionary<string, string> physicalGuards)
@@ -40,7 +40,9 @@ public sealed partial class Ff7AutoPlayPolicy
         var coverage = State.Coverage.Visits.Single(visit => visit.Visit.Key == observation.VisitId).Events.Single(item => item.Event.Id == target.Id);
         var facts = new Dictionary<string, IReadOnlyDictionary<string, string>?> { [observation.NavigationKey] = physicalGuards };
         AutoPlayEventAvailability? availability = ReadNavigationAvailability(current, currentEvent, observation, driver, facts);
-        if (!CanRefreshOwnedActorTarget(State, observation, target, session.Host.Process.Actors.SingleOrDefault(actor => actor.EntityBound && actor.Entity == target.Entity), availability))
+        bool consumedIntermediate = coverage.Conditions?.HasExecutedEntry(target.ConditionFingerprint) == true;
+        bool freshContactApproach = consumedIntermediate && ReadFreshTalkContact(driver, observation, target) is not null;
+        if (!CanRefreshOwnedActorTarget(State, observation, target, session.Host.Process.Actors.SingleOrDefault(actor => actor.EntityBound && actor.Entity == target.Entity), availability, freshContactApproach))
         {
             State.TravelCommitment = null;
             return;
@@ -54,6 +56,10 @@ public sealed partial class Ff7AutoPlayPolicy
             }
             planner.BeginEvent(observation.VisitId, target.Id);
             State.Active = planned with { ConditionFingerprint = target.ConditionFingerprint, NavigationKey = observation.NavigationKey, NavigationProbeKey = target.MayChangeNavigation ? NavigationProbeKey(observation.NavigationKey, target) : null, EntryAvailabilityFingerprint = availability!.Fingerprint, EntryGuardFingerprints = physicalGuards.Where(entry => State.NavigationGuards.TryGetValue(entry.Key, out var guard) && guard.NavigationKey == observation.NavigationKey && guard.EventId == target.Id).ToDictionary(entry => entry.Key, entry => entry.Value, StringComparer.Ordinal) };
+        }
+        if (freshContactApproach)
+        {
+            return;
         }
         if (fresh != goal)
         {
