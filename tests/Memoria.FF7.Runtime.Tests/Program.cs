@@ -319,6 +319,18 @@ if (args.Contains("--native-owned-route-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--native-choice-continuation-only", StringComparer.Ordinal))
+{
+    NativeChoiceContinuationTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-choice-continuation-original-only", StringComparer.Ordinal))
+{
+    NativeChoiceContinuationTests.RunOriginal();
+    return 0;
+}
+
 if (args.Contains("--owned-travel-continuation-only", StringComparer.Ordinal))
 {
     OwnedTravelContinuationTests.Run();

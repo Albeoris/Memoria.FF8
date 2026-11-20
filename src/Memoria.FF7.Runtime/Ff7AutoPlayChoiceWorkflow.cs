@@ -5,7 +5,7 @@ using Memoria.FF7.Events;
 
 namespace Memoria.FF7.Runtime;
 
-public sealed record Ff7AutoPlayChoiceState(string Key, Ff7AutoPlayActiveEvent? BeforeActive, Ff7AutoPlayChoiceState? Parent = null, Ff7AutoPlayActiveEvent? ContinuationActive = null, string? OwnerIdentity = null, int? BeforeStory = null);
+public sealed record Ff7AutoPlayChoiceState(string Key, Ff7AutoPlayActiveEvent? BeforeActive, Ff7AutoPlayChoiceState? Parent = null, Ff7AutoPlayActiveEvent? ContinuationActive = null, string? OwnerIdentity = null, int? BeforeStory = null, [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] string[]? RetiredCandidatePaths = null);
 public sealed record Ff7AutoPlayRestoreRequest(string Path, string[]? RetiredPaths = null);
 
 /// <summary>Adapts shared choice coverage to exact native before-choice and primary-continuation saves.</summary>
@@ -158,6 +158,11 @@ public sealed partial class Ff7AutoPlayChoiceWorkflow
             choice = choice with { ContinuationActive = state.Active };
             state.Choice = choice;
         }
+        else
+        {
+            continuation = PreferActualContinuation(choice, coverage, current) ?? continuation;
+            choice = state.Choice ?? choice;
+        }
         planner.CompleteChoiceAtControlReturn(choice.Key, continuation);
         if (storyAdvanced)
         {
@@ -193,7 +198,7 @@ public sealed partial class Ff7AutoPlayChoiceWorkflow
         planner.FinishChoice(choice.Key);
         state.Choice = choice.Parent;
         state.Active = choice.ContinuationActive;
-        state.PendingRestore = new(next.Checkpoint, new[] { coverage.BeforeCheckpoint, coverage.ContinuationCheckpoint }.OfType<string>().Distinct(StringComparer.Ordinal).ToArray());
+        state.PendingRestore = new(next.Checkpoint, new[] { coverage.BeforeCheckpoint, coverage.ContinuationCheckpoint }.OfType<string>().Concat(choice.RetiredCandidatePaths ?? []).Distinct(StringComparer.Ordinal).ToArray());
         return true;
     }
 

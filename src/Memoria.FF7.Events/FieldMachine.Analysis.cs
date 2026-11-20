@@ -19,6 +19,7 @@ public enum FieldHostReadKind
 }
 
 public sealed record FieldHostRead(FieldHostReadKind Kind, int Parameter = 0, int Selector = 0);
+public sealed record FieldScriptInstructionSite(int Entity, int ProgramCounter);
 public sealed record FieldScriptAnalysis(bool Complete, string? Reason, string Fingerprint, bool ChangesStory, FieldVariableRead[] Reads, int[] ProgramCounters, int[] DestinationFields)
 {
     public FieldHostRead[] HostReads { get; init; } = [];
@@ -27,6 +28,7 @@ public sealed record FieldScriptAnalysis(bool Complete, string? Reason, string F
     public FieldStochasticPresentation? StochasticPresentation { get; init; }
     public int[] ExitProgramCounters { get; init; } = [];
     public int[] UnblockedTriangles { get; init; } = [];
+    public FieldScriptInstructionSite[] InstructionSites { get; init; } = [];
 }
 
 public sealed partial class FieldVariables
@@ -137,7 +139,7 @@ public sealed partial class FieldMachine
         return result with { Fingerprint = fingerprint };
     }
 
-    private FieldScriptAnalysis AnalyzeScriptCore(int entity, int script, int entry, int instructionBudget, IReadOnlySet<int>? exitBoundaries, byte initialOwnership, NavigationInvariantInspection? navigationInvariant = null, StochasticInspection? stochastic = null)
+    private FieldScriptAnalysis AnalyzeScriptCore(int entity, int script, int entry, int instructionBudget, IReadOnlySet<int>? exitBoundaries, byte initialOwnership, NavigationInvariantInspection? navigationInvariant = null, StochasticInspection? stochastic = null, bool collectRandomReads = false)
     {
         byte[] persistent = Variables.CopyPersistent();
         byte[] map = Variables.CopyMap();
@@ -445,7 +447,7 @@ public sealed partial class FieldMachine
                             throw new NotSupportedException("A producer requires a mutable native host-query selector.");
                         }
                         hostReads.Add(read);
-                        if (read.Kind == FieldHostReadKind.Random && navigationInvariant is null && stochastic is null)
+                        if (read.Kind == FieldHostReadKind.Random && navigationInvariant is null && stochastic is null && !collectRandomReads)
                         {
                             throw new NotSupportedException("A random-result dependency requires an explicit stochastic event coverage contract.");
                         }
@@ -483,6 +485,6 @@ public sealed partial class FieldMachine
             reason ??= error.Message;
             fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes($"{program.Identity}:{entity}:{script}:unsupported")));
         }
-        return new(reason is null, reason, fingerprint, changesStory, dependencies, visited.Select(value => value.Pc).Distinct().Order().ToArray(), destinations.Order().ToArray()) { HostReads = hostReads.OrderBy(read => read.Kind).ThenBy(read => read.Parameter).ThenBy(read => read.Selector).ToArray(), MayChangeNavigation = mayChangeNavigation, InputIndependent = reason is null && inputIndependent, ExitProgramCounters = exits.Order().ToArray(), UnblockedTriangles = unblockedTriangles.Order().ToArray() };
+        return new(reason is null, reason, fingerprint, changesStory, dependencies, visited.Select(value => value.Pc).Distinct().Order().ToArray(), destinations.Order().ToArray()) { HostReads = hostReads.OrderBy(read => read.Kind).ThenBy(read => read.Parameter).ThenBy(read => read.Selector).ToArray(), MayChangeNavigation = mayChangeNavigation, InputIndependent = reason is null && inputIndependent, ExitProgramCounters = exits.Order().ToArray(), UnblockedTriangles = unblockedTriangles.Order().ToArray(), InstructionSites = visited.Select(value => new FieldScriptInstructionSite(value.Entity, value.Pc)).Distinct().ToArray() };
     }
 }
