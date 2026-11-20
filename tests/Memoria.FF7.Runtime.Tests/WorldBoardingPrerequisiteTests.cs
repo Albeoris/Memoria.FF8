@@ -1,9 +1,9 @@
+using System.Reflection;
 using System.Text.Json;
 using Memoria.AutoPlay;
 using Memoria.FF7.Runtime;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Events;
-using System.Reflection;
 
 internal static class WorldBoardingPrerequisiteTests
 {
@@ -23,6 +23,20 @@ internal static class WorldBoardingPrerequisiteTests
 
         Check(Ff7AutoPlayPolicy.ShouldPlanWorldBoardingPrerequisite(state, visit, Unavailable), "A completed boarding action hid a prerequisite for unconsumed entries beyond the current foot component.");
         Check(!Ff7AutoPlayPolicy.ShouldPlanWorldBoardingPrerequisite(state, visit, _ => new(false, [], null)), "Transport advice displaced an admitted fresh on-foot frontier.");
+        var visitCoverage = state.Coverage.Visits.Single();
+        var destinationCoverage = visitCoverage.Events.Single(item => item.Event.Id == destination.Id);
+        var otherCoverage = visitCoverage.Events.Single(item => item.Event.Id == other.Id);
+        destinationCoverage.UnavailableAttempts.Add(new(destination.ConditionSignature!, visit, "historical-advice", "old-source"));
+        otherCoverage.UnavailableAttempts.Add(new(other.ConditionSignature!, visit, "historical-advice", "old-source", other.Id));
+        Check(Ff7AutoPlayPolicy.ShouldPlanWorldBoardingPrerequisite(state, visit, _ => new(false, [], null)), "A retryable previously attempted condition monopolized ordinary exploration ahead of a proved transport prerequisite.");
+        Check(!destinationCoverage.Unavailable && !otherCoverage.Unavailable, "Historical attempts were incorrectly promoted to native unreachability.");
+        destinationCoverage.Event = destination with { ConditionSignature = "changed-native-condition" };
+        Check(!Ff7AutoPlayPolicy.ShouldPlanWorldBoardingPrerequisite(state, visit, _ => new(false, [], null)), "A changed native condition did not restore unattempted frontier priority.");
+        destinationCoverage.Event = destination;
+        AutoPlayEvent variants = destination with { Variants = ["native-arm"] };
+        Check(!Ff7AutoPlayPolicy.HasAttemptedEntryCondition(destinationCoverage, variants), "An unrelated attempted arm suppressed a fresh native variant.");
+        destinationCoverage.UnavailableAttempts.Add(new(destination.ConditionSignature!, visit, "historical-advice", "old-source", "native-arm"));
+        Check(Ff7AutoPlayPolicy.HasAttemptedEntryCondition(destinationCoverage, variants), "Current variant attempt classification diverged from ordinary planner retry classification.");
         state.DestinationField = 321;
         Check(!Ff7AutoPlayPolicy.ShouldPlanWorldBoardingPrerequisite(state, visit, Unavailable), "Ordinary exploration interfered with explicit destination planning.");
         state.DestinationField = null;
@@ -124,6 +138,12 @@ internal static class WorldBoardingPrerequisiteTests
             controller.Advance(1);
             callbacks++;
         }
+        if (session.Battle is not null)
+        {
+            Check(original.SequenceEqual(File.ReadAllBytes(path)), "Native transport continuation changed its standalone source.");
+            Console.WriteLine($"BOUNDARY genuine native battle before boarding completed after {controller.Steps} actual callbacks; no battle outcome was fabricated.");
+            return;
+        }
         Check(session.World is not null && world.ControlledModel != controlled, "Ordinary selected native boarding did not actually change the controlled model.");
         Check(policy.State.NavigationGoal == intended, "Actual native boarding lost or replaced its downstream entry goal.");
         elapsed.Restart();
@@ -133,9 +153,67 @@ internal static class WorldBoardingPrerequisiteTests
             controller.Advance(1);
             postBoardSlices++;
         }
+        if (session.Battle is not null)
+        {
+            Check(original.SequenceEqual(File.ReadAllBytes(path)), "Native transport continuation changed its standalone source.");
+            Console.WriteLine($"BOUNDARY genuine native battle after boarding after {controller.Steps} actual callbacks; no battle outcome was fabricated.");
+            return;
+        }
         Check(policy.State.Active?.WorldModeGoal?.TargetEventId == intended.EventId, "The first native vehicle-to-rider goal displaced the boarding plan's proved downstream entry.");
-        Check(original.SequenceEqual(File.ReadAllBytes(path)), "Native boarding continuation changed its standalone source.");
-        Console.WriteLine($"PASS native boarding: scheduling polls={polls}, actual callbacks={controller.Steps}, controlled={controlled}->{world.ControlledModel}, downstream={intended.EventId}, first native mode={policy.State.Active?.WorldModeGoal?.TargetEventId}; source unchanged.");
+        ContinueOwnedWorldEntry(session, world, policy, controller, intended.EventId!, controlled, path, original);
+    }
+
+    internal static void RunLandingOriginal()
+    {
+        string game = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR") ?? throw new InvalidOperationException("Select original resources.");
+        string path = Environment.GetEnvironmentVariable("MEMORIA_FF7_WORLD_LANDING_SAVE") ?? throw new InvalidOperationException("Select an external native landing fixture.");
+        byte[] original = File.ReadAllBytes(path);
+        using MemoryStream input = new(original);
+        using Ff7Session session = Ff7Session.Restore(Ff7Installation.Discover(game), CombinedSessionCodec.Read(input).Ff7!);
+        Ff7WorldRuntime world = session.World ?? throw new Exception("The fixture has no native World allocation.");
+        using Ff7AutoPlayPolicy policy = new(session, (_, _) => throw new Exception("Unexpected choice."));
+        string intended = policy.State.Active?.WorldModeGoal?.TargetEventId ?? throw new Exception("Native landing has no owned downstream goal.");
+        int rider = world.ControlledModel;
+        string entries = JsonSerializer.Serialize(policy.State.Coverage.Visits.Single(visit => visit.Visit.Key.StartsWith("ff7-world:", StringComparison.Ordinal)).Events.Single(item => item.Event.Id == intended).Conditions?.ConsumedEntries);
+        Ff7AutoPlayController controller = new(session, policy.ChooseInput);
+        controller.Start();
+        controller.Advance(1);
+        Ff7AutoPlayActiveEvent entry = policy.State.Active ?? throw new Exception("Native landing did not retain its owned entry plan.");
+        Check(entry.EventId == intended && entry.Kind == Ff7AutoPlayTargetKind.WorldMesh && !entry.Accepted && !entry.Returned && !entry.TransitionOwned && !entry.CompletionRecorded, "Landing fabricated native entry admission or displaced its owned continuation.");
+        var source = intended.Split(':');
+        var target = world.ReadAutoPlayFrontierCatalog(int.Parse(source[1]), int.Parse(source[2])).Scripts.Single(item => item.Script == int.Parse(source[4]));
+        Check(entry.ConditionFingerprint == Ff7AutoPlayPolicy.WorldCondition(target), "The landing entry plan retained an obsolete native condition.");
+        Check(entries == JsonSerializer.Serialize(policy.State.Coverage.Visits.Single(visit => visit.Visit.Key.StartsWith("ff7-world:", StringComparison.Ordinal)).Events.Single(item => item.Event.Id == intended).Conditions?.ConsumedEntries), "Landing consumed an entry without a native dispatch.");
+        ContinueOwnedWorldEntry(session, world, policy, controller, intended, rider, path, original);
+    }
+
+    private static void ContinueOwnedWorldEntry(Ff7Session session, Ff7WorldRuntime world, Ff7AutoPlayPolicy policy, Ff7AutoPlayController controller, string intended, int rider, string path, byte[] original)
+    {
+        var elapsed = System.Diagnostics.Stopwatch.StartNew();
+        var report = System.Diagnostics.Stopwatch.StartNew();
+        bool landed = world.ControlledModel == rider;
+        int slices = 0;
+        while (controller.Running && ReferenceEquals(session.World, world) && world.Process.FieldDeparture is null && session.Battle is null && elapsed.Elapsed < TimeSpan.FromMinutes(2) && slices < 4096)
+        {
+            controller.Advance(1);
+            slices++;
+            landed |= world.ControlledModel == rider;
+            if (report.Elapsed >= TimeSpan.FromSeconds(10))
+            {
+                var player = world.Process.Entities.Single(entity => entity.Model == world.ControlledModel);
+                Console.WriteLine($"Native world progress: callbacks={controller.Steps}, tick={world.Process.Tick}, model={world.ControlledModel}, XYZ={player.X},{player.Y},{player.Z}, active={policy.State.Active?.EventId}, intended={intended}");
+                report.Restart();
+            }
+        }
+        Check(original.SequenceEqual(File.ReadAllBytes(path)), "Native transport continuation changed its standalone source.");
+        Console.WriteLine($"Native transport boundary: callbacks={controller.Steps}, landed={landed}, intended={intended}, owner={policy.State.WorldDispatch?.EventId}, departure={world.Process.FieldDeparture}, battle={session.Battle is not null}, error={controller.Error}; source unchanged.");
+        Check(controller.Error is null, $"Native transport continuation failed: {controller.Error}");
+        if (session.Battle is not null)
+        {
+            Console.WriteLine("BOUNDARY genuine native battle; no battle outcome or selected field entry was fabricated.");
+            return;
+        }
+        Check(landed && world.Process.FieldDeparture is not null && policy.State.WorldDispatch?.EventId == intended, "Normal native landing and the owned world entry were not both established within the external fixture check.");
     }
 
     private static void Check(bool value, string message)

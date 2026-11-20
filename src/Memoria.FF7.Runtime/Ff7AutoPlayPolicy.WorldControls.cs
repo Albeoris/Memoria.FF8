@@ -60,6 +60,20 @@ public sealed partial class Ff7AutoPlayPolicy
             State.Active = null;
             State.NavigationGoal = destination;
             State.Status = "The native transport control returned to its rider";
+            if (destination is { EventId: not null })
+            {
+                observation = ObserveWorldPlanner(world);
+                var (facts, _, _) = RefreshWorldPhysicalAvailability(world, observation);
+                var target = State.Coverage.NavigationVisits.Single(visit => visit.Key == observation.NavigationKey).Events.SingleOrDefault(item => item.Id == destination.EventId);
+                var coverage = State.Coverage.Visits.Single(visit => visit.Visit.Key == observation.VisitId).Events.SingleOrDefault(item => item.Event.Id == destination.EventId);
+                if (target is not null && coverage is { Available: true, BlockedReason: null, PolicyDeferred: false } && target.Kind == AutoPlayEventKind.Transition && target.ConditionSignature == destination.Conditions && !ReadWorldSemanticAvailability(coverage, target, AutoPlayPlanner<Ff7AutoPlayDeferral>.ReadAvailability(coverage, facts)).Unavailable)
+                {
+                    // Native landing completed only the control phase of this owned transport plan.
+                    // Commit its reobserved entry as a plan; actual VM dispatch must still admit it.
+                    BeginWorldMeshEvent(world, observation, new(observation.VisitId, target, false, Goal: destination), facts);
+                    State.Status = "Following the native entry owned by the completed transport landing";
+                }
+            }
             Publish();
             return default;
         }

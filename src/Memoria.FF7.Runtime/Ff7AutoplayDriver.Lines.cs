@@ -30,6 +30,20 @@ public sealed partial class Ff7AutoplayDriver
         Vector3 a = new(line.X1, line.Y1, line.Z1);
         Vector3 b = new(line.X2, line.Y2, line.Z2);
         Vector3 current = new(player.X4096 >> 12, player.Y4096 >> 12, player.Z4096 >> 12);
+        if (kind == Ff7AutoPlayTargetKind.LineTouch)
+        {
+            Ff7Actor controlled = player with { MoveSpeed = unchecked((ushort)session.GetPlayerMovementSpeed(run)) };
+            Ff7NativeMoveResult Preview(Ff7AutoplayInput input)
+            {
+                var direction = Directions.Single(direction => direction.X == input.Horizontal && direction.Y == input.Vertical);
+                return session.Host.Movement!.StepDirection(controlled, unchecked((byte)(direction.Direction + session.Field.Triggers.ControlDirection)), process.Actors, process.BlockedTriangles, false, process.LineBlocked);
+            }
+            if (ChooseNativeLineTouchInput(controlled, line, Preview, (_, step) => AllowsPlannedMove(controlled, step), run) is Ff7AutoplayInput contact)
+            {
+                navigationActionProgress = true;
+                return contact;
+            }
+        }
         var contacts = DiscoverLineContacts(session.Field.Walkmesh, process.BlockedTriangles, player, line);
         if (contacts.Count == 0)
         {
@@ -73,6 +87,34 @@ public sealed partial class Ff7AutoplayDriver
         }
         var goal = ChooseFloorContact(contacts, player);
         return Approach(goal.Point, goal.Triangle, run);
+    }
+
+    internal static Ff7AutoplayInput? ChooseNativeLineTouchInput(Ff7Actor player, Ff7Line line, Func<Ff7AutoplayInput, Ff7NativeMoveResult> preview, Func<Ff7AutoplayInput, Ff7NativeMoveResult, bool> allows, bool run)
+    {
+        bool Touches(Ff7Actor actor)
+        {
+            int distance = Ff7Session.DistanceToSegment(new(line.X1, line.Y1, line.Z1), new(line.X2, line.Y2, line.Z2), new(actor.X4096 >> 12, actor.Y4096 >> 12, actor.Z4096 >> 12), out _);
+            return distance >= 0 && distance < unchecked(actor.CollisionRadius * actor.CollisionRadius);
+        }
+        if (line.Enabled != 1)
+        {
+            return null;
+        }
+        if (Touches(player))
+        {
+            // Native tail contact publication and the entry's button gate still own admission.
+            return new Ff7AutoplayInput();
+        }
+        foreach (var direction in Directions)
+        {
+            Ff7AutoplayInput input = new(direction.X, direction.Y, Run: run);
+            Ff7NativeMoveResult step = preview(input);
+            if (step.Moved && Touches(step.Actor) && allows(input, step))
+            {
+                return input;
+            }
+        }
+        return null;
     }
 
     internal static Ff7AutoplayInput? ChooseNativeLineCrossing(Ff7Actor player, Ff7Line line, Func<Ff7AutoplayInput, Ff7NativeMoveResult> preview, Func<Ff7AutoplayInput, Ff7NativeMoveResult, bool> allows)

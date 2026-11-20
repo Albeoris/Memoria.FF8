@@ -23,7 +23,7 @@ public sealed partial class Ff7AutoPlayPolicy
             return false;
         }
         AutoPlayVisitCoverage<Ff7AutoPlayDeferral> visit = state.Coverage.Visits.Single(visit => visit.Visit.Key == visitKey);
-        return !visit.Events.Any(item => item.Available && item.BlockedReason is null && !item.PolicyDeferred && !HasConsumedWorldEntry(item, item.Event.ConditionSignature) && readAvailability(item.Event)?.Unavailable != true);
+        return !visit.Events.Any(item => item.Available && item.BlockedReason is null && !item.PolicyDeferred && !HasConsumedWorldEntry(item, item.Event.ConditionSignature) && !HasAttemptedEntryCondition(item, item.Event) && readAvailability(item.Event)?.Unavailable != true);
     }
 
     internal static IEnumerable<AutoPlayPlanStep?> EnumerateWorldBoardingPrerequisites(string visitKey, string navigationKey, IReadOnlyList<AutoPlayEvent> destinations, IReadOnlyList<AutoPlayEvent> boarding, Func<AutoPlayEvent, AutoPlayEvent, bool> connected, Func<AutoPlayEvent, bool>? prepareDestination = null)

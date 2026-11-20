@@ -321,6 +321,12 @@ if (args.Contains("--world-boarding-prerequisite-original-only", StringComparer.
     return 0;
 }
 
+if (args.Contains("--world-landing-continuation-original-only", StringComparer.Ordinal))
+{
+    WorldBoardingPrerequisiteTests.RunLandingOriginal();
+    return 0;
+}
+
 if (args.Contains("--world-destination-goal-only", StringComparer.Ordinal))
 {
     WorldDestinationGoalTests.Run();
@@ -745,6 +751,18 @@ if (args.Contains("--world-semantic-availability-only", StringComparer.Ordinal))
 if (args.Contains("--native-effect-alias-only", StringComparer.Ordinal))
 {
     NativeEffectAliasTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-line-touch-region-only", StringComparer.Ordinal))
+{
+    NativeLineTouchRegionTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-remote-leaf-original-only", StringComparer.Ordinal))
+{
+    NativeRemoteLeafTests.RunOriginal();
     return 0;
 }
 

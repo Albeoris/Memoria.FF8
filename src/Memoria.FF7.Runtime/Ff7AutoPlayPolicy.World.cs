@@ -139,15 +139,7 @@ public sealed partial class Ff7AutoPlayPolicy
             return default;
         }
         Ff7AutoPlayWorldVisitState visited = State.WorldVisits[observation.VisitId];
-        Ff7AutoPlayWorldMovementState movement = world.CaptureAutoPlayMovementState();
-        string physical = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Ff7AutoplayDriver.WorldMovementKey(movement))));
-        string componentContext = visited.DiscoveryContextFingerprint + ":" + world.ReadAutoPlayNavigationContext();
-        Dictionary<string, string> physicalGuards = new(StringComparer.Ordinal);
-        foreach (string key in visited.PhysicalGuards)
-        {
-            physicalGuards[key] = ReadWorldGuardFingerprint(visited, key, componentContext, movement.Input.GroundTriangle, physical);
-        }
-        planner.RefreshUnavailable(observation.VisitId, physicalGuards);
+        var (physicalGuards, physical, componentContext) = RefreshWorldPhysicalAvailability(world, observation);
         RetireConsumedWorldFrontier(State);
         if (destinationTargets is not null)
         {
@@ -218,23 +210,7 @@ public sealed partial class Ff7AutoPlayPolicy
             }
             if (!TryBeginWorldModelEvent(next, observation, physicalGuards))
             {
-                if (!TryWorldSource(next.Event.Id, out Ff7AutoPlayWorldChunk chunk, out int script))
-                {
-                    throw new InvalidDataException("The shared world plan has no native mesh/script source identity.");
-                }
-                ObserveWorldChunk(world, chunk);
-                Ff7AutoPlayWorldScriptObservation target = worldCatalogs[chunk].Scripts.SingleOrDefault(item => item.Script == script) ?? throw new NotSupportedException("The recorded native world dispatch is absent from the current collision allocation.");
-                if (!target.Complete)
-                {
-                    throw new NotSupportedException(target.Reason ?? "The native world frontier has an unsupported source dependency.");
-                }
-                observation = ObserveWorldPlanner(world);
-                string condition = WorldCondition(target);
-                planner.BeginEvent(observation.VisitId, target.Id);
-                RetainDestinationGoal(next, observation.NavigationKey, condition);
-                var coverage = State.Coverage.Visits.Single(visit => visit.Visit.Key == observation.VisitId).Events.Single(item => item.Event.Id == target.Id);
-                string? availability = ReadWorldSemanticAvailability(coverage, coverage.Event, AutoPlayPlanner<Ff7AutoPlayDeferral>.ReadAvailability(coverage, physicalGuards)).Fingerprint;
-                State.Active = new(observation.VisitId, target.Id, condition, session.FieldGeneration, -1, script, Ff7AutoPlayTargetKind.WorldMesh, null, Story(), session.CaptureEventProgressWitness(), NavigationKey: observation.NavigationKey, EntryAvailabilityFingerprint: availability, TravelRoute: next.Route, TravelSelections: next.Route is null ? null : []);
+                observation = BeginWorldMeshEvent(world, observation, next, physicalGuards);
             }
         }
         Ff7AutoPlayActiveEvent selected = State.Active!;
@@ -273,6 +249,43 @@ public sealed partial class Ff7AutoPlayPolicy
         State.Status = $"World {world.Resources.World}: {selected.EventId}, {result.Status}";
         Publish();
         return result.Input;
+    }
+
+    private (Dictionary<string, string> Facts, string Physical, string Context) RefreshWorldPhysicalAvailability(Ff7WorldRuntime world, Ff7AutoPlayObservation observation)
+    {
+        Ff7AutoPlayWorldVisitState visited = State.WorldVisits[observation.VisitId];
+        Ff7AutoPlayWorldMovementState movement = world.CaptureAutoPlayMovementState();
+        string physical = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Ff7AutoplayDriver.WorldMovementKey(movement))));
+        string context = visited.DiscoveryContextFingerprint + ":" + world.ReadAutoPlayNavigationContext();
+        Dictionary<string, string> facts = new(StringComparer.Ordinal);
+        foreach (string key in visited.PhysicalGuards)
+        {
+            facts[key] = ReadWorldGuardFingerprint(visited, key, context, movement.Input.GroundTriangle, physical);
+        }
+        planner.RefreshUnavailable(observation.VisitId, facts);
+        return (facts, physical, context);
+    }
+
+    private Ff7AutoPlayObservation BeginWorldMeshEvent(Ff7WorldRuntime world, Ff7AutoPlayObservation observation, AutoPlayPlanStep next, IReadOnlyDictionary<string, string> physicalGuards)
+    {
+        if (!TryWorldSource(next.Event.Id, out Ff7AutoPlayWorldChunk chunk, out int script))
+        {
+            throw new InvalidDataException("The shared world plan has no native mesh/script source identity.");
+        }
+        ObserveWorldChunk(world, chunk);
+        Ff7AutoPlayWorldScriptObservation target = worldCatalogs[chunk].Scripts.SingleOrDefault(item => item.Script == script) ?? throw new NotSupportedException("The recorded native world dispatch is absent from the current collision allocation.");
+        if (!target.Complete)
+        {
+            throw new NotSupportedException(target.Reason ?? "The native world frontier has an unsupported source dependency.");
+        }
+        observation = ObserveWorldPlanner(world);
+        string condition = WorldCondition(target);
+        planner.BeginEvent(observation.VisitId, target.Id);
+        RetainDestinationGoal(next, observation.NavigationKey, condition);
+        var coverage = State.Coverage.Visits.Single(visit => visit.Visit.Key == observation.VisitId).Events.Single(item => item.Event.Id == target.Id);
+        string? availability = ReadWorldSemanticAvailability(coverage, coverage.Event, AutoPlayPlanner<Ff7AutoPlayDeferral>.ReadAvailability(coverage, physicalGuards)).Fingerprint;
+        State.Active = new(observation.VisitId, target.Id, condition, session.FieldGeneration, -1, script, Ff7AutoPlayTargetKind.WorldMesh, null, Story(), session.CaptureEventProgressWitness(), NavigationKey: observation.NavigationKey, EntryAvailabilityFingerprint: availability, TravelRoute: next.Route, TravelSelections: next.Route is null ? null : []);
+        return observation;
     }
 
     internal static string ReadWorldGuardFingerprint(Ff7AutoPlayWorldVisitState visited, string key, string context, Ff7WorldTerrainReference? ground, string physical)

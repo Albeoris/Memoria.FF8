@@ -64,7 +64,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             bool unconsumedCondition = target.ConditionSignature is string condition && coverage?.Conditions is { } conditions && !conditions.HasExecutedEntry(condition);
             if (coverage?.Completed != true || unconsumedCondition)
             {
-                bool attempted = coverage?.UnavailableAttempts.Any(attempt => attempt.SourceConditionSignature == target.ConditionSignature && (target.Variants is { Count: > 0 } variants ? variants : [target.Id]).Contains(attempt.TargetId ?? target.Id, StringComparer.Ordinal)) == true;
+                bool attempted = HasAttemptedEntryCondition(coverage, target);
                 return attempted && unvisitedDestination?.Invoke(visit, target) != true ? 0 : target.ChangesStory && coverage?.Completed != true ? -2 : -1;
             }
             return candidate.RouteNeedsRediscovery ? 0 : Math.Max(1, coverage.Conditions?.ConsumedEntries.Count ?? 1);
@@ -83,6 +83,11 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         }
         string prefix = $"ff7:{destination}:";
         return state.Coverage.Visits.Any(visit => visit.Visit.Key.StartsWith(prefix, StringComparison.Ordinal)) ? 1 : 0;
+    }
+
+    internal static bool HasAttemptedEntryCondition(AutoPlayEventCoverage<Ff7AutoPlayDeferral>? coverage, AutoPlayEvent target)
+    {
+        return coverage?.UnavailableAttempts.Any(attempt => attempt.SourceConditionSignature == target.ConditionSignature && (target.Variants is { Count: > 0 } variants ? variants : [target.Id]).Contains(attempt.TargetId ?? target.Id, StringComparer.Ordinal)) == true;
     }
 
     public int? ChooseDialogueSelection(Ff7Dialogue dialogue)
