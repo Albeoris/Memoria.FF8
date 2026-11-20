@@ -3,6 +3,12 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--navigation-mode-clock-original-only", StringComparer.Ordinal))
+{
+    NavigationModeClockTests.RunOriginal();
+    return 0;
+}
+
 if (args.Contains("--native-line-boundary-original-only", StringComparer.Ordinal))
 {
     NativeLineBoundaryTests.RunOriginal();

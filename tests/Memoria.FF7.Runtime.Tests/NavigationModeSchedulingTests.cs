@@ -1,4 +1,4 @@
-using System.Collections;
+﻿using System.Collections;
 using System.Reflection;
 using Memoria.FF7.Events;
 using Memoria.FF7.Runtime;
@@ -48,13 +48,23 @@ internal static class NavigationModeSchedulingTests
             driver.DeferPlanning();
             return default;
         }
-        string source = Ff7AutoplayDriver.ReadNavigationModeExecutionFence(progress, vm, true);
+        Ff7AutoPlayTarget goal = new("goal", 1, 4, Ff7AutoPlayTargetKind.LineTouch, "goal-condition", false, default);
+        Ff7AutoPlayTarget optional = new("optional", 16, 1, Ff7AutoPlayTargetKind.ActorTalk, "random-condition", false, default, AnalysisComplete: false);
+        FieldScriptAnalysis known = new(true, null, "program", false, [], [], []);
+        bool Independent(Ff7AutoPlayTarget selected, params Ff7AutoPlayTarget[] offered) => Ff7AutoplayDriver.ReadNavigationModeClockTargets(selected, offered).All(candidate => Ff7AutoplayDriver.HasClockIndependentModeAnalysis(candidate.Id == optional.Id ? known with { Complete = false } : known));
+        bool independent = Independent(goal, goal, optional);
+        Check(independent && !Independent(optional, goal, optional), "An unrelated random talk entry invalidated movement ownership, or the selected unknown talk goal escaped its clock contract.");
+        foreach (var protectedKind in new[] { Ff7AutoPlayTargetKind.LineTouch, Ff7AutoPlayTargetKind.ActorContact, Ff7AutoPlayTargetKind.AutonomousSpatial })
+        {
+            Check(!Independent(goal, goal, optional with { Kind = protectedKind }), "An unknown movement-triggered contract was removed from clock ownership.");
+        }
+        string source = Ff7AutoplayDriver.ReadNavigationModeExecutionFence(progress, vm, independent);
         driver.ChooseNavigationModes(source, "goal", new(), Source, Choose, _ => true);
         var runCursor = cursors[true];
         var walkCursor = cursors[false];
         Ff7Progress advanced = progress with { Clock = Ff7NativeClock.Advance(progress.Clock!, TimeSpan.FromMilliseconds(427123), countUp: false) };
         string before = System.Text.Json.JsonSerializer.Serialize(advanced);
-        string later = Ff7AutoplayDriver.ReadNavigationModeExecutionFence(advanced, vm, true);
+        string later = Ff7AutoplayDriver.ReadNavigationModeExecutionFence(advanced, vm, independent);
         Check(source == later && before == System.Text.Json.JsonSerializer.Serialize(advanced), "Elapsed clock observation changed the source fence or rewrote actual native progress.");
         driver.ChooseNavigationModes(later, "goal", new(), Source, Choose, _ => true);
         Check(ReferenceEquals(runCursor, cursors[true]) && ReferenceEquals(walkCursor, cursors[false]) && walkCursor.Expanded > 0, "Wall-clock advancement at a frozen VM/pose restarted one of the pending mode cursors.");

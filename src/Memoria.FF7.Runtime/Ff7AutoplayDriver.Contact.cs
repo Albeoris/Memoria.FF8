@@ -69,6 +69,12 @@ public sealed partial class Ff7AutoplayDriver
         return analysis.Complete && analysis.StochasticPresentation is null && !analysis.Reads.Any(IsNativeClockAccess) && analysis.HostReads.All(read => read.Kind is FieldHostReadKind.Gil or FieldHostReadKind.ItemQuantity or FieldHostReadKind.PartyAvailable or FieldHostReadKind.Actor or FieldHostReadKind.PreviousMap or FieldHostReadKind.BattleResult or FieldHostReadKind.MateriaCapacity or FieldHostReadKind.MusicPlaying);
     }
 
+    internal static IEnumerable<Ff7AutoPlayTarget> ReadNavigationModeClockTargets(Ff7AutoPlayTarget selected, IReadOnlyList<Ff7AutoPlayTarget> offered)
+    {
+        // Other optional talk entries cannot run during movement-only physical search.
+        return offered.Append(selected).Where(candidate => candidate.Id == selected.Id || candidate.Kind != Ff7AutoPlayTargetKind.ActorTalk).DistinctBy(candidate => candidate.Id);
+    }
+
     private bool CanIgnoreNavigationModeElapsedClock(Ff7AutoPlayTarget target, IReadOnlyList<Ff7AutoPlayTarget> offeredTargets)
     {
         if (!HasNativeRouteClockContract(session) || (session.Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 95) & 2) != 0)
@@ -80,7 +86,7 @@ public sealed partial class Ff7AutoplayDriver
             navigationModeClockContracts.Clear();
             navigationModeClockProgram = session.Machine.ProgramIdentity;
         }
-        foreach (Ff7AutoPlayTarget candidate in offeredTargets.Append(target).DistinctBy(candidate => candidate.Id))
+        foreach (Ff7AutoPlayTarget candidate in ReadNavigationModeClockTargets(target, offeredTargets))
         {
             if (!candidate.AnalysisComplete)
             {
