@@ -42,7 +42,8 @@ public sealed partial class Ff7AutoPlayChoiceWorkflow
                 outcomes.Add(outcome);
             }
         }
-        return SelectCompletedOutcome(first, outcomes);
+        int? positive = ReadPositiveCompletedOutcome(outcomes);
+        return positive ?? ReadCompletedServicePreference(source, prompt, coverage) ?? first;
     }
 
     private Ff7CompletedChoiceOutcome? ProjectCompletedChoice(Ff7SessionSave source, Ff7Dialogue prompt, FieldHostRequest owner, int selection, Ff7NativePlanningQuantum allowance)
@@ -134,6 +135,8 @@ public sealed partial class Ff7AutoPlayChoiceWorkflow
 
     internal static int SelectCompletedOutcome(int fallback, IReadOnlyList<Ff7CompletedChoiceOutcome> outcomes)
     {
-        return outcomes.Where(outcome => outcome.StoryGain > 0 || outcome.Reward).OrderByDescending(outcome => outcome.StoryGain).ThenByDescending(outcome => outcome.Reward).FirstOrDefault()?.Selection ?? fallback;
+        return ReadPositiveCompletedOutcome(outcomes) ?? fallback;
     }
+
+    private static int? ReadPositiveCompletedOutcome(IReadOnlyList<Ff7CompletedChoiceOutcome> outcomes) => outcomes.Where(outcome => outcome.StoryGain > 0 || outcome.Reward).OrderByDescending(outcome => outcome.StoryGain).ThenByDescending(outcome => outcome.Reward).FirstOrDefault()?.Selection;
 }

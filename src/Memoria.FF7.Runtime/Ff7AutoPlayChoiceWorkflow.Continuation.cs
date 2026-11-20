@@ -10,6 +10,7 @@ public sealed partial class Ff7AutoPlayChoiceWorkflow
     {
         if (nativeSession is null || choice.BeforeActive is not { Accepted: true } before || state.Active is not { Accepted: true, Returned: true } actual || actual.Entity != before.Entity || actual.Script != before.Script || actual.EventId != before.EventId || actual.Generation != before.Generation || coverage.BeforeCheckpoint is not string sourcePath || coverage.ContinuationCheckpoint is not string primaryPath)
         {
+            state.ChoiceContinuationDiagnostic = "retained:unconfirmed-native-owner-or-primary";
             return null;
         }
         try
@@ -21,40 +22,56 @@ public sealed partial class Ff7AutoPlayChoiceWorkflow
             FieldHostRequest? owner = source.Ff7?.Vm.PendingRequests?.SingleOrDefault(request => request.Command is FieldDialogueCommand { FirstChoice: not null } && request.Entity == before.Entity && request.Priority == 1);
             if (owner is null || primary.Ff7 is null || source.Ff7 is null || source.Ff7.FieldGeneration != current.FieldGeneration || source.Ff7.FieldName != current.FieldName)
             {
+                state.ChoiceContinuationDiagnostic = "retained:missing-owned-prompt-or-native-source";
                 return null;
             }
             FieldChoiceServiceProof proof = nativeSession.ReadChoiceServiceProof(owner.Entity, owner.ProgramCounter);
-            if (!ActualContinuationDominates(primary.Ff7, current, proof))
+            if (!ActualContinuationDominates(primary.Ff7, current, proof, out string? reason))
             {
+                state.ChoiceContinuationDiagnostic = "retained:" + (proof.Complete ? reason : "certificate:" + proof.Reason);
                 return null;
             }
             return PublishActualContinuation(state, choice, coverage, current, primary, Write, path =>
             {
                 using FileStream candidateInput = File.OpenRead(path);
                 return CombinedSessionCodec.Read(candidateInput);
-            });
+            }, source, proof);
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidDataException or NotSupportedException or ArgumentException)
         {
+            state.ChoiceContinuationDiagnostic = "retained:observation-error:" + error.GetType().Name + ":" + error.Message;
             return null;
         }
     }
 
-    internal static string? PublishActualContinuation(Ff7AutoPlayState state, Ff7AutoPlayChoiceState choice, AutoPlayChoiceCoverage coverage, Ff7SessionSave current, CombinedSessionSave primary, Func<string, Ff7SessionSave, string> write, Func<string, CombinedSessionSave> read)
+    internal static string? PublishActualContinuation(Ff7AutoPlayState state, Ff7AutoPlayChoiceState choice, AutoPlayChoiceCoverage coverage, Ff7SessionSave current, CombinedSessionSave primary, Func<string, Ff7SessionSave, string> write, Func<string, CombinedSessionSave> read, CombinedSessionSave? decisionSource = null, FieldChoiceServiceProof? proof = null)
     {
         if (coverage.ActiveOption is not int option || coverage.ContinuationCheckpoint is not string primaryPath)
         {
+            state.ChoiceContinuationDiagnostic = "retained:no-current-native-option";
             return null;
         }
         string candidatePath = write(choice.Key + "-candidate-" + option, current);
         state.Choice = choice with { RetiredCandidatePaths = [.. choice.RetiredCandidatePaths ?? [], candidatePath] };
         CombinedSessionSave candidate = read(candidatePath);
-        if (!SameCombinedGuestState(primary, candidate) || candidate.Ff7 is null || !Same(current with { AutoPlay = null, AudioPresentation = null }, candidate.Ff7 with { AutoPlay = null, AudioPresentation = null }))
+        if (!SameCombinedGuestState(primary, candidate))
         {
+            state.ChoiceContinuationDiagnostic = "retained:combined:" + DifferentProperties(primary with { Ff7 = null }, candidate with { Ff7 = null });
+            return null;
+        }
+        if (candidate.Ff7 is null || !Same(current with { AutoPlay = null, AudioPresentation = null }, candidate.Ff7 with { AutoPlay = null, AudioPresentation = null }))
+        {
+            state.ChoiceContinuationDiagnostic = "retained:native-readback";
             return null;
         }
         state.Choice = choice with { ContinuationActive = state.Active, RetiredCandidatePaths = [.. choice.RetiredCandidatePaths ?? [], primaryPath] };
         coverage.ContinuationCheckpoint = candidatePath;
+        if (decisionSource?.Ff7 is { } decision && proof is { Complete: true })
+        {
+            state.ChoicePreferences ??= new(StringComparer.Ordinal);
+            state.ChoicePreferences[choice.Key] = new(option, ReadServiceNativeContext(decision, proof), ReadServiceGuestContext(decisionSource), ReadServiceNativeComponents(decision, proof));
+        }
+        state.ChoiceContinuationDiagnostic = $"selected:{choice.Key}:option:{option}:gil:{current.Progress.Gil}:primaryGil:{primary.Ff7?.Progress.Gil}";
         return candidatePath;
     }
 
@@ -62,14 +79,19 @@ public sealed partial class Ff7AutoPlayChoiceWorkflow
 
     private static bool Same<T>(T first, T second) => JsonSerializer.SerializeToUtf8Bytes(first).AsSpan().SequenceEqual(JsonSerializer.SerializeToUtf8Bytes(second));
 
-    internal static bool ActualContinuationDominates(Ff7SessionSave primary, Ff7SessionSave candidate, FieldChoiceServiceProof proof)
+    internal static bool ActualContinuationDominates(Ff7SessionSave primary, Ff7SessionSave candidate, FieldChoiceServiceProof proof) => ActualContinuationDominates(primary, candidate, proof, out _);
+
+    internal static bool ActualContinuationDominates(Ff7SessionSave primary, Ff7SessionSave candidate, FieldChoiceServiceProof proof, out string? reason)
     {
+        reason = null;
         if (!proof.Complete || primary.FieldName != candidate.FieldName || primary.FieldGeneration != candidate.FieldGeneration || primary.ResourceProfile != candidate.ResourceProfile || primary.Vm.ProgramIdentity != candidate.Vm.ProgramIdentity || primary.World is not null || candidate.World is not null || primary.Battle is not null || candidate.Battle is not null || primary.Process.GlobalCommand != Ff7GlobalCommand.None || candidate.Process.GlobalCommand != Ff7GlobalCommand.None || primary.Process.PlayerLocked || candidate.Process.PlayerLocked || primary.Process.Join is not null || candidate.Process.Join is not null || primary.Process.FadeState is { Completed: false } || candidate.Process.FadeState is { Completed: false } || primary.Process.MusicTransition is not null || candidate.Process.MusicTransition is not null || (primary.Progress.Clock?.CountdownSeconds ?? 0) != 0 || (candidate.Progress.Clock?.CountdownSeconds ?? 0) != 0 || candidate.Progress.Gil <= primary.Progress.Gil)
         {
+            reason = "native-boundary-or-cost";
             return false;
         }
         if (primary.Progress.Characters.Length != candidate.Progress.Characters.Length)
         {
+            reason = "character-allocation";
             return false;
         }
         List<Ff7CharacterState> normalized = [];
@@ -78,6 +100,7 @@ public sealed partial class Ff7AutoPlayChoiceWorkflow
             Ff7CharacterState? other = candidate.Progress.Characters.SingleOrDefault(item => item.Id == character.Id);
             if (other is null || other.HitPoints < character.HitPoints || other.MagicPoints < character.MagicPoints || other.NativeRecord.Length != character.NativeRecord.Length || other.NativeRecord.Length < 60)
             {
+                reason = $"character:{character.Id}:vitals-or-layout";
                 return false;
             }
             byte[] record = other.NativeRecord.ToArray();
@@ -85,6 +108,7 @@ public sealed partial class Ff7AutoPlayChoiceWorkflow
             character.NativeRecord.AsSpan(48, 2).CopyTo(record.AsSpan(48, 2));
             if (!record.AsSpan().SequenceEqual(character.NativeRecord))
             {
+                reason = $"character:{character.Id}:record";
                 return false;
             }
             normalized.Add(other with { HitPoints = character.HitPoints, MagicPoints = character.MagicPoints, NativeRecord = record });
@@ -92,32 +116,38 @@ public sealed partial class Ff7AutoPlayChoiceWorkflow
         Ff7Progress projected = candidate.Progress with { Characters = normalized.ToArray(), Gil = primary.Progress.Gil, Clock = primary.Progress.Clock, FieldRandomIndex = primary.Progress.FieldRandomIndex };
         if (!Same(primary.Progress, projected))
         {
+            reason = "progress:" + DifferentProperties(primary.Progress, projected);
             return false;
         }
         byte[] persistent = candidate.Vm.PersistentVariables.ToArray();
         primary.Vm.PersistentVariables.AsSpan(16, 4).CopyTo(persistent.AsSpan(16, 4));
         if (!persistent.AsSpan().SequenceEqual(primary.Vm.PersistentVariables))
         {
+            reason = "persistent-flags";
             return false;
         }
         HashSet<int> scratch = proof.ScratchMapBytes.Concat(proof.PresentationMapBytes).ToHashSet();
         if (primary.Vm.MapVariables.Length != candidate.Vm.MapVariables.Length)
         {
+            reason = "map-layout";
             return false;
         }
         for (int index = 0; index < primary.Vm.MapVariables.Length; index++)
         {
             if (primary.Vm.MapVariables[index] != candidate.Vm.MapVariables[index] && !scratch.Contains(index))
             {
+                reason = $"uncertified-map:{index}";
                 return false;
             }
         }
         if (primary.Vm.Entities.Length != candidate.Vm.Entities.Length || primary.Process.Actors.Length != candidate.Process.Actors.Length)
         {
+            reason = "native-allocation";
             return false;
         }
         if (candidate.Process.Actors.Any(actor => primary.Process.Actors.Count(item => item.Slot == actor.Slot) != 1))
         {
+            reason = "native-actor-slot";
             return false;
         }
         for (int entity = 0; entity < primary.Vm.Entities.Length; entity++)
@@ -126,6 +156,7 @@ public sealed partial class Ff7AutoPlayChoiceWorkflow
             var second = candidate.Vm.Entities[entity];
             if (first.ModelBound != second.ModelBound || first.PartyCharacter != second.PartyCharacter || first.Priority != second.Priority || !first.SavedProgramCounters.AsSpan().SequenceEqual(second.SavedProgramCounters) || !Same(first.SyncStates, second.SyncStates) || !Same(first.SyncOwners, second.SyncOwners) || !proof.PresentationEntities.Contains(entity) && !Same(first, second))
             {
+                reason = $"vm-owner:{entity}:" + DifferentProperties(first, second);
                 return false;
             }
         }
@@ -133,13 +164,22 @@ public sealed partial class Ff7AutoPlayChoiceWorkflow
         Ff7FieldProcess process = candidate.Process with { Tick = primary.Process.Tick, BlinkRandomIndex = primary.Process.BlinkRandomIndex, Actors = actors, Windows = primary.Process.Windows, BackgroundStates = primary.Process.BackgroundStates, Fade = primary.Process.Fade, FadeState = primary.Process.FadeState, MusicTicks = primary.Process.MusicTicks, Audio = primary.Process.Audio, SoundVolumeClockSubmillisecondTicks = primary.Process.SoundVolumeClockSubmillisecondTicks };
         if (!Same(primary.Process, process) || !Same(primary.Vm.Input, candidate.Vm.Input) || !Same(primary.Vm.PendingRequests, candidate.Vm.PendingRequests))
         {
+            reason = "process:" + DifferentProperties(primary.Process, process) + ":input:" + !Same(primary.Vm.Input, candidate.Vm.Input) + ":requests:" + !Same(primary.Vm.PendingRequests, candidate.Vm.PendingRequests);
             return false;
         }
         Ff7SessionSave native = candidate with { Progress = primary.Progress, Process = primary.Process, Vm = primary.Vm, AutoPlay = null, EventCoverage = null, AudioPresentation = primary.AudioPresentation };
         if (!Same(primary with { AutoPlay = null, EventCoverage = null }, native))
         {
+            reason = "session:" + DifferentProperties(primary with { AutoPlay = null, EventCoverage = null }, native);
             return false;
         }
         return true;
+    }
+
+    private static string DifferentProperties<T>(T first, T second)
+    {
+        JsonElement a = JsonSerializer.SerializeToElement(first);
+        JsonElement b = JsonSerializer.SerializeToElement(second);
+        return string.Join(',', a.EnumerateObject().Where(property => property.Value.GetRawText() != b.GetProperty(property.Name).GetRawText()).Select(property => property.Name));
     }
 }

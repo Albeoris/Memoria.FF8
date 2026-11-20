@@ -135,6 +135,7 @@ internal sealed partial class Ff7Scene
             saved = CombinedSessionCodec.Read(input);
         }
         Ff7SessionSave native = saved.Ff7 ?? throw new InvalidDataException("The automatic choice checkpoint contains no native FFVII continuation.");
+        state.ChoiceContinuationDiagnostic = AutoPlayRecording.LimitActionText($"restore:{Path.GetFileName(request.Path)}:gil:{native.Progress.Gil};previous:{state.ChoiceContinuationDiagnostic}");
         Continue(saved with { Ff7 = native with { AutoPlay = state } });
         ApplyAutoPlayCommand("start", continueAttempt: true);
         string root = AutoPlayChoiceDirectory();

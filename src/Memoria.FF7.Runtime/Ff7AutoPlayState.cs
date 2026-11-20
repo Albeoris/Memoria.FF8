@@ -20,6 +20,7 @@ public sealed record Ff7AutoPlayGatewayTopology(string NavigationKey, string Eve
 /// <summary>Observational planner state; native progress and execution remain owned by the session.</summary>
 public sealed record Ff7AutoPlaySourceRevalidationTask(string NavigationKey, string EventId, string Condition, string DepartureReceiptKey, bool ArrivalAcknowledged = false);
 public sealed record Ff7AutoPlayTravelCommitment(AutoPlayTravelGoal Goal, string NavigationKey, ushort? DestinationField);
+public sealed record Ff7AutoPlayChoicePreference(int Selection, string NativeContext, string GuestContext, Dictionary<string, string>? NativeComponents = null);
 
 public sealed class Ff7AutoPlayState
 {
@@ -43,6 +44,9 @@ public sealed class Ff7AutoPlayState
     public Ff7AutoPlayWorldDispatchReceipt? WorldDispatch { get; set; }
     public WorldHostRequest? WorldDialogueOwner { get; set; }
     public string? Status { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ChoiceContinuationDiagnostic { get; set; }
+    public Dictionary<string, Ff7AutoPlayChoicePreference> ChoicePreferences { get; set; } = new(StringComparer.Ordinal);
     public string? FrontierProgressKey { get; set; }
     public int FrontierIdleSteps { get; set; }
 

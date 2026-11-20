@@ -82,7 +82,9 @@ public sealed partial class Ff7AutoPlayChoiceWorkflow
             planner.ObserveChoice(key, checked(last - first + 1), first);
             if (planner.PlanChoice(key).Kind == AutoPlayChoiceStepKind.Complete)
             {
-                return SelectCompletedNativeChoice(before, dialogue, Coverage(key), first);
+                int completedSelection = SelectCompletedNativeChoice(before, dialogue, Coverage(key), first);
+                state.ChoiceContinuationDiagnostic = $"finished:{key}:option:{completedSelection}:gil:{before.Progress.Gil}:" + state.ChoiceContinuationDiagnostic?[..Math.Min(state.ChoiceContinuationDiagnostic.Length, 300)];
+                return completedSelection;
             }
             current = new(key, state.Active, current, OwnerIdentity: owner, BeforeStory: ReadStory(before));
             state.Choice = current;
@@ -105,6 +107,7 @@ public sealed partial class Ff7AutoPlayChoiceWorkflow
             throw new InvalidOperationException("The restored choice has no unconsumed native option.");
         }
         planner.BeginChoiceOption(selectedChoice.Key, selected);
+        state.ChoiceContinuationDiagnostic = $"explore:{selectedChoice.Key}:option:{selected}:gil:{before.Progress.Gil}";
         return selected;
     }
 

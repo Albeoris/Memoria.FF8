@@ -1,14 +1,18 @@
 namespace Memoria.FF7.Events;
 
-public sealed record FieldChoiceServiceProof(bool Complete, int[] ScratchMapBytes, int[] PresentationMapBytes, int[] PresentationEntities, string? Reason = null);
+public sealed record FieldChoiceServiceProof(bool Complete, int[] ScratchMapBytes, int[] PresentationMapBytes, int[] PresentationEntities, string? Reason = null)
+{
+    public bool FieldStepCounterIndependent { get; init; }
+}
 
 public sealed partial class FieldMachine
 {
-    public FieldChoiceServiceProof ProveChoiceService(int entity, int programCounter, IReadOnlyList<FieldNavigationEntryPoint> possibleExternalEntries, int instructionBudget = 8192)
+    public FieldChoiceServiceProof ProveChoiceService(int entity, int programCounter, IReadOnlyList<FieldNavigationEntryPoint> possibleExternalEntries, int instructionBudget = 8192, bool pendingSelection = false)
     {
         FieldChoiceServiceProof Reject(string reason) => new(false, [], [], [], reason);
         try
         {
+            bool deferredParameterRead = false;
             (FieldScriptAnalysis Analysis, HashSet<FieldVariableRead> Writes, bool Presentation) Inspect(int owner, int pc, bool requests = true)
             {
                 FieldScriptAnalysis analysis = AnalyzeScriptCore(owner, 0, pc, instructionBudget, null, 0, collectRandomReads: true);
@@ -49,6 +53,14 @@ public sealed partial class FieldMachine
                     detached.Execute(executing);
                     foreach (FieldCommand command in detached.inspection!.Commands)
                     {
+                        if (!requests && command is FieldWindowCommand { Operation: FieldWindowOperation.Parameter, ParameterBank: not FieldBank.Immediate })
+                        {
+                            deferredParameterRead = true;
+                        }
+                        if (!requests && command is FieldDialogueCommand { FirstChoice: not null } && address != programCounter)
+                        {
+                            throw new NotSupportedException("Service preference does not certify another choice.");
+                        }
                         bool ambient = command is FieldBackgroundCommand or FieldActorTurn or FieldRandomCommand or FieldActorFaceParty or FieldAnimation or FieldWindowCommand or FieldDialogueCommand { FirstChoice: null } or FieldControlCommand { Property: FieldControlKind.PlayerLocked or FieldControlKind.MenuDisabled };
                         presentation &= ambient;
                         if (!ambient && command is not (FieldGilQuery or FieldGilCommand or FieldPartyRecovery or FieldDialogueCommand or FieldWindowCommand or FieldFadeCommand or FieldMusicCommand or FieldMusicChangeCommand or FieldMusicPlayingQuery or FieldControlCommand { Property: FieldControlKind.PlayerLocked or FieldControlKind.MenuDisabled }))
@@ -64,6 +76,11 @@ public sealed partial class FieldMachine
                 return (analysis, writes, presentation);
             }
             var body = Inspect(entity, programCounter, requests: false);
+            if (body.Analysis.Reads.SelectMany(Variables.SpatialSourceBytes).Any(read => read.Bank == FieldBank.Persistent0Byte && read.Operand is >= 16 and < 24))
+            {
+                return Reject("Service preference does not certify a clock-dependent branch.");
+            }
+            bool stepCounterIndependent = !deferredParameterRead && !body.Analysis.Reads.SelectMany(Variables.SpatialSourceBytes).Any(read => read.Bank == FieldBank.Persistent3Byte && read.Operand is 6 or 7);
             HashSet<FieldVariableRead> scratch = body.Writes;
             HashSet<(int Entity, int Pc)> roots = [];
             for (int owner = 0; owner < entities.Length; owner++)
@@ -88,6 +105,10 @@ public sealed partial class FieldMachine
             List<(HashSet<FieldVariableRead> Reads, HashSet<FieldVariableRead> Writes, bool Presentation)> consumers = [];
             foreach (var root in roots)
             {
+                if (pendingSelection && root.Entity == entity && root.Pc == programCounter && entities[entity].Priority == 1 && pendingRequests.Values.Any(request => request.Entity == entity && request.Priority == 1 && request.ProgramCounter == programCounter && request.Command is FieldDialogueCommand { FirstChoice: not null }))
+                {
+                    continue;
+                }
                 FieldScriptAnalysis analysis = AnalyzeScriptCore(root.Entity, 0, root.Pc, instructionBudget, null, 0, collectRandomReads: true);
                 if (!analysis.Complete)
                 {
@@ -150,7 +171,7 @@ public sealed partial class FieldMachine
                     unclassified.Add($"{owner}:{entities[owner].Pc:X4}: {error.Message}");
                 }
             }
-            return new(true, scratch.Select(write => (int)write.Operand).Order().ToArray(), presentationWrites.Select(write => (int)write.Operand).Order().ToArray(), presentationEntities.Order().ToArray(), unclassified.Count == 0 ? null : string.Join("; ", unclassified));
+            return new(true, scratch.Select(write => (int)write.Operand).Order().ToArray(), presentationWrites.Select(write => (int)write.Operand).Order().ToArray(), presentationEntities.Order().ToArray(), unclassified.Count == 0 ? null : string.Join("; ", unclassified)) { FieldStepCounterIndependent = stepCounterIndependent };
         }
         catch (Exception error) when (error is NotSupportedException or FieldExecutionException or InvalidDataException or ArgumentException or IndexOutOfRangeException)
         {

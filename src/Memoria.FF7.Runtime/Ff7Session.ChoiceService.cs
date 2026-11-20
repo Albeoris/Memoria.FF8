@@ -4,7 +4,7 @@ namespace Memoria.FF7.Runtime;
 
 public sealed partial class Ff7Session
 {
-    internal FieldChoiceServiceProof ReadChoiceServiceProof(int entity, int programCounter)
+    internal FieldChoiceServiceProof ReadChoiceServiceProof(int entity, int programCounter, bool pendingSelection = false)
     {
         HashSet<FieldNavigationEntryPoint> entries = [];
         foreach (Ff7Actor actor in Host.Process.Actors.Where(actor => actor.EntityBound))
@@ -22,6 +22,6 @@ public sealed partial class Ff7Session
                 entries.Add(new(line.Entity, script));
             }
         }
-        return Machine.ProveChoiceService(entity, programCounter, entries.ToArray());
+        return Machine.ProveChoiceService(entity, programCounter, entries.ToArray(), pendingSelection: pendingSelection);
     }
 }
