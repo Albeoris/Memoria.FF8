@@ -43,10 +43,20 @@ public sealed partial class Ff7AutoPlayPolicy
         return actual?.Unavailable == true || !deferred ? actual : new(true, new HashSet<string>(StringComparer.Ordinal) { eventId }, actual?.Fingerprint);
     }
 
+    internal static bool CanSkipOwnedLocalAlternativeScan(Ff7AutoPlayState state, Ff7AutoPlayObservation observation, Ff7AutoPlayActiveEvent expected)
+    {
+        return state.Active == expected && expected.Generation == observation.Generation && expected.VisitId == observation.VisitId && !expected.Accepted && !expected.Returned && !expected.TransitionOwned && !expected.CompletionRecorded && state.NavigationGoal is { EventId: not null, Conditions: not null } goal && goal.NavigationKey == observation.NavigationKey && expected.NavigationKey == goal.NavigationKey && expected.EventId == goal.EventId && expected.ConditionFingerprint == goal.Conditions && CanContinueOwnedTravel(state, observation);
+    }
+
     private bool TryChooseOrdinaryAlternative(Ff7AutoplayDriver liveDriver, out Ff7AutoplayInput input)
     {
         input = default;
         if (ordinaryObservation is not { } observation || ordinaryPhysicalGuards is not { } facts || State.Active is not { Accepted: false } expected || State.NativeRoute is not null || State.PendingRestore is not null || session.Battle is not null || session.World is not null || expected.VisitId != observation.VisitId || expected.NavigationKey != observation.NavigationKey || expected.Generation != observation.Generation)
+        {
+            return false;
+        }
+        // The local goal is the excluded first event, and navigation paths never revisit their origin.
+        if (CanSkipOwnedLocalAlternativeScan(State, observation, expected))
         {
             return false;
         }

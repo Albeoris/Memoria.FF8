@@ -3,6 +3,12 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--owned-local-alternative-original-only", StringComparer.Ordinal))
+{
+    NativeOwnedContactArrivalTests.RunAlternativeOriginal();
+    return 0;
+}
+
 if (args.Contains("--native-contact-catalog-original-only", StringComparer.Ordinal))
 {
     NativeOwnedContactArrivalTests.RunCatalogOriginal();

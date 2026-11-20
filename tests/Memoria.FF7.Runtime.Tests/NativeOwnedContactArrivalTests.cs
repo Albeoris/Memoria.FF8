@@ -17,6 +17,40 @@ internal static class NativeOwnedContactArrivalTests
         state.TravelCommitment = new(state.NavigationGoal, "navigation", null);
         Ff7AutoPlayObservation observation = new("program", "region", 1, [target], true, true) { NavigationKey = "navigation" };
         AutoPlayEventAvailability available = new(false, [], "physical");
+        Ff7AutoPlayActiveEvent active = new("program", target.Id, target.ConditionFingerprint, 1, target.Entity, target.Script, target.Kind, null, 1, "before", NavigationKey: "navigation");
+        state.Active = active;
+        Check(Ff7AutoPlayPolicy.CanSkipOwnedLocalAlternativeScan(state, observation, active), "An excluded owned local goal failed its zero-candidate proof.");
+        Check(!Ff7AutoPlayPolicy.CanSkipOwnedLocalAlternativeScan(state, observation, active with { Accepted = true }) && !Ff7AutoPlayPolicy.CanSkipOwnedLocalAlternativeScan(state, observation, active with { EventId = "other" }) && !Ff7AutoPlayPolicy.CanSkipOwnedLocalAlternativeScan(state, observation with { NavigationKey = "remote" }, active), "Another owner/native context bypassed ordinary alternative scanning.");
+        state.NavigationGoal = new("navigation", target.Id, "changed");
+        Check(!Ff7AutoPlayPolicy.CanSkipOwnedLocalAlternativeScan(state, observation, active), "A changed goal condition retained a zero-candidate shortcut.");
+        state.NavigationGoal = state.TravelCommitment!.Goal;
+        AutoPlayEvent forward = new("forward", AutoPlayEventKind.Transition, ConditionSignature: "forward-condition");
+        AutoPlayEvent backward = new("backward", AutoPlayEventKind.Transition, ConditionSignature: "backward-condition");
+        AutoPlayEvent other = new("other", AutoPlayEventKind.Interaction, ConditionSignature: "other-condition");
+        planner.Observe(new("program", "region"), [entry, forward]);
+        planner.ObserveNavigation("program", "navigation", [entry, forward]);
+        planner.Observe(new("remote", "region"), [backward, other]);
+        planner.ObserveNavigation("remote", "remote-nav", [backward, other]);
+        planner.Completed("program", forward.Id, "remote", entrySignature: forward.ConditionSignature, entrySignatureAuthoritative: true, targetId: forward.Id);
+        planner.RecordNavigationRoute("navigation", "remote-nav", forward.Id, state.Coverage.Visits[0].Events.Single(item => item.Event.Id == forward.Id).Routes.Single());
+        planner.Completed("remote", backward.Id, "program", entrySignature: backward.ConditionSignature, entrySignatureAuthoritative: true, targetId: backward.Id);
+        planner.RecordNavigationRoute("remote-nav", "navigation", backward.Id, state.Coverage.Visits[1].Events.Single(item => item.Event.Id == backward.Id).Routes.Single());
+        var alternative = planner.PlanNavigation("navigation", avoidFirstEvents: new HashSet<string> { target.Id }, preferredGoal: state.NavigationGoal, strongPreferredGoal: true);
+        Check(!Ff7AutoPlayPolicy.MatchesOwnedTravelPlan(state.NavigationGoal!, alternative, "navigation"), "A travel cycle recreated an excluded owned local event candidate.");
+        var localGoal = state.NavigationGoal;
+        var localCommitment = state.TravelCommitment;
+        state.NavigationGoal = new("remote-nav", other.Id, other.ConditionSignature);
+        state.TravelCommitment = new(state.NavigationGoal, "navigation", null);
+        Check(Ff7AutoPlayPolicy.CanContinueOwnedTravel(state, observation) && !Ff7AutoPlayPolicy.CanSkipOwnedLocalAlternativeScan(state, observation, active), "A valid remote owned goal lost its normal alternative scan.");
+        state.NavigationGoal = new("remote-nav");
+        state.TravelCommitment = new(state.NavigationGoal, "navigation", null);
+        Check(Ff7AutoPlayPolicy.CanContinueOwnedTravel(state, observation, sourceGoalPending: true) && !Ff7AutoPlayPolicy.CanSkipOwnedLocalAlternativeScan(state, observation, active), "A source-only owned goal lost normal alternative scheduling.");
+        state.NavigationGoal = localGoal;
+        state.TravelCommitment = localCommitment;
+        state.DestinationField = 99;
+        Check(!Ff7AutoPlayPolicy.CanSkipOwnedLocalAlternativeScan(state, observation, active), "Changed user intent retained an obsolete local exclusion proof.");
+        state.DestinationField = null;
+        Check(!Ff7AutoPlayPolicy.CanSkipOwnedLocalAlternativeScan(state, observation with { Generation = 2 }, active), "A different native generation reused the old active exclusion proof.");
         Check(Ff7AutoPlayPolicy.CanPreserveUnchangedOwnedTarget(state, observation, target, available), "A valid unchanged native contact lost authenticated travel intent.");
         Check(!Ff7AutoPlayPolicy.CanPreserveUnchangedOwnedTarget(state, observation, target with { ConditionFingerprint = "changed" }, available), "Non-talk ownership rebased a changed native condition.");
         Check(!Ff7AutoPlayPolicy.CanPreserveUnchangedOwnedTarget(state, observation, target, available with { Unavailable = true }), "A real unavailable approach retained owned priority.");
@@ -25,6 +59,7 @@ internal static class NativeOwnedContactArrivalTests
         Check(!Ff7AutoPlayPolicy.CanPreserveUnchangedOwnedTarget(state, observation, target with { AnalysisComplete = false }, available), "Unknown native execution gained owned priority.");
         var commitment = state.TravelCommitment;
         state.TravelCommitment = null;
+        Check(!Ff7AutoPlayPolicy.CanSkipOwnedLocalAlternativeScan(state, observation, active), "A soft local goal suppressed normal fairness.");
         Check(!Ff7AutoPlayPolicy.CanPreserveUnchangedOwnedTarget(state, observation, target, available), "A legacy soft goal invented native arrival ownership.");
         state.TravelCommitment = commitment;
         state.Coverage.Visits[0].Events[0].Conditions!.ConsumedEntries.Add(target.ConditionFingerprint);
@@ -121,4 +156,43 @@ internal static class NativeOwnedContactArrivalTests
         Check(catalog.Completed && work > 1 && before == Native() && bytes.AsSpan().SequenceEqual(File.ReadAllBytes(path)), "Actual contact catalog did not traverse all candidates without changing native source.");
         Console.WriteLine($"PASS original complete native contact catalog: work={work}, witnesses={catalog.Contacts.Count}, callbacks=0, tick={session.Machine.Tick}, elapsed={elapsed.Elapsed.TotalSeconds:F3}s; native/source unchanged");
     }
+    internal static void RunAlternativeOriginal()
+    {
+        string path = Environment.GetEnvironmentVariable("MEMORIA_FF7_OWNED_CONTACT_SAVE") ?? throw new InvalidOperationException("Select a native owned-contact fixture.");
+        string game = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR") ?? throw new InvalidOperationException("Select original resources.");
+        byte[] bytes = File.ReadAllBytes(path);
+        using MemoryStream source = new(bytes, false);
+        Ff7SessionSave save = CombinedSessionCodec.Read(source).Ff7!;
+        using Ff7Session session = Ff7Session.Restore(Ff7Installation.Discover(game), save);
+        using Ff7AutoPlayPolicy policy = new(session, (_, _) => throw new InvalidOperationException("Unexpected choice boundary."));
+        int skipped = 0;
+        long work = 0;
+        Ff7AutoPlayController controller = new(session, driver =>
+        {
+            Ff7AutoplayInput input = policy.ChooseInput(driver);
+            var flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+            var observation = (Ff7AutoPlayObservation?)typeof(Ff7AutoPlayPolicy).GetField("ordinaryObservation", flags)!.GetValue(policy);
+            if (driver.PlanningPending && policy.State.Active is { } active && observation is not null)
+            {
+                Check(Ff7AutoPlayPolicy.CanSkipOwnedLocalAlternativeScan(policy.State, observation, active), "Actual pending owner did not satisfy the excluded-local-goal proof.");
+                Check(typeof(Ff7AutoPlayPolicy).GetField("ordinaryAlternativeSource", flags)!.GetValue(policy) is null, "The excluded-local-goal shortcut still entered global alternative preparation.");
+                skipped++;
+            }
+            work = driver.ActorContactPlanningWork + driver.PhysicalPlanningWork;
+            return input;
+        }, advanceTick: () => session.AdvanceTick(advanceClock: false), chooseDialogueSelection: policy.ChooseDialogueSelection, readPlanningProgress: () => policy.WorkProgress, readFrontierProgress: () => policy.FrontierProgress);
+        controller.Start();
+        Stopwatch elapsed = Stopwatch.StartNew();
+        TimeSpan previous = TimeSpan.Zero;
+        while (controller.Running && skipped < 8 && elapsed.Elapsed < TimeSpan.FromSeconds(10))
+        {
+            TimeSpan now = elapsed.Elapsed;
+            session.AdvanceClock(now - previous);
+            previous = now;
+            controller.Advance(1);
+        }
+        Check(controller.Error is null && skipped >= 8 && work > 0 && policy.State.NavigationGoal == save.AutoPlay!.NavigationGoal && bytes.AsSpan().SequenceEqual(File.ReadAllBytes(path)), "Actual pending contact did not advance without repeated global alternative scans.");
+        Console.WriteLine($"PASS original excluded owned local goal: skippedScans={skipped}, realContactWork={work}, callbacks={controller.Steps}, tick={session.Machine.Tick}, elapsed={elapsed.Elapsed.TotalSeconds:F3}s; goal/source unchanged");
+    }
+
 }
