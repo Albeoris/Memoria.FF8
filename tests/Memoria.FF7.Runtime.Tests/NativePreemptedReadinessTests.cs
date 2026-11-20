@@ -38,7 +38,36 @@ internal static class NativePreemptedReadinessTests
         Check(new Ff7AutoPlayNativeReadiness().ShouldWait(1, "source", countdown, process, new byte[] { 0x24, 90, 0, 3, 1, 0x60 }, []), "An existing countdown could not reach its next synchronous native request.");
         Check(new Ff7AutoPlayNativeReadiness().ShouldWait(1, "source", countdown, process, new byte[] { 0x24, 90, 0, 0xF8, 47, 0xF9 }, []), "A finite countdown depended on the identity of its following opcode.");
         Check(!new Ff7AutoPlayNativeReadiness().ShouldWait(1, "source", countdown, process, new byte[] { 0, 90, 0, 0, 0, 0 }, []), "A stale counter without an executing WAIT authenticated finite work.");
+        CheckCompletedSynchronousReturn();
         CheckOriginal();
+    }
+
+    private static void CheckCompletedSynchronousReturn()
+    {
+        FieldEntitySnapshot owner = new(0, 7, 0, new int[8], new FieldSyncState[8], Enumerable.Repeat(-1, 8).ToArray());
+        FieldSyncState[] sync = new FieldSyncState[8];
+        sync[6] = FieldSyncState.Done;
+        int[] owners = Enumerable.Repeat(-1, 8).ToArray();
+        owners[6] = 0;
+        FieldEntitySnapshot child = owner with { ProgramCounter = 3, SyncStates = sync, SyncOwners = owners, PartyCharacter = 2 };
+        FieldVmSnapshot vm = new(1, FieldMachine.SemanticProfile, "owned-return", 1, true, new byte[1280], new byte[256], [owner, child]);
+        byte[] script = [3, 1, 0xC1, 0];
+        string before = JsonSerializer.Serialize(vm);
+        Check(Ff7AutoPlayNativeReadiness.HasCompletedSynchronousReturn(vm, script), "A current owned completed request did not yield its native continuation.");
+        Check(!Ff7AutoPlayNativeReadiness.HasCompletedSynchronousReturn(vm, [2, 1, 0xC1, 0]), "An asynchronous request inherited Done ownership.");
+        Check(!Ff7AutoPlayNativeReadiness.HasCompletedSynchronousReturn(vm, [3, 1, 0xA1, 0]), "A different priority inherited Done ownership.");
+        Check(!Ff7AutoPlayNativeReadiness.HasCompletedSynchronousReturn(vm, [3, 0, 0xC1, 0]), "A different target inherited Done ownership.");
+        Check(!Ff7AutoPlayNativeReadiness.HasCompletedSynchronousReturn(vm, [3, 1]), "A truncated request authenticated completion.");
+        Check(!Ff7AutoPlayNativeReadiness.HasCompletedSynchronousReturn(vm with { Entities = [owner with { ProgramCounter = 3 }, child] }, script), "A stale Done record authenticated a caller at RET.");
+        Check(!Ff7AutoPlayNativeReadiness.HasCompletedSynchronousReturn(vm with { Entities = [owner, child with { SyncOwners = Enumerable.Repeat(-1, 8).ToArray() }] }, script), "An unrelated owner authenticated completion.");
+        Check(!Ff7AutoPlayNativeReadiness.HasCompletedSynchronousReturn(vm with { Entities = [owner, child with { SyncStates = new FieldSyncState[8] }] }, script), "A non-completed request authenticated a return.");
+        Check(before == JsonSerializer.Serialize(vm), "Return inspection changed native facts.");
+        FieldVariables variables = new(vm.PersistentVariables, vm.MapVariables);
+        variables.WriteByte(FieldBank.Persistent1Byte, 9, 2);
+        FieldVmSnapshot party = vm with { PersistentVariables = variables.CopyPersistent() };
+        Check(Ff7AutoPlayNativeReadiness.HasCompletedSynchronousReturn(party, [6, 0, 0xC1, 0]), "A current native party request did not resolve its owned return.");
+        Check(!Ff7AutoPlayNativeReadiness.HasCompletedSynchronousReturn(party, [5, 0, 0xC1, 0]), "An asynchronous party request authenticated a return.");
+        Check(!Ff7AutoPlayNativeReadiness.HasCompletedSynchronousReturn(party, [6, 3, 0xC1, 0]), "An invalid party slot authenticated a return.");
     }
 
     private static void CheckOriginal()

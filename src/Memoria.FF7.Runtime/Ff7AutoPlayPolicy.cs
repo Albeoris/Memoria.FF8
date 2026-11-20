@@ -239,6 +239,14 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             Publish();
             return default;
         }
+        if (Ff7AutoPlayNativeReadiness.HasCompletedSynchronousReturn(session.Machine.Capture(), session.Field.Scripts.Data.Span))
+        {
+            CancelNativePlanning("native-synchronous-return");
+            driver.BeginPlanningStep();
+            State.Status = "Waiting for an owned native synchronous return";
+            Publish();
+            return default;
+        }
         bool resumeNative = nativePlanning is not null && !nativePlanningForActive;
         if (resumeNative)
         {

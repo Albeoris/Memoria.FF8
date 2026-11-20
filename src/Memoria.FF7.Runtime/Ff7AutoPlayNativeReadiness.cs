@@ -13,6 +13,41 @@ internal sealed class Ff7AutoPlayNativeReadiness
     private int repeatedObservations;
     private int totalObservations;
 
+    internal static bool HasCompletedSynchronousReturn(FieldVmSnapshot vm, ReadOnlySpan<byte> script)
+    {
+        for (int ownerId = 0; ownerId < vm.Entities.Length; ownerId++)
+        {
+            FieldEntitySnapshot owner = vm.Entities[ownerId];
+            int pc = owner.ProgramCounter;
+            if (owner.Priority is < 0 or > 7 || pc < 0 || pc + 2 >= script.Length || script[pc] is not (0x03 or 0x06))
+            {
+                continue;
+            }
+            int targetId = script[pc + 1];
+            if (script[pc] == 0x06)
+            {
+                if (targetId >= 3)
+                {
+                    continue;
+                }
+                FieldVariables variables = new(vm.PersistentVariables, vm.MapVariables);
+                int character = variables.ReadByte(FieldBank.Persistent1Byte, (byte)(9 + targetId));
+                targetId = character == 255 ? -1 : Array.FindIndex(vm.Entities, entity => entity.PartyCharacter == character);
+            }
+            if ((uint)targetId >= vm.Entities.Length)
+            {
+                continue;
+            }
+            int priority = script[pc + 2] >> 5;
+            FieldEntitySnapshot target = vm.Entities[targetId];
+            if (priority < target.SyncStates.Length && priority < target.SyncOwners.Length && target.SyncStates[priority] == FieldSyncState.Done && target.SyncOwners[priority] == ownerId)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public void Reset()
     {
         context = null;

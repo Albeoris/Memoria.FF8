@@ -3,6 +3,12 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-line-ownership-original-only", StringComparer.Ordinal))
+{
+    NativeLineOwnershipTests.RunOriginal();
+    return 0;
+}
+
 if (args.Contains("--native-gateway-boundary-only", StringComparer.Ordinal))
 {
     NativeGatewayBoundaryTests.Run();
