@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using Albeoris.Games.FF8.Imaging;
+using Albeoris.Games.FF8.Imaging.Tex;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Assets.Localization;
 using Memoria.FF8.Rendering;
@@ -87,6 +88,41 @@ public sealed class ModPreviewTextureAtlasTests
         PixelImage after = Assert.IsType<PixelImage>(result.After.Image);
         Assert.True(before.Pixels.Distinct().Count() > 2);
         Assert.False(before.Pixels.SequenceEqual(after.Pixels));
+    }
+
+    [Fact]
+    public async Task ComparesEachSelectedIconPageWithItsOwnInstalledPaletteAndPackageImage()
+    {
+        string? game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
+        Assert.SkipUnless(Directory.Exists(game), "Configure optional installed game resources.");
+
+        await using PreviewFixture fixture = new();
+        using IResourceSource source = GameDataSourceFactory.Open(game!);
+        ResourceService resources = new(source);
+        Dictionary<string, PixelImage> replacements = new();
+        foreach (int page in new[] { 1, 3 })
+        {
+            PixelImage image = new(1024, 1024);
+            image[123, 456] = new((byte)page, 80, 120, 200);
+            string name = $"iconfl{page:00}";
+            replacements.Add(name, image);
+            fixture.Write($"mods/textures/data/eng/menu/hires/{name}_04.png", LocalizationArtworkExporter.EncodePng(image));
+        }
+        ModPreviewDocument document = await fixture.Open();
+        Assert.Equal(2, document.Entries.Count);
+
+        foreach ((string name, PixelImage replacement) in replacements)
+        {
+            ModPreviewEntry entry = Assert.Single(document.Entries, entry => entry.Name == name + "_04");
+            ModPreviewComparison comparison = await document.CompareAsync(entry, new(game!), TestContext.Current.CancellationToken);
+            PixelImage before = Assert.IsType<PixelImage>(comparison.Before.Image);
+            PixelImage after = Assert.IsType<PixelImage>(comparison.After.Image);
+            PixelImage original = TexFile.Read(resources.Read(new($"menu/{name}.tex"))).Decode(4);
+            Assert.Equal((original.Width, original.Height), (before.Width, before.Height));
+            Assert.Equal(original.Pixels, before.Pixels);
+            Assert.Equal((replacement.Width, replacement.Height), (after.Width, after.Height));
+            Assert.Equal(replacement.Pixels, after.Pixels);
+        }
     }
 
     [Fact]

@@ -469,10 +469,6 @@ public static partial class ModPreviewResources
         if (menu.Success)
         {
             string name = menu.Groups[1].Value;
-            if (name.StartsWith("iconfl", StringComparison.Ordinal))
-            {
-                name = "icon";
-            }
             return new($"menu/{(name.EndsWith(".tex", StringComparison.Ordinal) ? name : name + ".tex")}", "atlas", Numeric(menu, 2));
         }
         if (stem.StartsWith("cardgame/", StringComparison.Ordinal))

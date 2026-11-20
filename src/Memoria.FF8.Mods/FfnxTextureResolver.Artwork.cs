@@ -111,6 +111,10 @@ public sealed partial class FfnxTextureResolver
             {
                 return ResolveMenuIcons(context);
             }
+            if (owner is "menu/iconfl00.tex" or "menu/iconfl01.tex" or "menu/iconfl02.tex" or "menu/iconfl03.tex" && FindMenuArtwork(owner[5..^4], context.Key.Palette) is { } iconPage)
+            {
+                return new(DecodeMenuIconPage(iconPage), $"{iconPage.PackageId}/{iconPage.RelativePath}@{iconPage.Revision}", context.LogicalWidth, context.LogicalHeight);
+            }
         }
         if (owner.StartsWith("menu/mc", StringComparison.Ordinal) && owner.EndsWith(".tex", StringComparison.Ordinal) && owner.Length == 13 && Number(owner[7..9], out int menu) && menu < 10 && part == "atlas" && context.Source.Language is null or "en")
         {
@@ -138,9 +142,9 @@ public sealed partial class FfnxTextureResolver
             {
                 continue;
             }
-            PixelImage image = ModImageDecoder.Decode(file).Image;
+            PixelImage image = DecodeMenuIconPage(file);
             int pageScale = image.Width / 128;
-            if (pageScale < 1 || image.Width != 128 * pageScale || image.Height != 128 * pageScale || scale != 0 && scale != pageScale)
+            if (scale != 0 && scale != pageScale)
             {
                 throw new ModTextureLoadException(file.PackageId, file.RelativePath, new InvalidDataException("FFNx split menu icon pages must preserve the 128 by 128 canvas at the same integer scale."));
             }
@@ -171,6 +175,16 @@ public sealed partial class FfnxTextureResolver
         }
         string revision = string.Join(";", pages.Select(page => $"{page.File.PackageId}/{page.File.RelativePath}@{page.File.Revision}"));
         return new(atlas, revision, context.LogicalWidth, context.LogicalHeight);
+    }
+
+    private static PixelImage DecodeMenuIconPage(ModFile file)
+    {
+        PixelImage image = ModImageDecoder.Decode(file).Image;
+        if (image.Width % 128 != 0 || image.Height != image.Width)
+        {
+            throw new ModTextureLoadException(file.PackageId, file.RelativePath, new InvalidDataException("An FFNx split menu icon page must preserve its square 128 by 128 logical canvas at an integer scale."));
+        }
+        return image;
     }
 
     private TextureReplacement? ResolveMenuPortrait(TextureBuildContext context, string name)
