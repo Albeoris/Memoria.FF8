@@ -4,13 +4,14 @@ using Memoria.FF7.Formats;
 namespace Memoria.FF7.Runtime;
 
 /// <summary>Shared autoplay lifecycle around a game-native FFVII policy and host-owned presentation.</summary>
-public sealed partial class Ff7AutoPlayController(Ff7Session session, Func<Ff7AutoplayDriver, Ff7AutoplayInput> chooseInput, Action? present = null, Action<Ff7SessionSave>? checkpoint = null, TimeProvider? clock = null, Action? advanceTick = null, Func<Ff7Dialogue, int?>? chooseDialogueSelection = null, Func<Ff7Dialogue, bool>? advanceDialoguePresentation = null, Func<bool>? hasReachedGoal = null, Action<bool>? advanceShop = null, Func<string?>? readPlanningProgress = null)
+public sealed partial class Ff7AutoPlayController(Ff7Session session, Func<Ff7AutoplayDriver, Ff7AutoplayInput> chooseInput, Action? present = null, Action<Ff7SessionSave>? checkpoint = null, TimeProvider? clock = null, Action? advanceTick = null, Func<Ff7Dialogue, int?>? chooseDialogueSelection = null, Func<Ff7Dialogue, bool>? advanceDialoguePresentation = null, Func<bool>? hasReachedGoal = null, Action<bool>? advanceShop = null, Func<string?>? readPlanningProgress = null, Func<string?>? readFrontierProgress = null)
 {
     private readonly Ff7AutoplayDriver driver = new(session);
     private readonly List<string> recent = [];
     private readonly AutoPlayIdleDeadline deadline = new(clock ?? TimeProvider.System, TimeSpan.FromSeconds(10));
     private readonly Ff7AutoPlayTransitionGuard transitions = new();
     private readonly Ff7AutoPlayProgressWatchdog progressWatchdog = new();
+    private readonly Ff7AutoPlaySemanticWatchdog semanticWatchdog = new();
     private Ff7SessionSave lastSafe = session.Capture();
 
     public bool Running { get; private set; }
@@ -33,6 +34,7 @@ public sealed partial class Ff7AutoPlayController(Ff7Session session, Func<Ff7Au
         deadline.Reset();
         transitions.Reset();
         progressWatchdog.Reset();
+        semanticWatchdog.Reset();
         CaptureCheckpoint();
     }
 
@@ -99,6 +101,7 @@ public sealed partial class Ff7AutoPlayController(Ff7Session session, Func<Ff7Au
                         advanceTick();
                     }
                     Steps++;
+                    semanticWatchdog.NativeAdvanced();
                     if (session.FieldGeneration != generation)
                     {
                         CaptureCheckpoint();
@@ -122,6 +125,7 @@ public sealed partial class Ff7AutoPlayController(Ff7Session session, Func<Ff7Au
                         advanceShop(cancel);
                     }
                     Steps++;
+                    semanticWatchdog.NativeAdvanced();
                     if (session.Shop?.Phase == Ff7ShopPhase.Completed)
                     {
                         CaptureCheckpoint();
@@ -165,6 +169,7 @@ public sealed partial class Ff7AutoPlayController(Ff7Session session, Func<Ff7Au
                     advanceTick();
                 }
                 Steps++;
+                semanticWatchdog.NativeAdvanced();
                 if (UsesManualScene() || CompleteIfReached())
                 {
                     return;

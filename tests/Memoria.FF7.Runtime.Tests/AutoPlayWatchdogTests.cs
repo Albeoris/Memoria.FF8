@@ -6,6 +6,7 @@ internal static class AutoPlayWatchdogTests
 {
     public static void Run()
     {
+        PlanningPollsDoNotSpendSemanticCallbacks();
         FieldAllocationsDoNotRenewSemanticProgress();
         FrontierProgressSurvivesLifecycleRestores();
         ReexecutingConsumedEventsDoesNotRenewFrontierBudget();
@@ -51,6 +52,43 @@ internal static class AutoPlayWatchdogTests
         Check(Ff7AutoPlayController.WorldProgress(speaking) != Ff7AutoPlayController.WorldProgress(speaking with { Dialogue = dialogue with { TokenPosition = 1 } }), "Native dialogue reveal was omitted from semantic progress.");
         Check(Ff7AutoPlayController.WorldProgress(speaking) != Ff7AutoPlayController.WorldProgress(speaking with { Dialogue = dialogue with { WaitTicks = 1 } }), "Native dialogue waiting was omitted from semantic progress.");
         Console.WriteLine("PASS autoplay semantic watchdog, repeated cycles and bounded host batches.");
+    }
+
+    private static void PlanningPollsDoNotSpendSemanticCallbacks()
+    {
+        Ff7AutoPlaySemanticWatchdog semantic = new();
+        Check(semantic.Observe("native A", "frontier0:catalog0"), "The initial semantic boundary must be seeded.");
+        for (int poll = 0; poll < Ff7AutoPlayProgressWatchdog.IdleStepLimit * 2; poll++)
+        {
+            Check(!semantic.Observe("native A", $"uncommitted-poll:{poll}"), "A speculative poll consumed a native callback or published frontier progress.");
+        }
+        semantic.NativeAdvanced();
+        Check(semantic.Observe("native B", "frontier0:catalog0"), "The first real native successor was not observed.");
+        Ff7AutoPlayProgressWatchdog computational = new();
+        for (int callback = 1; callback < Ff7AutoPlayProgressWatchdog.IdleStepLimit; callback++)
+        {
+            computational.Observe($"physical-work:{callback}:native-work:{callback * 8}");
+            semantic.NativeAdvanced();
+            Check(!semantic.Observe(callback % 2 == 0 ? "native A" : "native B", "frontier0:catalog0"), "Growing computation renewed an actual two-state cycle.");
+        }
+        semantic.NativeAdvanced();
+        ExpectTimeout(() => semantic.Observe("native A", "frontier0:catalog0"));
+        semantic.Reset();
+        for (int callback = 0; callback < Ff7AutoPlayProgressWatchdog.IdleStepLimit * 2; callback++)
+        {
+            semantic.NativeAdvanced();
+            Check(semantic.Observe("native A", $"frontier:{callback / 2}:catalog:{callback % 2}"), "Genuine frontier/catalog progress was lost.");
+        }
+        foreach (string kind in new[] { "field-script", "dialogue", "battle", "shop", "chocobo" })
+        {
+            semantic.Reset();
+            for (int phase = 0; phase < Ff7AutoPlayProgressWatchdog.IdleStepLimit * 2; phase++)
+            {
+                semantic.NativeAdvanced();
+                Check(semantic.Observe($"{kind}:phase:{phase}", null), "An advancing native owner phase timed out.");
+                Check(!semantic.Observe($"{kind}:phase:{phase}", null), "One callback was observed twice.");
+            }
+        }
     }
 
     private static void FieldAllocationsDoNotRenewSemanticProgress()

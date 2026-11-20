@@ -42,6 +42,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
     private Ff7AutoPlayObservation? ordinaryObservation;
     private IReadOnlyDictionary<string, string>? ordinaryPhysicalGuards;
 
+    public string FrontierProgress => $"{State.FrontierProgressKey}:world-catalogs:{worldCatalogs.Count}";
     public string WorkProgress => $"{State.FrontierProgressKey}:world-catalogs:{worldCatalogs.Count}:native-planning:{nativePlanningWork}";
     public string Status => State.Status ?? "Discovering native events";
 

@@ -6,6 +6,7 @@ public sealed partial class Ff7AutoPlayController
 {
     private void ObserveProgress(string progress)
     {
+        semanticWatchdog.Observe(progress, readFrontierProgress?.Invoke());
         progress += ":physical-planning:" + driver.PhysicalPlanningWork;
         if (readPlanningProgress?.Invoke() is string planning)
         {
@@ -82,5 +83,33 @@ internal sealed class Ff7AutoPlayProgressWatchdog
             throw new TimeoutException($"FFVII autoplay made no native scene, dialogue or battle progress for {IdleStepLimit} consecutive steps.");
         }
         return false;
+    }
+}
+
+/// <summary>Observes repeated semantic states once per successful native callback, independently of speculative work.</summary>
+internal sealed class Ff7AutoPlaySemanticWatchdog
+{
+    private readonly Ff7AutoPlayProgressWatchdog progress = new();
+    private bool observationPending = true;
+
+    public void Reset()
+    {
+        progress.Reset();
+        observationPending = true;
+    }
+
+    public void NativeAdvanced()
+    {
+        observationPending = true;
+    }
+
+    public bool Observe(string nativeProgress, string? frontierProgress)
+    {
+        if (!observationPending)
+        {
+            return false;
+        }
+        observationPending = false;
+        return progress.Observe(nativeProgress + ":frontier:" + frontierProgress);
     }
 }
