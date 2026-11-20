@@ -13,6 +13,8 @@ internal static class AutoPlayWorldPolicyTests
         HistoricalPureTransfersRequireSourceReobservation();
         IncompleteDiscoveryRemainsARefreshFrontier();
         NativeHandoffsRequireTheirOwners();
+        UnacceptedPlansYieldOnlyToAuthenticatedWorldAllocation();
+        OriginalUnacceptedWorldArrival();
         ControlledOwnerProjectionIsGuardedAndReadOnly();
         RestoredRemoteWorldGoalRehydratesItsCatalog();
     }
@@ -159,6 +161,73 @@ internal static class AutoPlayWorldPolicyTests
         observed.WorldVisits["world"] = new() { ProgramIdentity = vm.ProgramIdentity, ObservedChunks = [new(0, 0)] };
         Ff7AutoPlayState cold = observed.Clone();
         Check(cold.Active == mesh && cold.WorldDispatch?.Departure == departed.Departure && cold.WorldVisits["world"].ObservedChunks.Single() == new Ff7AutoPlayWorldChunk(0, 0), "Cold observation restoration lost native source ownership or optional lazy discovery facts.");
+    }
+
+    private static void UnacceptedPlansYieldOnlyToAuthenticatedWorldAllocation()
+    {
+        WorldEntitySnapshot idle = new(-1, 0, 0, 0, false, 0, []);
+        WorldSnapshot execution = new(1, "authored-world", 0, 1, false, new byte[64], [], idle, []);
+        Ff7WorldProcess world = new(0, 0, 17, execution, [], 0, true, 0, 0, null, [], -1, new(), 0, 1);
+        Ff7AutoPlayActiveEvent active = new("field", "line:3:entity:0:script:1", "condition", 4, 0, 1, Ff7AutoPlayTargetKind.LineTalk, null, 1, "before");
+        FieldTransitionCommand transition = new(17, 0, 0, 0, 0);
+        FieldHostRequest request = new(806, 0, 1, 20, transition);
+        FieldEntitySnapshot owner = new(20, 1, 0, new int[8], new FieldSyncState[8], Enumerable.Repeat(-1, 8).ToArray());
+        FieldVmSnapshot source = new(1, FieldMachine.SemanticProfile, "field", 10, true, new byte[1280], new byte[256], [owner], PendingRequests: [request]);
+        Ff7FieldProcess process = new() { GlobalCommand = Ff7GlobalCommand.Transition, GlobalRequestId = request.Id, Transition = transition, Receipts = [new(request, new(true))] };
+        bool Interrupted(Ff7AutoPlayActiveEvent candidate, FieldVmSnapshot? vm = null, Ff7FieldProcess? facts = null, Ff7WorldProcess? destination = null, long generation = 4) => Ff7AutoPlayPolicy.IsInterruptedUnacceptedFieldPlan(candidate, generation, destination ?? world, vm ?? source, facts ?? process);
+        string before = JsonSerializer.Serialize(new { active, source, process, world });
+        Check(Interrupted(active), "An unaccepted contact trapped an authenticated actual native world allocation.");
+        Check(!Interrupted(active with { Accepted = true }) && !Interrupted(active with { TransitionOwned = true }) && !Interrupted(active with { Returned = true }) && !Interrupted(active with { CompletionRecorded = true }), "An accepted or completed source owner was abandoned as an unaccepted plan.");
+        Check(Ff7AutoPlayPolicy.IsAcceptedWorldArrival(active with { Accepted = true, TransitionOwned = true }, world, transition), "The existing accepted owned source completion contract changed.");
+        Check(!Interrupted(active, destination: world with { EntrySelector = 18 }), "A different actual world selector authenticated this field handoff.");
+        Check(!Interrupted(active, vm: source with { PendingRequests = [request with { Command = new FieldAnimation(0, 1, true, false) }] }), "An unrelated pending host command authenticated the field handoff.");
+        Check(!Interrupted(active, vm: source with { PendingRequests = [request with { Command = transition with { X = 1 } }] }), "Different transition placement operands authenticated the field handoff.");
+        Check(!Interrupted(active, generation: 5), "A different source generation authenticated this interrupted plan.");
+        Check(!Interrupted(active with { Kind = Ff7AutoPlayTargetKind.WorldMesh }), "A real world callback was mistaken for an interrupted field plan.");
+        Check(!Interrupted(active, facts: process with { GlobalRequestId = 807 }) && !Interrupted(active, facts: process with { GlobalCommand = Ff7GlobalCommand.None }), "An unrelated global operation authenticated the handoff.");
+        Check(!Interrupted(active, facts: process with { Transition = transition with { Map = 18 } }), "A different world entry selector authenticated the handoff.");
+        Check(!Interrupted(active, vm: source with { PendingRequests = [] }), "A handoff without its pending native request authenticated stale planning metadata.");
+        Check(!Interrupted(active, vm: source with { Entities = [owner with { Priority = 2 }] }) && !Interrupted(active, vm: source with { Entities = [owner with { ProgramCounter = 21 }] }), "A suspended or different native owner authenticated this handoff.");
+        Check(!Interrupted(active, facts: process with { Receipts = [] }) && !Interrupted(active, facts: process with { Receipts = [new(request, new(false))] }), "An absent or incomplete host receipt authenticated the handoff.");
+        Check(!Interrupted(active, facts: process with { Receipts = [new(request with { Entity = 1 }, new(true))] }), "Another request owner's completed receipt authenticated the handoff.");
+        Check(before == JsonSerializer.Serialize(new { active, source, process, world }), "Typed interruption inspection mutated native or completion facts.");
+        Console.WriteLine("PASS unaccepted field plan interruption requires exact completed native world handoff ownership");
+    }
+
+    private static void OriginalUnacceptedWorldArrival()
+    {
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        string? path = Environment.GetEnvironmentVariable("MEMORIA_FF7_WORLD_ARRIVAL_SAVE");
+        if (string.IsNullOrWhiteSpace(root) || string.IsNullOrWhiteSpace(path))
+        {
+            Console.WriteLine("SKIP interrupted world arrival: configure original resources and an external fixture.");
+            return;
+        }
+        byte[] bytes = File.ReadAllBytes(path);
+        using MemoryStream stream = new(bytes, writable: false);
+        using Ff7Session session = Ff7Session.Restore(Ff7Installation.Discover(root), CombinedSessionCodec.Read(stream).Ff7!);
+        using Ff7AutoPlayPolicy policy = new(session, (_, _) => throw new InvalidOperationException("World handoff recovery requested an optional checkpoint."));
+        Ff7AutoPlayActiveEvent old = policy.State.Active ?? throw new InvalidOperationException("The fixture has no interrupted field plan.");
+        string fieldEvent = JsonSerializer.Serialize(policy.State.Coverage.Visits.Single(visit => visit.Visit.Key == old.VisitId).Events.Single(item => item.Event.Id == old.EventId));
+        var initial = session.World!.Process.Entities.Single(entity => entity.Model == session.World.Process.PlayerModel);
+        System.Collections.ICollection catalogs = (System.Collections.ICollection)(typeof(Ff7AutoPlayPolicy).GetField("worldCatalogs", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)?.GetValue(policy) ?? throw new InvalidOperationException("The current native catalog implementation is absent."));
+        Ff7AutoPlayController controller = new(session, policy.ChooseInput, chooseDialogueSelection: policy.ChooseDialogueSelection, readPlanningProgress: () => policy.WorkProgress);
+        controller.Start();
+        System.Diagnostics.Stopwatch timer = System.Diagnostics.Stopwatch.StartNew();
+        bool progressed = false;
+        while (controller.Running && timer.Elapsed < TimeSpan.FromSeconds(15))
+        {
+            controller.Advance(1);
+            progressed = controller.Steps >= 2 && catalogs.Count > 1 || session.World is null || session.World.Process.Entities.Any(entity => entity.Model == initial.Model && (entity.X != initial.X || entity.Z != initial.Z)) || policy.State.Active is { Kind: Ff7AutoPlayTargetKind.WorldMesh or Ff7AutoPlayTargetKind.WorldModel or Ff7AutoPlayTargetKind.WorldControl };
+            if (progressed)
+            {
+                break;
+            }
+        }
+        Check(controller.Error is null && progressed && policy.State.Active != old && (policy.State.Active is null or { Kind: Ff7AutoPlayTargetKind.WorldMesh or Ff7AutoPlayTargetKind.WorldModel or Ff7AutoPlayTargetKind.WorldControl }), $"The ordinary world controller remained trapped by an unaccepted field plan: {controller.Error}; status={policy.Status}.");
+        Check(fieldEvent == JsonSerializer.Serialize(policy.State.Coverage.Visits.Single(visit => visit.Visit.Key == old.VisitId).Events.Single(item => item.Event.Id == old.EventId)), "World handoff recovery credited or rewrote the unaccepted field event.");
+        Check(bytes.AsSpan().SequenceEqual(File.ReadAllBytes(path)), "World handoff recovery changed its authoritative source.");
+        Console.WriteLine($"PASS original unaccepted world handoff releases old plan and advances real world discovery/navigation without field completion credit; steps={controller.Steps}; current-catalogs={catalogs.Count}; elapsed={timer.Elapsed.TotalSeconds:F3}s; source unchanged");
     }
 
     private static void ControlledOwnerProjectionIsGuardedAndReadOnly()

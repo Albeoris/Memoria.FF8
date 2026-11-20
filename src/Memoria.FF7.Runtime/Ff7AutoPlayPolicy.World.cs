@@ -84,7 +84,7 @@ public sealed partial class Ff7AutoPlayPolicy
                     return default;
                 }
             }
-            else if (field.Generation != session.FieldGeneration)
+            else if (field.Generation != session.FieldGeneration || IsInterruptedUnacceptedFieldPlan(field, session.FieldGeneration, world.Process, session.Machine.Capture(), session.Host.Process))
             {
                 State.Status = "A different native event interrupted the planned contact";
                 State.Active = null;
@@ -503,6 +503,21 @@ public sealed partial class Ff7AutoPlayPolicy
             State.WorldDispatch = dispatch with { DepartureStory = story };
             Publish();
         }
+    }
+
+    internal static bool IsInterruptedUnacceptedFieldPlan(Ff7AutoPlayActiveEvent active, long generation, Ff7WorldProcess world, FieldVmSnapshot source, Ff7FieldProcess process)
+    {
+        if (active.Accepted || active.Returned || active.TransitionOwned || active.CompletionRecorded || active.Generation != generation || active.Kind is Ff7AutoPlayTargetKind.WorldMesh or Ff7AutoPlayTargetKind.WorldModel or Ff7AutoPlayTargetKind.WorldControl || process.GlobalCommand != Ff7GlobalCommand.Transition || process.Transition is not { Map: >= 1 and <= 64 } transition || transition.Map != world.EntrySelector)
+        {
+            return false;
+        }
+        FieldHostRequest? request = (source.PendingRequests ?? []).SingleOrDefault(request => request.Id == process.GlobalRequestId);
+        if (request is not { Command: FieldTransitionCommand command } || command != transition || (uint)request.Entity >= source.Entities.Length)
+        {
+            return false;
+        }
+        FieldEntitySnapshot owner = source.Entities[request.Entity];
+        return owner.Priority == request.Priority && owner.ProgramCounter == request.ProgramCounter && process.Receipts.Any(receipt => receipt.Request == request && receipt.Reply.Completed);
     }
 
     internal static bool IsAcceptedWorldArrival(Ff7AutoPlayActiveEvent active, Ff7WorldProcess world, FieldTransitionCommand? transition)
