@@ -43,6 +43,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
     private Ff7AutoPlayObservation? ordinaryObservation;
     private IReadOnlyDictionary<string, string>? ordinaryPhysicalGuards;
 
+    public Ff7AutoPlayFrontierProgress FrontierAttention => new(State.FrontierProgressKey, State.FrontierIdleSteps, Ff7AutoPlayProgressWatchdog.IdleStepLimit);
     public string FrontierProgress => $"{State.FrontierProgressKey}:world-catalogs:{worldCatalogs.Count}";
     public string WorkProgress => $"{State.FrontierProgressKey}:world-catalogs:{worldCatalogs.Count}:native-planning:{nativePlanningWork}";
     public string Status => State.Status ?? "Discovering native events";
@@ -60,13 +61,18 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             {
                 return -3;
             }
-            if (coverage?.Completed != true)
+            bool unconsumedCondition = target.ConditionSignature is string condition && coverage?.Conditions is { } conditions && !conditions.HasExecutedEntry(condition);
+            if (coverage?.Completed != true || unconsumedCondition)
             {
                 bool attempted = coverage?.UnavailableAttempts.Any(attempt => attempt.SourceConditionSignature == target.ConditionSignature && (target.Variants is { Count: > 0 } variants ? variants : [target.Id]).Contains(attempt.TargetId ?? target.Id, StringComparer.Ordinal)) == true;
-                return attempted && unvisitedDestination?.Invoke(visit, target) != true ? 0 : target.ChangesStory ? -2 : -1;
+                return attempted && unvisitedDestination?.Invoke(visit, target) != true ? 0 : target.ChangesStory && coverage?.Completed != true ? -2 : -1;
             }
             return candidate.RouteNeedsRediscovery ? 0 : Math.Max(1, coverage.Conditions?.ConsumedEntries.Count ?? 1);
-        }, observationsCoverWholeVisit: true);
+        }, observationsCoverWholeVisit: true, candidateExplorationOrder: (visit, target, candidate) =>
+        {
+            AutoPlayEventCoverage<Ff7AutoPlayDeferral> coverage = state.Coverage.Visits.SingleOrDefault(entry => entry.Visit.Key == visit.Key)?.Events.SingleOrDefault(entry => entry.Event.Id == target.Id) ?? candidate;
+            return coverage.Conditions?.ConsumedEntries.Count ?? (coverage.Completed ? 1 : 0);
+        });
     }
 
     internal static int NativeDestinationPhase(Ff7AutoPlayState state, int? destination)

@@ -736,6 +736,18 @@ if (args.Contains("--native-effect-alias-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--native-reactor-entry-original-only", StringComparer.Ordinal))
+{
+    NativeReactorEntryTests.RunOriginal();
+    return 0;
+}
+
+if (args.Contains("--completed-native-choice-only", StringComparer.Ordinal))
+{
+    CompletedNativeChoiceTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-effect-alias-original-only", StringComparer.Ordinal))
 {
     NativeEffectAliasTests.RunOriginal();

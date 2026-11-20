@@ -8,6 +8,7 @@ internal static class NativeAutoPlayPolicyPlanningTests
         NativeComponentProbeTests.Run();
         AutoPlayNavigationRefreshTests.Run();
         CheckDerivedConnectionProbePriority();
+        CheckCurrentConditionPriority();
         CheckExactNavigationGoalCompletion();
         Ff7AutoPlayState state = new();
         AutoPlayPlanner<Ff7AutoPlayDeferral> planner = Ff7AutoPlayPolicy.CreatePlanner(state);
@@ -21,7 +22,7 @@ internal static class NativeAutoPlayPolicyPlanningTests
         Ff7AutoPlayState restored = state.Clone();
         Check(Ff7AutoPlayPolicy.CreatePlanner(restored).Plan(visit.Key)?.Event.Id == "repeatable", "Cold planner restoration lost the changed predicate.");
         restored.Coverage.Visits.Single().Events.Single(entry => entry.Event.Id == "unseen").RouteNeedsRediscovery = true;
-        Check(Ff7AutoPlayPolicy.CreatePlanner(restored).Plan(visit.Key)?.Event.Id == "unseen", "A consumed transport awaiting native connectivity evidence must precede a changed repeatable event.");
+        Check(Ff7AutoPlayPolicy.CreatePlanner(restored).Plan(visit.Key)?.Event.Id == "repeatable", "An actual unconsumed current condition must precede an already consumed transport debt when both are locally executable.");
         Ff7AutoPlayState fair = new();
         var fairPlanner = Ff7AutoPlayPolicy.CreatePlanner(fair);
         AutoPlayEvent[] repeated = [new("first", AutoPlayEventKind.Interaction, ConditionSignature: "one"), new("second", AutoPlayEventKind.Interaction, Order: 1, ConditionSignature: "one")];
@@ -38,6 +39,29 @@ internal static class NativeAutoPlayPolicyPlanningTests
         CheckMovementFailureScope();
         CheckMultipleMovementFailureRegions();
         CheckFailedApproachDoesNotStarveFreshGateway();
+    }
+
+    private static void CheckCurrentConditionPriority()
+    {
+        Ff7AutoPlayState state = new();
+        AutoPlayPlanner<Ff7AutoPlayDeferral> planner = Ff7AutoPlayPolicy.CreatePlanner(state);
+        AutoPlayEvent pickup = new("pickup", AutoPlayEventKind.Interaction, Order: 99, ConditionSignature: "old");
+        AutoPlayEvent exit = new("exit", AutoPlayEventKind.Transition, ConditionSignature: "route");
+        AutoPlayEvent remote = new("attempted-remote", AutoPlayEventKind.Interaction, ConditionSignature: "current");
+        planner.Observe(new("here", "region"), [pickup, exit]);
+        planner.Observe(new("there", "region"), [remote]);
+        planner.Completed("here", pickup.Id, entrySignature: "old", entrySignatureAuthoritative: true);
+        planner.Completed("here", exit.Id, "there", entrySignature: "route", entrySignatureAuthoritative: true);
+        planner.Observe(new("here", "region"), [pickup with { ConditionSignature = "new" }, exit]);
+        state.Coverage.Visits.Single(visit => visit.Visit.Key == "there").Events.Single().UnavailableAttempts.Add(new("current", "there", "old-attempt", "old-fact", remote.Id));
+        Check(planner.Plan("here") is { IsTravel: false, Event.Id: "pickup" }, "A new unconsumed condition on a historically completed event was ranked below an attempted remote frontier.");
+        planner.Completed("here", pickup.Id, entrySignature: "new", entrySignatureAuthoritative: true);
+        Check(planner.Plan("here") is { IsTravel: true, Goal.EventId: "attempted-remote" }, "A consumed current condition retained fresh-frontier priority after actual execution.");
+        AutoPlayEventCoverage<Ff7AutoPlayDeferral> legacy = state.Coverage.Visits.Single(visit => visit.Visit.Key == "here").Events.Single(item => item.Event.Id == pickup.Id);
+        legacy.Event = legacy.Event with { ConditionSignature = null };
+        legacy.Conditions = null;
+        Check(planner.Plan("here") is { IsTravel: true, Goal.EventId: "attempted-remote" }, "Legacy metadata-null completion was erased or treated as an invented new condition.");
+        Console.WriteLine("PASS current-condition frontier priority, consumed repeat and legacy completion fallback");
     }
 
     private static void CheckDerivedConnectionProbePriority()
@@ -59,7 +83,9 @@ internal static class NativeAutoPlayPolicyPlanningTests
         planner.ObserveNavigation("source", "new-source-nav", [exit, repeat]);
         AutoPlayTravelGoal preferred = new("new-source-nav", repeat.Id, repeat.ConditionSignature);
         AutoPlayPlanStep probe = planner.PlanNavigation("new-source-nav", preferredGoal: preferred)!;
-        Check(probe.Event.Id == exit.Id && probe.IsTravel, "A derived native connectivity probe must interrupt a completed changed-predicate goal.");
+        Check(probe.Event.Id == repeat.Id && !probe.IsTravel, "A locally available unconsumed current condition must precede a consumed connectivity probe.");
+        AutoPlayPlanStep required = planner.PlanNavigation("new-source-nav", preferredGoal: preferred, readAvailability: (_, item) => item.Id == repeat.Id ? new(true, new(StringComparer.Ordinal) { repeat.Id }, "unavailable") : null)!;
+        Check(required.Event.Id == exit.Id && required.IsTravel, "A genuine native connectivity probe remains necessary when the current local frontier is unavailable.");
         Check(!state.Coverage.Visits.Single(visit => visit.Visit.Key == "source").Events.Single(item => item.Event.Id == exit.Id).RouteNeedsRediscovery, "A scoped native probe must not alter aggregate progress metadata.");
 
         AutoPlayEvent retry = new("retry", AutoPlayEventKind.Interaction, ConditionSignature: "retry");
@@ -67,7 +93,7 @@ internal static class NativeAutoPlayPolicyPlanningTests
         planner.ObserveNavigation("source", "new-source-nav", [exit, repeat, retry]);
         planner.MarkUnavailable("source", retry.Id, new("retry", "source", "physical", "blocked", retry.Id));
         planner.RefreshUnavailable("source", new Dictionary<string, string> { ["physical"] = "changed" });
-        Check(planner.PlanNavigation("new-source-nav", preferredGoal: preferred)?.Event.Id == retry.Id, "An eligible rank-zero retry must retain its aggregate attempt history and precede a connectivity-only probe.");
+        Check(planner.PlanNavigation("new-source-nav", preferredGoal: preferred, readAvailability: (_, item) => item.Id == repeat.Id ? new(true, new(StringComparer.Ordinal) { repeat.Id }, "unavailable") : null)?.Event.Id == retry.Id, "An eligible rank-zero retry must retain its aggregate attempt history and precede a connectivity-only probe when the current local frontier is unavailable.");
         AutoPlayEvent fresh = new("fresh", AutoPlayEventKind.Interaction, ConditionSignature: "fresh");
         planner.Observe(new("source", "region"), [exit, repeat, retry, fresh]);
         planner.ObserveNavigation("source", "new-source-nav", [exit, repeat, retry, fresh]);

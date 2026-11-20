@@ -9,8 +9,9 @@ public sealed record Ff7AutoPlayChoiceState(string Key, Ff7AutoPlayActiveEvent? 
 public sealed record Ff7AutoPlayRestoreRequest(string Path, string[]? RetiredPaths = null);
 
 /// <summary>Adapts shared choice coverage to exact native before-choice and primary-continuation saves.</summary>
-public sealed class Ff7AutoPlayChoiceWorkflow
+public sealed partial class Ff7AutoPlayChoiceWorkflow
 {
+    private readonly Ff7Session? nativeSession;
     private readonly Func<Ff7SessionSave> capture;
     private readonly AutoPlayPlanner<Ff7AutoPlayDeferral> planner;
     private readonly Ff7AutoPlayState state;
@@ -20,6 +21,7 @@ public sealed class Ff7AutoPlayChoiceWorkflow
 
     public Ff7AutoPlayChoiceWorkflow(Ff7Session session, AutoPlayPlanner<Ff7AutoPlayDeferral> planner, Ff7AutoPlayState state, Func<string, Ff7SessionSave, string> writeCheckpoint) : this(session.Capture, planner, state, writeCheckpoint, File.Exists)
     {
+        nativeSession = session;
     }
 
     internal Ff7AutoPlayChoiceWorkflow(Func<Ff7SessionSave> capture, AutoPlayPlanner<Ff7AutoPlayDeferral> planner, Ff7AutoPlayState state, Func<string, Ff7SessionSave, string> writeCheckpoint, Func<string, bool>? checkpointExists = null, Func<string, int?>? readCheckpointStory = null)
@@ -80,7 +82,7 @@ public sealed class Ff7AutoPlayChoiceWorkflow
             planner.ObserveChoice(key, checked(last - first + 1), first);
             if (planner.PlanChoice(key).Kind == AutoPlayChoiceStepKind.Complete)
             {
-                return first;
+                return SelectCompletedNativeChoice(before, dialogue, Coverage(key), first);
             }
             current = new(key, state.Active, current, OwnerIdentity: owner, BeforeStory: ReadStory(before));
             state.Choice = current;

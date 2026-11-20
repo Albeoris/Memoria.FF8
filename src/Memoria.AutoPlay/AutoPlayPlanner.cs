@@ -128,21 +128,23 @@ public sealed partial class AutoPlayPlanner<TDeferral> where TDeferral : class, 
     private readonly Func<AutoPlayVisit, AutoPlayEvent, int> phaseOrder;
     private readonly Func<AutoPlayVisit, AutoPlayEvent, int> progressionOrder;
     private readonly Func<AutoPlayVisit, AutoPlayEvent, AutoPlayEventCoverage<TDeferral>, int>? candidateProgressionOrder;
+    private readonly Func<AutoPlayVisit, AutoPlayEvent, AutoPlayEventCoverage<TDeferral>, int>? candidateExplorationOrder;
     private readonly bool observationsCoverWholeVisit;
     private sealed record PlanCandidate(AutoPlayVisitCoverage<TDeferral> Visit, AutoPlayEventCoverage<TDeferral> Coverage);
 
     public AutoPlayPlannerState<TDeferral> State { get; }
 
-    public AutoPlayPlanner(AutoPlayPlannerState<TDeferral>? state = null, Func<AutoPlayVisit, AutoPlayEvent, int>? phaseOrder = null, Func<AutoPlayVisit, AutoPlayEvent, int>? progressionOrder = null, bool observationsCoverWholeVisit = false, Func<AutoPlayVisit, AutoPlayEvent, AutoPlayEventCoverage<TDeferral>, int>? candidateProgressionOrder = null) : this(state, phaseOrder, progressionOrder, normalizeLegacyRoutes: true, observationsCoverWholeVisit, candidateProgressionOrder)
+    public AutoPlayPlanner(AutoPlayPlannerState<TDeferral>? state = null, Func<AutoPlayVisit, AutoPlayEvent, int>? phaseOrder = null, Func<AutoPlayVisit, AutoPlayEvent, int>? progressionOrder = null, bool observationsCoverWholeVisit = false, Func<AutoPlayVisit, AutoPlayEvent, AutoPlayEventCoverage<TDeferral>, int>? candidateProgressionOrder = null, Func<AutoPlayVisit, AutoPlayEvent, AutoPlayEventCoverage<TDeferral>, int>? candidateExplorationOrder = null) : this(state, phaseOrder, progressionOrder, normalizeLegacyRoutes: true, observationsCoverWholeVisit, candidateProgressionOrder, candidateExplorationOrder)
     {
     }
 
-    private AutoPlayPlanner(AutoPlayPlannerState<TDeferral>? state, Func<AutoPlayVisit, AutoPlayEvent, int>? phaseOrder, Func<AutoPlayVisit, AutoPlayEvent, int>? progressionOrder, bool normalizeLegacyRoutes, bool observationsCoverWholeVisit, Func<AutoPlayVisit, AutoPlayEvent, AutoPlayEventCoverage<TDeferral>, int>? candidateProgressionOrder = null)
+    private AutoPlayPlanner(AutoPlayPlannerState<TDeferral>? state, Func<AutoPlayVisit, AutoPlayEvent, int>? phaseOrder, Func<AutoPlayVisit, AutoPlayEvent, int>? progressionOrder, bool normalizeLegacyRoutes, bool observationsCoverWholeVisit, Func<AutoPlayVisit, AutoPlayEvent, AutoPlayEventCoverage<TDeferral>, int>? candidateProgressionOrder = null, Func<AutoPlayVisit, AutoPlayEvent, AutoPlayEventCoverage<TDeferral>, int>? candidateExplorationOrder = null)
     {
         State = state ?? new AutoPlayPlannerState<TDeferral>();
         this.phaseOrder = phaseOrder ?? ((_, _) => 0);
         this.progressionOrder = progressionOrder ?? ((_, _) => 0);
         this.candidateProgressionOrder = candidateProgressionOrder;
+        this.candidateExplorationOrder = candidateExplorationOrder;
         this.observationsCoverWholeVisit = observationsCoverWholeVisit;
         if (normalizeLegacyRoutes)
         {
@@ -420,10 +422,15 @@ public sealed partial class AutoPlayPlanner<TDeferral> where TDeferral : class, 
         bool CanReach(PlanCandidate candidate) => canTravel is null || TravelToEvent(candidate) is not { } first || canTravel(first);
         bool CanRefresh(string key) => key != currentVisitKey && routes.ContainsKey(key) && (canTravel is null || canTravel(RefreshPlan(key)));
         bool HasHigherPriorityProgression(int priority) => candidates.Any(item => ProgressionOrder(item.Visit.Visit, item.Coverage) < priority && CanReach(item));
+        bool HasHigherPriorityContinuation(PlanCandidate continuation)
+        {
+            var priority = (ProgressionOrder(continuation.Visit.Visit, continuation.Coverage), ExplorationOrder(continuation.Visit.Visit, continuation.Coverage));
+            return candidates.Any(item => (ProgressionOrder(item.Visit.Visit, item.Coverage), ExplorationOrder(item.Visit.Visit, item.Coverage)).CompareTo(priority) < 0 && CanReach(item));
+        }
         if (preferredGoal is { EventId: not null } goal)
         {
             PlanCandidate? continuation = candidates.FirstOrDefault(item => item.Visit.Visit.Key == goal.NavigationKey && item.Coverage.Event.Id == goal.EventId && item.Coverage.Event.ConditionSignature == goal.Conditions && CanReach(item));
-            if (continuation is not null && !HasHigherPriorityProgression(ProgressionOrder(continuation.Visit.Visit, continuation.Coverage)))
+            if (continuation is not null && !HasHigherPriorityContinuation(continuation))
             {
                 return TravelToEvent(continuation) ?? new AutoPlayPlanStep(currentVisitKey, continuation.Coverage.Event, false);
             }
@@ -433,6 +440,7 @@ public sealed partial class AutoPlayPlanner<TDeferral> where TDeferral : class, 
             return RefreshPlan(refreshGoal);
         }
         var ordered = candidates.Where(CanReach).OrderBy(item => ProgressionOrder(item.Visit.Visit, item.Coverage))
+            .ThenBy(item => ExplorationOrder(item.Visit.Visit, item.Coverage))
             .ThenBy(item => frontierPriority?.Invoke(item.Visit.Visit, item.Coverage.Event) ?? 0)
             .ThenBy(item => item.Coverage.Event.ChangesStory)
             .ThenBy(item => phaseOrder(item.Visit.Visit, item.Coverage.Event))
@@ -653,6 +661,11 @@ public sealed partial class AutoPlayPlanner<TDeferral> where TDeferral : class, 
     private int ProgressionOrder(AutoPlayVisit visit, AutoPlayEventCoverage<TDeferral> candidate)
     {
         return candidateProgressionOrder?.Invoke(visit, candidate.Event, candidate) ?? progressionOrder(visit, candidate.Event);
+    }
+
+    private int ExplorationOrder(AutoPlayVisit visit, AutoPlayEventCoverage<TDeferral> candidate)
+    {
+        return candidateExplorationOrder?.Invoke(visit, candidate.Event, candidate) ?? 0;
     }
 
     private static IOrderedEnumerable<AutoPlayEventCoverage<TDeferral>> OrderedEvents(AutoPlayVisitCoverage<TDeferral> visit)
