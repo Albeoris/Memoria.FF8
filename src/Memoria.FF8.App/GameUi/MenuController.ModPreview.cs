@@ -388,7 +388,7 @@ public sealed partial class MenuController
         private readonly UiScrollPanel beforeText;
         private readonly UiScrollPanel afterText;
         private readonly List<UiButton> interaction = [];
-        private readonly List<ModPreviewTreeNode> rows = [];
+        private readonly List<(ModPreviewTreeNode Node, int Depth)> rows = [];
         private UiRect comparison;
 
         public ModPreviewElement(MenuController menus)
@@ -403,16 +403,19 @@ public sealed partial class MenuController
                 Items = labels,
                 RowHeight = 28 * menus.TextScale,
                 FontSize = 16 * menus.TextScale,
+                TextInset = 8,
                 AutoRowHeight = false,
                 KeepSelectionVisibleOnDraw = false,
                 TextFlow = UiTextFlow.SingleLine,
-                SelectedIndex = menus.modPreviewTreeSelection is { } selected ? rows.IndexOf(selected) : 0,
+                SelectedIndex = menus.modPreviewTreeSelection is { } selected ? rows.FindIndex(row => row.Node == selected) : 0,
                 Confirmed = ToggleGroup,
+                TreeRow = index => (rows[index].Depth, rows[index].Node.Entry is null ? menus.modPreviewOpenFolders.Contains(rows[index].Node) : null),
                 SelectionChanged = index =>
                 {
                     menus.modPreviewTreeOffset = tree!.ScrollOffset;
-                    menus.modPreviewTreeSelection = rows[index];
-                    if (rows[index].Entry is { } entry)
+                    ModPreviewTreeNode node = rows[index].Node;
+                    menus.modPreviewTreeSelection = node;
+                    if (node.Entry is { } entry)
                     {
                         menus.SelectModPreview(entry);
                     }
@@ -478,13 +481,11 @@ public sealed partial class MenuController
 
             void AddRows(IReadOnlyList<ModPreviewTreeNode> branches, int depth)
             {
-                string indent = new(' ', depth * 4);
                 foreach (ModPreviewTreeNode branch in branches)
                 {
-                    rows.Add(branch);
+                    rows.Add((branch, depth));
                     bool open = menus.modPreviewOpenFolders.Contains(branch);
-                    string marker = branch.Entry is null ? open ? "▾ " : "▸ " : "  ";
-                    labels.Add(indent + marker + branch.Label);
+                    labels.Add(branch.Label);
                     if (open)
                     {
                         AddRows(branch.Children, depth + 1);
@@ -502,7 +503,7 @@ public sealed partial class MenuController
 
         private void ToggleGroup(int index)
         {
-            ModPreviewTreeNode row = rows[index];
+            ModPreviewTreeNode row = rows[index].Node;
             if (row.Entry is not null)
             {
                 return;

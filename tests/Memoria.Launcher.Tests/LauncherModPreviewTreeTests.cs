@@ -68,6 +68,13 @@ public sealed class LauncherModPreviewTreeTests(LauncherHeadlessFixture fixture)
                     Dispatcher.UIThread.RunJobs();
                     Assert.False(atlas.IsExpanded);
                     Assert.Same(path[^1], tree.SelectedItem);
+                    TreeViewItem otherAtlas = Assert.IsType<TreeViewItem>(group.ContainerFromItem(sibling));
+                    tree.SelectedItem = sibling;
+                    Dispatcher.UIThread.RunJobs();
+                    Assert.Same(sibling, tree.SelectedItem);
+                    Assert.True(otherAtlas.IsSelected);
+                    Assert.False(otherAtlas.IsExpanded);
+                    Assert.False(atlas.IsExpanded);
                 }
                 finally
                 {

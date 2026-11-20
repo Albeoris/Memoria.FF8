@@ -185,6 +185,8 @@ public sealed class UiList : UiElement
     public Action<int>? SelectionChanged { get; set; }
     public float FontSize { get; set; }
     public Action<int>? Confirmed { get; set; }
+    /// <summary>Optional tree row depth and disclosure state. Leaves have no disclosure state.</summary>
+    public Func<int, (int Depth, bool? Expanded)>? TreeRow { get; set; }
     public bool ShowSelection { get; set; } = true;
     public bool HighlightSelection { get; set; } = true;
     public bool ShowScrollbar { get; set; } = true;
@@ -284,15 +286,28 @@ public sealed class UiList : UiElement
                 float textRight = row.X + rowColumns.SecondaryRight;
                 UiTextFlow textFlow = TextFlow == UiTextFlow.Auto ? AutoRowHeight && Orientation == UiOrientation.Vertical ? UiTextFlow.Wrap : UiTextFlow.SingleLine : TextFlow;
                 float fontSize = FontSize > 0 ? FontSize : theme.FontSize;
+                float primaryWidth = rowColumns.PrimaryWidth;
+                if (TreeRow is { } treeRow)
+                {
+                    (int depth, bool? expanded) = treeRow(index);
+                    float slot = DisclosureWidth;
+                    float indent = depth * slot;
+                    if (expanded is bool open)
+                    {
+                        canvas.Text(open ? "▾" : "▸", fontSize, new UiRect(textLeft + indent, row.Y, slot, row.Height), textColor, UiAlignment.Center, UiTextFlow.SingleLine);
+                    }
+                    textLeft += indent + slot;
+                    primaryWidth = Math.Max(0, primaryWidth - indent - slot);
+                }
                 IReadOnlyList<UiImageSource> icons = index < ItemIcons.Count ? ItemIcons[index] : [];
                 float iconSize = fontSize * 0.75f;
                 float iconHeight = icons.Count > 0 ? iconSize + 2 : 0;
                 float nameHeight = Math.Max(0, row.Height - iconHeight);
-                canvas.Text(Items[index], fontSize, new UiRect(textLeft, row.Y, rowColumns.PrimaryWidth, nameHeight), textColor, UiAlignment.Center, textFlow);
+                canvas.Text(Items[index], fontSize, new UiRect(textLeft, row.Y, primaryWidth, nameHeight), textColor, UiAlignment.Center, textFlow);
                 for (int iconIndex = 0; iconIndex < icons.Count; iconIndex++)
                 {
                     float iconX = textLeft + iconIndex * (iconSize + 3);
-                    if (iconX + iconSize > textLeft + rowColumns.PrimaryWidth)
+                    if (iconX + iconSize > textLeft + primaryWidth)
                     {
                         break;
                     }
@@ -454,11 +469,13 @@ public sealed class UiList : UiElement
         }
 
         int index = -1;
+        float rowX = 0;
         foreach ((int candidate, UiRect bounds) in VisibleRowBounds())
         {
             if (bounds.Contains(x, y))
             {
                 index = candidate;
+                rowX = bounds.X;
                 break;
             }
         }
@@ -474,8 +491,20 @@ public sealed class UiList : UiElement
             SelectionChanged?.Invoke(SelectedIndex);
         }
 
-        Confirmed?.Invoke(SelectedIndex);
+        if (TreeRow is not { } treeRow)
+        {
+            Confirmed?.Invoke(SelectedIndex);
+            return;
+        }
+        (int depth, bool? expanded) = treeRow(index);
+        float disclosure = rowX + TextInset + depth * DisclosureWidth;
+        if (expanded.HasValue && x >= disclosure && x < disclosure + DisclosureWidth)
+        {
+            Confirmed?.Invoke(SelectedIndex);
+        }
     }
+
+    private float DisclosureWidth => Math.Max(16, FontSize * 1.25f);
 
     private void EnsureSelectionVisible()
     {

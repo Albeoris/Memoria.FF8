@@ -131,6 +131,13 @@ public sealed class ModCatalogComparisonTests
                 tree = Assert.IsType<UiList>(Find(view.Root, "preview-tree"));
                 Assert.Equal(2, tree.Items.Count);
                 Assert.Equal(1, tree.SelectedIndex);
+                tree.Pointer(tree.Bounds.X + 100, tree.Bounds.Y + tree.RowHeight * 1.5f);
+                view = menu.BuildView();
+                view.Resize(1280, 720);
+                tree = Assert.IsType<UiList>(Find(view.Root, "preview-tree"));
+                Assert.Equal(2, tree.Items.Count);
+                Assert.Equal(1, tree.SelectedIndex);
+                Assert.True(Find(view.Root, "preview-use").Visible);
                 Find(view.Root, "preview-expand").Key(UiKey.Confirm);
                 view = menu.BuildView();
                 view.Resize(1280, 720);
@@ -143,6 +150,13 @@ public sealed class ModCatalogComparisonTests
                 Assert.True(tree.Visible);
                 Assert.Equal(2, tree.Items.Count);
                 Assert.Equal(1, tree.SelectedIndex);
+                tree.Pointer(tree.Bounds.X + 35, tree.Bounds.Y + tree.RowHeight * 1.5f);
+                view = menu.BuildView();
+                view.Resize(1280, 720);
+                tree = Assert.IsType<UiList>(Find(view.Root, "preview-tree"));
+                Assert.Equal(36, tree.Items.Count);
+                Assert.Equal(1, tree.SelectedIndex);
+                Assert.True(Find(view.Root, "preview-use").Visible);
                 menu.Navigate(MenuInput.Cancel);
                 Assert.Equal("mods", menu.ScreenId);
             }

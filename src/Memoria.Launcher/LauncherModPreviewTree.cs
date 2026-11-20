@@ -11,7 +11,7 @@ internal sealed class LauncherModPreviewTree : TreeView
 
     public LauncherModPreviewTree()
     {
-        AutoScrollToSelectedItem = true;
+        AutoScrollToSelectedItem = false;
         ItemTemplate = new FuncTreeDataTemplate<ModPreviewTreeNode>((branch, _) => new TextBlock { Text = branch.Label, TextTrimming = TextTrimming.CharacterEllipsis }, branch => branch.Children);
     }
 
@@ -26,20 +26,20 @@ internal sealed class LauncherModPreviewTree : TreeView
 
         ItemsControl parent = this;
         int index = 0;
-        LayoutUpdated += RevealSelection;
+        LayoutUpdated += RevealInitialFile;
 
-        void RevealSelection(object? sender, EventArgs args)
+        void RevealInitialFile(object? sender, EventArgs args)
         {
             if (SelectedItem is not null)
             {
-                LayoutUpdated -= RevealSelection;
+                LayoutUpdated -= RevealInitialFile;
                 return;
             }
             while (parent.ContainerFromItem(path[index]) is TreeViewItem container)
             {
                 if (++index == path.Count)
                 {
-                    LayoutUpdated -= RevealSelection;
+                    LayoutUpdated -= RevealInitialFile;
                     SelectedItem = path[^1];
                     container.BringIntoView();
                     return;
