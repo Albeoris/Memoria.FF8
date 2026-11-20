@@ -3,6 +3,18 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--world-physical-continuation-only", StringComparer.Ordinal))
+{
+    WorldPhysicalSearchContinuationTests.Run();
+    return 0;
+}
+
+if (args.Contains("--world-physical-continuation-original-only", StringComparer.Ordinal))
+{
+    WorldPhysicalSearchContinuationTests.RunOriginal();
+    return 0;
+}
+
 if (args.Contains("--native-route-cycle-original-only", StringComparer.Ordinal))
 {
     NativeRouteCycleTests.RunOriginal();

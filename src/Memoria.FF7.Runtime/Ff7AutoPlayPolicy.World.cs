@@ -159,10 +159,6 @@ public sealed partial class Ff7AutoPlayPolicy
             State.Active = null;
             State.NavigationGoal = null;
         }
-        if (State.Active is not null)
-        {
-            TrackFrontierProgress(State, Story());
-        }
         if (State.Active is null)
         {
             var readRetainedAvailability = CreateRetainedNavigationAvailabilityReader(State);
@@ -179,7 +175,6 @@ public sealed partial class Ff7AutoPlayPolicy
             AutoPlayPlanStep? next = planner.PlanNavigation(observation.NavigationKey, needsRefresh: destinationTargets is null ? NeedsVisitRefresh : null, preferredGoal: State.NavigationGoal, avoidFirstEvents: avoid, readAvailability: ReadAvailability);
             string? selectedBoarding = next is { IsTravel: false } && worldModelCatalog.TryGetValue(next.Event.Id, out var contact) && contact.Analysis.Transitions.Any(transition => transition.Operation == WorldOperation.BoardTransport && transition.Model is not null) ? contact.Id : null;
             AutoPlayPlanStep? prerequisite = PlanWorldBoardingPrerequisite(world, observation, driver, candidate => ReadAvailability(State.Coverage.NavigationVisits.Single(visit => visit.Key == observation.NavigationKey), candidate), selectedBoarding);
-            CommitFrontierInput(State, Story(), controllable: true, driver.PlanningPending, State.PendingRestore is not null);
             if (driver.PlanningPending)
             {
                 State.Status = "Inspecting native transport prerequisites for unconsumed world entries";
@@ -222,8 +217,13 @@ public sealed partial class Ff7AutoPlayPolicy
         {
             throw new NotSupportedException(result.Reason ?? "The current native world movement mechanism has no physical preview contract.");
         }
+        if (TryWaitForWorldPhysicalSearch(State, driver, result, $"World {world.Resources.World}: {selected.EventId}, cooperative planning", Publish))
+        {
+            return default;
+        }
         if (result.Status == Ff7AutoPlayWorldNavigationStatus.Blocked)
         {
+            CommitFrontierInput(State, Story(), controllable: true, driver.PlanningPending, State.PendingRestore is not null);
             string key = observation.VisitId + ":" + selected.EventId + ":physical";
             visited.PhysicalGuards.Add(key);
             if (result.DeferredComponent is { Length: > 0 } component)
@@ -238,17 +238,23 @@ public sealed partial class Ff7AutoPlayPolicy
         }
         if (!result.HasInput)
         {
-            if (driver.PlanningPending)
-            {
-                State.Status = $"World {world.Resources.World}: {selected.EventId}, bounded planning";
-                Publish();
-                return default;
-            }
             throw new NotSupportedException(result.Reason ?? "The bounded native world search did not establish an advancing physical input.");
         }
+        CommitFrontierInput(State, Story(), controllable: true, driver.PlanningPending, State.PendingRestore is not null);
         State.Status = $"World {world.Resources.World}: {selected.EventId}, {result.Status}";
         Publish();
         return result.Input;
+    }
+
+    internal static bool TryWaitForWorldPhysicalSearch(Ff7AutoPlayState state, Ff7AutoplayDriver driver, Ff7AutoPlayWorldNavigationResult result, string status, Action publish)
+    {
+        if (result.HasInput || result.Status != Ff7AutoPlayWorldNavigationStatus.SearchLimited || !driver.PlanningPending || !driver.HasPendingWorldPhysicalSearch)
+        {
+            return false;
+        }
+        state.Status = status;
+        publish();
+        return true;
     }
 
     private (Dictionary<string, string> Facts, string Physical, string Context) RefreshWorldPhysicalAvailability(Ff7WorldRuntime world, Ff7AutoPlayObservation observation)

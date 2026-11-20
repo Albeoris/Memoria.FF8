@@ -1,5 +1,7 @@
 using System.Numerics;
 using System.Text;
+using System.Security.Cryptography;
+using System.Text.Json;
 
 namespace Memoria.FF7.Runtime;
 
@@ -23,15 +25,12 @@ public sealed partial class Ff7AutoplayDriver
     private const int WorldDepth = 0x38000;
     private readonly Queue<Ff7AutoPlayWorldRouteStep> worldRoute = new();
     private readonly Dictionary<string, HashSet<Ff7AutoplayInput>> worldRepeatedInputs = [];
-    private readonly HashSet<(Ff7WorldTerrainReference From, Ff7WorldTerrainReference To)> worldUnproductiveGuideEdges = [];
     private string? worldRouteTarget;
     private string? worldRepeatedTarget;
     private bool worldRouteRearming;
     private Ff7AutoPlayWorldGuide? worldTerrainGuide;
     private Ff7WorldRuntime? worldTerrainGuideOwner;
     private string? worldTerrainGuideContext;
-    private string? worldGuideTrialContext;
-    private string? worldGuideTrialSource;
     internal bool PlanningPending { get; private set; }
 
     internal void BeginPlanningStep() => PlanningPending = false;
@@ -87,31 +86,24 @@ public sealed partial class Ff7AutoplayDriver
         if (worldRepeatedTarget != identity)
         {
             worldRepeatedInputs.Clear();
-            worldUnproductiveGuideEdges.Clear();
             worldRepeatedTarget = identity;
         }
         bool rearming = RequiresWorldTargetRearming(source, target);
         Vector3? guidePoint = null;
-        (Ff7WorldTerrainReference From, Ff7WorldTerrainReference To)? guideEdge = null;
         if (!rearming)
         {
             string context = $"{identity}:{world.ReadAutoPlayNavigationContext()}";
-            if (worldGuideTrialContext != context || worldGuideTrialSource != sourceKey)
-            {
-                worldUnproductiveGuideEdges.Clear();
-                worldGuideTrialContext = context;
-                worldGuideTrialSource = sourceKey;
-            }
+
             int guideIndex = worldTerrainGuide is null ? -1 : Array.FindIndex(worldTerrainGuide.Faces, face => face.Source == source.Input.GroundTriangle);
-            if (!ReferenceEquals(worldTerrainGuideOwner, world) || worldTerrainGuideContext != context || guideIndex < 0)
+            if (!ReferenceEquals(worldTerrainGuideOwner, world) || worldTerrainGuideContext != context || guideIndex < 0 && worldTerrainGuide is not { Limited: true, Faces.Length: 0 })
             {
-                worldTerrainGuide = world.ReadAutoPlayNavigationGuide(target, unproductiveEdges: worldUnproductiveGuideEdges);
+                worldTerrainGuide = world.ReadAutoPlayNavigationGuide(target);
                 worldTerrainGuideOwner = world;
                 worldTerrainGuideContext = context;
                 guideIndex = 0;
             }
             Ff7AutoPlayWorldGuide guide = worldTerrainGuide ?? throw new InvalidOperationException("Native world route guidance was not initialized.");
-            if (guide.Faces.Length == 0)
+            if (guide.Faces.Length == 0 && !guide.Limited)
             {
                 worldRoute.Clear();
                 Ff7AutoPlayWorldNavigationStatus status = guide.Limited ? Ff7AutoPlayWorldNavigationStatus.SearchLimited : guide.DeferredComponent is { Length: > 0 } ? Ff7AutoPlayWorldNavigationStatus.Blocked : Ff7AutoPlayWorldNavigationStatus.Unsupported;
@@ -120,7 +112,6 @@ public sealed partial class Ff7AutoplayDriver
             if (guideIndex + 1 < guide.Faces.Length)
             {
                 guidePoint = guide.Faces[guideIndex + 1].Center;
-                guideEdge = (guide.Faces[guideIndex].Source, guide.Faces[guideIndex + 1].Source);
                 identity += $":guide:{guide.Faces[guideIndex + 1].Source}";
             }
         }
@@ -143,28 +134,19 @@ public sealed partial class Ff7AutoplayDriver
         }
         Vector3[] departureHints = rearming ? ReadWorldDepartureHints(world, source, target.Script) : [];
         worldRepeatedInputs.TryGetValue(positionKey, out HashSet<Ff7AutoplayInput>? repeated);
-        Ff7AutoPlayWorldRoute route = SearchWorldRoute(source, target, (input, state) => world.PreviewAutoPlayInput(input, state), departureHints, nodeBudget, repeated, guidePoint);
+        Ff7AutoPlayWorldRoute route = SearchWorldRoute(source, target, (input, state) => world.PreviewAutoPlayInput(input, state), departureHints, nodeBudget, repeated, guidePoint, (create, quantum) => ResumeWorldPhysicalSearch(ReadWorldPhysicalSearchContext(world, source, identity + "|" + guidePoint), create, quantum, world));
         physicalExpanded = route.Expanded;
-        if (route.Steps.Length == 0 && repeated is { Count: > 0 })
+        if (route.Steps.Length == 0 && route.Status != Ff7AutoPlayWorldNavigationStatus.SearchLimited && repeated is { Count: > 0 })
         {
             repeated.Clear();
             if (physicalExpanded == nodeBudget)
             {
+                SearchWorldRoute(source, target, (input, state) => world.PreviewAutoPlayInput(input, state), departureHints, 0, waypoint: guidePoint, resume: (create, quantum) => ResumeWorldPhysicalSearch(ReadWorldPhysicalSearchContext(world, source, identity + "|" + guidePoint), create, quantum, world));
                 retry = true;
                 return new(Ff7AutoPlayWorldNavigationStatus.SearchLimited, default, physicalExpanded, "Native input preferences were renewed; the bounded physical search remains pending.");
             }
-            route = SearchWorldRoute(source, target, (input, state) => world.PreviewAutoPlayInput(input, state), departureHints, nodeBudget - physicalExpanded, waypoint: guidePoint);
+            route = SearchWorldRoute(source, target, (input, state) => world.PreviewAutoPlayInput(input, state), departureHints, nodeBudget - physicalExpanded, waypoint: guidePoint, resume: (create, quantum) => ResumeWorldPhysicalSearch(ReadWorldPhysicalSearchContext(world, source, identity + "|" + guidePoint), create, quantum, world));
             physicalExpanded += route.Expanded;
-        }
-        if (route.Status == Ff7AutoPlayWorldNavigationStatus.SearchLimited && route.Steps.Length == 0 && guideEdge is { } edge)
-        {
-            if (!worldUnproductiveGuideEdges.Add(edge))
-            {
-                throw new InvalidOperationException("A world guide repeated an unresolved physical transition.");
-            }
-            worldTerrainGuideContext = null;
-            retry = true;
-            return new(Ff7AutoPlayWorldNavigationStatus.SearchLimited, default, physicalExpanded, route.Reason);
         }
         foreach (Ff7AutoPlayWorldRouteStep step in route.Steps)
         {
@@ -198,9 +180,9 @@ public sealed partial class Ff7AutoplayDriver
         return source.Input.TerrainScript == target.Script && target.Faces.Any(face => face.Source == source.Input.GroundTriangle);
     }
 
-    internal static Ff7AutoPlayWorldRoute SearchWorldRoute(Ff7AutoPlayWorldMovementState source, Ff7AutoPlayWorldScriptObservation target, Func<Ff7AutoplayInput, Ff7AutoPlayWorldMovementState, Ff7AutoPlayWorldMovementPreview> preview, IReadOnlyList<Vector3> departureHints, int nodeBudget, IReadOnlySet<Ff7AutoplayInput>? avoidFirst = null, Vector3? waypoint = null)
+    internal static Ff7AutoPlayWorldRoute SearchWorldRoute(Ff7AutoPlayWorldMovementState source, Ff7AutoPlayWorldScriptObservation target, Func<Ff7AutoplayInput, Ff7AutoPlayWorldMovementState, Ff7AutoPlayWorldMovementPreview> preview, IReadOnlyList<Vector3> departureHints, int nodeBudget, IReadOnlySet<Ff7AutoplayInput>? avoidFirst = null, Vector3? waypoint = null, Func<Func<WorldPhysicalSearchCursor>, int, Ff7AutoPlayWorldRoute>? resume = null)
     {
-        ArgumentOutOfRangeException.ThrowIfLessThan(nodeBudget, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(nodeBudget, resume is null ? 1 : 0);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(nodeBudget, 16384);
         bool rearming = RequiresWorldTargetRearming(source, target);
         double Distance(Ff7AutoPlayWorldMovementState state)
@@ -219,78 +201,163 @@ public sealed partial class Ff7AutoplayDriver
         {
             return rearming ? step.State!.Input.TerrainScript != target.Script && (step.TerrainBoundary is null || step.TerrainBoundary.Inert) : TargetBoundary(step) || RequiresWorldTargetRearming(step.State!, target);
         }
-        return SearchWorldPhysicalRoute(source, preview, Distance, Admit, Reached, nodeBudget, avoidFirst, rearming ? Ff7AutoPlayWorldNavigationStatus.Rearming : Ff7AutoPlayWorldNavigationStatus.Step);
+        return SearchWorldPhysicalRoute(source, preview, Distance, Admit, Reached, nodeBudget, avoidFirst, rearming ? Ff7AutoPlayWorldNavigationStatus.Rearming : Ff7AutoPlayWorldNavigationStatus.Step, resume: resume);
     }
 
-    private static Ff7AutoPlayWorldRoute SearchWorldPhysicalRoute(Ff7AutoPlayWorldMovementState source, Func<Ff7AutoplayInput, Ff7AutoPlayWorldMovementState, Ff7AutoPlayWorldMovementPreview> preview, Func<Ff7AutoPlayWorldMovementState, double> distanceToTarget, Func<Ff7AutoPlayWorldMovementPreview, bool> admit, Func<Ff7AutoPlayWorldMovementPreview, bool> reachedTarget, int nodeBudget, IReadOnlySet<Ff7AutoplayInput>? avoidFirst = null, Ff7AutoPlayWorldNavigationStatus success = Ff7AutoPlayWorldNavigationStatus.Step, ushort held = 0)
+    private WorldPhysicalSearchCursor? worldPhysicalSearch;
+    private string? worldPhysicalSearchContext;
+    private object? worldPhysicalSearchOwner;
+    internal bool HasPendingWorldPhysicalSearch => worldPhysicalSearch is { FrontierCount: > 0 };
+
+    private string ReadWorldPhysicalSearchContext(Ff7WorldRuntime world, Ff7AutoPlayWorldMovementState source, string goal)
     {
-        ArgumentOutOfRangeException.ThrowIfLessThan(nodeBudget, 1);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(nodeBudget, 16384);
-        string initial = WorldMovementKey(source);
-        string initialSearch = WorldSearchKey(source);
-        List<WorldSearchNode> nodes = [new(source, initial, initialSearch, -1, default, null, null, 0, distanceToTarget(source))];
-        Dictionary<string, double> costs = new(StringComparer.Ordinal) { [initialSearch] = 0 };
-        PriorityQueue<int, (double Score, double Distance, int Order)> open = new();
-        open.Enqueue(0, (nodes[0].Distance, nodes[0].Distance, 0));
-        int expanded = 0;
-        int best = -1;
-        string? unsupported = null;
-        while (open.TryDequeue(out int current, out _) && expanded < nodeBudget)
+        Ff7WorldProcess process = world.Process;
+        return Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new
         {
-            WorldSearchNode node = nodes[current];
-            if (costs[node.SearchKey] != node.Cost)
+            Goal = goal,
+            Source = source,
+            Context = world.ReadAutoPlayNavigationContext(),
+            process.Tick,
+            process.Vm,
+            process.Entities,
+            process.Vehicle,
+            process.Chocobo,
+            process.Snow,
+            process.Marsh
+        })));
+    }
+
+    internal Ff7AutoPlayWorldRoute ResumeWorldPhysicalSearch(string context, Func<WorldPhysicalSearchCursor> create, int quantum, object? owner = null)
+    {
+        if (!ReferenceEquals(worldPhysicalSearchOwner, owner) || worldPhysicalSearchContext != context || worldPhysicalSearch is null)
+        {
+            worldPhysicalSearch = create();
+            worldPhysicalSearchContext = context;
+            worldPhysicalSearchOwner = owner;
+        }
+        long before = worldPhysicalSearch.Expanded;
+        Ff7AutoPlayWorldRoute result = worldPhysicalSearch.Resume(quantum);
+        PhysicalPlanningWork += worldPhysicalSearch.Expanded - before;
+        PlanningPending = result.Status == Ff7AutoPlayWorldNavigationStatus.SearchLimited && result.Steps.Length == 0;
+        if (!PlanningPending)
+        {
+            worldPhysicalSearch = null;
+            worldPhysicalSearchContext = null;
+            worldPhysicalSearchOwner = null;
+        }
+        return result;
+    }
+
+    private static Ff7AutoPlayWorldRoute SearchWorldPhysicalRoute(Ff7AutoPlayWorldMovementState source, Func<Ff7AutoplayInput, Ff7AutoPlayWorldMovementState, Ff7AutoPlayWorldMovementPreview> preview, Func<Ff7AutoPlayWorldMovementState, double> distanceToTarget, Func<Ff7AutoPlayWorldMovementPreview, bool> admit, Func<Ff7AutoPlayWorldMovementPreview, bool> reachedTarget, int nodeBudget, IReadOnlySet<Ff7AutoplayInput>? avoidFirst = null, Ff7AutoPlayWorldNavigationStatus success = Ff7AutoPlayWorldNavigationStatus.Step, ushort held = 0, Func<Func<WorldPhysicalSearchCursor>, int, Ff7AutoPlayWorldRoute>? resume = null)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(nodeBudget, resume is null ? 1 : 0);
+        WorldPhysicalSearchCursor Create() => new(source, preview, distanceToTarget, admit, reachedTarget, avoidFirst, success, held);
+        return resume is null ? Create().Resume(nodeBudget) : resume(Create, nodeBudget);
+    }
+
+    internal sealed class WorldPhysicalSearchCursor
+    {
+        private readonly Func<Ff7AutoplayInput, Ff7AutoPlayWorldMovementState, Ff7AutoPlayWorldMovementPreview> preview;
+        private readonly Func<Ff7AutoPlayWorldMovementState, double> distanceToTarget;
+        private readonly Func<Ff7AutoPlayWorldMovementPreview, bool> admit;
+        private readonly Func<Ff7AutoPlayWorldMovementPreview, bool> reachedTarget;
+        private readonly HashSet<Ff7AutoplayInput>? avoidFirst;
+        private readonly Ff7AutoPlayWorldNavigationStatus success;
+        private readonly ushort held;
+        private readonly List<WorldSearchNode> nodes;
+        private readonly Dictionary<string, double> costs;
+        private readonly PriorityQueue<int, (double Score, double Distance, int Order)> open = new();
+        private int best = -1;
+        private string? unsupported;
+        private Ff7AutoPlayWorldRoute? terminal;
+        internal long Expanded { get; private set; }
+        internal int FrontierCount => open.Count;
+        internal int VisitedCount => costs.Count;
+
+        internal WorldPhysicalSearchCursor(Ff7AutoPlayWorldMovementState source, Func<Ff7AutoplayInput, Ff7AutoPlayWorldMovementState, Ff7AutoPlayWorldMovementPreview> preview, Func<Ff7AutoPlayWorldMovementState, double> distanceToTarget, Func<Ff7AutoPlayWorldMovementPreview, bool> admit, Func<Ff7AutoPlayWorldMovementPreview, bool> reachedTarget, IReadOnlySet<Ff7AutoplayInput>? avoidFirst = null, Ff7AutoPlayWorldNavigationStatus success = Ff7AutoPlayWorldNavigationStatus.Step, ushort held = 0)
+        {
+            this.preview = preview;
+            this.distanceToTarget = distanceToTarget;
+            this.admit = admit;
+            this.reachedTarget = reachedTarget;
+            this.avoidFirst = avoidFirst?.ToHashSet();
+            this.success = success;
+            this.held = held;
+            string key = WorldMovementKey(source);
+            string searchKey = WorldSearchKey(source);
+            nodes = [new(source, key, searchKey, -1, default, null, null, 0, distanceToTarget(source))];
+            costs = new(StringComparer.Ordinal) { [searchKey] = 0 };
+            open.Enqueue(0, (nodes[0].Distance, nodes[0].Distance, 0));
+        }
+
+        internal Ff7AutoPlayWorldRoute Resume(int nodeBudget)
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThan(nodeBudget, 0);
+            ArgumentOutOfRangeException.ThrowIfGreaterThan(nodeBudget, 16384);
+            if (terminal is not null)
             {
-                continue;
+                return terminal with { Expanded = 0 };
             }
-            expanded++;
-            foreach (Ff7AutoplayInput input in WorldNavigationInputs(held))
+            int expanded = 0;
+            while (expanded < nodeBudget && open.TryDequeue(out int current, out _))
             {
-                if (current == 0 && avoidFirst?.Contains(input) == true)
+                WorldSearchNode node = nodes[current];
+                if (costs[node.SearchKey] != node.Cost)
                 {
                     continue;
                 }
-                Ff7AutoPlayWorldMovementPreview step = preview(input, node.State);
-                if (!step.Supported || step.State is null)
+                expanded++;
+                Expanded++;
+                foreach (Ff7AutoplayInput input in WorldNavigationInputs(held))
                 {
-                    unsupported ??= step.Reason;
-                    continue;
-                }
-                if (!admit(step))
-                {
-                    continue;
-                }
-                string key = WorldMovementKey(step.State);
-                string searchKey = WorldSearchKey(step.State);
-                double cost = node.Cost + Math.Max(1, WorldPointDistance(node.State.Player, new(step.State.Player.X, step.State.Player.Y, step.State.Player.Z)));
-                bool reached = reachedTarget(step);
-                if (!reached && costs.TryGetValue(searchKey, out double prior) && prior <= cost)
-                {
-                    continue;
-                }
-                double distance = distanceToTarget(step.State);
-                int index = nodes.Count;
-                nodes.Add(new(step.State, key, searchKey, current, input, step.TerrainBoundary, step.ModelBoundaries, cost, distance));
-                if (reached)
-                {
-                    return new(success, ReconstructWorldRoute(nodes, index), expanded, null);
-                }
-                costs[searchKey] = cost;
-                open.Enqueue(index, (cost + distance, distance, index));
-                if (step.Moved && distance < nodes[0].Distance && (best < 0 || distance < nodes[best].Distance || distance == nodes[best].Distance && cost < nodes[best].Cost))
-                {
-                    best = index;
+                    if (current == 0 && avoidFirst?.Contains(input) == true)
+                    {
+                        continue;
+                    }
+                    Ff7AutoPlayWorldMovementPreview step = preview(input, node.State);
+                    if (!step.Supported || step.State is null)
+                    {
+                        unsupported ??= step.Reason;
+                        continue;
+                    }
+                    if (!admit(step))
+                    {
+                        continue;
+                    }
+                    string key = WorldMovementKey(step.State);
+                    string searchKey = WorldSearchKey(step.State);
+                    double cost = node.Cost + Math.Max(1, WorldPointDistance(node.State.Player, new(step.State.Player.X, step.State.Player.Y, step.State.Player.Z)));
+                    bool reached = reachedTarget(step);
+                    if (!reached && costs.TryGetValue(searchKey, out double prior) && prior <= cost)
+                    {
+                        continue;
+                    }
+                    double distance = distanceToTarget(step.State);
+                    int index = nodes.Count;
+                    nodes.Add(new(step.State, key, searchKey, current, input, step.TerrainBoundary, step.ModelBoundaries, cost, distance));
+                    if (reached)
+                    {
+                        terminal = new(success, ReconstructWorldRoute(nodes, index), expanded, null);
+                        return terminal;
+                    }
+                    costs[searchKey] = cost;
+                    open.Enqueue(index, (cost + distance, distance, index));
+                    if (step.Moved && distance < nodes[0].Distance && (best < 0 || distance < nodes[best].Distance || distance == nodes[best].Distance && cost < nodes[best].Cost))
+                    {
+                        best = index;
+                    }
                 }
             }
+
+            if (open.Count == 0)
+            {
+                terminal = new(unsupported is null ? Ff7AutoPlayWorldNavigationStatus.Blocked : Ff7AutoPlayWorldNavigationStatus.Unsupported, [], expanded, unsupported ?? "No distinct admissible native step remains in the explored physical state graph.");
+                return terminal;
+            }
+            return best >= 0
+                ? new(Ff7AutoPlayWorldNavigationStatus.SearchLimited, ReconstructWorldRoute(nodes, best), expanded, "An admitted partial route is available; the goal is not yet proved reachable.")
+                : new(Ff7AutoPlayWorldNavigationStatus.SearchLimited, [], expanded, "The cooperative native physical search remains pending.");
         }
-        if (expanded >= nodeBudget && best >= 0)
-        {
-            return new(Ff7AutoPlayWorldNavigationStatus.SearchLimited, ReconstructWorldRoute(nodes, best), expanded, "The bounded native search admitted a partial route; the goal is not yet proved reachable.");
-        }
-        if (expanded >= nodeBudget)
-        {
-            return new(Ff7AutoPlayWorldNavigationStatus.SearchLimited, [], expanded, "The native search budget ended before an advancing route was proved.");
-        }
-        return new(unsupported is null ? Ff7AutoPlayWorldNavigationStatus.Blocked : Ff7AutoPlayWorldNavigationStatus.Unsupported, [], expanded, unsupported ?? "No distinct admissible native step remains in the explored physical state graph.");
     }
 
     private static Ff7AutoPlayWorldRouteStep[] ReconstructWorldRoute(IReadOnlyList<WorldSearchNode> nodes, int index)

@@ -63,12 +63,12 @@ public sealed partial class Ff7AutoplayDriver
         }
         Ff7AutoPlayWorldRoute Search(int budget, IReadOnlySet<Ff7AutoplayInput>? avoidFirst)
         {
-            return SearchWorldPhysicalRoute(source, (input, state) => world.PreviewAutoPlayInput(input, state), state => WorldPointDistance(state.Player, waypoint.Center), Admit, Reached, budget, avoidFirst);
+            return SearchWorldPhysicalRoute(source, (input, state) => world.PreviewAutoPlayInput(input, state), state => WorldPointDistance(state.Player, waypoint.Center), Admit, Reached, budget, avoidFirst, resume: (create, quantum) => ResumeWorldPhysicalSearch(ReadWorldPhysicalSearchContext(world, source, identity), create, quantum, world));
         }
         worldRepeatedInputs.TryGetValue(positionKey, out HashSet<Ff7AutoplayInput>? repeated);
         Ff7AutoPlayWorldRoute route = Search(nodeBudget, repeated);
         int expanded = route.Expanded;
-        if (route.Steps.Length == 0 && repeated is { Count: > 0 })
+        if (route.Steps.Length == 0 && route.Status != Ff7AutoPlayWorldNavigationStatus.SearchLimited && repeated is { Count: > 0 })
         {
             repeated.Clear();
             if (expanded < nodeBudget)
@@ -78,7 +78,7 @@ public sealed partial class Ff7AutoplayDriver
             }
             else
             {
-                PlanningPending = true;
+                Search(0, null);
             }
         }
         foreach (Ff7AutoPlayWorldRouteStep step in route.Steps)
