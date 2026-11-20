@@ -13,6 +13,32 @@ internal sealed class Ff7AutoPlayNativeReadiness
     private int repeatedObservations;
     private int totalObservations;
 
+    internal static bool HasFiniteCameraScroll(Ff7FieldProcess process)
+    {
+        return process.GlobalCommand == Ff7GlobalCommand.None && process.Transition is null && process.Join is null && process.Movie is not { Playing: true } && process.CameraTracking is not { Completed: false } && process.CameraScroll is { Completed: false, Mode: 5 or 6, Steps: > 0, Step: >= 0 } scroll && scroll.Step <= scroll.Steps;
+    }
+
+    internal bool ShouldWaitForCameraCompletion(long generation, string source, FieldVmSnapshot vm, Ff7FieldProcess process, ReadOnlySpan<byte> script)
+    {
+        if (!HasFiniteCameraScroll(process))
+        {
+            return false;
+        }
+        foreach (FieldHostRequest request in vm.PendingRequests ?? [])
+        {
+            if (request.Command is not FieldCameraCommand { Operation: FieldCameraOperation.Wait } || (uint)request.Entity >= vm.Entities.Length)
+            {
+                continue;
+            }
+            FieldEntitySnapshot owner = vm.Entities[request.Entity];
+            if (owner.Priority == request.Priority && owner.ProgramCounter == request.ProgramCounter && HasAdmittedContinuation(owner, script) && script[owner.ProgramCounter] == 0x67)
+            {
+                return ObserveWork(generation, $"{source}:camera-wait:{request.Entity}:{request.Priority}:{request.ProgramCounter}", vm, process, [request.Entity], includeCamera: true);
+            }
+        }
+        return false;
+    }
+
     public bool ShouldWaitForNavigationPreparation(long generation, string navigationKey, FieldVmSnapshot vm, Ff7FieldProcess process, ReadOnlySpan<byte> script, Func<int, int, FieldScriptAnalysis> analyze)
     {
         HashSet<int> work = [];

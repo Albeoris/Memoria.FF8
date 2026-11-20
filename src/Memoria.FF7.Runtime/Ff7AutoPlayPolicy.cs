@@ -16,6 +16,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
     private readonly Dictionary<(string Visit, string Event), int> nativeDestinationHints = [];
     private readonly Ff7AutoPlayNativeReadiness nativeReadiness = new();
     private readonly Ff7AutoPlayNativeReadiness navigationPreparation = new();
+    private readonly Ff7AutoPlayNativeReadiness cameraCompletion = new();
     private string? movementEvent;
     private string? ordinaryLegIdentity;
     private (int X, int Y, int Z)? ordinaryLegStart;
@@ -234,6 +235,14 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             controllable = true;
             State.Status = $"Native input {scriptedInput.CurrentDemand?.Identity}";
             return nativeInput;
+        }
+        if (Ff7AutoPlayNativeReadiness.HasFiniteCameraScroll(session.Host.Process) && cameraCompletion.ShouldWaitForCameraCompletion(session.FieldGeneration, session.Field.Name, session.Machine.Capture(), session.Host.Process, session.Field.Scripts.Data.Span))
+        {
+            CancelNativePlanning("native-camera-completion");
+            driver.BeginPlanningStep();
+            State.Status = "Waiting for an owned native camera completion";
+            Publish();
+            return default;
         }
         RetainTempleReturnDestination();
         Ff7AutoPlayObservation observation = ObservePlanner();

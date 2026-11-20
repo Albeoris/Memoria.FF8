@@ -3,6 +3,18 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-camera-completion-only", StringComparer.Ordinal))
+{
+    NativeCameraCompletionTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-camera-completion-original-only", StringComparer.Ordinal))
+{
+    NativeCameraCompletionTests.RunOriginal();
+    return 0;
+}
+
 if (args.Contains("--native-gateway-semantic-original-only", StringComparer.Ordinal))
 {
     NativeGatewayBoundaryTests.RunSemanticOriginal();
