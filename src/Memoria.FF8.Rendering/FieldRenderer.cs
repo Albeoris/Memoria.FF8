@@ -94,6 +94,7 @@ public sealed partial class FieldRenderer
     }
 
     public ITriangleRenderer? TriangleRenderer { get; set; }
+    public Rgba32 ClearColor { get; init; } = new(0, 0, 0, 255);
 
     public int OutputWidth { get; }
     public int OutputHeight { get; }
@@ -176,11 +177,11 @@ public sealed partial class FieldRenderer
         camera = InspectionCamera ?? camera;
         if (TriangleRenderer is not null)
         {
-            TriangleRenderer.Begin(OutputWidth, OutputHeight, new Vector4(0, 0, 0, 1));
+            TriangleRenderer.Begin(OutputWidth, OutputHeight, new Vector4(ClearColor.R, ClearColor.G, ClearColor.B, ClearColor.A) / 255);
         }
         else
         {
-            MemoryMarshal.Cast<byte, uint>(pixels.AsSpan()).Fill(BitConverter.IsLittleEndian ? 0xFF000000u : 0x000000FFu);
+            MemoryMarshal.Cast<byte, Rgba32>(pixels.AsSpan()).Fill(ClearColor);
             Array.Fill(depth, float.PositiveInfinity);
         }
         PrepareLighting(preparedActors);

@@ -2,6 +2,7 @@ using System.Numerics;
 using System.Runtime.InteropServices;
 using Albeoris.Games.FF8.Imaging;
 using Memoria.FF8.Assets;
+using Memoria.FF8.GameUi;
 using Memoria.FF8.Mods;
 using Memoria.FF8.Rendering;
 
@@ -120,21 +121,46 @@ internal static partial class CatalogPreviewPresentation
         }
     }
 
+    public static ModelPreviewCamera CreateModelCamera(float yaw = 0.4f)
+    {
+        ModelPreviewCamera camera = new();
+        camera.SetView(yaw, 0.13f);
+        return camera;
+    }
+
     public static ModPreviewComparison DrawModels(ModPreviewComparison comparison, float yaw, float seconds)
     {
-        ModelPreviewBounds? framing = comparison is { Before.Model: { } before, After.Model: { } after }
-            ? ModelPreviewRenderer.Measure(before).Union(ModelPreviewRenderer.Measure(after))
-            : null;
+        return DrawModels(comparison, CreateModelCamera(yaw), seconds);
+    }
+
+    public static ModPreviewComparison DrawModels(ModPreviewComparison comparison, ModelPreviewCamera camera, float seconds)
+    {
+        ModelPreviewBounds? before = Measure(comparison.Before);
+        ModelPreviewBounds? after = Measure(comparison.After);
+        ModelPreviewBounds? framing = before is { } first && after is { } second ? first.Union(second) : before ?? after;
         return comparison with { Before = DrawSide(comparison.Before), After = DrawSide(comparison.After) };
+
+        static ModelPreviewBounds? Measure(ModPreviewSide side)
+        {
+            if (side.FieldModel is { } field)
+            {
+                return ModelPreviewRenderer.Measure(field, side.FieldAnimation);
+            }
+            return side.Model is { } model ? ModelPreviewRenderer.Measure(model) : null;
+        }
 
         ModPreviewSide DrawSide(ModPreviewSide side)
         {
+            if (side.FieldModel is { } field)
+            {
+                return side with { Image = ModelPreviewRenderer.RenderFieldModel(field, camera, side.FieldAnimation, seconds, framing!.Value) };
+            }
             if (side.Model is not { } model)
             {
                 return side;
             }
             PreviewRaster raster = new();
-            ModelPreviewRenderer.Render(raster, model, 480, 360, yaw, 0.13f, 1, seconds, framing: framing);
+            ModelPreviewRenderer.Render(raster, model, 480, 360, camera, seconds, framing: framing);
             return side with { Image = raster.Image };
         }
     }

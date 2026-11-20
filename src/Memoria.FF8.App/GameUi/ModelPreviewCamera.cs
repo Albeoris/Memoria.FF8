@@ -19,6 +19,15 @@ public sealed class ModelPreviewCamera
     public float Pitch { get; private set; }
     public float Yaw { get; private set; }
 
+    internal ModelPreviewCamera Snapshot() => new()
+    {
+        Orientation = Orientation,
+        Pan = Pan,
+        Zoom = Zoom,
+        Pitch = Pitch,
+        Yaw = Yaw
+    };
+
     public void Rotate(float horizontal, float vertical, float roll = 0)
     {
         if (!float.IsFinite(horizontal) || !float.IsFinite(vertical) || !float.IsFinite(roll))
@@ -37,6 +46,11 @@ public sealed class ModelPreviewCamera
         {
             Pan += new Vector2(horizontal, vertical);
         }
+    }
+
+    public void Orbit(float horizontal, float vertical)
+    {
+        SetView(Yaw + horizontal, Math.Clamp(Pitch + vertical, -MathF.PI / 2, MathF.PI / 2));
     }
 
     public void ZoomBy(float factor)

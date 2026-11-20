@@ -123,16 +123,11 @@ public static partial class ModPreviewResources
         FieldModel model = modelField.Models[actor.Model.ModelId];
         int? original = profile.ResolveFieldActorModel?.Invoke(field, id);
         FieldModel? originalModel = original is int originalId && (uint)originalId < field.Models.Count ? field.Models[originalId] : null;
-        EditableModel replacement = ModelExchange.FromField(model);
-        if ((uint)actor.AnimationId < replacement.Animations.Count)
-        {
-            replacement = replacement with { Animations = [replacement.Animations[actor.AnimationId], .. replacement.Animations.Where((_, index) => index != actor.AnimationId)] };
-        }
         string condition = actor.When is { } required ? $"\nBackground module {required.ModuleId}, state {required.State}" : string.Empty;
         string direction = actor.Direction is float facing ? $"\nDirection {facing * 360 / 256:g}°" : string.Empty;
         string originalText = originalModel is null ? "Model and animation selected by the field script" : $"{originalModel.Name}\nAnimations selected by the field script";
-        return new(new($"Object {id}\n{originalText}") { Model = originalModel is null ? null : ModelExchange.FromField(originalModel) },
-            new($"Object {id}\n{model.Name} from {modelField.Name}\nAnimation {actor.AnimationId} · {frames} frames{direction}{condition}") { Model = replacement });
+        return new(new($"Object {id}\n{originalText}") { FieldModel = originalModel },
+            new($"Object {id}\n{model.Name} from {modelField.Name}\nAnimation {actor.AnimationId} · {frames} frames{direction}{condition}") { FieldModel = model, FieldAnimation = actor.AnimationId });
     }
 
     private static IEnumerable<(int Module, int State)> AuthoredFieldStates(FieldScenePatch patch) =>

@@ -472,7 +472,7 @@ public sealed partial class MenuController
                 interaction[0].Enabled = menus.modPreviewTextRow > 0;
                 interaction[1].Enabled = menus.modPreviewTextRow + 1 < text.TextRows.Count;
             }
-            else if (menus.modPreviewResult is { Before.Model: not null } or { After.Model: not null })
+            else if (menus.modPreviewResult is { Before.HasModel: true } or { After.HasModel: true })
             {
                 AddControl("Rotate left", () => menus.RotatePreviewModels(-0.35f, 0));
                 AddControl("Next pose", () => menus.RotatePreviewModels(0, 0.15f));

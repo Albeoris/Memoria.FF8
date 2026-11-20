@@ -22,6 +22,9 @@ public sealed record ModPreviewEntry(string Id, string Category, string Group, s
 public sealed record ModPreviewSide(string Text, PixelImage? Image = null)
 {
     public EditableModel? Model { get; init; }
+    public FieldModel? FieldModel { get; init; }
+    public int FieldAnimation { get; init; }
+    public bool HasModel => FieldModel is not null || Model is not null;
     public bool CanUseItem { get; init; }
 }
 
@@ -705,6 +708,10 @@ public sealed class ModPreviewDocument
         ResourceService afterResources = new(afterSource, profile.Language);
         afterResources.Prepare(null, encodedResources: encoded).Commit();
         using GameAssets afterAssets = new(profile.GameDirectory, resources: afterResources);
+        if (entry.Category == "Field")
+        {
+            return new(new(entry.Name) { FieldModel = beforeAssets.LoadFieldModelSource(entry) }, new(entry.Name) { FieldModel = afterAssets.LoadFieldModelSource(entry) });
+        }
         return new(new(entry.Name) { Model = beforeAssets.LoadCatalogModel(entry) }, new(entry.Name) { Model = afterAssets.LoadCatalogModel(entry) });
     }
 
@@ -729,6 +736,12 @@ public sealed class ModPreviewDocument
         EditableModel original;
         if (variant.Bank == "embedded")
         {
+            if (entry.Category == "Field")
+            {
+                FieldModel fieldModel = assets.LoadFieldModelSource(entry);
+                EditableModel replacement = models.Load(variant, ModelExchange.FromField(fieldModel));
+                return new(new(entry.Name) { FieldModel = fieldModel }, new(entry.Name) { FieldModel = ModelExchange.ToField(replacement, fieldModel) });
+            }
             original = assets.LoadCatalogModel(entry);
         }
         else

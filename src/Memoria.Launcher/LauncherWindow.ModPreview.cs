@@ -10,6 +10,7 @@ using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Threading;
+using Memoria.FF8.GameUi;
 using Memoria.FF8.Mods;
 using Memoria.FF8;
 using Vector3 = System.Numerics.Vector3;
@@ -43,8 +44,13 @@ internal sealed partial class LauncherWindow
         List<Image> comparisonImages = [];
         CatalogPreviewPresentation.WorldComparison? world = null;
         ModPreviewComparison? current = null;
-        float yaw = 0.4f;
+        ModelPreviewCamera camera = CatalogPreviewPresentation.CreateModelCamera();
         float pose = 0;
+        bool modelRenderPending = false;
+        Image? beforeModelImage = null;
+        Image? afterModelImage = null;
+        IPointer? modelDragPointer = null;
+        Point modelDragPosition = default;
         LauncherCatalogPreviewPlayer? player = null;
         List<Task> retiredPlayers = [];
         HashSet<PhysicalKey> movementKeys = [];
@@ -147,6 +153,7 @@ internal sealed partial class LauncherWindow
             StopMovement();
             lifetime.Cancel();
             selection?.Cancel();
+            EndModelDrag();
             world?.Dispose();
             world = null;
             RetirePlayer();
@@ -184,9 +191,9 @@ internal sealed partial class LauncherWindow
                 selection?.Cancel();
                 world?.Dispose();
                 world = null;
-                current = null;
-                yaw = 0.4f;
+                camera = CatalogPreviewPresentation.CreateModelCamera();
                 pose = 0;
+                modelRenderPending = false;
                 RetirePlayer();
                 interaction.Children.Clear();
                 flightHelp.IsVisible = false;
@@ -242,11 +249,11 @@ internal sealed partial class LauncherWindow
                             AddInteraction("South", token => readyWorld.RenderAsync(0, 900, token));
                             AddInteraction("East", token => readyWorld.RenderAsync(900, 0, token));
                         }
-                        else if (result.Before.Model is not null)
+                        else if (result.Before.HasModel || result.After.HasModel)
                         {
-                            AddInteraction("Rotate left", token => MoveModel(-0.35f, 0, token));
-                            AddInteraction("Next pose", token => MoveModel(0, 0.15f, token));
-                            AddInteraction("Rotate right", token => MoveModel(0.35f, 0, token));
+                            AddModelInteraction("Rotate left", () => camera.Orbit(-0.35f, 0));
+                            AddModelInteraction("Next pose", () => pose += 0.15f);
+                            AddModelInteraction("Rotate right", () => camera.Orbit(0.35f, 0));
                         }
                     }
                 }
@@ -283,14 +290,166 @@ internal sealed partial class LauncherWindow
             await Task.WhenAll(retiredPlayers);
         }
 
-        Task<ModPreviewComparison> MoveModel(float turn, float step, CancellationToken token)
+        void AddModelInteraction(string label, Action changeCameraOrPose)
         {
-            yaw = MathF.IEEERemainder(yaw + turn, MathF.Tau);
-            pose += step;
-            ModPreviewComparison pair = current!;
-            float angle = yaw;
-            float seconds = pose;
-            return Task.Run(() => CatalogPreviewPresentation.DrawModels(pair, angle, seconds), token);
+            Button button = new() { Content = label };
+            interaction.Children.Add(button);
+            button.Click += (_, _) =>
+            {
+                changeCameraOrPose();
+                QueueModelRender();
+            };
+        }
+
+        void QueueModelRender()
+        {
+            modelRenderPending = true;
+            if (selection is null && current is { } pair && !lifetime.IsCancellationRequested)
+            {
+                _ = RenderModelChangesAsync(pair);
+            }
+        }
+
+        async Task RenderModelChangesAsync(ModPreviewComparison pair)
+        {
+            using CancellationTokenSource requested = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
+            selection = requested;
+            try
+            {
+                while (modelRenderPending && !requested.IsCancellationRequested)
+                {
+                    modelRenderPending = false;
+                    ModelPreviewCamera view = camera.Snapshot();
+                    float seconds = pose;
+                    ModPreviewComparison frame = await Task.Run(() => CatalogPreviewPresentation.DrawModels(pair, view, seconds), requested.Token);
+                    if (!requested.IsCancellationRequested)
+                    {
+                        UpdateModelImage(beforeModelImage, frame.Before);
+                        UpdateModelImage(afterModelImage, frame.After);
+                    }
+                }
+            }
+            catch (OperationCanceledException) when (requested.IsCancellationRequested)
+            {
+            }
+            catch (Exception error) when (error is IOException or InvalidDataException or InvalidOperationException or NotSupportedException or ArgumentException)
+            {
+                if (!requested.IsCancellationRequested)
+                {
+                    ShowMessage(error.Message);
+                }
+            }
+            finally
+            {
+                if (ReferenceEquals(selection, requested))
+                {
+                    selection = null;
+                }
+            }
+        }
+
+        void UpdateModelImage(Image? image, ModPreviewSide side)
+        {
+            if (image is null || side.Image is not { } pixels)
+            {
+                return;
+            }
+            UpdateImage(image, pixels);
+        }
+
+        void EnableModelNavigation(Image image)
+        {
+            ToolTip.SetTip(image, "Middle drag to orbit · Shift + middle drag to pan · Ctrl + middle drag or mouse wheel to zoom");
+            image.PointerPressed += (_, args) =>
+            {
+                PointerPoint point = args.GetCurrentPoint(image);
+                if (point.Properties.PointerUpdateKind == PointerUpdateKind.MiddleButtonPressed && modelDragPointer is null)
+                {
+                    modelDragPosition = point.Position;
+                    modelDragPointer = args.Pointer;
+                    args.Pointer.Capture(image);
+                    args.Handled = true;
+                }
+            };
+            image.PointerMoved += (_, args) =>
+            {
+                if (args.Pointer != modelDragPointer)
+                {
+                    return;
+                }
+                PointerPoint point = args.GetCurrentPoint(image);
+                if (!point.Properties.IsMiddleButtonPressed)
+                {
+                    EndModelDrag();
+                    return;
+                }
+                Vector delta = point.Position - modelDragPosition;
+                modelDragPosition = point.Position;
+                args.Handled = true;
+                if (delta.X == 0 && delta.Y == 0)
+                {
+                    return;
+                }
+                if ((args.KeyModifiers & KeyModifiers.Control) != 0)
+                {
+                    if (delta.Y == 0)
+                    {
+                        return;
+                    }
+                    camera.ZoomBy(MathF.Exp((float)(-delta.Y * 0.01)));
+                }
+                else if ((args.KeyModifiers & KeyModifiers.Shift) != 0)
+                {
+                    if (image.Source is not WriteableBitmap bitmap)
+                    {
+                        return;
+                    }
+                    PixelSize size = bitmap.PixelSize;
+                    double scale = Math.Min(image.Bounds.Width / size.Width, image.Bounds.Height / size.Height);
+                    double shortEdge = Math.Min(size.Width, size.Height) * scale;
+                    if (shortEdge <= 0)
+                    {
+                        return;
+                    }
+                    camera.PanBy((float)(delta.X / shortEdge), (float)(delta.Y / shortEdge));
+                }
+                else
+                {
+                    camera.Orbit((float)(delta.X * 0.01), (float)(delta.Y * 0.01));
+                }
+                QueueModelRender();
+            };
+            image.PointerReleased += (_, args) =>
+            {
+                if (args.Pointer == modelDragPointer && !args.GetCurrentPoint(image).Properties.IsMiddleButtonPressed)
+                {
+                    EndModelDrag();
+                    args.Handled = true;
+                }
+            };
+            image.PointerCaptureLost += (_, args) =>
+            {
+                if (args.Pointer == modelDragPointer)
+                {
+                    modelDragPointer = null;
+                }
+            };
+            image.PointerWheelChanged += (_, args) =>
+            {
+                if (args.Delta.Y != 0)
+                {
+                    camera.ZoomBy(MathF.Pow(1.2f, (float)args.Delta.Y));
+                    args.Handled = true;
+                    QueueModelRender();
+                }
+            };
+        }
+
+        void EndModelDrag()
+        {
+            IPointer? pointer = modelDragPointer;
+            modelDragPointer = null;
+            pointer?.Capture(null);
         }
 
         void RetirePlayer()
@@ -365,6 +524,10 @@ internal sealed partial class LauncherWindow
 
         void ClearComparison()
         {
+            EndModelDrag();
+            current = null;
+            beforeModelImage = null;
+            afterModelImage = null;
             comparison.Children.Clear();
             foreach (Image image in comparisonImages)
             {
@@ -382,18 +545,19 @@ internal sealed partial class LauncherWindow
 
         void ShowComparison(ModPreviewComparison result)
         {
-            current = result;
             if (world is not null && comparisonImages.Count == 2 && result is { Before.Image: { } original, After.Image: { } modded })
             {
+                current = result;
                 UpdateImage(comparisonImages[0], original);
                 UpdateImage(comparisonImages[1], modded);
                 return;
             }
             ClearComparison();
+            current = result;
             comparison.ColumnDefinitions = new ColumnDefinitions("*,*");
             comparison.ColumnSpacing = 12;
-            Control before = CreateSide("Before", result.Before);
-            Control after = CreateSide("After", result.After);
+            Control before = CreateSide("Before", result.Before, out beforeModelImage);
+            Control after = CreateSide("After", result.After, out afterModelImage);
             Grid.SetColumn(after, 1);
             comparison.Children.Add(before);
             comparison.Children.Add(after);
@@ -406,8 +570,9 @@ internal sealed partial class LauncherWindow
             previous?.Dispose();
         }
 
-        Control CreateSide(string label, ModPreviewSide side)
+        Control CreateSide(string label, ModPreviewSide side, out Image? modelImage)
         {
+            modelImage = null;
             Grid pane = new() { RowDefinitions = new RowDefinitions("Auto,Auto,*,Auto"), RowSpacing = 8, Margin = new Thickness(10) };
             pane.Children.Add(new TextBlock { Text = label, FontSize = 19, FontWeight = FontWeight.SemiBold });
             SelectableTextBlock text = new() { Text = side.Text, TextWrapping = TextWrapping.Wrap };
@@ -420,6 +585,11 @@ internal sealed partial class LauncherWindow
                 comparisonImages.Add(image);
                 Grid.SetRow(image, 2);
                 pane.Children.Add(image);
+                if (side.HasModel)
+                {
+                    modelImage = image;
+                    EnableModelNavigation(image);
+                }
                 if (side.CanUseItem)
                 {
                     Button use = new() { Content = "Use item" };
