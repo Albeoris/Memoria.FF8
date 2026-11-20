@@ -6,10 +6,43 @@ internal static class OrdinaryAlternativeTests
 {
     internal static void Run()
     {
+        CheckUnknownContactTravelSibling();
         CheckAdoption(false);
         CheckAdoption(true);
         CheckDeferredLeafDoesNotCreateTransportCycle();
         Console.WriteLine("PASS ordinary alternative shared selection, atomic owner/goal adoption, stale-plan refusal and unconsumed history.");
+    }
+
+    private static void CheckUnknownContactTravelSibling()
+    {
+        Ff7AutoPlayState state = new();
+        var planner = Ff7AutoPlayPolicy.CreatePlanner(state);
+        AutoPlayEvent contact = new("unknown-contact", AutoPlayEventKind.Interaction, Order: 0, ConditionSignature: "source-pose");
+        AutoPlayEvent departure = new("departure", AutoPlayEventKind.Interaction, Order: 1, ConditionSignature: "departure-condition");
+        AutoPlayEvent remote = new("fresh-remote", AutoPlayEventKind.Interaction, Order: 2, ConditionSignature: "remote-condition");
+        planner.Observe(new("source", "program"), [contact, departure]);
+        planner.Observe(new("destination", "other-program"), [remote]);
+        planner.ObserveNavigation("source", "here", [contact, departure]);
+        planner.ObserveNavigation("destination", "there", [remote]);
+        planner.Completed("source", departure.Id, "destination", observedStoryChanged: false, entrySignature: departure.ConditionSignature, entrySignatureAuthoritative: true, targetId: departure.Id);
+        AutoPlayEventRoute route = state.Coverage.Visits.Single(visit => visit.Visit.Key == "source").Events.Single(item => item.Event.Id == departure.Id).Routes.Single();
+        planner.RecordNavigationRoute("here", "there", departure.Id, route);
+        state.NavigationGoal = new("here", contact.Id, contact.ConditionSignature);
+        state.Active = new("source", contact.Id, contact.ConditionSignature!, 1, 15, 1, Ff7AutoPlayTargetKind.ActorTalk, null, 641, "before", NavigationKey: "here");
+        var owner = state.Active;
+        string history = JsonSerializer.Serialize(state.Coverage);
+        var availability = Ff7AutoPlayPolicy.CreateRetainedNavigationAvailabilityReader(state);
+        AutoPlayPlanStep? Choose(bool local) => planner.PlanNavigation("here", allowRemoteConditionRoutes: true, avoidFirstEvents: new HashSet<string> { contact.Id }, preferredGoal: state.NavigationGoal, readAvailability: (navigation, target) => Ff7AutoPlayPolicy.ReadOrdinarySchedulingAvailability(availability(navigation, target), target.Id, local && navigation.Key != "here"));
+        AutoPlayPlanStep? ordinary = Ff7AutoPlayPolicy.ReadOrdinaryAlternativePasses(true, owner, null).Select(Choose).FirstOrDefault(plan => plan is not null);
+        Check(ordinary is null, "A known fresh local repair unexpectedly enabled remote travel siblings.");
+        AutoPlayPlanStep? sibling = Ff7AutoPlayPolicy.ReadOrdinaryAlternativePasses(true, owner, owner).Select(Choose).FirstOrDefault(plan => plan is not null);
+        Check(sibling is { IsTravel: true, Event.Id: "departure", Goal.EventId: "fresh-remote" }, "An owned unknown contact search monopolized a reachable fresh remote sibling.");
+        Check(history == JsonSerializer.Serialize(state.Coverage), "Alternative eligibility fabricated entry credit or a route.");
+        Ff7AutoPlayTarget target = new(departure.Id, 2, 0, Ff7AutoPlayTargetKind.Gateway, departure.ConditionSignature!, false, default, DestinationField: 2);
+        Ff7AutoPlayObservation observation = new("source", "program", 1, [target], true, true) { NavigationKey = "here" };
+        Check(!Ff7AutoPlayPolicy.TryAdoptOrdinaryAlternative(state, owner, state.NavigationGoal, observation, target, sibling!, sibling, new(true, new HashSet<string> { departure.Id }, "blocked"), new Dictionary<string, string>(), 641, "before") && state.Active == owner, "Unknown-contact fairness bypassed native physical availability.");
+        Check(Ff7AutoPlayPolicy.TryAdoptOrdinaryAlternative(state, owner, state.NavigationGoal, observation, target, sibling!, sibling, new(false, [], "available"), new Dictionary<string, string>(), 641, "before") && state.Active is { EventId: "departure", Accepted: false } && state.NavigationGoal?.EventId == remote.Id, "The sibling failed normal own-identity/goal adoption.");
+        Check(state.Coverage.Visits.Single(visit => visit.Visit.Key == "source").Events.Single(item => item.Event.Id == contact.Id).Conditions?.HasExecutedEntry(contact.ConditionSignature!) != true, "Travel sibling adoption credited the unknown source-pose condition.");
     }
 
     private static void CheckDeferredLeafDoesNotCreateTransportCycle()

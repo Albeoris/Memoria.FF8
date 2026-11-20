@@ -70,6 +70,7 @@ public sealed partial class Ff7AutoPlayPolicy
         }
         var baseAvailability = CreateOrdinarySchedulingAvailability(observation, liveDriver, CreateRetainedNavigationAvailabilityReader(State));
         bool localRepair = observation.Events.SingleOrDefault(item => item.Id == expected.EventId) is { } selected && liveDriver.HasNativeGeometricContact(selected);
+        bool unknownContactSearch = OwnsUnknownTalkContactSearch(expected, unknownTalkContactSearchOwner);
         bool equivalentTransportScope = expected.TravelRoute is not null && expectedGoal is not null && observation.Events.SingleOrDefault(item => item.Id == expected.EventId && item.ConditionFingerprint == expected.ConditionFingerprint)?.EffectFingerprint is string effect && Ff7AutoPlayDiscovery.TryReadDirectTransitionEffect(effect, out _);
         bool Adopt(Ff7AutoPlayTarget target, AutoPlayPlanStep plan, string[] preceding, Ff7AutoplayDriver candidate, Func<AutoPlayNavigationVisit, AutoPlayEvent, AutoPlayEventAvailability?> availability, bool ready)
         {
@@ -99,7 +100,7 @@ public sealed partial class Ff7AutoPlayPolicy
             Publish();
             return true;
         }
-        foreach (bool local in new[] { true, false })
+        foreach (bool local in ReadOrdinaryAlternativePasses(localRepair, expected, unknownTalkContactSearchOwner))
         {
             Func<AutoPlayNavigationVisit, AutoPlayEvent, AutoPlayEventAvailability?> availability = (navigation, target) => ReadOrdinarySchedulingAvailability(baseAvailability(navigation, target), target.Id, local && !equivalentTransportScope && navigation.Key != observation.NavigationKey);
             (Ff7AutoPlayTarget Target, AutoPlayPlanStep Plan, string[] Preceding, Ff7AutoplayDriver Driver)? pending = null;
@@ -172,7 +173,7 @@ public sealed partial class Ff7AutoPlayPolicy
                 Adopt(reserved.Target, reserved.Plan, reserved.Preceding, reserved.Driver, availability, false);
                 return false;
             }
-            if (local && localRepair)
+            if (local && localRepair && !unknownContactSearch)
             {
                 if (!pendingLocalWork)
                 {
@@ -184,6 +185,15 @@ public sealed partial class Ff7AutoPlayPolicy
             }
         }
         return false;
+    }
+
+    internal static IEnumerable<bool> ReadOrdinaryAlternativePasses(bool localRepair, Ff7AutoPlayActiveEvent owner, Ff7AutoPlayActiveEvent? unknownContactSearchOwner)
+    {
+        yield return true;
+        if (!localRepair || OwnsUnknownTalkContactSearch(owner, unknownContactSearchOwner))
+        {
+            yield return false;
+        }
     }
 
     internal static bool IsCertifiedEquivalentTransport(Ff7AutoPlayState state, Ff7AutoPlayActiveEvent expected, AutoPlayTravelGoal? goal, Ff7AutoPlayObservation observation, Ff7AutoPlayTarget target, AutoPlayPlanStep plan)
