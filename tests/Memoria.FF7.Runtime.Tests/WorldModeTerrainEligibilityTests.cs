@@ -9,6 +9,9 @@ internal static class WorldModeTerrainEligibilityTests
         Check(Ff7WorldRuntime.ReadAutoPlayTerrainEligibility([0, 16], 0x70) == false, "A necessary current-mode terrain exclusion was lost.");
         Check(Ff7WorldRuntime.ReadAutoPlayTerrainEligibility([0, 4], 0x70) == true && Ff7WorldRuntime.ReadAutoPlayTerrainEligibility([4], 0x70) == true, "One native-allowed face did not preserve a mixed or allowed target.");
         Check(Ff7WorldRuntime.ReadAutoPlayTerrainEligibility([0], null) is null && Ff7WorldRuntime.ReadAutoPlayTerrainEligibility([], 0x70) is null && Ff7WorldRuntime.ReadAutoPlayTerrainEligibility([32], 0x70) is null, "Unknown terrain facts became a negative proof.");
+        Check(Ff7WorldRuntime.HasInactiveWorldBridgeTerrain(new(Phase: 702), 0), "A retained historical bridge phase became current geometry activity.");
+        Check(!Ff7WorldRuntime.HasInactiveWorldBridgeTerrain(new(Counter0: 1), 0) && !Ff7WorldRuntime.HasInactiveWorldBridgeTerrain(new(Counter1: 1), 0) && !Ff7WorldRuntime.HasInactiveWorldBridgeTerrain(new(Counter2: 1), 0), "Actual bridge amplitude became static terrain.");
+        Check(!Ff7WorldRuntime.HasInactiveWorldBridgeTerrain(new(DriftX: 1), 0) && !Ff7WorldRuntime.HasInactiveWorldBridgeTerrain(new(DriftZ: 1), 0) && !Ff7WorldRuntime.HasInactiveWorldBridgeTerrain(new(Deformation: new(0, 0)), 0) && !Ff7WorldRuntime.HasInactiveWorldBridgeTerrain(new(), 1), "Active bridge geometry/cache became a negative terrain proof.");
         string? game = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
         if (string.IsNullOrWhiteSpace(game))
         {
@@ -35,7 +38,9 @@ internal static class WorldModeTerrainEligibilityTests
         Check(world.ReadAutoPlayCurrentModeTerrainEligibility(target) is null, "Airborne native overrides were excluded using a surface mask.");
         entities[5] = entities[5] with { Flags = 0 };
         input.SetValue(world, new Ff7WorldInputState(Bridge: new(Phase: 1)));
-        Check(world.ReadAutoPlayCurrentModeTerrainEligibility(target) is null, "A live bridge override became a static negative proof.");
+        Check(world.ReadAutoPlayCurrentModeTerrainEligibility(target) == false, "An inactive nonzero historical bridge phase suppressed native terrain eligibility.");
+        input.SetValue(world, new Ff7WorldInputState(Bridge: new(Counter0: 1)));
+        Check(world.ReadAutoPlayCurrentModeTerrainEligibility(target) is null, "Actual bridge amplitude became a static negative proof.");
         input.SetValue(world, new Ff7WorldInputState());
         FieldInfo vehicle = typeof(Ff7WorldRuntime).GetField("vehicle", flags)!;
         vehicle.SetValue(world, new Ff7WorldVehicleState([], DismountPhase: 2));
@@ -46,6 +51,26 @@ internal static class WorldModeTerrainEligibilityTests
         controlled.SetValue(world, 30);
         Check(world.ReadAutoPlayCurrentModeTerrainEligibility(target) is null, "An unknown native profile became a restrictive mask.");
         Console.WriteLine("PASS native terrain-mask reuse, mixed target faces, current-mode change and unknown/airborne/bridge overrides");
+    }
+
+    internal static void RunOriginal()
+    {
+        string path = Environment.GetEnvironmentVariable("MEMORIA_FF7_WORLD_TERRAIN_SAVE") ?? throw new InvalidOperationException("Select a native mode-terrain fixture.");
+        string game = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR") ?? throw new InvalidOperationException("Select original resources.");
+        byte[] bytes = File.ReadAllBytes(path);
+        using MemoryStream source = new(bytes, false);
+        using Ff7Session session = Ff7Session.Restore(Ff7Installation.Discover(game), CombinedSessionCodec.Read(source).Ff7!);
+        var world = session.World ?? throw new InvalidDataException("No native world.");
+        string id = session.AutoPlayState!.Active!.EventId;
+        string[] parts = id.Split(':');
+        var target = world.ReadAutoPlayFrontierCatalog(int.Parse(parts[1]), int.Parse(parts[2])).Scripts.Single(item => item.Id == id);
+        string before = Ff7AutoplayDriver.ReadNativeRouteFingerprint(session);
+        Check(world.ReadAutoPlayCurrentModeTerrainEligibility(target) == false, "The exact native target bypassed inactive-bridge terrain eligibility.");
+        using Ff7AutoPlayPolicy policy = new(session, (_, _) => throw new InvalidOperationException("Unexpected choice boundary."));
+        Ff7AutoplayDriver driver = new(session);
+        var input = policy.ChooseInput(driver);
+        Check(policy.State.Active?.EventId != id && driver.PhysicalPlanningWork == 0 && before == Ff7AutoplayDriver.ReadNativeRouteFingerprint(session) && bytes.AsSpan().SequenceEqual(File.ReadAllBytes(path)), "Excluded native terrain allocated physical work or changed native/source state.");
+        Console.WriteLine($"PASS original inactive-bridge terrain exclusion: faces={target.Faces.Length}, terrain={string.Join(',', target.Faces.Select(face => face.Terrain).Distinct())}, callbacks=0, tick={world.Process.Tick}, controlled={world.ControlledModel}, physical={driver.PhysicalPlanningWork}, active={policy.State.Active?.EventId}, pending={driver.PlanningPending}; native/source unchanged");
     }
 
     private static void Check(bool condition, string message)

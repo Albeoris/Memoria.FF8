@@ -9,7 +9,7 @@ public sealed partial class Ff7WorldRuntime
     internal bool? ReadAutoPlayCurrentModeTerrainEligibility(Ff7AutoPlayWorldScriptObservation target)
     {
         Ff7WorldBridgeState bridge = input.Bridge ?? initialBridge;
-        if (Resources.World != 0 || !target.Complete || !entities.TryGetValue(controlledModel, out Ff7WorldEntity? player) || (player.Flags & 128) != 0 || player.AttachedModel is not null || vehicle is { FlightState: not 0 } or { DismountPhase: not 0 } || vehicle?.TinyBroncoFlightEnabled == true || bridge is { Phase: not 0 } or { DriftX: not 0 } or { DriftZ: not 0 } or { Deformation: not null } || deformedCollisionMeshes.Count != 0)
+        if (Resources.World != 0 || !target.Complete || !entities.TryGetValue(controlledModel, out Ff7WorldEntity? player) || (player.Flags & 128) != 0 || player.AttachedModel is not null || vehicle is { FlightState: not 0 } or { DismountPhase: not 0 } || vehicle?.TinyBroncoFlightEnabled == true || !HasInactiveWorldBridgeTerrain(bridge, deformedCollisionMeshes.Count))
         {
             return null;
         }
@@ -19,6 +19,11 @@ public sealed partial class Ff7WorldRuntime
             mask |= ReadNativeTerrainMask(previousTerrain, controlledModel, false, controlledModel, 0);
         }
         return ReadAutoPlayTerrainEligibility(target.Faces.Select(face => face.Terrain), mask == uint.MaxValue ? null : mask);
+    }
+
+    internal static bool HasInactiveWorldBridgeTerrain(Ff7WorldBridgeState bridge, int deformedMeshes)
+    {
+        return bridge.Counter0 == 0 && bridge.Counter1 == 0 && bridge.Counter2 == 0 && bridge.DriftX == 0 && bridge.DriftZ == 0 && bridge.Deformation is null && deformedMeshes == 0;
     }
 
     internal static bool? ReadAutoPlayTerrainEligibility(IEnumerable<int> terrain, uint? mask)

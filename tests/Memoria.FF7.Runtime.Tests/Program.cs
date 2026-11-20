@@ -3,6 +3,12 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--world-inactive-bridge-terrain-original-only", StringComparer.Ordinal))
+{
+    WorldModeTerrainEligibilityTests.RunOriginal();
+    return 0;
+}
+
 if (args.Contains("--native-world-route-cycle-only", StringComparer.Ordinal))
 {
     NativeWorldRouteCycleTests.Run();
