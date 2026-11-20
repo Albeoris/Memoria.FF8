@@ -104,12 +104,17 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
     public Ff7AutoplayInput ChooseInput(Ff7AutoplayDriver driver)
     {
         nativeInputReservation = null;
+        unknownTalkContactSearchOwner = null;
         try
         {
             Ff7NativePlanningQuantum quantum = new();
             Ff7AutoplayInput input = ChooseInput(driver, quantum, out bool controllable);
             if (driver.PlanningPending)
             {
+                if (OwnsUnknownTalkContactSearch(State.Active, unknownTalkContactSearchOwner))
+                {
+                    CancelNativePlanning();
+                }
                 if (TryChooseOrdinaryAlternative(driver, out Ff7AutoplayInput ordinaryInput))
                 {
                     CancelNativePlanning();
@@ -119,9 +124,12 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
                 }
                 else
                 {
-                    BeginActiveNativePlanning(driver);
+                    if (!OwnsUnknownTalkContactSearch(State.Active, unknownTalkContactSearchOwner))
+                    {
+                        BeginActiveNativePlanning(driver);
+                    }
                 }
-                if (driver.PlanningPending && nativePlanningForActive && nativePlanning is not null && TakeNativePlanningTurn(true, ref activeNativeTurn))
+                if (driver.PlanningPending && !OwnsUnknownTalkContactSearch(State.Active, unknownTalkContactSearchOwner) && nativePlanningForActive && nativePlanning is not null && TakeNativePlanningTurn(true, ref activeNativeTurn))
                 {
                     nativePlanningQuantum = new();
                     ContinueNativePlanning(driver);
@@ -152,6 +160,11 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         {
             nativeInputReservation = null;
         }
+    }
+
+    internal static bool ShouldWaitForEntryFade(Ff7FadeProcess? fade)
+    {
+        return fade is { EntryCurve: true, Type: 1, Position: > 0, Speed: > 0, Completed: false };
     }
 
     internal static Ff7AutoplayInput WaitForQueuedNativeLine(Ff7AutoPlayState state, Ff7AutoPlayTarget queued, Action cancelSpeculation)
@@ -217,6 +230,14 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             Ff7AutoplayInput waiting = WaitForQueuedNativeLine(State, queuedLine, () => CancelNativePlanning("queued-native-line"));
             Publish();
             return waiting;
+        }
+        if (ShouldWaitForEntryFade(session.Host.Process.FadeState))
+        {
+            CancelNativePlanning("native-entry-fade");
+            driver.BeginPlanningStep();
+            State.Status = "Waiting for native field-entry fade";
+            Publish();
+            return default;
         }
         bool resumeNative = nativePlanning is not null && !nativePlanningForActive;
         if (resumeNative)
@@ -454,6 +475,10 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             State.Status = "Replanning after a native navigation cycle";
             Publish();
             return default;
+        }
+        if (nativePlanningForActive && nativePlanning is not null && selectedTarget.Kind == Ff7AutoPlayTargetKind.ActorTalk && ReadFreshTalkContact(driver, observation, selectedTarget) is { Kind: Ff7TalkContactPlanKind.UnknownNoFreshWitness })
+        {
+            CancelNativePlanning();
         }
         if (CanWaitForNativeAlternatives())
         {

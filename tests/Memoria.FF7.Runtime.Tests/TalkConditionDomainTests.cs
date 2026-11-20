@@ -12,6 +12,11 @@ internal static class TalkConditionDomainTests
 {
     internal static void Run()
     {
+        Check(Ff7AutoPlayPolicy.ReadTalkContactPlanKind(false, 0) == Ff7TalkContactPlanKind.Unsupported && Ff7AutoPlayPolicy.ReadTalkContactPlanKind(false, 1) == Ff7TalkContactPlanKind.Unsupported, "An unsupported condition acquired an AnyFresh contact job.");
+        Check(Ff7AutoPlayPolicy.ReadTalkContactPlanKind(true, 1) == Ff7TalkContactPlanKind.FreshWitness && Ff7AutoPlayPolicy.ReadTalkContactPlanKind(true, 0) == Ff7TalkContactPlanKind.UnknownNoFreshWitness, "A supported domain without fresh standing witnesses lost its unknown state.");
+        Ff7AutoPlayActiveEvent owner = new("visit", "actor", "source", 1, 15, 1, Ff7AutoPlayTargetKind.ActorTalk, null, 641, "before");
+        Check(Ff7AutoPlayPolicy.OwnsUnknownTalkContactSearch(owner, owner) && !Ff7AutoPlayPolicy.OwnsUnknownTalkContactSearch(owner, null), "Unknown contact ownership was lost or invented without a real prepared job.");
+        Check(!Ff7AutoPlayPolicy.OwnsUnknownTalkContactSearch(owner with { EventId = "other" }, owner) && !Ff7AutoPlayPolicy.OwnsUnknownTalkContactSearch(owner with { Accepted = true }, owner), "An unknown physical goal suppressed a different or accepted native owner.");
         PcWalkmeshTriangle outside = new(0, new(-498, 418, 0), new(-442, 453, 0), new(-448, 386, 0), -1, -1, -1);
         Check(!Ff7AutoPlayPolicy.MayContainTalkContact(outside, -320, 564, 0, 164), "A rectangular-corner false contact survived the native distance bound.");
         Check(Ff7AutoPlayPolicy.MayContainTalkContact(outside, -320, 564, 0, 166), "The conservative domain discarded an interior circle intersection.");
@@ -37,7 +42,7 @@ internal static class TalkConditionDomainTests
         Console.WriteLine("PASS conservative native talk triangle domain, physical dependency scope and no-credit conditional closure");
     }
 
-    internal static void RunOriginal()
+    internal static void RunOriginal(bool searchOwnership = false)
     {
         string path = Environment.GetEnvironmentVariable("MEMORIA_FF7_TALK_CONDITION_SAVE") ?? throw new InvalidOperationException("Select a native talk-condition fixture.");
         string game = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR") ?? throw new InvalidOperationException("Select original resources.");
@@ -66,7 +71,7 @@ internal static class TalkConditionDomainTests
         controller.Start();
         Stopwatch elapsed = Stopwatch.StartNew();
         TimeSpan previousClock = TimeSpan.Zero;
-        for (int slice = 0; slice < 10000 && controller.Running && admitted is null && controller.Steps < 600 && elapsed.Elapsed < TimeSpan.FromSeconds(20); slice++)
+        for (int slice = 0; slice < (searchOwnership ? 128 : 10000) && controller.Running && admitted is null && controller.Steps < 600 && elapsed.Elapsed < TimeSpan.FromSeconds(20); slice++)
         {
             TimeSpan currentClock = elapsed.Elapsed;
             session.AdvanceClock(currentClock - previousClock);
@@ -86,6 +91,15 @@ internal static class TalkConditionDomainTests
             var cursor = (Ff7AutoplayDriver.PhysicalSearchCursor?)state.GetType().GetProperty("ObstacleSearch")!.GetValue(state);
             return $"{(run ? "run" : "walk")}:{cursor?.Expanded}";
         }));
+        if (searchOwnership)
+        {
+            bool activeGraph = (bool)typeof(Ff7AutoPlayPolicy).GetField("nativePlanningForActive", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(policy)!;
+            Check(controller.Error is null && finalDriver.PhysicalPlanningWork > 0 && !activeGraph, $"Unknown contact work did not retain a real physical search: physical={finalDriver.PhysicalPlanningWork}, activeGraph={activeGraph}, error={controller.Error}, status={policy.Status}.");
+            Check(admitted is null || !consumed.Contains(admitted), "A consumed standing heuristic became a repeated native admission.");
+            Check(coverage.Conditions.HasExecutedEntry(old.Conditions!) == oldConsumed && bytes.AsSpan().SequenceEqual(File.ReadAllBytes(path)), "Unknown contact search changed historical credit or its source.");
+            Console.WriteLine($"PASS original unknown-contact real physical ownership; callbacks={controller.Steps}; physical={finalDriver.PhysicalPlanningWork}; pending={finalDriver.PlanningPending}; activeGraph={activeGraph}; freshAdmission={admitted}; parked={modeWork}; source/old credit unchanged");
+            return;
+        }
         Check(controller.Error is null && admitted is not null && !consumed.Contains(admitted), $"The bounded original contact check ended before fresh admission: admitted={admitted}, callbacks={controller.Steps}, pending={finalDriver.PlanningPending}, physicalWork={finalDriver.PhysicalPlanningWork}, modeRun={finalMode}, parked={modeWork}, error={controller.Error}, status={policy.Status}.");
         Check(coverage.Conditions.HasExecutedEntry(old.Conditions!) == oldConsumed, "An aspirational historical condition acquired synthetic entry credit.");
         Check(bytes.AsSpan().SequenceEqual(File.ReadAllBytes(path)), "The native contact test changed its original source.");

@@ -199,6 +199,18 @@ if (args.Contains("--native-route-fair-original-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--entry-fade-readiness-only", StringComparer.Ordinal))
+{
+    EntryFadeReadinessTests.Run();
+    return 0;
+}
+
+if (args.Contains("--entry-fade-readiness-original-only", StringComparer.Ordinal))
+{
+    EntryFadeReadinessTests.RunOriginal();
+    return 0;
+}
+
 if (args.Contains("--navigation-mode-scheduling-only", StringComparer.Ordinal))
 {
     NavigationModeSchedulingTests.Run();
@@ -322,6 +334,12 @@ if (args.Contains("--native-owned-route-original-only", StringComparer.Ordinal))
 if (args.Contains("--native-owned-route-only", StringComparer.Ordinal))
 {
     NativeOwnedRouteTests.Run();
+    return 0;
+}
+
+if (args.Contains("--talk-condition-search-original-only", StringComparer.Ordinal))
+{
+    TalkConditionDomainTests.RunOriginal(searchOwnership: true);
     return 0;
 }
 

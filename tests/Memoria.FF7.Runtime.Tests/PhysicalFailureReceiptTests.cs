@@ -13,7 +13,7 @@ internal static class PhysicalFailureReceiptTests
         Ff7SessionSave native = new() { ResourceProfile = "authored", Language = "en", FieldName = "authored", FieldGeneration = 1, Progress = new() { InitialKernelData = [1], Characters = [], Party = [255, 255, 255], Inventory = [], Materia = [] }, Vm = machine.Capture(), Process = new() { Actors = [actor] } };
         const string context = "target:goal|destination:2|guide:1,2,3|run:true|speed:4096";
         Ff7AutoPlayPhysicalFailureReceipt receipt = Ff7AutoplayDriver.CreatePhysicalFailureReceipt(native, context, 19);
-        string Source(Ff7SessionSave state) => Ff7AutoplayDriver.ReadExactNativeGraphFingerprint(state, "physical-search-source:1");
+        string Source(Ff7SessionSave state) => Ff7AutoplayDriver.ReadExactNativeGraphFingerprint(state, "physical-search-source:2");
         Check(Ff7AutoplayDriver.MatchesPhysicalFailureReceipt(receipt, Source(native), context), "An identical local native search did not reuse its exhausted receipt.");
         byte[] map = native.Vm.MapVariables.ToArray();
         map[0] ^= 1;
@@ -26,10 +26,15 @@ internal static class PhysicalFailureReceiptTests
             Check(!Ff7AutoplayDriver.MatchesPhysicalFailureReceipt(receipt, Source(native), changed), "A changed goal/destination/guide/mode/speed reused local exhaustion.");
         }
         Check(!Ff7AutoplayDriver.MatchesPhysicalFailureReceipt(receipt with { Revision = 0 }, Source(native), context), "An unsupported local search algorithm revision remained authoritative.");
+        Check(!Ff7AutoplayDriver.MatchesPhysicalFailureReceipt(receipt with { Revision = 1 }, Source(native), context), "A legacy graph's same-source/same-context receipt certified the expanded native state graph.");
         string guideContext = Ff7AutoplayDriver.ReadPhysicalFailureGuideContext(context, [2, 1, 0], [(0, 1), (1, 2)]);
         Ff7AutoPlayPhysicalFailureReceipt guideReceipt = Ff7AutoplayDriver.CreatePhysicalFailureReceipt(native, guideContext, 19);
         Check(Ff7AutoplayDriver.MatchesPhysicalFailureReceipt(guideReceipt, Source(native), Ff7AutoplayDriver.ReadPhysicalFailureGuideContext(context, [2, 1, 0], [(1, 2), (0, 1)])), "Equivalent advice order changed the exact guide contract.");
         Check(!Ff7AutoplayDriver.MatchesPhysicalFailureReceipt(guideReceipt, Source(native), Ff7AutoplayDriver.ReadPhysicalFailureGuideContext(context, [3, 1, 0], [(0, 1), (1, 2)])) && !Ff7AutoplayDriver.MatchesPhysicalFailureReceipt(guideReceipt, Source(native), Ff7AutoplayDriver.ReadPhysicalFailureGuideContext(context, [2, 1, 0], [(0, 2)])), "Changed route distances or alternative-guide advice reused an exhausted search bundle.");
+        string contactContext = Ff7AutoplayDriver.ReadPhysicalFailureGuideContext(context, [2, 1, 0], [(0, 1), (1, 2)], "native-fresh-contact:1");
+        Check(!Ff7AutoplayDriver.MatchesPhysicalFailureReceipt(guideReceipt, Source(native), contactContext), "Route-progress exhaustion certified a different actual native-contact goal.");
+        Ff7AutoPlayPhysicalFailureReceipt contactReceipt = Ff7AutoplayDriver.CreatePhysicalFailureReceipt(native, contactContext, 19);
+        Check(!Ff7AutoplayDriver.MatchesPhysicalFailureReceipt(contactReceipt, Source(native), guideContext), "Native-contact exhaustion certified a different route-progress objective.");
         CheckPlannerScope(receipt);
         Console.WriteLine("Physical failure receipt exact-source/contract, planner scope and old-save checks passed.");
     }

@@ -10,9 +10,12 @@ public sealed partial class Ff7AutoplayDriver
     private string? navigationTalkContactContext;
     private Func<Ff7Actor, bool>? navigationTalkContactGoal;
     private bool navigationTalkContactSearchPhase;
+    private bool navigationTalkContactRequiresSearch;
 
-    internal Ff7AutoplayInput TalkToContact(int entity, Vector3 point, int triangle, bool run, string context, Func<Ff7Actor, bool> acceptsContact)
+    internal Ff7AutoplayInput TalkToContact(int entity, Vector3 point, int triangle, bool run, string context, Func<Ff7Actor, bool> acceptsContact, bool requireSearch = false)
     {
+        bool previousRequiresSearch = navigationTalkContactRequiresSearch;
+        navigationTalkContactRequiresSearch = requireSearch;
         string? previous = navigationTalkContactContext;
         Func<Ff7Actor, bool>? previousGoal = navigationTalkContactGoal;
         navigationTalkContactContext = context;
@@ -23,6 +26,7 @@ public sealed partial class Ff7AutoplayDriver
         }
         finally
         {
+            navigationTalkContactRequiresSearch = previousRequiresSearch;
             navigationTalkContactContext = previous;
             navigationTalkContactGoal = previousGoal;
         }

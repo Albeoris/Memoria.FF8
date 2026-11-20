@@ -107,13 +107,13 @@ public sealed partial class Ff7AutoplayDriver
             obstacleSpeed = player.MoveSpeed;
         }
         string context = $"{ReadPhysicalApproachContext(player, target, destination)}|source:{player.Slot}:{player.X4096}:{player.Y4096}:{player.Z4096}:{player.Triangle}:{player.Direction}:{player.MoveSpeed}:{player.PlayerControlled}:{player.MovementFacingDisabled}|waypoint:{waypoint}:{nextTriangle}|mode:{navigationRunMode}|control:{session.Field.Triggers.ControlDirection}|input:{navigationLineInput}|talk:{navigationLineTalk}|targets:{string.Join(';', navigationLineTargets?.Select(candidate => $"{candidate.Id}:{candidate.ConditionFingerprint}") ?? [])}";
-        context = ReadPhysicalFailureGuideContext(context, routeDistance, approachAdviceExclusions);
+        context = ReadPhysicalFailureGuideContext(context, routeDistance, approachAdviceExclusions, navigationTalkContactGoal is null ? "route-progress:1" : "native-fresh-contact:1");
         UpdatePhysicalApproachContext(context);
         if (TakeEscapeStep(player, movement, out input))
         {
             return true;
         }
-        if (!blockedForward && obstacleSearch is null && !(navigationTalkContactGoal is not null && navigationTalkContactSearchPhase))
+        if (!blockedForward && obstacleSearch is null && !(navigationTalkContactGoal is not null && (navigationTalkContactSearchPhase || navigationTalkContactRequiresSearch)))
         {
             Vector3 position = Position3D(player);
             obstacleHistory.Enqueue(position);

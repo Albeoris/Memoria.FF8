@@ -10,10 +10,18 @@ namespace Memoria.FF7.Runtime;
 
 public sealed record Ff7AutoPlayTalkConditionDomain(string Condition, string VisitGuard, string Context, FieldVariableRead[] Reads, FieldHostRead[] HostReads, Dictionary<int, string> Conditions, int Entity = -1, string? Geometry = null, bool Complete = false);
 
+internal enum Ff7TalkContactPlanKind
+{
+    Unsupported,
+    FreshWitness,
+    UnknownNoFreshWitness
+}
+
 public sealed partial class Ff7AutoPlayPolicy
 {
-    private sealed record TalkContactPlan(string Key, string Context, Vector3 Point, int Triangle, string Condition);
+    private sealed record TalkContactPlan(string Key, string Context, Vector3 Point, int Triangle, string Condition, Ff7TalkContactPlanKind Kind);
     private TalkContactPlan? talkContactPlan;
+    private Ff7AutoPlayActiveEvent? unknownTalkContactSearchOwner;
     private readonly Dictionary<string, (string Context, HashSet<(Vector3 Point, int Triangle)> Points)> failedTalkContactAttempts = new(StringComparer.Ordinal);
 
     private bool RotateFailedTalkContact(Ff7AutoPlayActiveEvent active)
@@ -177,11 +185,17 @@ public sealed partial class Ff7AutoPlayPolicy
         }
         Ff7Actor player = session.Host.Process.Actors.Single(actor => actor.PlayerControlled);
         Ff7Actor actor = session.Host.GetActor(target.Entity);
-        var contacts = driver.DiscoverTalkContacts(actor, player).Contacts.Where(contact => domain.Conditions.TryGetValue(contact.Triangle, out string? condition) && !executed.HasExecutedEntry(condition)).ToArray();
+        var standing = driver.DiscoverTalkContacts(actor, player).Contacts.Where(contact => domain.Conditions.ContainsKey(contact.Triangle)).ToArray();
+        var fresh = standing.Where(contact => !executed.HasExecutedEntry(domain.Conditions[contact.Triangle])).ToArray();
+        Ff7TalkContactPlanKind kind = ReadTalkContactPlanKind(true, fresh.Length);
+        // A consumed standing contact guides the real fresh-contact search; it is not an admission goal.
+        var contacts = kind == Ff7TalkContactPlanKind.FreshWitness ? fresh : standing;
         string key = TalkDomainKey(observation.NavigationKey, target.Id);
         string context = domain.Context + "|" + Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new
         {
             Geometry = domain.Geometry,
+            Executed = executed.ConsumedEntries.Order(StringComparer.Ordinal).ToArray(),
+            Kind = kind,
             observation.NavigationKey,
             session.Host.Process.MapJumpDisabled,
             Boundaries = driver.CaptureSpatialBoundaryTriangles(),
@@ -205,8 +219,18 @@ public sealed partial class Ff7AutoPlayPolicy
         }
         Vector3 position = new(player.X4096 / 4096f, player.Y4096 / 4096f, player.Z4096 / 4096f);
         var candidate = contacts.Where(contact => !failedTalkContacts.Contains(contact)).OrderBy(contact => failedTalkContacts.Count(failed => failed.Triangle == contact.Triangle)).ThenBy(contact => Vector3.DistanceSquared(position, contact.Point)).ThenBy(contact => contact.Triangle).Cast<(Vector3 Point, int Triangle)?>().FirstOrDefault();
-        talkContactPlan = candidate is { } fresh ? new(key, context, fresh.Point, fresh.Triangle, domain.Conditions[fresh.Triangle]) : null;
+        talkContactPlan = candidate is { } chosen ? new(key, context, chosen.Point, chosen.Triangle, domain.Conditions[chosen.Triangle], kind) : null;
         return talkContactPlan;
+    }
+
+    internal static bool OwnsUnknownTalkContactSearch(Ff7AutoPlayActiveEvent? active, Ff7AutoPlayActiveEvent? searchOwner)
+    {
+        return searchOwner is { Accepted: false, Kind: Ff7AutoPlayTargetKind.ActorTalk } && searchOwner == active;
+    }
+
+    internal static Ff7TalkContactPlanKind ReadTalkContactPlanKind(bool supported, int freshWitnesses)
+    {
+        return !supported ? Ff7TalkContactPlanKind.Unsupported : freshWitnesses > 0 ? Ff7TalkContactPlanKind.FreshWitness : Ff7TalkContactPlanKind.UnknownNoFreshWitness;
     }
 
     private Ff7AutoplayInput ChooseConditionAwareTalkInput(Ff7AutoplayDriver driver, Ff7AutoPlayTarget target, bool run)
@@ -222,6 +246,8 @@ public sealed partial class Ff7AutoPlayPolicy
         }
         if (ReadFreshTalkContact(driver, observation, target) is not { } contact)
         {
+            // No standing guide is known. This is scheduling uncertainty, not an owned physical search.
+            State.Status = "No constructive native talk guide is currently known";
             driver.DeferPlanning();
             return default;
         }
@@ -235,9 +261,15 @@ public sealed partial class Ff7AutoPlayPolicy
             string condition = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(variables + "|" + external.Fingerprint)));
             return external.Complete && !executed.HasExecutedEntry(condition);
         }
+        if (contact.Kind == Ff7TalkContactPlanKind.UnknownNoFreshWitness && State.Active is { Accepted: false } owner && owner.EventId == target.Id && owner.Entity == target.Entity && owner.Script == target.Script)
+        {
+            // Keep this ownership through mode exhaustion so only the real AnyFresh goal can win.
+            unknownTalkContactSearchOwner = owner;
+        }
         try
         {
-            return driver.TalkToContact(target.Entity, contact.Point, contact.Triangle, run, contact.Context, FreshContact);
+            Ff7AutoplayInput input = driver.TalkToContact(target.Entity, contact.Point, contact.Triangle, run, contact.Context, FreshContact, requireSearch: contact.Kind == Ff7TalkContactPlanKind.UnknownNoFreshWitness);
+            return input;
         }
         catch (Ff7AutoPlayNavigationUnavailableException)
         {
@@ -248,6 +280,10 @@ public sealed partial class Ff7AutoPlayPolicy
             if (State.Active is { } active)
             {
                 RotateFailedTalkContact(active);
+                if (contact.Kind == Ff7TalkContactPlanKind.UnknownNoFreshWitness && active.EventId == target.Id && active.Entity == target.Entity && active.Script == target.Script)
+                {
+                    unknownTalkContactSearchOwner = active;
+                }
             }
             driver.DeferPlanning();
             return default;

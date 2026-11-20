@@ -5,7 +5,7 @@ namespace Memoria.FF7.Runtime;
 
 public sealed partial class Ff7AutoplayDriver
 {
-    private const int PhysicalFailureRevision = 1;
+    private const int PhysicalFailureRevision = 2;
     private Ff7AutoPlayPhysicalFailureReceipt[] physicalFailures = [];
 
     internal void SetPhysicalFailureReceipts(IEnumerable<Ff7AutoPlayPhysicalFailureReceipt> receipts)
@@ -15,7 +15,7 @@ public sealed partial class Ff7AutoplayDriver
 
     internal static Ff7AutoPlayPhysicalFailureReceipt CreatePhysicalFailureReceipt(Ff7SessionSave native, string context, long expanded)
     {
-        return new(PhysicalFailureRevision, ReadPhysicalFailureContract(context), ReadExactNativeGraphFingerprint(native, "physical-search-source:1"), expanded);
+        return new(PhysicalFailureRevision, ReadPhysicalFailureContract(context), ReadExactNativeGraphFingerprint(native, "physical-search-source:2"), expanded);
     }
 
     internal static bool MatchesPhysicalFailureReceipt(Ff7AutoPlayPhysicalFailureReceipt receipt, string nativeSource, string context)
@@ -23,9 +23,9 @@ public sealed partial class Ff7AutoplayDriver
         return receipt.Revision == PhysicalFailureRevision && receipt.Contract == ReadPhysicalFailureContract(context) && receipt.NativeSource == nativeSource;
     }
 
-    internal static string ReadPhysicalFailureGuideContext(string context, IReadOnlyList<int> routeDistance, IEnumerable<(int From, int To)> advice)
+    internal static string ReadPhysicalFailureGuideContext(string context, IReadOnlyList<int> routeDistance, IEnumerable<(int From, int To)> advice, string goalContract = "route-progress:1")
     {
-        return $"{context}|distances:{string.Join(',', routeDistance)}|advice:{string.Join(';', advice.OrderBy(edge => edge.From).ThenBy(edge => edge.To).Select(edge => $"{edge.From}:{edge.To}"))}";
+        return $"{context}|goal:{goalContract}|distances:{string.Join(',', routeDistance)}|advice:{string.Join(';', advice.OrderBy(edge => edge.From).ThenBy(edge => edge.To).Select(edge => $"{edge.From}:{edge.To}"))}";
     }
 
     private bool TryReadPhysicalFailureReceipt(string context, out Ff7AutoPlayPhysicalFailureReceipt? receipt)
@@ -34,7 +34,7 @@ public sealed partial class Ff7AutoplayDriver
         string? nativeSource = null;
         foreach (Ff7AutoPlayPhysicalFailureReceipt candidate in physicalFailures.Where(candidate => candidate.Contract == contract))
         {
-            nativeSource ??= ReadExactNativeGraphFingerprint(session.CaptureAutoPlayNavigation(), "physical-search-source:1");
+            nativeSource ??= ReadExactNativeGraphFingerprint(session.CaptureAutoPlayNavigation(), "physical-search-source:2");
             if (candidate.NativeSource == nativeSource)
             {
                 receipt = candidate;
@@ -47,6 +47,6 @@ public sealed partial class Ff7AutoplayDriver
 
     private static string ReadPhysicalFailureContract(string context)
     {
-        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(context)));
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes("represented-physical-search:2|" + context)));
     }
 }
