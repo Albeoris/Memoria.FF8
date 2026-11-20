@@ -56,6 +56,8 @@ internal static class LocalizationFieldPreparation
         }
         string body = target[tagLength..];
         int authoredLineCount = LocalizationCatalog.CountAuthoredLines(body);
+        bool sharedChoiceLayout = presentation?.Choices is null && record.SourcePresent && record.Source is string source && LocalizationCatalog.CountAuthoredLines(source) == authoredLineCount
+            && calls.Where(call => !call.Dynamic && call.Opcode is ("ASK" or "AASK") && call.Operands.Length >= 6).Select(call => (call.Operands[2], call.Operands[3], call.Operands[4], call.Operands[5])).Distinct().Skip(1).Any();
         if (presentation?.Choices is { } range && range.LastLine >= authoredLineCount)
         {
             throw new InvalidDataException($"{record.Key}: translated choice lines exceed the authored body.");
@@ -113,15 +115,25 @@ internal static class LocalizationFieldPreparation
                 {
                     int first = Operand(2)!.Value;
                     int last = Operand(3)!.Value;
-                    if (presentation?.Choices is not { } translated || translated.FirstLine < 0 || translated.LastLine < translated.FirstLine || (long)translated.LastLine - translated.FirstLine != (long)last - first || translated.BeginLine < translated.FirstLine || translated.BeginLine > translated.LastLine)
-                    {
-                        throw new InvalidDataException($"{record.Key}: translated choice must preserve native option count and explicit F/L/B/C.");
-                    }
                     int? begin = Operand(4);
                     int? cancel = Operand(5);
-                    if (begin is null || cancel is null || translated.BeginLine - translated.FirstLine != begin - first || (cancel < first || cancel > last ? translated.CancelLine != cancel : translated.CancelLine - translated.FirstLine != cancel - first))
+                    if (sharedChoiceLayout)
                     {
-                        throw new InvalidDataException($"{record.Key}: initial/cancel semantic option identity changed.");
+                        if (first < 0 || last < first || last >= authoredLineCount || begin is null || cancel is null)
+                        {
+                            throw new InvalidDataException($"{record.Key}: shared translated choice lines must cover every original option range.");
+                        }
+                    }
+                    else
+                    {
+                        if (presentation?.Choices is not { } translated || translated.FirstLine < 0 || translated.LastLine < translated.FirstLine || (long)translated.LastLine - translated.FirstLine != (long)last - first)
+                        {
+                            throw new InvalidDataException($"{record.Key}: translated choice must preserve native option count and explicit F/L/B/C.");
+                        }
+                        if (begin is null || cancel is null || (begin < first || begin > last ? translated.BeginLine != begin : translated.BeginLine - translated.FirstLine != begin - first) || (cancel < first || cancel > last ? translated.CancelLine != cancel : translated.CancelLine - translated.FirstLine != cancel - first))
+                        {
+                            throw new InvalidDataException($"{record.Key}: initial/cancel semantic option identity changed.");
+                        }
                     }
                 }
             }

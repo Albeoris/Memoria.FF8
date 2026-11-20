@@ -45,6 +45,19 @@ public sealed class LocalizationRuntimeTests : IDisposable
         Assert.Equal(second.Id, bound.Binding.PackageId);
     }
 
+    [Fact]
+    public void InvalidTargetShowsADiagnosticAndPreservesNativeControls()
+    {
+        const string key = "$en_sample_0000";
+        string target = LocalizationValue.InvalidTarget + "{Line}{Var 2}";
+        ModPackage package = Package("invalid", Row(key, target) with { Source = "Test{Line}{Var 2}", SourcePresent = true });
+        LocalizationPreparation result = LocalizationRuntime.Prepare(new(1, [package], []), [package.Id], Source, TestContext.Current.CancellationToken);
+
+        Assert.Equal(target, LocalizationProjectIO.Read(package.RootDirectory).Entries.Single().Target);
+        Assert.Equal("[Служебная строка. Этот текст не предназначен для показа игроку.]{Line}{Var 2}", result.Catalog.Resolve(key, "native"));
+        Assert.Equal(result.Catalog.Resolve(key, "native"), result.Catalog.ResolveText(key, "native").Text);
+    }
+
     [Theory]
     [InlineData("The value is {Var 2}", "{Empty}")]
     [InlineData("source", "Text {Empty}")]
@@ -108,6 +121,29 @@ public sealed class LocalizationRuntimeTests : IDisposable
         LocalizationFieldText? translated = prepared.Catalog.ResolveField(key, 9, Hash, null, null, null, null);
         Assert.NotNull(translated);
         Assert.Equal("", translated.Body);
+    }
+
+    [Fact]
+    public void OneTranslationKeepsDistinctOriginalChoiceRangesWhenItsLinesStayInPlace()
+    {
+        const string key = "$en_bgroom_6_0000";
+        FieldCompatibilityContext first = new(new(0, 0, 0, 0, 9, 36), "ASK", [0, 0, 0, 1, 0, 1], 0, true, false, [], null);
+        FieldCompatibilityContext second = new(new(0, 0, 0, 0, 12, 48), "ASK", [0, 0, 1, 2, 0, 2], 0, true, false, [], null);
+        LocalizationRecord row = FieldRow(key, "Один{Line}Два{Line}Три") with
+        {
+            Source = "One{Line}Two{Line}Three",
+            SourcePresent = true,
+            ExtensionData = new Dictionary<string, JsonElement> { ["sourceContext"] = JsonSerializer.SerializeToElement(new Dictionary<string, string> { ["JSM SHA256"] = Hash, ["Call Contexts"] = JsonSerializer.Serialize(new[] { first, second }) }) }
+        };
+        ModPackage package = Package("shared-choice-shape", row);
+        LocalizationPreparation prepared = LocalizationRuntime.Prepare(new(1, [package], []), [package.Id], Source, TestContext.Current.CancellationToken);
+
+        Assert.Equal(row.Target, prepared.Catalog.ResolveField(key, 9, Hash, 0, 1, 0, 1)?.Body);
+        LocalizationFieldText? translated = prepared.Catalog.ResolveField(key, 12, Hash, 1, 2, 0, 2);
+        Assert.NotNull(translated);
+        Assert.Equal(row.Target, translated.Body);
+        Assert.Null(translated.InitialChoice);
+        Assert.Null(prepared.Catalog.ResolveField(key, 12, Hash, 1, 2, 1, 2));
     }
 
     [Theory]

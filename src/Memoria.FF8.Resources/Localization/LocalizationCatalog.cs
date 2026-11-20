@@ -7,6 +7,8 @@ namespace Memoria.FF8.Resources.Localization;
 public sealed record LocalizationValue(string Text, string PackageId, string ProjectId)
 {
     public const string EmptyTarget = "{Empty}";
+    public const string InvalidTarget = "{Invalid}";
+    private const string InvalidText = "[Служебная строка. Этот текст не предназначен для показа игроку.]";
 
     public LocalizationFieldText? Field { get; init; }
     public string? Category { get; init; }
@@ -14,7 +16,7 @@ public sealed record LocalizationValue(string Text, string PackageId, string Pro
 
     public string RenderedText => RenderTarget(Text);
 
-    public static string RenderTarget(string target) => target == EmptyTarget ? "" : target;
+    public static string RenderTarget(string target) => target == EmptyTarget ? "" : target.Replace(InvalidTarget, InvalidText, StringComparison.Ordinal);
 }
 
 public sealed record LocalizationCallBinding(int Operation, int? MessageId, bool Dynamic, int? FirstChoice, int? LastChoice, int? InitialChoice, int? CancelChoice)
