@@ -3,6 +3,12 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--world-inert-entry-original-only", StringComparer.Ordinal))
+{
+    WorldModeTopologyContinuationTests.RunCurrentInertEntry();
+    return 0;
+}
+
 if (args.Contains("--world-mode-topology-only", StringComparer.Ordinal))
 {
     WorldModeTopologyContinuationTests.Run();

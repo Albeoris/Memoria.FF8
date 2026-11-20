@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using System.Text.Json;
 using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
@@ -280,7 +280,7 @@ internal static class AutoPlayWorldNavigationTests
             return input.Vertical == 1 && input.Horizontal == 0 ? new(true, null, state with { Player = state.Player with { Z = 60 } }, true) : new(true, null, state);
         }
         var step = Ff7AutoplayDriver.SearchWorldRoute(source, target, Preview, [], 1, waypoint: faces[1].Center);
-        Check(step.Status == Ff7AutoPlayWorldNavigationStatus.SearchLimited && step.Steps.Length == 1 && step.Steps[0].Input.Vertical == 1 && calls == 9, "Coarse advice failed to guide an away detour through native input admission or falsely completed its remote script.");
+        Check(step.Status == Ff7AutoPlayWorldNavigationStatus.SearchLimited && step.Steps.Length == 1 && step.Steps[0].Input.Vertical == 1 && calls == 10, "Coarse advice failed to guide an away detour through native input admission or falsely completed its remote script.");
         var refused = Ff7AutoplayDriver.SearchWorldRoute(source, target, (_, _) => new(false, "native footprint rejects guide"), [], 2, waypoint: faces[1].Center);
         Check(refused.Steps.Length == 0 && refused.Status == Ff7AutoPlayWorldNavigationStatus.Unsupported, "A coarse topology edge authorized movement without its complete native footprint preview.");
     }

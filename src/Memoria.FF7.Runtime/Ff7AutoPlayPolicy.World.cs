@@ -214,6 +214,11 @@ public sealed partial class Ff7AutoPlayPolicy
                 observation = BeginWorldMeshEvent(world, observation, next, physicalGuards);
             }
         }
+        if (State.Active is null)
+        {
+            Publish();
+            return default;
+        }
         Ff7AutoPlayActiveEvent selected = State.Active!;
         string selectedGuard = observation.VisitId + ":" + selected.EventId + ":physical";
         // Only this target's actual approach updates its retained physical observation.
@@ -291,6 +296,11 @@ public sealed partial class Ff7AutoPlayPolicy
             throw new NotSupportedException(target.Reason ?? "The native world frontier has an unsupported source dependency.");
         }
         observation = ObserveWorldPlanner(world);
+        if (IsInertWorldMovementEntry(world.ReadAutoPlayMeshEntryForModel(target, world.ControlledModel)))
+        {
+            State.Status = "The observed native entry is inert in the current traversal context";
+            return observation;
+        }
         string condition = WorldCondition(target);
         planner.BeginEvent(observation.VisitId, target.Id);
         RetainDestinationGoal(next, observation.NavigationKey, condition);
@@ -308,6 +318,11 @@ public sealed partial class Ff7AutoPlayPolicy
         }
         visited.ComponentDeferrals.Remove(key);
         return physical;
+    }
+
+    internal static bool IsInertWorldMovementEntry(Memoria.FF7.Events.WorldScriptAnalysis entry)
+    {
+        return entry.Complete && entry.IsInert && entry.HostReads.All(read => read.Kind == Memoria.FF7.Events.WorldHostDependencyKind.Special && read.Selector == 8);
     }
 
     private Ff7AutoPlayObservation ObserveWorldPlanner(Ff7WorldRuntime world)
@@ -345,6 +360,10 @@ public sealed partial class Ff7AutoPlayPolicy
         {
             ObserveWorldChunk(world, goalChunk);
         }
+        if (State.Active is { Kind: Ff7AutoPlayTargetKind.WorldMesh } activeSource && TryWorldSource(activeSource.EventId, out Ff7AutoPlayWorldChunk activeChunk, out _))
+        {
+            ObserveWorldChunk(world, activeChunk);
+        }
         ObserveWorldModelFrontiers(world);
         AutoPlayVisitCoverage<Ff7AutoPlayDeferral>? previous = State.Coverage.Visits.SingleOrDefault(item => item.Visit.Key == worldVisit);
         Dictionary<string, AutoPlayEvent> events = previous?.Events.ToDictionary(item => item.Event.Id, item => item.Event, StringComparer.Ordinal) ?? new(StringComparer.Ordinal);
@@ -379,6 +398,21 @@ public sealed partial class Ff7AutoPlayPolicy
             events.Remove(id);
         }
         ObserveWorldModeGoals(world, worldVisit, events);
+        foreach (Ff7AutoPlayWorldScriptObservation target in worldCatalogs.Values.SelectMany(catalog => catalog.Scripts))
+        {
+            if (!events.ContainsKey(target.Id) || State.Active is { Accepted: true } accepted && accepted.EventId == target.Id)
+            {
+                continue;
+            }
+            if (IsInertWorldMovementEntry(world.ReadAutoPlayMeshEntryForModel(target, world.ControlledModel)))
+            {
+                events.Remove(target.Id);
+                if (State.Active is { Kind: Ff7AutoPlayTargetKind.WorldMesh, Accepted: false } planned && planned.EventId == target.Id)
+                {
+                    State.Active = null;
+                }
+            }
+        }
         planner.Observe(new(worldVisit, vm.ProgramIdentity), events.Values.ToArray());
         ReobserveUnattributedWorldTransfers(State.Coverage.Visits.Single(visit => visit.Visit.Key == worldVisit), worldCatalogs.Values.SelectMany(catalog => catalog.Scripts), visited.SourceProgressEntries);
         string navigation = worldVisit + ":nav:world";
