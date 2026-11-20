@@ -173,7 +173,19 @@ public sealed partial class Ff7AutoplayDriver
         inputs.Add(input);
     }
 
-    private sealed record WorldSearchNode(Ff7AutoPlayWorldMovementState State, string Key, string SearchKey, int Parent, Ff7AutoplayInput Input, Ff7AutoPlayWorldTerrainBoundary? Boundary, Ff7AutoPlayWorldModelBoundary[]? ModelBoundaries, double Cost, double Distance);
+    private readonly record struct WorldPhysicalKey(ulong A, ulong B, ulong C, ulong D)
+    {
+        internal static WorldPhysicalKey Read(string value) => Read(System.Runtime.InteropServices.MemoryMarshal.AsBytes(value.AsSpan()));
+
+        internal static WorldPhysicalKey Read(ReadOnlySpan<byte> value)
+        {
+            Span<byte> hash = stackalloc byte[32];
+            SHA256.HashData(value, hash);
+            return new(System.Buffers.Binary.BinaryPrimitives.ReadUInt64LittleEndian(hash), System.Buffers.Binary.BinaryPrimitives.ReadUInt64LittleEndian(hash[8..]), System.Buffers.Binary.BinaryPrimitives.ReadUInt64LittleEndian(hash[16..]), System.Buffers.Binary.BinaryPrimitives.ReadUInt64LittleEndian(hash[24..]));
+        }
+    }
+
+    private sealed record WorldSearchNode(Ff7AutoPlayWorldMovementState? State, WorldPhysicalKey Key, WorldPhysicalKey SearchKey, int Parent, Ff7AutoplayInput Input, Ff7AutoPlayWorldTerrainBoundary? Boundary, Ff7AutoPlayWorldModelBoundary[]? ModelBoundaries, double Cost, double Distance);
 
     private static bool RequiresWorldTargetRearming(Ff7AutoPlayWorldMovementState source, Ff7AutoPlayWorldScriptObservation target)
     {
@@ -264,8 +276,10 @@ public sealed partial class Ff7AutoplayDriver
         private readonly HashSet<Ff7AutoplayInput>? avoidFirst;
         private readonly Ff7AutoPlayWorldNavigationStatus success;
         private readonly ushort held;
+        private readonly Ff7AutoPlayWorldMovementState source;
         private readonly List<WorldSearchNode> nodes;
-        private readonly Dictionary<string, double> costs;
+        private readonly Dictionary<WorldPhysicalKey, double> costs;
+        private readonly Dictionary<WorldPhysicalKey, List<byte[]>> randomTables = [];
         private readonly PriorityQueue<int, (double Score, double Distance, int Order)> open = new();
         private int best = -1;
         private string? unsupported;
@@ -273,6 +287,8 @@ public sealed partial class Ff7AutoplayDriver
         internal long Expanded { get; private set; }
         internal int FrontierCount => open.Count;
         internal int VisitedCount => costs.Count;
+        internal int RetainedStateCount => nodes.Count(node => node.State is not null);
+        internal int RetainedRandomTableCount => randomTables.Values.Sum(tables => tables.Count);
 
         internal WorldPhysicalSearchCursor(Ff7AutoPlayWorldMovementState source, Func<Ff7AutoplayInput, Ff7AutoPlayWorldMovementState, Ff7AutoPlayWorldMovementPreview> preview, Func<Ff7AutoPlayWorldMovementState, double> distanceToTarget, Func<Ff7AutoPlayWorldMovementPreview, bool> admit, Func<Ff7AutoPlayWorldMovementPreview, bool> reachedTarget, IReadOnlySet<Ff7AutoplayInput>? avoidFirst = null, Ff7AutoPlayWorldNavigationStatus success = Ff7AutoPlayWorldNavigationStatus.Step, ushort held = 0)
         {
@@ -283,11 +299,37 @@ public sealed partial class Ff7AutoplayDriver
             this.avoidFirst = avoidFirst?.ToHashSet();
             this.success = success;
             this.held = held;
-            string key = WorldMovementKey(source);
-            string searchKey = WorldSearchKey(source);
-            nodes = [new(source, key, searchKey, -1, default, null, null, 0, distanceToTarget(source))];
-            costs = new(StringComparer.Ordinal) { [searchKey] = 0 };
+            this.source = RetainRandomTable(source);
+            WorldPhysicalKey key = WorldPhysicalKey.Read(WorldMovementKey(source));
+            WorldPhysicalKey searchKey = WorldPhysicalKey.Read(WorldSearchKey(source));
+            nodes = [new(this.source, key, searchKey, -1, default, null, null, 0, distanceToTarget(source))];
+            costs = new() { [searchKey] = 0 };
             open.Enqueue(0, (nodes[0].Distance, nodes[0].Distance, 0));
+        }
+
+        private Ff7AutoPlayWorldMovementState RetainRandomTable(Ff7AutoPlayWorldMovementState state)
+        {
+            if (state.Random is not { } random)
+            {
+                return state;
+            }
+            WorldPhysicalKey key = WorldPhysicalKey.Read(random);
+            if (!randomTables.TryGetValue(key, out List<byte[]>? tables))
+            {
+                tables = [];
+                randomTables.Add(key, tables);
+            }
+            foreach (byte[] known in tables)
+            {
+                if (random.AsSpan().SequenceEqual(known))
+                {
+                    return state with { Random = known };
+                }
+            }
+            // Native previews copy the saved random table before drawing or refreshing it.
+            byte[] retained = random.ToArray();
+            tables.Add(retained);
+            return state with { Random = retained };
         }
 
         internal Ff7AutoPlayWorldRoute Resume(int nodeBudget)
@@ -302,6 +344,7 @@ public sealed partial class Ff7AutoplayDriver
             while (expanded < nodeBudget && open.TryDequeue(out int current, out _))
             {
                 WorldSearchNode node = nodes[current];
+                nodes[current] = node with { State = null };
                 if (costs[node.SearchKey] != node.Cost)
                 {
                     continue;
@@ -314,7 +357,7 @@ public sealed partial class Ff7AutoplayDriver
                     {
                         continue;
                     }
-                    Ff7AutoPlayWorldMovementPreview step = preview(input, node.State);
+                    Ff7AutoPlayWorldMovementPreview step = preview(input, node.State!);
                     if (!step.Supported || step.State is null)
                     {
                         unsupported ??= step.Reason;
@@ -324,20 +367,20 @@ public sealed partial class Ff7AutoplayDriver
                     {
                         continue;
                     }
-                    string key = WorldMovementKey(step.State);
-                    string searchKey = WorldSearchKey(step.State);
-                    double cost = node.Cost + Math.Max(1, WorldPointDistance(node.State.Player, new(step.State.Player.X, step.State.Player.Y, step.State.Player.Z)));
+                    WorldPhysicalKey searchKey = WorldPhysicalKey.Read(WorldSearchKey(step.State));
+                    double cost = node.Cost + Math.Max(1, WorldPointDistance(node.State!.Player, new(step.State.Player.X, step.State.Player.Y, step.State.Player.Z)));
                     bool reached = reachedTarget(step);
                     if (!reached && costs.TryGetValue(searchKey, out double prior) && prior <= cost)
                     {
                         continue;
                     }
+                    WorldPhysicalKey key = WorldPhysicalKey.Read(WorldMovementKey(step.State));
                     double distance = distanceToTarget(step.State);
                     int index = nodes.Count;
-                    nodes.Add(new(step.State, key, searchKey, current, input, step.TerrainBoundary, step.ModelBoundaries, cost, distance));
+                    nodes.Add(new(RetainRandomTable(step.State), key, searchKey, current, input, step.TerrainBoundary, step.ModelBoundaries, cost, distance));
                     if (reached)
                     {
-                        terminal = new(success, ReconstructWorldRoute(nodes, index), expanded, null);
+                        terminal = new(success, ReconstructRoute(index), expanded, null);
                         return terminal;
                     }
                     costs[searchKey] = cost;
@@ -355,22 +398,36 @@ public sealed partial class Ff7AutoplayDriver
                 return terminal;
             }
             return best >= 0
-                ? new(Ff7AutoPlayWorldNavigationStatus.SearchLimited, ReconstructWorldRoute(nodes, best), expanded, "An admitted partial route is available; the goal is not yet proved reachable.")
+                ? new(Ff7AutoPlayWorldNavigationStatus.SearchLimited, ReconstructRoute(best), expanded, "An admitted partial route is available; the goal is not yet proved reachable.")
                 : new(Ff7AutoPlayWorldNavigationStatus.SearchLimited, [], expanded, "The cooperative native physical search remains pending.");
         }
-    }
 
-    private static Ff7AutoPlayWorldRouteStep[] ReconstructWorldRoute(IReadOnlyList<WorldSearchNode> nodes, int index)
-    {
-        List<Ff7AutoPlayWorldRouteStep> result = [];
-        while (nodes[index].Parent >= 0)
+        private Ff7AutoPlayWorldRouteStep[] ReconstructRoute(int index)
         {
-            WorldSearchNode node = nodes[index];
-            result.Add(new(nodes[node.Parent].Key, node.Input, node.Key, node.Boundary, node.ModelBoundaries));
-            index = node.Parent;
+            Stack<int> path = [];
+            while (nodes[index].Parent >= 0)
+            {
+                path.Push(index);
+                index = nodes[index].Parent;
+            }
+            Ff7AutoPlayWorldMovementState state = source;
+            string sourceKey = WorldMovementKey(state);
+            List<Ff7AutoPlayWorldRouteStep> result = [];
+            foreach (int nodeIndex in path)
+            {
+                WorldSearchNode node = nodes[nodeIndex];
+                Ff7AutoPlayWorldMovementPreview step = preview(node.Input, state);
+                if (!step.Supported || step.State is null || !admit(step) || WorldPhysicalKey.Read(WorldMovementKey(step.State)) != node.Key || step.TerrainBoundary != node.Boundary || !(step.ModelBoundaries ?? []).SequenceEqual(node.ModelBoundaries ?? []))
+                {
+                    throw new InvalidOperationException("A retained world route no longer reproduces its admitted native physical trace.");
+                }
+                string destinationKey = WorldMovementKey(step.State);
+                result.Add(new(sourceKey, node.Input, destinationKey, node.Boundary, node.ModelBoundaries));
+                sourceKey = destinationKey;
+                state = step.State;
+            }
+            return result.ToArray();
         }
-        result.Reverse();
-        return result.ToArray();
     }
 
     private static IEnumerable<Ff7AutoplayInput> WorldNavigationInputs(ushort held = 0)

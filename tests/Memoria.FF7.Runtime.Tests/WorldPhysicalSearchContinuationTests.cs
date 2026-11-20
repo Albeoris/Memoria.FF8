@@ -24,6 +24,9 @@ internal static class WorldPhysicalSearchContinuationTests
 
     internal static void Run()
     {
+        CheckCompactStorage();
+        CheckReopenedStorage();
+        CheckReconstructionValidation();
         CheckPolicyPending();
         Ff7AutoplayDriver driver = new(null!);
         var cursor = Chain(1537, true);
@@ -72,6 +75,128 @@ internal static class WorldPhysicalSearchContinuationTests
         driver.ResumeWorldPhysicalSearch("renewed-preferences", () => throw new InvalidOperationException("Renewal restarted its prepared queue."), 512);
         Check(renewed.Expanded == 512 && driver.PhysicalPlanningWork == renewalWork + 512, "The prepared renewal queue did not resume real physical work next poll.");
         Console.WriteLine("PASS retained world physical quanta, final-guide unknown, true finite exhaustion, parent trace and scoped cancellation");
+    }
+
+    private static void CheckCompactStorage()
+    {
+        byte[] random = new Ff7WorldEncounterRandom(123).Capture();
+        byte[] original = random.ToArray();
+        Ff7WorldEncounterRandom detached = new(random, random.Length - 1);
+        detached.Next();
+        byte[] captured = detached.Capture();
+        captured[0] ^= 1;
+        Check(random.AsSpan().SequenceEqual(original) && !captured.AsSpan().SequenceEqual(detached.Capture()), "Native random construction or capture aliases the supplied snapshot.");
+        Ff7AutoPlayWorldMovementState source = Source with { Random = random };
+        Ff7AutoPlayWorldMovementPreview Preview(Ff7AutoplayInput action, Ff7AutoPlayWorldMovementState state)
+        {
+            if (action.Horizontal != 1 || action.Vertical != 0)
+            {
+                return new(true, null, state);
+            }
+            return new(true, null, state with { Player = state.Player with { X = state.Player.X + 1 }, Random = state.Random!.ToArray() }, true);
+        }
+        Ff7AutoplayDriver.WorldPhysicalSearchCursor Create()
+        {
+            var cursor = new Ff7AutoplayDriver.WorldPhysicalSearchCursor(source, Preview, _ => 100, _ => true, _ => false);
+            Check(cursor.Resume(0).Expanded == 0 && cursor.RetainedStateCount == 1, "A zero quantum consumed or released the root search state.");
+            cursor.Resume(10000);
+            return cursor;
+        }
+        static (long Retained, long Allocated, object Value) Measure(Func<object> create)
+        {
+            long before = GC.GetTotalMemory(true);
+            long allocations = GC.GetAllocatedBytesForCurrentThread();
+            object value = create();
+            long allocated = GC.GetAllocatedBytesForCurrentThread() - allocations;
+            long retained = GC.GetTotalMemory(true) - before;
+            GC.KeepAlive(value);
+            return (retained, allocated, value);
+        }
+        object Legacy()
+        {
+            List<(Ff7AutoPlayWorldMovementState State, string Key, string SearchKey)> states = [];
+            for (int index = 0; index <= 10000; index++)
+            {
+                var state = source with { Player = source.Player with { X = index }, Random = random.ToArray() };
+                states.Add((state, Ff7AutoplayDriver.WorldMovementKey(state), Ff7AutoplayDriver.WorldSearchKey(state)));
+            }
+            return states;
+        }
+        var legacy = Measure(Legacy);
+        var compact = Measure(() => Create());
+        var retained = (Ff7AutoplayDriver.WorldPhysicalSearchCursor)compact.Value;
+        Check(retained.Expanded == 10000 && retained.RetainedStateCount == 1 && retained.RetainedRandomTableCount == 1, "Expanded payloads or equal random snapshots remained duplicated in compact storage.");
+        Check(random.AsSpan().SequenceEqual(original) && compact.Retained < legacy.Retained, "Compact storage changed source RNG or retained more than the old two-key/state payload.");
+        Console.WriteLine($"PASS authored 10001-node retained-storage comparison: oldPayload={legacy.Retained}B; compactCursor={compact.Retained}B; compactSearchAllocated={compact.Allocated}B; states={retained.RetainedStateCount}; randomTables={retained.RetainedRandomTableCount}; baseline stores payload only, not a search allocation benchmark");
+        var routeCursor = new Ff7AutoplayDriver.WorldPhysicalSearchCursor(source, Preview, _ => 100, _ => true, step => step.State!.Player.X == 3);
+        var route = routeCursor.Resume(8);
+        Check(route.Steps.Length == 3 && routeCursor.RetainedRandomTableCount == 1 && random.AsSpan().SequenceEqual(original), "Reconstructing an interned random route changed source bytes or lost a native trace.");
+        for (int index = 0; index < route.Steps.Length; index++)
+        {
+            Check(route.Steps[index].SourceKey == Ff7AutoplayDriver.WorldMovementKey(source with { Player = source.Player with { X = index } }) && route.Steps[index].DestinationKey == Ff7AutoplayDriver.WorldMovementKey(source with { Player = source.Player with { X = index + 1 } }), "Compact reconstruction changed the native textual validation API.");
+        }
+        Ff7AutoPlayWorldMovementPreview DifferentRandom(Ff7AutoplayInput action, Ff7AutoPlayWorldMovementState state)
+        {
+            Ff7AutoPlayWorldMovementPreview step = Preview(action, state);
+            byte[] table = random.ToArray();
+            table[0] ^= unchecked((byte)(step.State!.Player.X & 1));
+            return step with { State = step.State with { Random = table } };
+        }
+        var distinct = new Ff7AutoplayDriver.WorldPhysicalSearchCursor(source, DifferentRandom, _ => 100, _ => true, step => step.State!.Player.X == 3);
+        Check(distinct.Resume(8).Steps.Length == 3 && distinct.RetainedRandomTableCount == 2 && random.AsSpan().SequenceEqual(original), "Different saved random-table contents were merged or source snapshots were modified.");
+        GC.KeepAlive(legacy.Value);
+        GC.KeepAlive(compact.Value);
+    }
+
+    private static void CheckReopenedStorage()
+    {
+        Ff7AutoPlayWorldMovementPreview Preview(Ff7AutoplayInput input, Ff7AutoPlayWorldMovementState state)
+        {
+            var p = state.Player;
+            var next = p.X == 0 && p.Z == 0 && input.Horizontal == 1 && input.Vertical == 0 ? p with { X = 10, Z = 10 }
+                : p.X == 0 && p.Z == 0 && input.Horizontal == 0 && input.Vertical == -1 ? p with { Z = 1 }
+                : (p.X == 10 && p.Z == 10 || p.X == 0 && p.Z == 1) && input.Horizontal == 1 && input.Vertical == 0 ? p with { X = 10, Z = 1 }
+                : p;
+            return new(true, null, state with { Player = next }, next != p);
+        }
+        double Distance(Ff7AutoPlayWorldMovementState state) => (state.Player.X, state.Player.Z) switch { (10, 10) => -100, (10, 1) => 200, _ => 100 };
+        var cursor = new Ff7AutoplayDriver.WorldPhysicalSearchCursor(Source, Preview, Distance, _ => true, _ => false);
+        var result = cursor.Resume(32);
+        Check(result.Status == Ff7AutoPlayWorldNavigationStatus.Blocked && cursor.Expanded == 4 && cursor.VisitedCount == 4 && cursor.RetainedStateCount == 0, "A cheaper reopened state lost its payload or a stale queue entry was expanded twice.");
+    }
+
+    private static void CheckReconstructionValidation()
+    {
+        foreach (bool changeBoundary in new[] { false, true })
+        {
+            CheckReconstructionValidation(changeBoundary);
+        }
+    }
+
+    private static void CheckReconstructionValidation(bool changeBoundary)
+    {
+        bool changed = false;
+        Ff7AutoPlayWorldMovementPreview Preview(Ff7AutoplayInput input, Ff7AutoPlayWorldMovementState state)
+        {
+            if (input.Horizontal != 1 || input.Vertical != 0)
+            {
+                return new(true, null, state);
+            }
+            return new(true, null, state with { Player = state.Player with { X = state.Player.X + (changed && !changeBoundary ? 2 : 1) } }, true, ModelBoundaries: [new(changed && changeBoundary ? 6 : 5, 3)]);
+        }
+        var cursor = new Ff7AutoplayDriver.WorldPhysicalSearchCursor(Source, Preview, _ => 100, _ => true, step => step.State!.Player.X >= 2);
+        cursor.Resume(1);
+        changed = true;
+        bool rejected = false;
+        try
+        {
+            cursor.Resume(1);
+        }
+        catch (InvalidOperationException)
+        {
+            rejected = true;
+        }
+        Check(rejected, "Route reconstruction emitted old native keys or boundary operands after its preview contract changed.");
     }
 
     private static void CheckPolicyPending()
