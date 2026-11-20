@@ -27,7 +27,29 @@ public sealed partial class Ff7AutoPlayController
         return $"field:{state.FieldName}:{state.Vm.ProgramIdentity}:{state.Progress.CompletedBattles.Length}:{state.Process.Movie?.PreparedId}:{state.Process.Movie?.Frame}:{state.Process.CameraScroll?.Step}:{state.Process.CameraViewOffset?.Step}:"
             + string.Join(";", state.Vm.Entities.Select(entity => $"{entity.ProgramCounter},{entity.Priority},{entity.WaitCounter}"))
             + string.Join(";", state.Process.Actors.Select(actor => $"{actor.X4096},{actor.Y4096},{actor.Z4096},{actor.Triangle},{actor.Ladder?.Step},{actor.Jump?.Step}"))
-            + ":dialogues:" + string.Join(";", state.Process.Dialogues.Select(DialogueProgress));
+            + ":dialogues:" + string.Join(";", state.Process.Dialogues.Select(DialogueProgress))
+            + ":blocking-animations:" + string.Join(";", BlockingAnimationProgress(state));
+    }
+
+    private static IEnumerable<string> BlockingAnimationProgress(Ff7SessionSave state)
+    {
+        foreach (FieldHostRequest request in state.Vm.PendingRequests ?? [])
+        {
+            if (request.Command is not FieldAnimation { Blocking: true } animation || (uint)request.Entity >= state.Vm.Entities.Length)
+            {
+                continue;
+            }
+            FieldEntitySnapshot owner = state.Vm.Entities[request.Entity];
+            if (owner.Priority != request.Priority || owner.ProgramCounter != request.ProgramCounter || !state.Process.AnimationRequests.Any(active => active.RequestId == request.Id && active.Entity == request.Entity))
+            {
+                continue;
+            }
+            Ff7Actor? actor = state.Process.Actors.LastOrDefault(actor => actor.EntityBound && actor.Entity == request.Entity && actor.Animation == animation.Animation);
+            if (actor is not null)
+            {
+                yield return $"{request.Entity},{request.Priority},{request.ProgramCounter},{actor.Model},{actor.Animation},{actor.AnimationFrame16},{actor.AnimationStatus},{actor.AnimationStopped},{actor.AnimationFinished}";
+            }
+        }
     }
 
     private static string DialogueProgress(Ff7Dialogue dialogue)

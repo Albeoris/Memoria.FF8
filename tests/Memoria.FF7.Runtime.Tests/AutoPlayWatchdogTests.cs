@@ -7,6 +7,7 @@ internal static class AutoPlayWatchdogTests
     public static void Run()
     {
         PlanningPollsDoNotSpendSemanticCallbacks();
+        OwnedBlockingAnimationFramesRenewProgress();
         FieldAllocationsDoNotRenewSemanticProgress();
         FrontierProgressSurvivesLifecycleRestores();
         ReexecutingConsumedEventsDoesNotRenewFrontierBudget();
@@ -52,6 +53,43 @@ internal static class AutoPlayWatchdogTests
         Check(Ff7AutoPlayController.WorldProgress(speaking) != Ff7AutoPlayController.WorldProgress(speaking with { Dialogue = dialogue with { TokenPosition = 1 } }), "Native dialogue reveal was omitted from semantic progress.");
         Check(Ff7AutoPlayController.WorldProgress(speaking) != Ff7AutoPlayController.WorldProgress(speaking with { Dialogue = dialogue with { WaitTicks = 1 } }), "Native dialogue waiting was omitted from semantic progress.");
         Console.WriteLine("PASS autoplay semantic watchdog, repeated cycles and bounded host batches.");
+    }
+
+    private static void OwnedBlockingAnimationFramesRenewProgress()
+    {
+        FieldHostRequest request = new(9, 0, 1, 4, new FieldAnimation(5, 1, true, true));
+        Ff7Actor actor = new() { Slot = 0, Entity = 0, Model = 0, Animation = 5, AnimationStatus = 2 };
+        Ff7SessionSave field = new()
+        {
+            ResourceProfile = "profile",
+            Language = "en",
+            FieldName = "field",
+            Vm = new(1, "profile", "program", 0, true, [], [], [new(4, 1, 0, [], [], [])], PendingRequests: [request]),
+            Progress = new() { InitialKernelData = [], Characters = [], Party = [], Inventory = [], Materia = [] },
+            Process = new() { Actors = [actor], AnimationRequests = [new(9, 0)] }
+        };
+        string initial = Ff7AutoPlayController.FieldProgress(field);
+        Ff7AutoPlayProgressWatchdog watchdog = new();
+        for (int frame = 0; frame < Ff7AutoPlayProgressWatchdog.IdleStepLimit * 2; frame++)
+        {
+            Check(watchdog.Observe(Ff7AutoPlayController.FieldProgress(field with { Process = field.Process with { Actors = [actor with { AnimationFrame16 = frame }] } })), "A genuine owned blocking animation stalled at a fixed pose and script PC.");
+        }
+        foreach (Ff7SessionSave unowned in new[]
+        {
+            field with { Vm = field.Vm with { PendingRequests = [] } },
+            field with { Vm = field.Vm with { PendingRequests = [request with { Priority = 2 }] } },
+            field with { Vm = field.Vm with { PendingRequests = [request with { ProgramCounter = 5 }] } },
+            field with { Vm = field.Vm with { PendingRequests = [request with { Command = new FieldAnimation(5, 1, false, true) }] } },
+            field with { Process = field.Process with { AnimationRequests = [new(99, 0)] } },
+            field with { Process = field.Process with { AnimationRequests = [new(9, 1)] } },
+            field with { Process = field.Process with { Actors = [actor with { EntityBound = false }] } }
+        })
+        {
+            string baseline = Ff7AutoPlayController.FieldProgress(unowned);
+            Check(baseline == Ff7AutoPlayController.FieldProgress(unowned with { Process = unowned.Process with { Actors = [unowned.Process.Actors[0] with { AnimationFrame16 = 16 }] } }), "Ambient, stale or foreign animation frames invented semantic progress.");
+            Check(initial != baseline, "Unowned animation retained the genuine blocking phase witness.");
+        }
+        Check(initial == Ff7AutoPlayController.FieldProgress(field with { Vm = field.Vm with { PendingRequests = [request with { Id = 99 }] }, Process = field.Process with { AnimationRequests = [new(99, 0)] } }), "Reallocating an otherwise identical blocking request invented progress.");
     }
 
     private static void PlanningPollsDoNotSpendSemanticCallbacks()
