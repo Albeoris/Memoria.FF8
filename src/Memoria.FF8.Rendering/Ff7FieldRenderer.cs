@@ -452,7 +452,14 @@ public sealed partial class Ff7FieldRenderer
             for (int x = 0; x < size; x++)
             {
                 int index = page.GetIndex(tile.EffectiveSourceX + x, tile.EffectiveSourceY + y);
-                ushort color = page.Depth == 2 ? checked((ushort)index) : palettes.Palettes[tile.PaletteId][index];
+                if (page.Depth == 2)
+                {
+                    // Cached direct-color pages use native RGB565, independently of PS1 RGB555 palette rows.
+                    int green = index >> 5 & 63;
+                    image[x, y] = new Rgba32(Expand(index >> 11 & 31), (byte)((green << 2) | (green >> 4)), Expand(index & 31), index == 0 ? (byte)0 : (byte)255);
+                    continue;
+                }
+                ushort color = palettes.Palettes[tile.PaletteId][index];
                 if (!paletteRowsUseCachedIndices && page.Depth != 2 && background.PaletteHasTransparentColor[tile.PaletteId] != 0)
                 {
                     // Cached PC texture indices already reserve zero; its original color occupies every formerly zero palette entry.
