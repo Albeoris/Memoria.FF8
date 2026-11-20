@@ -268,7 +268,7 @@ public sealed partial class AutoPlayPlanner<TDeferral> where TDeferral : class, 
                 };
                 if (shared.Completed && shared.Routes.Count != 0)
                 {
-                    AutoPlayEventRoute[] travel = NavigationTravelRoutes(observed, shared, aggregateByKey.ContainsKey, historicalTravel, availability).ToArray();
+                    AutoPlayEventRoute[] travel = NavigationTravelRoutes(observed, shared, aggregateByKey.ContainsKey, historicalTravel, availability, route => reusableRoute?.Invoke(aggregateByKey[observation.VisitKey].Visit, observed, route) == true).ToArray();
                     // Completion alone does not prove connectivity under a new
                     // source predicate. Reobserve a previously real connection
                     // without replaying choices authenticated for the old predicate.
@@ -310,7 +310,7 @@ public sealed partial class AutoPlayPlanner<TDeferral> where TDeferral : class, 
         {
             return aggregateByKey[navigationByKey[visit.Key].VisitKey].Visit;
         }
-        return new(view, (visit, item) => phaseOrder(AggregateVisit(visit), item), (visit, item) => progressionOrder(AggregateVisit(visit), item), normalizeLegacyRoutes: false, observationsCoverWholeVisit, candidateProgressionOrder is null ? null : (visit, _, candidate) => ProgressionOrder(AggregateVisit(visit), candidate), candidateExplorationOrder is null ? null : (visit, _, candidate) => ExplorationOrder(AggregateVisit(visit), candidate));
+        return new(view, (visit, item) => phaseOrder(AggregateVisit(visit), item), (visit, item) => progressionOrder(AggregateVisit(visit), item), normalizeLegacyRoutes: false, observationsCoverWholeVisit, candidateProgressionOrder is null ? null : (visit, _, candidate) => ProgressionOrder(AggregateVisit(visit), candidate), candidateExplorationOrder is null ? null : (visit, _, candidate) => ExplorationOrder(AggregateVisit(visit), candidate), intrinsicGoal is null ? null : (visit, item) => intrinsicGoal(AggregateVisit(visit), item), reusableRoute is null ? null : (visit, item, route) => reusableRoute(AggregateVisit(visit), item, route));
     }
 
     private IEnumerable<AutoPlayEventRoute> UnconfirmedNavigationRoutes(AutoPlayNavigationVisit observation, AutoPlayEventCoverage<TDeferral> scoped, IReadOnlySet<string> valid, Func<AutoPlayNavigationVisit, AutoPlayEvent, AutoPlayEventAvailability?>? readAvailability)
@@ -323,7 +323,7 @@ public sealed partial class AutoPlayPlanner<TDeferral> where TDeferral : class, 
         AutoPlayEventCoverage<TDeferral> shared = FindEvent(observation.VisitKey, observed.Id);
         IEnumerable<AutoPlayNavigationRoute> recorded = State.NavigationRoutes.Where(edge => edge.SourceKey == observation.Key && edge.EventId == scoped.Event.Id);
         AutoPlayEventAvailability? availability = readAvailability?.Invoke(observation, observed);
-        return NavigationTravelRoutes(observed, shared, key => State.Visits.Any(visit => visit.Visit.Key == key), availability: availability).Where(route => !IsNavigationRouteConfirmed(route, recorded, valid));
+        return NavigationTravelRoutes(observed, shared, key => State.Visits.Any(visit => visit.Visit.Key == key), availability: availability, reusable: route => reusableRoute?.Invoke(FindVisit(observation.VisitKey).Visit, observed, route) == true).Where(route => !IsNavigationRouteConfirmed(route, recorded, valid));
     }
 
     private static bool IsNavigationRouteConfirmed(AutoPlayEventRoute route, IEnumerable<AutoPlayNavigationRoute> recorded, IReadOnlySet<string> valid)
@@ -339,7 +339,7 @@ public sealed partial class AutoPlayPlanner<TDeferral> where TDeferral : class, 
         return scoped.Available && !scoped.Unavailable && !scoped.PolicyDeferred && scoped.BlockedReason is null;
     }
 
-    private static IEnumerable<AutoPlayEventRoute> NavigationTravelRoutes(AutoPlayEvent observed, AutoPlayEventCoverage<TDeferral> shared, Func<string, bool> visitExists, bool allowHistoricalConditions = false, AutoPlayEventAvailability? availability = null)
+    private static IEnumerable<AutoPlayEventRoute> NavigationTravelRoutes(AutoPlayEvent observed, AutoPlayEventCoverage<TDeferral> shared, Func<string, bool> visitExists, bool allowHistoricalConditions = false, AutoPlayEventAvailability? availability = null, Func<AutoPlayEventRoute, bool>? reusable = null)
     {
         if (availability?.Unavailable == true)
         {
@@ -354,7 +354,7 @@ public sealed partial class AutoPlayPlanner<TDeferral> where TDeferral : class, 
             PolicyDeferredVariants = shared.PolicyDeferredVariants,
             AllowHistoricalTravelConditions = allowHistoricalConditions
         };
-        return TravelRoutes(candidates).Where(route => visitExists(route.DestinationVisitKey));
+        return TravelRoutes(candidates, reusable).Where(route => visitExists(route.DestinationVisitKey));
     }
 
     private AutoPlayNavigationVisit FindNavigationVisit(string key)

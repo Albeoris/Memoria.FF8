@@ -72,7 +72,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         {
             AutoPlayEventCoverage<Ff7AutoPlayDeferral> coverage = state.Coverage.Visits.SingleOrDefault(entry => entry.Visit.Key == visit.Key)?.Events.SingleOrDefault(entry => entry.Event.Id == target.Id) ?? candidate;
             return coverage.Conditions?.ConsumedEntries.Count ?? (coverage.Completed ? 1 : 0);
-        });
+        }, intrinsicGoal: (visit, target) => state.DestinationField is not null || IsIntrinsicTransportGoal(state, visit.Key, target), reusableRoute: (visit, target, route) => IsReusableTransportRoute(state, visit.Key, target, route));
     }
 
     internal static int NativeDestinationPhase(Ff7AutoPlayState state, int? destination)
@@ -220,6 +220,10 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         RetainTempleReturnDestination();
         Ff7AutoPlayObservation observation = ObservePlanner();
         ordinaryObservation = observation;
+        if (State.Active is { Accepted: true, TransitionOwned: true } arrived && arrived.Generation != observation.Generation)
+        {
+            LearnTransportCompletion(arrived, observation, true);
+        }
         if (!observation.CanAcceptInput)
         {
             return default;
@@ -652,6 +656,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             {
                 planner.RecordNavigationRoute(sourceKey, observation.NavigationKey, active.EventId, new(observation.VisitId, active.ConditionFingerprint, progressChanged, active.TravelRoute is null ? choices.Selections : active.TravelSelections ?? [], active.EventId), new(sourceKey, active.EventId, active.ConditionFingerprint, active.EventId));
             }
+            LearnTransportCompletion(active, observation, changedField);
             State.Active = active with { CompletionRecorded = true };
             if (active.NavigationProbeKey is string probe)
             {
@@ -699,7 +704,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             string signature = observation.Events.SingleOrDefault(target => target.Id == active.EventId)?.ConditionFingerprint ?? active.ConditionFingerprint;
             string? availability = State.Coverage.Visits.Single(visit => visit.Visit.Key == active.VisitId).Events.Single(item => item.Event.Id == active.EventId).AvailabilityFingerprint;
             planner.BeginEvent(active.VisitId, active.EventId);
-            State.Active = active with { Accepted = true, ConditionFingerprint = signature, BeforeStory = Story(), BeforeWitness = session.CaptureEventProgressWitness(), NavigationKey = observation.NavigationKey, EntryAvailabilityFingerprint = availability };
+            State.Active = active with { Accepted = true, ConditionFingerprint = signature, BeforeStory = Story(), BeforeWitness = session.CaptureEventProgressWitness(), NavigationKey = observation.NavigationKey, EntryAvailabilityFingerprint = availability, TransportEntry = ReadCurrentTransportEntry(observation, active.EventId) };
             Publish();
         }
     }
@@ -711,6 +716,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             return ObserveWorldPlanner(world);
         }
         Ff7AutoPlayObservation observation = discovery.Observe();
+        ObserveTransportRegions(observation);
         bool nativeCatalogChanged = ReplanForNewNativeTargets(State, observation);
         foreach (Ff7AutoPlayTarget target in observation.Events.Where(target => target.Kind == Ff7AutoPlayTargetKind.Gateway && target.DestinationField is not null))
         {

@@ -11,7 +11,7 @@ public sealed record Ff7AutoPlaySpatialOwner(int SourceProgramCounter, int Targe
 
 public sealed record Ff7AutoPlayWorldModeGoal(string TargetEventId, Ff7AutoPlayWorldChunk Chunk, int Script, int RiderModel);
 
-public sealed record Ff7AutoPlayActiveEvent(string VisitId, string EventId, string ConditionFingerprint, long Generation, int Entity, int Script, Ff7AutoPlayTargetKind Kind, int? DestinationField, int BeforeStory, string BeforeWitness, bool Accepted = false, bool Returned = false, bool TransitionOwned = false, int LinePhase = 0, float LineSide = 0, int MovementCallbacks = 0, int StagnantCallbacks = 0, int? LastX = null, int? LastY = null, int? LastZ = null, bool CompletionRecorded = false, string? NavigationKey = null, string? NavigationProbeKey = null, string? EntryAvailabilityFingerprint = null, int[]? SpatialDestinations = null, AutoPlayEventRoute? TravelRoute = null, IReadOnlyList<AutoPlayChoiceSelection>? TravelSelections = null, Ff7AutoPlaySpatialOwner? SpatialOwner = null, IReadOnlyDictionary<string, string>? EntryGuardFingerprints = null, FieldSpatialEffectOwner? DirectEffectOwner = null, Ff7AutoPlayWorldControlObservation? WorldControl = null, int WorldControlPhase = 0, Ff7AutoPlayWorldModeGoal? WorldModeGoal = null);
+public sealed record Ff7AutoPlayActiveEvent(string VisitId, string EventId, string ConditionFingerprint, long Generation, int Entity, int Script, Ff7AutoPlayTargetKind Kind, int? DestinationField, int BeforeStory, string BeforeWitness, bool Accepted = false, bool Returned = false, bool TransitionOwned = false, int LinePhase = 0, float LineSide = 0, int MovementCallbacks = 0, int StagnantCallbacks = 0, int? LastX = null, int? LastY = null, int? LastZ = null, bool CompletionRecorded = false, string? NavigationKey = null, string? NavigationProbeKey = null, string? EntryAvailabilityFingerprint = null, int[]? SpatialDestinations = null, AutoPlayEventRoute? TravelRoute = null, IReadOnlyList<AutoPlayChoiceSelection>? TravelSelections = null, Ff7AutoPlaySpatialOwner? SpatialOwner = null, IReadOnlyDictionary<string, string>? EntryGuardFingerprints = null, FieldSpatialEffectOwner? DirectEffectOwner = null, Ff7AutoPlayWorldControlObservation? WorldControl = null, int WorldControlPhase = 0, Ff7AutoPlayWorldModeGoal? WorldModeGoal = null, Ff7AutoPlayTransportEntry? TransportEntry = null);
 public sealed record Ff7AutoPlayMovementFailure(int MinX, int MaxX, int MinY, int MaxY, int? MinZ = null, int? MaxZ = null);
 public sealed record Ff7AutoPlayPhysicalFailureReceipt(int Revision, string Contract, string NativeSource, long Expanded);
 public sealed record Ff7AutoPlayNavigationGuard(string VisitId, int Entity, int[]? BlockingEntities = null, string? EventId = null, string? NavigationKey = null, int? SourceTriangle = null, Ff7AutoPlayMovementFailure? MovementFailure = null, int[]? SpatialBoundaryTriangles = null, string? ObservedFingerprint = null, bool? MovementSourceInside = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Ff7AutoPlayPhysicalFailureReceipt? PhysicalFailure = null);
@@ -20,11 +20,14 @@ public sealed record Ff7AutoPlayGatewayTopology(string NavigationKey, string Eve
 /// <summary>Observational planner state; native progress and execution remain owned by the session.</summary>
 public sealed record Ff7AutoPlaySourceRevalidationTask(string NavigationKey, string EventId, string Condition, string DepartureReceiptKey, bool ArrivalAcknowledged = false);
 public sealed record Ff7AutoPlayTravelCommitment(AutoPlayTravelGoal Goal, string NavigationKey, ushort? DestinationField);
+public sealed record Ff7AutoPlayTransportEntry(string Region, uint Cost, uint BeforeGil, ushort? DestinationField = null);
+public sealed record Ff7AutoPlayTransportRegion(string Condition, string Region, string? CompletedRegion = null, string? CompletedCondition = null, string? DestinationVisit = null, string? ChoiceKey = null);
 public sealed record Ff7AutoPlayChoicePreference(int Selection, string NativeContext, string GuestContext, Dictionary<string, string>? NativeComponents = null);
 
 public sealed class Ff7AutoPlayState
 {
     public Dictionary<string, Ff7AutoPlayTalkConditionDomain> TalkConditionDomains { get; set; } = new(StringComparer.Ordinal);
+    public Dictionary<string, Ff7AutoPlayTransportRegion> TransportRegions { get; set; } = new(StringComparer.Ordinal);
     public int Version { get; set; } = 1;
     public AutoPlayPlannerState<Ff7AutoPlayDeferral> Coverage { get; set; } = new();
     public ushort? DestinationField { get; set; }
@@ -58,6 +61,7 @@ public sealed class Ff7AutoPlayState
 
     public void Validate()
     {
+        TransportRegions ??= new(StringComparer.Ordinal);
         SourceRevalidationAttempts ??= new(StringComparer.Ordinal);
         if (NavigationGuards.Values.Any(guard => guard.PhysicalFailure is { } receipt && (receipt.Expanded < 0 || receipt.Contract is not { Length: 64 } || !receipt.Contract.All(Uri.IsHexDigit) || receipt.NativeSource is not { Length: 64 } || !receipt.NativeSource.All(Uri.IsHexDigit))))
         {

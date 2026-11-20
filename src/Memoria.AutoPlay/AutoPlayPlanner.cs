@@ -130,15 +130,17 @@ public sealed partial class AutoPlayPlanner<TDeferral> where TDeferral : class, 
     private readonly Func<AutoPlayVisit, AutoPlayEvent, AutoPlayEventCoverage<TDeferral>, int>? candidateProgressionOrder;
     private readonly Func<AutoPlayVisit, AutoPlayEvent, AutoPlayEventCoverage<TDeferral>, int>? candidateExplorationOrder;
     private readonly bool observationsCoverWholeVisit;
+    private readonly Func<AutoPlayVisit, AutoPlayEvent, bool>? intrinsicGoal;
+    private readonly Func<AutoPlayVisit, AutoPlayEvent, AutoPlayEventRoute, bool>? reusableRoute;
     private sealed record PlanCandidate(AutoPlayVisitCoverage<TDeferral> Visit, AutoPlayEventCoverage<TDeferral> Coverage);
 
     public AutoPlayPlannerState<TDeferral> State { get; }
 
-    public AutoPlayPlanner(AutoPlayPlannerState<TDeferral>? state = null, Func<AutoPlayVisit, AutoPlayEvent, int>? phaseOrder = null, Func<AutoPlayVisit, AutoPlayEvent, int>? progressionOrder = null, bool observationsCoverWholeVisit = false, Func<AutoPlayVisit, AutoPlayEvent, AutoPlayEventCoverage<TDeferral>, int>? candidateProgressionOrder = null, Func<AutoPlayVisit, AutoPlayEvent, AutoPlayEventCoverage<TDeferral>, int>? candidateExplorationOrder = null) : this(state, phaseOrder, progressionOrder, normalizeLegacyRoutes: true, observationsCoverWholeVisit, candidateProgressionOrder, candidateExplorationOrder)
+    public AutoPlayPlanner(AutoPlayPlannerState<TDeferral>? state = null, Func<AutoPlayVisit, AutoPlayEvent, int>? phaseOrder = null, Func<AutoPlayVisit, AutoPlayEvent, int>? progressionOrder = null, bool observationsCoverWholeVisit = false, Func<AutoPlayVisit, AutoPlayEvent, AutoPlayEventCoverage<TDeferral>, int>? candidateProgressionOrder = null, Func<AutoPlayVisit, AutoPlayEvent, AutoPlayEventCoverage<TDeferral>, int>? candidateExplorationOrder = null, Func<AutoPlayVisit, AutoPlayEvent, bool>? intrinsicGoal = null, Func<AutoPlayVisit, AutoPlayEvent, AutoPlayEventRoute, bool>? reusableRoute = null) : this(state, phaseOrder, progressionOrder, normalizeLegacyRoutes: true, observationsCoverWholeVisit, candidateProgressionOrder, candidateExplorationOrder, intrinsicGoal, reusableRoute)
     {
     }
 
-    private AutoPlayPlanner(AutoPlayPlannerState<TDeferral>? state, Func<AutoPlayVisit, AutoPlayEvent, int>? phaseOrder, Func<AutoPlayVisit, AutoPlayEvent, int>? progressionOrder, bool normalizeLegacyRoutes, bool observationsCoverWholeVisit, Func<AutoPlayVisit, AutoPlayEvent, AutoPlayEventCoverage<TDeferral>, int>? candidateProgressionOrder = null, Func<AutoPlayVisit, AutoPlayEvent, AutoPlayEventCoverage<TDeferral>, int>? candidateExplorationOrder = null)
+    private AutoPlayPlanner(AutoPlayPlannerState<TDeferral>? state, Func<AutoPlayVisit, AutoPlayEvent, int>? phaseOrder, Func<AutoPlayVisit, AutoPlayEvent, int>? progressionOrder, bool normalizeLegacyRoutes, bool observationsCoverWholeVisit, Func<AutoPlayVisit, AutoPlayEvent, AutoPlayEventCoverage<TDeferral>, int>? candidateProgressionOrder = null, Func<AutoPlayVisit, AutoPlayEvent, AutoPlayEventCoverage<TDeferral>, int>? candidateExplorationOrder = null, Func<AutoPlayVisit, AutoPlayEvent, bool>? intrinsicGoal = null, Func<AutoPlayVisit, AutoPlayEvent, AutoPlayEventRoute, bool>? reusableRoute = null)
     {
         State = state ?? new AutoPlayPlannerState<TDeferral>();
         this.phaseOrder = phaseOrder ?? ((_, _) => 0);
@@ -146,6 +148,8 @@ public sealed partial class AutoPlayPlanner<TDeferral> where TDeferral : class, 
         this.candidateProgressionOrder = candidateProgressionOrder;
         this.candidateExplorationOrder = candidateExplorationOrder;
         this.observationsCoverWholeVisit = observationsCoverWholeVisit;
+        this.intrinsicGoal = intrinsicGoal;
+        this.reusableRoute = reusableRoute;
         if (normalizeLegacyRoutes)
         {
             foreach (AutoPlayEventCoverage<TDeferral> item in State.Visits.SelectMany(visit => visit.Events))
@@ -302,7 +306,7 @@ public sealed partial class AutoPlayPlanner<TDeferral> where TDeferral : class, 
                 throw new InvalidOperationException("The actual next choice still admits the recorded route selection.");
             }
         }
-        if (!OrderedEvents(FindVisit(visitKey)).Contains(item) || !TravelRoutes(item).Any(candidate => SameTravelRoute(candidate, route)))
+        if (!OrderedEvents(FindVisit(visitKey)).Contains(item) || !TravelRoutes(item, route => reusableRoute?.Invoke(FindVisit(visitKey).Visit, item.Event, route) == true).Any(candidate => SameTravelRoute(candidate, route)))
         {
             throw new InvalidOperationException("Only an exact known eligible travel route can be retired.");
         }
@@ -400,11 +404,11 @@ public sealed partial class AutoPlayPlanner<TDeferral> where TDeferral : class, 
             AutoPlayVisitCoverage<TDeferral> visit = visits[key];
             foreach (AutoPlayEventCoverage<TDeferral> edge in OrderedEvents(visit))
             {
-                if (NeedsExecution(edge))
+                if (NeedsExecution(edge) && intrinsicGoal?.Invoke(visit.Visit, edge.Event) != false)
                 {
                     candidates.Add(new(visit, edge));
                 }
-                foreach (AutoPlayEventRoute route in TravelRoutes(edge))
+                foreach (AutoPlayEventRoute route in TravelRoutes(edge, route => reusableRoute?.Invoke(visit.Visit, edge.Event, route) == true))
                 {
                     string destination = route.DestinationVisitKey;
                     if (routes.ContainsKey(destination) || !visits.ContainsKey(destination))
@@ -503,11 +507,11 @@ public sealed partial class AutoPlayPlanner<TDeferral> where TDeferral : class, 
             }
             foreach (AutoPlayEventCoverage<TDeferral> item in OrderedEvents(visit))
             {
-                if ((key != excludedVisit || item.Event.Id != excludedEvent) && NeedsExecution(item))
+                if ((key != excludedVisit || item.Event.Id != excludedEvent) && NeedsExecution(item) && intrinsicGoal?.Invoke(visit.Visit, item.Event) != false)
                 {
                     count++;
                 }
-                foreach (AutoPlayEventRoute route in TravelRoutes(item))
+                foreach (AutoPlayEventRoute route in TravelRoutes(item, route => reusableRoute?.Invoke(visit.Visit, item.Event, route) == true))
                 {
                     pending.Enqueue(route.DestinationVisitKey);
                 }
@@ -679,9 +683,9 @@ public sealed partial class AutoPlayPlanner<TDeferral> where TDeferral : class, 
         return item.RouteNeedsRediscovery || conditionsChanged || item.AvailabilityFingerprint is string availability && !item.CompletedAvailabilityFingerprints.Contains(availability);
     }
 
-    private static IEnumerable<AutoPlayEventRoute> TravelRoutes(AutoPlayEventCoverage<TDeferral> item)
+    private static IEnumerable<AutoPlayEventRoute> TravelRoutes(AutoPlayEventCoverage<TDeferral> item, Func<AutoPlayEventRoute, bool>? reusable = null)
     {
-        return item.Routes.Where(route => item.Completed && (item.AllowHistoricalTravelConditions || StringComparer.Ordinal.Equals(route.ConditionSignature, item.Event.ConditionSignature)) && !(route.ObservedStoryChanged ?? item.Event.ChangesStory) && (route.TargetId is null ? item.UnavailableVariants.Count == 0 && item.PolicyDeferredVariants.Count == 0 : ObservedVariants(item).Contains(route.TargetId, StringComparer.Ordinal) && !item.UnavailableVariants.Contains(route.TargetId) && !item.PolicyDeferredVariants.Contains(route.TargetId))).OrderBy(route => route.DestinationVisitKey, StringComparer.Ordinal).ThenBy(route => route.TargetId, StringComparer.Ordinal).ThenBy(route => route.Selections is null ? string.Empty : string.Join('|', route.Selections.Select(selection => $"{selection.Key}={selection.Selection}")), StringComparer.Ordinal);
+        return item.Routes.Where(route => item.Completed && (item.AllowHistoricalTravelConditions || StringComparer.Ordinal.Equals(route.ConditionSignature, item.Event.ConditionSignature) || reusable?.Invoke(route) == true) && !(route.ObservedStoryChanged ?? item.Event.ChangesStory) && (route.TargetId is null ? item.UnavailableVariants.Count == 0 && item.PolicyDeferredVariants.Count == 0 : ObservedVariants(item).Contains(route.TargetId, StringComparer.Ordinal) && !item.UnavailableVariants.Contains(route.TargetId) && !item.PolicyDeferredVariants.Contains(route.TargetId))).OrderBy(route => route.DestinationVisitKey, StringComparer.Ordinal).ThenBy(route => route.TargetId, StringComparer.Ordinal).ThenBy(route => route.Selections is null ? string.Empty : string.Join('|', route.Selections.Select(selection => $"{selection.Key}={selection.Selection}")), StringComparer.Ordinal);
     }
 
     private static void NormalizeLegacyRoute(AutoPlayEventCoverage<TDeferral> item)

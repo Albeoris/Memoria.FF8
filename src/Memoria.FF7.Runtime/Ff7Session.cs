@@ -112,6 +112,8 @@ public sealed partial class Ff7Session : IDisposable
         return Restore(installation, save, null);
     }
 
+    internal Ff7Session ReadOnlyNavigationSnapshot(Ff7SessionSave save) => RestoreNavigationSnapshot(save);
+
     private Ff7Session RestoreNavigationSnapshot(Ff7SessionSave save)
     {
         // Windows read-only archive handles pin the selected resource epoch until every reader closes.
