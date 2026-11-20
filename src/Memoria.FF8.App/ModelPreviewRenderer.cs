@@ -20,10 +20,8 @@ internal static class ModelPreviewRenderer
 {
     private static readonly Matrix4x4 FieldToView = Matrix4x4.CreateRotationX(-MathF.PI / 2);
 
-    public static PixelImage RenderFieldModel(FieldModel model, ModelPreviewCamera camera, int animation, float seconds, ModelPreviewBounds framing)
+    public static PixelImage RenderFieldModel(FieldModel model, ModelPreviewCamera camera, int animation, float seconds, ModelPreviewBounds framing, int width, int height)
     {
-        const int width = 480;
-        const int height = 360;
         // Fixed camera distance keeps the posed mesh in front of the near plane while zoom changes the viewport scale.
         float radius = Vector3.Distance(framing.Minimum, framing.Maximum) * 0.5f;
         if (!float.IsFinite(radius) || radius <= 0)

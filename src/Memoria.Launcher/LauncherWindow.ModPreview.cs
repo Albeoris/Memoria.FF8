@@ -53,6 +53,7 @@ internal sealed partial class LauncherWindow
         LauncherCatalogPreviewPlayer? player = null;
         List<Task> retiredPlayers = [];
         HashSet<PhysicalKey> movementKeys = [];
+        bool shiftHeld = false;
         DispatcherTimer movementTimer = new() { Interval = TimeSpan.FromMilliseconds(16) };
         long lastMovement = 0;
         Window window = new()
@@ -70,6 +71,25 @@ internal sealed partial class LauncherWindow
         Grid comparison = new() { RowDefinitions = new RowDefinitions("*") };
         Grid.SetColumn(comparison, 1);
         root.Children.Add(comparison);
+        DispatcherTimer resizeTimer = new() { Interval = TimeSpan.FromMilliseconds(120) };
+        comparison.SizeChanged += (_, _) => resizeTimer.Start();
+        window.ScalingChanged += (_, _) => resizeTimer.Start();
+        resizeTimer.Tick += async (_, _) =>
+        {
+            if (selection is not null || movementTimer.IsEnabled)
+            {
+                return;
+            }
+            resizeTimer.Stop();
+            if (world is { } activeWorld && current?.Before.Image is { } map && map.Width != WorldRenderWidth())
+            {
+                await RenderInteraction(token => activeWorld.RenderAsync(0, 0, token));
+            }
+            else if ((beforeModelImage ?? afterModelImage)?.Source is Bitmap model && model.PixelSize.Width != ModelRenderWidth())
+            {
+                QueueModelRender();
+            }
+        };
         StackPanel controls = new() { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Spacing = 8 };
         StackPanel interaction = new() { Orientation = Orientation.Horizontal, Spacing = 6 };
         controls.Children.Add(interaction);
@@ -92,7 +112,7 @@ internal sealed partial class LauncherWindow
         controls.Children.Add(expand);
         controls.Children.Add(close);
         StackPanel playbackControls = new();
-        TextBlock flightHelp = new() { Text = "WASD Move · Q Rise · E Descend", IsVisible = false, HorizontalAlignment = HorizontalAlignment.Right };
+        TextBlock flightHelp = new() { Text = "W/S Move · A/D Rotate · Shift+A/D Strafe · Q Rise · E Descend", IsVisible = false, HorizontalAlignment = HorizontalAlignment.Right, TextWrapping = TextWrapping.Wrap };
         StackPanel footer = new() { Spacing = 8 };
         footer.Children.Add(playbackControls);
         footer.Children.Add(flightHelp);
@@ -103,6 +123,7 @@ internal sealed partial class LauncherWindow
         window.Content = root;
         window.AddHandler(InputElement.KeyDownEvent, (_, key) =>
         {
+            shiftHeld = (key.KeyModifiers & KeyModifiers.Shift) != 0;
             if (world is null || current is null || !IsMovementKey(key.PhysicalKey) || (key.KeyModifiers & (KeyModifiers.Control | KeyModifiers.Alt | KeyModifiers.Meta)) != 0)
             {
                 return;
@@ -117,12 +138,14 @@ internal sealed partial class LauncherWindow
         }, RoutingStrategies.Tunnel);
         window.AddHandler(InputElement.KeyUpEvent, (_, key) =>
         {
+            shiftHeld = (key.KeyModifiers & KeyModifiers.Shift) != 0;
             if (movementKeys.Remove(key.PhysicalKey))
             {
                 key.Handled = true;
                 if (movementKeys.Count == 0)
                 {
                     movementTimer.Stop();
+                    resizeTimer.Start();
                 }
             }
         }, RoutingStrategies.Tunnel);
@@ -132,23 +155,31 @@ internal sealed partial class LauncherWindow
             {
                 return;
             }
+            int horizontal = KeyAxis(PhysicalKey.D, PhysicalKey.A);
             Vector3 direction = new(
-                KeyAxis(PhysicalKey.D, PhysicalKey.A),
+                shiftHeld ? horizontal : 0,
                 KeyAxis(PhysicalKey.Q, PhysicalKey.E),
                 KeyAxis(PhysicalKey.W, PhysicalKey.S));
+            int turn = shiftHeld ? 0 : horizontal;
             long now = Stopwatch.GetTimestamp();
             float seconds = MathF.Min(0.1f, (float)Stopwatch.GetElapsedTime(lastMovement, now).TotalSeconds);
             lastMovement = now;
-            if (direction != Vector3.Zero)
+            if (direction != Vector3.Zero || turn != 0)
             {
                 const float flightSpeed = 6000;
-                Vector3 movement = Vector3.Normalize(direction) * (flightSpeed * seconds);
-                await RenderInteraction(token => activeWorld.FlyAsync(movement, token));
+                const float turnSpeed = MathF.PI / 2;
+                Vector3 movement = direction == Vector3.Zero ? Vector3.Zero : Vector3.Normalize(direction) * (flightSpeed * seconds);
+                await RenderInteraction(token => activeWorld.FlyAsync(movement, turn * turnSpeed * seconds, token));
             }
         };
-        window.Deactivated += (_, _) => StopMovement();
+        window.Deactivated += (_, _) =>
+        {
+            StopMovement();
+            resizeTimer.Start();
+        };
         window.Closed += (_, _) =>
         {
+            resizeTimer.Stop();
             StopMovement();
             lifetime.Cancel();
             selection?.Cancel();
@@ -230,12 +261,12 @@ internal sealed partial class LauncherWindow
                     ModPreviewComparison result;
                     if (item.Id == ModPreviewDocument.WorldSceneId)
                     {
-                        world = new(profile, document.PackageCatalog);
+                        world = new(profile, document.PackageCatalog, WorldFrameWidth);
                         result = await world.RenderAsync(0, 0, requested.Token);
                     }
                     else
                     {
-                        result = await CatalogPreviewPresentation.CompareAsync(document, item, profile, requested.Token);
+                        result = await CatalogPreviewPresentation.CompareAsync(document, item, profile, requested.Token, ModelRenderWidth());
                     }
                     if (!requested.IsCancellationRequested)
                     {
@@ -320,7 +351,8 @@ internal sealed partial class LauncherWindow
                     modelRenderPending = false;
                     ModelPreviewCamera view = camera.Snapshot();
                     float seconds = pose;
-                    ModPreviewComparison frame = await Task.Run(() => CatalogPreviewPresentation.DrawModels(pair, view, seconds), requested.Token);
+                    int width = ModelRenderWidth();
+                    ModPreviewComparison frame = await Task.Run(() => CatalogPreviewPresentation.DrawModels(pair, view, seconds, width), requested.Token);
                     if (!requested.IsCancellationRequested)
                     {
                         UpdateModelImage(beforeModelImage, frame.Before);
@@ -345,6 +377,26 @@ internal sealed partial class LauncherWindow
                     selection = null;
                 }
             }
+        }
+
+        int WorldRenderWidth() => ComparisonRenderWidth(16d / 9);
+
+        int WorldFrameWidth()
+        {
+            const int flightWidth = 720;
+            int width = WorldRenderWidth();
+            return movementTimer.IsEnabled ? Math.Min(width, flightWidth) : width;
+        }
+
+        int ModelRenderWidth() => ComparisonRenderWidth(4d / 3);
+
+        int ComparisonRenderWidth(double aspect)
+        {
+            double fittedWidth = comparisonImages.Where(image => image.IsVisible && image.Bounds.Width > 0 && image.Bounds.Height > 0)
+                .Select(image => Math.Min(image.Bounds.Width, image.Bounds.Height * aspect))
+                .DefaultIfEmpty(Math.Min(comparison.Bounds.Width / 2, comparison.Bounds.Height * aspect)).Max();
+            double pixels = fittedWidth * window.RenderScaling;
+            return Math.Clamp((int)Math.Ceiling(pixels / 16) * 16, 320, 2048);
         }
 
         void UpdateModelImage(Image? image, ModPreviewSide side)
@@ -581,6 +633,11 @@ internal sealed partial class LauncherWindow
                 Grid.SetRow(scroll, 1);
                 scroll.MaxHeight = 110;
                 Image image = new() { Source = CreateModPreviewBitmap(pixels), Stretch = Stretch.Uniform, IsVisible = !side.CanUseItem };
+                RenderOptions.SetBitmapInterpolationMode(image, BitmapInterpolationMode.HighQuality);
+                if (world is not null || side.HasModel)
+                {
+                    image.SizeChanged += (_, _) => resizeTimer.Start();
+                }
                 comparisonImages.Add(image);
                 Grid.SetRow(image, 2);
                 pane.Children.Add(image);

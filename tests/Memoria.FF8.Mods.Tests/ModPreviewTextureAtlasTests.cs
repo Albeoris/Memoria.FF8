@@ -15,6 +15,20 @@ public sealed class ModPreviewTextureAtlasTests
     private const string OutcomePage = "mods/textures/eng/cardgame/icons_1_0_255.png";
 
     [Fact]
+    public async Task ListsExploreBeforeTheWorldMapTextureGroups()
+    {
+        await using PreviewFixture fixture = new();
+        fixture.Write("mods/textures/world/esk/chara_one/model1-0_00.png", []);
+        fixture.Write("mods/textures/world/dat/wmset/section39/texture0_00.png", []);
+        ModPreviewDocument document = await fixture.Open();
+
+        ModPreviewTreeNode world = Assert.Single(document.Tree.Branches);
+        Assert.Equal("World map (3)", world.Label);
+        Assert.Equal(new[] { "Explore (1)", "Characters and vehicles (1)", "Roads (1)" }, world.Children.Select(group => group.Label));
+        Assert.Equal(ModPreviewDocument.WorldSceneId, Assert.Single(world.Children[0].Children).Entry?.Id);
+    }
+
+    [Fact]
     public async Task ListsSheetAndPageMembersWithoutDecodingPackageImages()
     {
         await using PreviewFixture fixture = new();

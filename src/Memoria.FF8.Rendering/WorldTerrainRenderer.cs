@@ -111,7 +111,7 @@ public sealed partial class WorldTerrainRenderer
     private ushort terrainReplacementMask;
     private readonly record struct Vertex(Vector3 Position, Vector2 Uv, Vector4? Color = null);
     private readonly record struct ScreenVertex(float X, float Y, float ReciprocalZ, Vector2 UvOverZ, Vector4? ColorOverZ = null, float? NativeOrderingReciprocal = null);
-    private readonly record struct RasterTriangle(ScreenVertex A, ScreenVertex B, ScreenVertex C, PixelImage Texture, bool Transparent, TriangleBlend? Blend = null, bool? NativeParticlePass = null);
+    private readonly record struct RasterTriangle(ScreenVertex A, ScreenVertex B, ScreenVertex C, PixelImage Texture, bool Transparent, TriangleBlend? Blend = null, bool? NativeParticlePass = null, WorldGroundTextureSampler? Sampler = null);
     private readonly List<RasterTriangle> rasterTriangles = [];
 
     public WorldTerrainRenderer(WorldAssets assets, int width, int height)
@@ -132,6 +132,7 @@ public sealed partial class WorldTerrainRenderer
     /// <summary>Submitted triangles; retained hardware terrain is clipped by the GPU after submission.</summary>
     public int DrawnTriangles { get; private set; }
     public ITriangleRenderer? TriangleRenderer { get; set; }
+    internal bool FilterGroundTextures { get; init; }
 
     public byte[] Render(Vector3 position, float heading, int animationId, float animationFrame, WorldCamera camera, IReadOnlyDictionary<int, int>? replacements = null, WorldSky? skyOverride = null, bool avatarVisible = true, FieldModel? avatarModel = null, IReadOnlyList<NativeWorldStaticModelDraw>? staticModels = null, NativeWorldForestState? forest = null, IReadOnlyList<NativeWorldAnimatedModelDraw>? animatedModels = null)
     {
@@ -258,7 +259,7 @@ public sealed partial class WorldTerrainRenderer
             int bottom = (worker + 1) * Height / workers - 1;
             foreach (RasterTriangle triangle in rasterTriangles)
             {
-                Raster(triangle.A, triangle.B, triangle.C, triangle.Texture, triangle.Transparent, top, bottom, triangle.Blend, triangle.NativeParticlePass);
+                Raster(triangle, top, bottom);
             }
         });
         DrawnTriangles += rasterTriangles.Count;
@@ -305,7 +306,8 @@ public sealed partial class WorldTerrainRenderer
             }
             return point;
         }
-        Draw(new Vertex(TerrainPoint(triangle.A), triangle.UvA * uvScale), new Vertex(TerrainPoint(triangle.B), triangle.UvB * uvScale), new Vertex(TerrainPoint(triangle.C), triangle.UvC * uvScale), assets.GetTexture(triangle, terrainReplacementMask, textureAnimation), transparent);
+        bool filterTexture = FilterGroundTextures && !transparent && !triangle.Water && !triangle.Road;
+        Draw(new Vertex(TerrainPoint(triangle.A), triangle.UvA * uvScale), new Vertex(TerrainPoint(triangle.B), triangle.UvB * uvScale), new Vertex(TerrainPoint(triangle.C), triangle.UvC * uvScale), assets.GetTexture(triangle, terrainReplacementMask, textureAnimation), transparent, filterTexture: filterTexture);
     }
 
     private void DrawAvatar(FieldModel model, Vector3 position, float heading, int animationId, float frame, WorldAnimationBlend? animationBlend, float nativePitch = 0, float nativeRoll = 0)
@@ -358,12 +360,13 @@ public sealed partial class WorldTerrainRenderer
         }
     }
 
-    private void Draw(Vertex a, Vertex b, Vertex c, PixelImage texture, bool transparent, TriangleBlend? blend = null)
+    private void Draw(Vertex a, Vertex b, Vertex c, PixelImage texture, bool transparent, TriangleBlend? blend = null, bool filterTexture = false)
     {
         static CameraSpaceVertex CameraVertex(Vertex vertex) => new(vertex.Position, vertex.Uv, vertex.Color);
         ReadOnlySpan<CameraSpaceVertex> input = [CameraVertex(Transform(a)), CameraVertex(Transform(b)), CameraVertex(Transform(c))];
         Span<CameraSpaceVertex> clipped = stackalloc CameraSpaceVertex[4];
         int clippedCount = CameraSpaceTriangleSubmission.ClipNear(input, clipped);
+        WorldGroundTextureSampler? sampler = null;
         for (int i = 1; i + 1 < clippedCount; i++)
         {
             ScreenVertex first = Project(clipped[0]);
@@ -380,7 +383,11 @@ public sealed partial class WorldTerrainRenderer
             }
             else
             {
-                rasterTriangles.Add(new RasterTriangle(first, second, third, texture, transparent, blend));
+                if (filterTexture)
+                {
+                    sampler ??= WorldGroundTextureSampler.For(texture);
+                }
+                rasterTriangles.Add(new RasterTriangle(first, second, third, texture, transparent, blend, Sampler: sampler));
             }
         }
     }
@@ -397,8 +404,9 @@ public sealed partial class WorldTerrainRenderer
         return new ScreenVertex(projected.Position.X, projected.Position.Y, projected.ReciprocalZ, projected.UvOverZ, projected.ColorOverZ);
     }
 
-    private void Raster(ScreenVertex a, ScreenVertex b, ScreenVertex c, PixelImage texture, bool transparent, int stripeTop, int stripeBottom, TriangleBlend? blend = null, bool? nativeParticlePass = null)
+    private void Raster(RasterTriangle triangle, int stripeTop, int stripeBottom)
     {
+        var (a, b, c, texture, transparent, blend, nativeParticlePass, sampler) = triangle;
         float area = Edge(a.X, a.Y, b.X, b.Y, c.X, c.Y);
         if (MathF.Abs(area) < 0.001f)
         {
@@ -408,12 +416,28 @@ public sealed partial class WorldTerrainRenderer
         int right = Math.Min(Width - 1, (int)MathF.Ceiling(MathF.Max(a.X, MathF.Max(b.X, c.X))));
         int top = Math.Max(stripeTop, (int)MathF.Floor(MathF.Min(a.Y, MathF.Min(b.Y, c.Y))));
         int bottom = Math.Min(stripeBottom, (int)MathF.Ceiling(MathF.Max(a.Y, MathF.Max(b.Y, c.Y))));
+        if (top > bottom || left > right)
+        {
+            return;
+        }
         float waStep = (c.Y - b.Y) / area;
         float wbStep = (a.Y - c.Y) / area;
         float wcStep = -waStep - wbStep;
         float reciprocalStep = waStep * a.ReciprocalZ + wbStep * b.ReciprocalZ + wcStep * c.ReciprocalZ;
         float uStep = waStep * a.UvOverZ.X + wbStep * b.UvOverZ.X + wcStep * c.UvOverZ.X;
         float vStep = waStep * a.UvOverZ.Y + wbStep * b.UvOverZ.Y + wcStep * c.UvOverZ.Y;
+        Vector3 textureStepX = default;
+        Vector3 textureStepY = default;
+        if (sampler is not null)
+        {
+            Vector3 aTexture = new(a.UvOverZ, a.ReciprocalZ);
+            Vector3 bTexture = new(b.UvOverZ, b.ReciprocalZ);
+            Vector3 cTexture = new(c.UvOverZ, c.ReciprocalZ);
+            float waStepY = (b.X - c.X) / area;
+            float wbStepY = (c.X - a.X) / area;
+            textureStepX = new(uStep, vStep, reciprocalStep);
+            textureStepY = waStepY * (aTexture - cTexture) + wbStepY * (bTexture - cTexture);
+        }
         bool IncludesEdge(ScreenVertex start, ScreenVertex end)
         {
             float dx = (end.X - start.X) * (area < 0 ? 1 : -1);
@@ -444,9 +468,14 @@ public sealed partial class WorldTerrainRenderer
                     continue;
                 }
                 float distance = 1 / reciprocal;
-                int u = Math.Clamp((int)(uNumerator * distance * texture.Width), 0, texture.Width - 1);
-                int v = Math.Clamp((int)(vNumerator * distance * texture.Height), 0, texture.Height - 1);
+                Vector2 uv = new(uNumerator * distance, vNumerator * distance);
+                int u = Math.Clamp((int)(uv.X * texture.Width), 0, texture.Width - 1);
+                int v = Math.Clamp((int)(uv.Y * texture.Height), 0, texture.Height - 1);
                 Rgba32 color = texture.Pixels[v * texture.Width + u];
+                if (sampler is not null && color.A != 0)
+                {
+                    color = sampler.Sample(uv, distance, textureStepX, textureStepY, color);
+                }
                 if (a.ColorOverZ is { } first && b.ColorOverZ is { } second && c.ColorOverZ is { } third)
                 {
                     Vector4 tint = first / a.ReciprocalZ * wa + second / b.ReciprocalZ * wb + third / c.ReciprocalZ * wc;

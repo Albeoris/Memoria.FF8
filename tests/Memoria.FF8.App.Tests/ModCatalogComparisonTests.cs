@@ -280,26 +280,39 @@ public sealed class ModCatalogComparisonTests
     }
 
     [Fact]
-    public async Task WorldComparisonFliesOnAllThreeAxesWithBothSidesInSync()
+    public async Task WorldComparisonFliesAndRotatesWithBothSidesInSync()
     {
         var profile = new ModPreviewResourcesProfile(TestResources.GameDirectory);
         ModPackage package = new("Memoria/synthetic", "Empty comparison", ModFormat.Memoria, true, true, ModEffectiveStatus.Active, Path.GetTempPath());
-        using CatalogPreviewPresentation.WorldComparison preview = new(profile, new(1, [package], []));
+        int width = 480;
+        using CatalogPreviewPresentation.WorldComparison preview = new(profile, new(1, [package], []), () => width);
         CancellationToken token = TestContext.Current.CancellationToken;
         ModPreviewComparison previous = await preview.RenderAsync(0, 0, token);
         foreach (Vector3 step in new Vector3[] { new(0, 0, 1000), new(1000, 0, 0) })
         {
-            ModPreviewComparison moved = await preview.FlyAsync(step, token);
+            ModPreviewComparison moved = await preview.FlyAsync(step, 0, token);
             Assert.Equal(moved.Before.Image!.Pixels, moved.After.Image!.Pixels);
             Assert.Contains(previous.Before.Image!.Pixels.Zip(moved.Before.Image.Pixels), pair => pair.First != pair.Second);
             previous = moved;
         }
-        ModPreviewComparison raised = await preview.FlyAsync(new(0, 1000, 0), token);
+        ModPreviewComparison raised = await preview.FlyAsync(new(0, 1000, 0), 0, token);
         Assert.Equal(raised.Before.Image!.Pixels, raised.After.Image!.Pixels);
         Assert.Contains(previous.Before.Image!.Pixels.Zip(raised.Before.Image.Pixels), pair => pair.First != pair.Second);
 
-        ModPreviewComparison lowered = await preview.FlyAsync(new(0, -1000, 0), token);
+        ModPreviewComparison lowered = await preview.FlyAsync(new(0, -1000, 0), 0, token);
         Assert.Equal(lowered.Before.Image!.Pixels, lowered.After.Image!.Pixels);
         Assert.Equal(previous.Before.Image.Pixels, lowered.Before.Image.Pixels);
+
+        ModPreviewComparison turned = await preview.FlyAsync(Vector3.Zero, MathF.PI / 4, token);
+        Assert.Equal(turned.Before.Image!.Pixels, turned.After.Image!.Pixels);
+        Assert.Contains(lowered.Before.Image.Pixels.Zip(turned.Before.Image.Pixels), pair => pair.First != pair.Second);
+
+        width = 1280;
+        ModPreviewComparison resized = await preview.RenderAsync(0, 0, token);
+        Assert.Equal((1280, 720), (resized.Before.Image!.Width, resized.Before.Image.Height));
+        Assert.Equal(resized.Before.Image.Pixels, resized.After.Image!.Pixels);
+        width = 480;
+        ModPreviewComparison restored = await preview.RenderAsync(0, 0, token);
+        Assert.Equal(turned.Before.Image.Pixels, restored.Before.Image!.Pixels);
     }
 }

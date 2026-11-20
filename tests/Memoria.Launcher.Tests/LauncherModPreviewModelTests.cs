@@ -33,7 +33,7 @@ public sealed class LauncherModPreviewModelTests
                 ? item.Id == Target(0).CanonicalPath()
                 : item.Name.Equals("c0m005.DAT-0_00", StringComparison.OrdinalIgnoreCase));
 
-            ModPreviewComparison pair = await CatalogPreviewPresentation.CompareAsync(document, entry, CatalogPreviewPresentation.CreateProfile(game!, null, "en"), token);
+            ModPreviewComparison pair = await CatalogPreviewPresentation.CompareAsync(document, entry, CatalogPreviewPresentation.CreateProfile(game!, null, "en"), token, modelWidth: 1024);
             EditableModel before = Assert.IsType<EditableModel>(pair.Before.Model);
             EditableModel after = Assert.IsType<EditableModel>(pair.After.Model);
             Assert.NotEmpty(before.Meshes);
@@ -44,7 +44,7 @@ public sealed class LauncherModPreviewModelTests
 
             PixelImage original = Assert.IsType<PixelImage>(pair.Before.Image);
             PixelImage replacement = Assert.IsType<PixelImage>(pair.After.Image);
-            Assert.Equal((480, 360), (original.Width, original.Height));
+            Assert.Equal((1024, 768), (original.Width, original.Height));
             Assert.Equal((original.Width, original.Height), (replacement.Width, replacement.Height));
             Assert.Contains(original.Pixels, pixel => pixel != original.Pixels[0]);
             Assert.Contains(replacement.Pixels, pixel => pixel != replacement.Pixels[0]);

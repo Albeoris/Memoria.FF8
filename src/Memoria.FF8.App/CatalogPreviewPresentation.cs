@@ -46,31 +46,33 @@ internal static partial class CatalogPreviewPresentation
         return new(renderer.OutputWidth, renderer.OutputHeight, MemoryMarshal.Cast<byte, Rgba32>(rgba).ToArray());
     }
 
-    public static async Task<ModPreviewComparison> CompareAsync(ModPreviewDocument document, ModPreviewEntry entry, ModPreviewResourcesProfile profile, CancellationToken token)
+    public static async Task<ModPreviewComparison> CompareAsync(ModPreviewDocument document, ModPreviewEntry entry, ModPreviewResourcesProfile profile, CancellationToken token, int modelWidth = 960)
     {
         ModPreviewComparison comparison = await document.CompareAsync(entry, profile, token).ConfigureAwait(false);
-        return await Task.Run(() => DrawModels(comparison, 0.4f, 0), token).ConfigureAwait(false);
+        return await Task.Run(() => DrawModels(comparison, 0.4f, 0, modelWidth), token).ConfigureAwait(false);
     }
 
-    internal sealed class WorldComparison(ModPreviewResourcesProfile profile, ModCatalogSnapshot catalog) : IDisposable
+    internal sealed class WorldComparison(ModPreviewResourcesProfile profile, ModCatalogSnapshot catalog, Func<int>? renderWidth = null) : IDisposable
     {
         private readonly object gate = new();
         private WorldMapModPreview? world;
         private WorldMapModPreviewResult? frame;
+        private WorldMapModPreviewView view = new();
         private bool disposed;
 
         public Task<ModPreviewComparison> RenderAsync(float east, float south, CancellationToken token)
         {
-            return RenderAsync(new(east, south), Vector3.Zero, token);
+            return RenderAsync(new(east, south), Vector3.Zero, 0, token);
         }
 
-        public Task<ModPreviewComparison> FlyAsync(Vector3 movement, CancellationToken token)
+        public Task<ModPreviewComparison> FlyAsync(Vector3 movement, float rotation, CancellationToken token)
         {
-            return RenderAsync(Vector2.Zero, movement, token);
+            return RenderAsync(Vector2.Zero, movement, rotation, token);
         }
 
-        private Task<ModPreviewComparison> RenderAsync(Vector2 mapStep, Vector3 flightStep, CancellationToken token)
+        private Task<ModPreviewComparison> RenderAsync(Vector2 mapStep, Vector3 flightStep, float rotation, CancellationToken token)
         {
+            int width = renderWidth?.Invoke() ?? 960;
             return Task.Run(() =>
             {
                 lock (gate)
@@ -78,10 +80,14 @@ internal static partial class CatalogPreviewPresentation
                     ObjectDisposedException.ThrowIf(disposed, this);
                     token.ThrowIfCancellationRequested();
                     world ??= WorldMapModPreview.Open(profile, catalog, token);
-                    WorldMapModPreviewView view = new();
-                    if (frame is { } current)
+                    WorldMapModPreviewView nextView = view with { Width = width, Height = width * 9 / 16 };
+                    if (frame is { } current && (mapStep != Vector2.Zero || flightStep != Vector3.Zero || rotation != 0))
                     {
                         WorldCamera camera = current.Camera;
+                        if (rotation != 0)
+                        {
+                            camera = camera with { Heading = MathF.IEEERemainder(camera.Heading + rotation, MathF.Tau) };
+                        }
                         Vector3 offset = new(mapStep.X, 0, mapStep.Y);
                         if (flightStep != Vector3.Zero)
                         {
@@ -97,9 +103,10 @@ internal static partial class CatalogPreviewPresentation
                             float height = camera.TargetPosition?.Y ?? current.Position.Y + camera.TargetHeight * 16;
                             camera = camera with { TargetPosition = new Vector3(x, height + offset.Y, z) };
                         }
-                        view = new(new Vector2(x, z), camera) { UseRegionalSky = true };
+                        nextView = nextView with { Location = new Vector2(x, z), Camera = camera, UseRegionalSky = true };
                     }
-                    frame = world.Render(view, token);
+                    frame = world.Render(nextView, token);
+                    view = nextView;
                     return new ModPreviewComparison(new("World map", frame.Original), new("World map", frame.Modded));
                 }
             }, token);
@@ -128,13 +135,14 @@ internal static partial class CatalogPreviewPresentation
         return camera;
     }
 
-    public static ModPreviewComparison DrawModels(ModPreviewComparison comparison, float yaw, float seconds)
+    public static ModPreviewComparison DrawModels(ModPreviewComparison comparison, float yaw, float seconds, int width = 960)
     {
-        return DrawModels(comparison, CreateModelCamera(yaw), seconds);
+        return DrawModels(comparison, CreateModelCamera(yaw), seconds, width);
     }
 
-    public static ModPreviewComparison DrawModels(ModPreviewComparison comparison, ModelPreviewCamera camera, float seconds)
+    public static ModPreviewComparison DrawModels(ModPreviewComparison comparison, ModelPreviewCamera camera, float seconds, int width = 960)
     {
+        int height = width * 3 / 4;
         ModelPreviewBounds? before = Measure(comparison.Before);
         ModelPreviewBounds? after = Measure(comparison.After);
         ModelPreviewBounds? framing = before is { } first && after is { } second ? first.Union(second) : before ?? after;
@@ -153,14 +161,14 @@ internal static partial class CatalogPreviewPresentation
         {
             if (side.FieldModel is { } field)
             {
-                return side with { Image = ModelPreviewRenderer.RenderFieldModel(field, camera, side.FieldAnimation, seconds, framing!.Value) };
+                return side with { Image = ModelPreviewRenderer.RenderFieldModel(field, camera, side.FieldAnimation, seconds, framing!.Value, width, height) };
             }
             if (side.Model is not { } model)
             {
                 return side;
             }
             PreviewRaster raster = new();
-            ModelPreviewRenderer.Render(raster, model, 480, 360, camera, seconds, framing: framing);
+            ModelPreviewRenderer.Render(raster, model, width, height, camera, seconds, framing: framing);
             return side with { Image = raster.Image };
         }
     }
@@ -215,9 +223,7 @@ internal static partial class CatalogPreviewPresentation
                     if (material.Texture is { } texture)
                     {
                         Vector2 uv = a.Uv * aWeight + b.Uv * bWeight + c.Uv * cWeight;
-                        int tx = Math.Min(texture.Width - 1, (int)((uv.X - MathF.Floor(uv.X)) * texture.Width));
-                        int ty = Math.Min(texture.Height - 1, (int)((uv.Y - MathF.Floor(uv.Y)) * texture.Height));
-                        color *= Vector(texture[tx, ty]);
+                        color *= SampleLinearWrap(texture, uv);
                     }
                     if (color.W < material.MinimumAlpha)
                     {
@@ -239,6 +245,22 @@ internal static partial class CatalogPreviewPresentation
 
         private static float Cross(Vector2 left, Vector2 right) => left.X * right.Y - left.Y * right.X;
         private static Vector4 Vector(Rgba32 color) => new Vector4(color.R, color.G, color.B, color.A) / 255f;
+
+        private static Vector4 SampleLinearWrap(PixelImage texture, Vector2 uv)
+        {
+            float x = (uv.X - MathF.Floor(uv.X)) * texture.Width - 0.5f;
+            float y = (uv.Y - MathF.Floor(uv.Y)) * texture.Height - 0.5f;
+            int left = (int)MathF.Floor(x);
+            int top = (int)MathF.Floor(y);
+            float horizontal = x - left;
+            float vertical = y - top;
+            int right = (left + 1) % texture.Width;
+            int bottom = (top + 1) % texture.Height;
+            left = (left + texture.Width) % texture.Width;
+            top = (top + texture.Height) % texture.Height;
+            return Vector4.Lerp(Vector4.Lerp(Vector(texture[left, top]), Vector(texture[right, top]), horizontal), Vector4.Lerp(Vector(texture[left, bottom]), Vector(texture[right, bottom]), horizontal), vertical);
+        }
+
         private static Rgba32 Pixel(Vector4 color)
         {
             color = Vector4.Clamp(color, Vector4.Zero, Vector4.One) * 255;

@@ -37,6 +37,7 @@ public sealed class ModPreviewTree
         HashSet<ModPreviewEntry> nestedTracks = cameraTracks.Select(pair => pair.Track).ToHashSet();
         ModPreviewTreeNode[] branches = entries.GroupBy(entry => entry.Category, StringComparer.OrdinalIgnoreCase)
             .Select(category => Folder(category.Key, category, category.Where(entry => !nestedTracks.Contains(entry)).GroupBy(entry => entry.Group, StringComparer.OrdinalIgnoreCase)
+                .OrderByDescending(group => group.Any(entry => entry.Id == ModPreviewDocument.WorldSceneId))
                 .Select(group => Folder(group.Key, group, BuildGroup(group))))).ToArray();
         List<ModPreviewTreeNode> initialPath = [];
         if ((entries.FirstOrDefault(entry => IsFile(entry) && !nestedTracks.Contains(entry)) ?? entries.FirstOrDefault()) is { } first)

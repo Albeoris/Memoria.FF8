@@ -199,7 +199,7 @@ public sealed class WorldMapModPreview : IDisposable
             cancellationToken.ThrowIfCancellationRequested();
             if (renderer is null || renderer.Width != view.Width || renderer.Height != view.Height)
             {
-                renderer = new(Assets, view.Width, view.Height);
+                renderer = new(Assets, view.Width, view.Height) { FilterGroundTextures = true };
             }
             WorldSky sky = view.Camera is null || view.UseRegionalSky
                 ? WorldTerrainSelection.SelectSky(Assets.Skies, (int)position.X, (int)position.Z, InitialStory)
