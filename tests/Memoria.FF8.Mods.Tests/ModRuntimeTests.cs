@@ -1,8 +1,36 @@
+using Memoria.FF8.Platform;
+
 namespace Memoria.FF8.Mods.Tests;
 
 public sealed class ModRuntimeTests : IDisposable
 {
     private readonly string root = Path.Combine(Path.GetTempPath(), "ff8-mod-runtime-" + Guid.NewGuid().ToString("N"));
+
+    [Fact]
+    public void ChangingInstallRootKeepsPreferencesAndLoadsTheExistingPackage()
+    {
+        string legacy = Path.Combine(root, "Mods");
+        string preferences = Path.Combine(root, "Preferences");
+        string selected = Path.Combine(root, "Selected");
+        Write("mods.ini", "auto_enable_new_mods = 0\n");
+        Write("Demaster/old/mod.ini", "enabled = 1\n");
+        Write("Demaster/old/test.png", "old");
+        ModDirectories locations = new(selected, [legacy, selected], preferences, legacy);
+
+        using (ModRuntime runtime = new(root, watch: false, modLocations: locations))
+        {
+            Publish(runtime);
+            Assert.Equal(selected, runtime.PrimaryModsDirectory);
+            Assert.Equal(Path.Combine(legacy, "Demaster", "old"), Assert.Single(runtime.Catalog.Packages).RootDirectory);
+            Assert.False(runtime.AutoEnableNewMods);
+            Assert.True(runtime.SetAutoEnableNewMods(true).Success);
+        }
+
+        using ModRuntime reopened = new(root, watch: false, modLocations: locations);
+        Publish(reopened);
+        Assert.True(reopened.AutoEnableNewMods);
+        Assert.Equal("auto_enable_new_mods = 0\n", File.ReadAllText(Path.Combine(legacy, "mods.ini")));
+    }
 
     [Theory]
     [InlineData(false)]

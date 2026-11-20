@@ -23,6 +23,7 @@ public sealed record LaunchOptions
     public string? ResourceLanguage { get; init; }
     public string? ModelSourceDirectory { get; init; } = Environment.GetEnvironmentVariable("MEMORIA_FF8_MODEL_SOURCE_DIR");
     public string? ModsDirectory { get; init; }
+    public ModDirectories? ModLocations { get; init; }
     public string? StatePath { get; init; }
     public string SavePath { get; init; } = ApplicationPaths.Current.DefaultCheckpoint;
     public string? MediaToolsDirectory { get; init; }
@@ -168,14 +169,27 @@ public sealed record LaunchOptions
                 throw new ArgumentException("--control-exclusive requires a save destination distinct from its input --state snapshot.");
             }
         }
+        ApplicationPaths applicationPaths = ApplicationPaths.Current;
+        if (options.SettingsDirectory is string settingsDirectory)
+        {
+            applicationPaths = applicationPaths with { Configuration = settingsDirectory };
+        }
+        LauncherSettings launcherSettings = LauncherSettings.Load(applicationPaths.LauncherSettings);
+        if (options.ModsDirectory is null && !options.IsDiagnosticGraphicalHost && !options.ControlExclusive && !string.IsNullOrWhiteSpace(options.GameDirectory))
+        {
+            string data = ApplicationInstallation.DataDirectory;
+            string standalonePackage = ApplicationInstallation.ResolveModPackageDirectory(data);
+            string package = ApplicationInstallation.ConfiguredModPackageDirectory(standalonePackage);
+            ModDirectories locations = ApplicationInstallation.ResolveModDirectories(package, options.GameDirectory, applicationPaths, launcherSettings);
+            if (!ApplicationInstallation.ModPathComparer.Equals(package, standalonePackage))
+            {
+                locations = locations with { Discovery = locations.Discovery.Append(Path.Combine(standalonePackage, "Mods")).Distinct(ApplicationInstallation.ModPathComparer).ToArray() };
+            }
+            options = options with { ModLocations = locations };
+        }
         if (options.Ff7GameDirectory is null)
         {
-            ApplicationPaths paths = ApplicationPaths.Current;
-            if (options.SettingsDirectory is string settingsDirectory)
-            {
-                paths = paths with { Configuration = settingsDirectory };
-            }
-            string? directory = LauncherSettings.Load(paths.LauncherSettings).Ff7GameDirectory;
+            string? directory = launcherSettings.Ff7GameDirectory;
             if (!string.IsNullOrWhiteSpace(directory) && Path.IsPathFullyQualified(directory))
             {
                 options = options with { Ff7GameDirectory = directory };

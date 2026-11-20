@@ -110,7 +110,7 @@ internal sealed partial class RecreateGame : GamePresentationHost
 
     protected override void LoadGameContent()
     {
-        resourceHost = new GameResourceHost(options.GameDirectory, modsDirectory: options.ModsDirectory, resourceLanguage: options.ResourceLanguage, modelSourceDirectory: options.ModelSourceDirectory);
+        resourceHost = new GameResourceHost(options.GameDirectory, modsDirectory: options.ModsDirectory, resourceLanguage: options.ResourceLanguage, modelSourceDirectory: options.ModelSourceDirectory, modLocations: options.ModLocations);
         resourceHost.ConnectEncounterMods();
         movieClock.ResolveGameFile = resourceHost.ResolveGameFile;
         controller = new ControllerDevice();

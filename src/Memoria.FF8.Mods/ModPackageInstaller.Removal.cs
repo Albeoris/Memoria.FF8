@@ -12,7 +12,7 @@ public sealed partial class ModPackageInstaller
         {
             using FileStream installLock = AcquireLock();
             string key = ManagedName(entry);
-            if (File.Exists(JournalPath(key)) || File.Exists(RemovalPath(key)))
+            if (File.Exists(JournalPath(key)) || File.Exists(RemovalPath(key)) || Read<RelocationReservation>(IncomingRelocationPath(key)) is not null)
             {
                 throw new InvalidOperationException("This mod already has a pending change. Restart before uninstalling it.");
             }

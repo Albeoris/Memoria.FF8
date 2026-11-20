@@ -11,11 +11,13 @@ internal sealed partial class Ff7Scene
 {
     private ModRuntime? enemyIntegrationMods;
     private string? enemyIntegrationModsDirectory;
+    private ModDirectories? enemyIntegrationModLocations;
     private Ff7EnemyExtensionCatalog enemyExtensionCatalog = Ff7EnemyExtensionCatalog.Empty;
 
-    internal void ConfigureEnemyIntegrationMods(string? modsDirectory)
+    internal void ConfigureEnemyIntegrationMods(string? modsDirectory, ModDirectories? modLocations)
     {
         enemyIntegrationModsDirectory = modsDirectory;
+        enemyIntegrationModLocations = modLocations;
     }
 
     private void AttachEnemyIntegration()
@@ -30,7 +32,7 @@ internal sealed partial class Ff7Scene
                     return new(false, Diagnostics: diagnostics);
                 }
                 return new(true, Diagnostics: diagnostics, Commit: () => enemyExtensionCatalog = prepared);
-            }, modsDirectory: enemyIntegrationModsDirectory);
+            }, modsDirectory: enemyIntegrationModsDirectory, modLocations: enemyIntegrationModLocations);
         }
         UpdateEnemyIntegrationBridge(initialLoad);
         ApplyEnemyIntegration();

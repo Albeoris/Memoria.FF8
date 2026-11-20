@@ -60,6 +60,185 @@ function Invoke-PortableTests {
     }
 }
 
+function Get-ModLibraryDirectoryName {
+    param([string]$ModDirectory)
+
+    # Match ModPackageInstaller.StateDirectoryFor using the original package path.
+    $identity = if ([OperatingSystem]::IsWindows()) { $ModDirectory.ToUpperInvariant() } else { $ModDirectory }
+    $hash = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($identity))).Substring(0, 16).ToLowerInvariant()
+    return '.memoria-mod-library-' + $hash
+}
+
+function Get-ConfiguredCustomModDirectories {
+    # Read the same settings location as ApplicationPaths.Current on the build host.
+    $userProfile = [Environment]::GetFolderPath([Environment+SpecialFolder]::UserProfile)
+    $configurationRoot = if ([OperatingSystem]::IsWindows()) {
+        [Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData)
+    } elseif ([OperatingSystem]::IsMacOS()) {
+        Join-Path $userProfile 'Library/Application Support'
+    } elseif ($env:XDG_CONFIG_HOME -and [IO.Path]::IsPathFullyQualified($env:XDG_CONFIG_HOME)) {
+        $env:XDG_CONFIG_HOME
+    } else {
+        Join-Path $userProfile '.config'
+    }
+    $settingsPath = Join-Path $configurationRoot 'Memoria/FF8/launcher.json'
+    if (Test-Path -LiteralPath $settingsPath -PathType Leaf) {
+        $settings = Get-Content -LiteralPath $settingsPath -Raw | ConvertFrom-Json -AsHashtable
+        if ($settings -is [Collections.IDictionary]) {
+            foreach ($directory in @($settings['CustomModsDirectory']) + @($settings['PreviousCustomModsDirectories'])) {
+                if ($directory -is [string] -and [IO.Path]::IsPathFullyQualified($directory)) {
+                    [IO.Path]::TrimEndingDirectorySeparator([IO.Path]::GetFullPath($directory))
+                }
+            }
+        }
+    }
+}
+
+function Get-DistributionModDirectories {
+    param([string]$Package)
+
+    $comparer = if ([OperatingSystem]::IsWindows()) { [StringComparer]::OrdinalIgnoreCase } else { [StringComparer]::Ordinal }
+    $comparison = if ([OperatingSystem]::IsWindows()) { [StringComparison]::OrdinalIgnoreCase } else { [StringComparison]::Ordinal }
+    $separator = [IO.Path]::DirectorySeparatorChar
+    $paths = [Collections.Generic.HashSet[string]]::new($comparer)
+    $directories = @(Get-ChildItem -LiteralPath $Package -Directory -Force)
+    $stateNames = @($directories | Where-Object Name -CLike '.memoria-mod-library-*' | ForEach-Object Name)
+    foreach ($directory in $directories) {
+        if ($comparer.Equals($directory.Name, 'Mods') -or $directory.Name -cin $stateNames -or (Get-ModLibraryDirectoryName $directory.FullName) -cin $stateNames) {
+            [void]$paths.Add($directory.Name)
+        }
+    }
+
+    # Settings identify nested custom roots without walking any mod content.
+    foreach ($directory in Get-ConfiguredCustomModDirectories) {
+        $relative = [IO.Path]::GetRelativePath($Package, $directory)
+        if ([IO.Path]::IsPathRooted($relative) -or $relative -eq '..' -or $relative.StartsWith('..' + $separator, [StringComparison]::Ordinal)) {
+            continue
+        }
+        if ($relative -eq '.') {
+            throw "The generated package is configured as a custom mod directory: $Package"
+        }
+        $parent = [IO.Path]::GetDirectoryName($directory)
+        $statePath = Join-Path $parent (Get-ModLibraryDirectoryName $directory)
+        foreach ($path in @($directory, $statePath)) {
+            if (!(Test-Path -LiteralPath $path -PathType Container)) {
+                continue
+            }
+            $relative = [IO.Path]::GetRelativePath($Package, $path)
+            if ($RuntimeIdentifier -like 'osx-*' -and $relative.Split($separator)[0] -eq 'Memoria.FF8.app') {
+                throw "A custom mod directory is inside the signed application bundle: $directory"
+            }
+            for ($relativeAncestor = $relative; $relativeAncestor; $relativeAncestor = [IO.Path]::GetDirectoryName($relativeAncestor)) {
+                $ancestor = Join-Path $Package $relativeAncestor
+                if (([IO.File]::GetAttributes($ancestor) -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+                    throw "A custom mod directory uses a linked package path: $ancestor"
+                }
+            }
+            [void]$paths.Add($relative)
+        }
+    }
+
+    # An ancestor move already preserves any of its descendants.
+    $selected = [Collections.Generic.List[string]]::new()
+    foreach ($relative in $paths | Sort-Object Length) {
+        $ancestorSelected = $false
+        foreach ($path in $selected) {
+            if ($relative.StartsWith($path + $separator, $comparison)) {
+                $ancestorSelected = $true
+                break
+            }
+        }
+        if (!$ancestorSelected) {
+            $selected.Add($relative)
+        }
+    }
+    return $selected
+}
+
+function Install-Distribution {
+    param([string]$StagedPackage, [string]$StagedArchive, [string]$Package, [string]$Archive)
+
+    $packageParent = [IO.Path]::GetFullPath((Join-Path $artifacts 'package'))
+    $Package = [IO.Path]::GetFullPath($Package)
+    if ([IO.Path]::GetDirectoryName($Package) -cne $packageParent) {
+        throw 'The package path is outside the package output directory.'
+    }
+    [IO.Directory]::CreateDirectory($packageParent) | Out-Null
+    if (([IO.File]::GetAttributes($packageParent) -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+        throw "The package output directory is a link: $packageParent"
+    }
+
+    $previous = Join-Path $packageParent ($RuntimeIdentifier + '.previous-' + [Guid]::NewGuid().ToString('N'))
+    $lockPath = Join-Path $packageParent ($RuntimeIdentifier + '.lock')
+    $installLock = [IO.File]::Open($lockPath, [IO.FileMode]::OpenOrCreate, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
+    try {
+        $previousMoved = $false
+        $packageInstalled = $false
+        $preserved = [Collections.Generic.List[string]]::new()
+        try {
+            if (Test-Path -LiteralPath $Package) {
+                if (([IO.File]::GetAttributes($Package) -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+                    throw "The package directory is a link: $Package"
+                }
+                $modPaths = @(Get-DistributionModDirectories $Package)
+                foreach ($relative in $modPaths) {
+                    $destination = Join-Path $StagedPackage $relative
+                    if (Test-Path -LiteralPath $destination) {
+                        $isModsDirectory = $relative -ceq 'Mods' -or ([OperatingSystem]::IsWindows() -and $relative -eq 'Mods')
+                        if (!$isModsDirectory) {
+                            throw "An installed mod directory conflicts with the generated package: $(Join-Path $Package $relative)"
+                        }
+                        foreach ($modDirectory in $modDirectories) {
+                            [IO.Directory]::Delete((Join-Path $destination $modDirectory))
+                        }
+                        [IO.Directory]::Delete($destination)
+                    }
+                    [IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($destination)) | Out-Null
+                }
+
+                [IO.Directory]::Move($Package, $previous)
+                $previousMoved = $true
+                foreach ($relative in $modPaths) {
+                    [IO.Directory]::Move((Join-Path $previous $relative), (Join-Path $StagedPackage $relative))
+                    $preserved.Add($relative)
+                }
+            }
+            [IO.Directory]::Move($StagedPackage, $Package)
+            $packageInstalled = $true
+            [IO.File]::Move($StagedArchive, $Archive, $true)
+        }
+        catch {
+            $installFailure = $_
+            try {
+                if ($packageInstalled) {
+                    [IO.Directory]::Move($Package, $StagedPackage)
+                }
+                foreach ($relative in $preserved) {
+                    [IO.Directory]::Move((Join-Path $StagedPackage $relative), (Join-Path $previous $relative))
+                }
+                if ($previousMoved) {
+                    [IO.Directory]::Move($previous, $Package)
+                }
+            }
+            catch {
+                throw "Package replacement failed ($installFailure). Rollback failed ($_). Check the package at '$Package', staging at '$StagedPackage' and previous package at '$previous'."
+            }
+            throw $installFailure
+        }
+
+        if ($previousMoved) {
+            $resolvedPrevious = [IO.Path]::GetFullPath($previous)
+            if ([IO.Path]::GetDirectoryName($resolvedPrevious) -cne $packageParent) {
+                throw 'The previous package path is outside the package output directory.'
+            }
+            Remove-Item -LiteralPath $resolvedPrevious -Recurse -Force
+        }
+    }
+    finally {
+        $installLock.Dispose()
+    }
+}
+
 $root = $PSScriptRoot
 $artifacts = if ($ArtifactsDirectory) { [IO.Path]::GetFullPath($ArtifactsDirectory) } else { Join-Path $root 'artifacts' }
 $graphBuild = Join-Path $artifacts ('build/' + $RuntimeIdentifier + '/graph')
@@ -95,7 +274,11 @@ if ($Scope -ne 'Distribution') {
     return
 }
 $package = Join-Path $artifacts ('package/' + $RuntimeIdentifier)
-$staging = Join-Path $artifacts ('staging-' + [Guid]::NewGuid().ToString('N'))
+$buildId = [Guid]::NewGuid().ToString('N')
+$staging = Join-Path $artifacts ('staging-' + $buildId)
+$suffix = if ($RuntimeIdentifier -eq 'win-x64') { '.zip' } else { '.tar.gz' }
+$archive = Join-Path $artifacts ('Memoria-FF8-' + $RuntimeIdentifier + $suffix)
+$stagedArchive = Join-Path $artifacts ('staging-' + $buildId + $suffix)
 $payload = $staging
 if ($RuntimeIdentifier -like 'osx-*') {
     $payload = Join-Path $staging 'Memoria.FF8.app/Contents/Resources'
@@ -315,34 +498,24 @@ try {
         Invoke-DotNet (@('run', '--project', 'tools/Memoria.FF8.Distribution.Check', '-c', $Configuration, '--no-build') + $graphArguments + @('--', '--sign-mac-bundle', $manifestRoot))
     }
 
-    # Replace only this script's known output directory after every publish succeeds.
-    $resolvedArtifacts = [IO.Path]::GetFullPath((Join-Path $artifacts "package"))
-    $resolvedPackage = [IO.Path]::GetFullPath($package)
-    if ([IO.Path]::GetDirectoryName($resolvedPackage) -ne $resolvedArtifacts) {
-        throw 'The package path is outside the artifacts directory.'
-    }
-    if (Test-Path -LiteralPath $package) {
-        Remove-Item -LiteralPath $package -Recurse -Force
-    }
-    New-Item -ItemType Directory -Force -Path ([IO.Path]::GetDirectoryName($package)) | Out-Null
-    Move-Item -LiteralPath $staging -Destination $package
-    $suffix = if ($RuntimeIdentifier -eq 'win-x64') { '.zip' } else { '.tar.gz' }
-    $archive = Join-Path $artifacts ('Memoria-FF8-' + $RuntimeIdentifier + $suffix)
+    # Validate the clean distribution before moving any local mod files into it.
     if ($RuntimeIdentifier -eq 'win-x64') {
-        Compress-Archive -LiteralPath (Join-Path $package $launcherName), (Join-Path $package 'Data'), (Join-Path $package 'Mods') -DestinationPath $archive -Force
+        Compress-Archive -LiteralPath (Join-Path $staging $launcherName), (Join-Path $staging 'Data'), (Join-Path $staging 'Mods') -DestinationPath $stagedArchive
         # The released Windows updater remains an immutable gate on every build.
-        Invoke-DotNet (@('run', '--project', 'tools/Memoria.FF8.Updater.Compatibility', '-c', $Configuration, '--no-build') + $graphArguments + @('--', $archive))
+        Invoke-DotNet (@('run', '--project', 'tools/Memoria.FF8.Updater.Compatibility', '-c', $Configuration, '--no-build') + $graphArguments + @('--', $stagedArchive))
     }
     else {
-        Invoke-DotNet (@('run', '--project', 'tools/Memoria.FF8.Distribution.Check', '-c', $Configuration, '--no-build') + $graphArguments + @('--', '--create-tar', $package, $archive))
+        Invoke-DotNet (@('run', '--project', 'tools/Memoria.FF8.Distribution.Check', '-c', $Configuration, '--no-build') + $graphArguments + @('--', '--create-tar', $staging, $stagedArchive))
     }
-    & (Join-Path $root 'tools/Test-Distribution.ps1') -ArchivePath $archive -RuntimeIdentifier $RuntimeIdentifier -Configuration $Configuration -BuildArguments $graphArguments
+    & (Join-Path $root 'tools/Test-Distribution.ps1') -ArchivePath $stagedArchive -RuntimeIdentifier $RuntimeIdentifier -Configuration $Configuration -BuildArguments $graphArguments
     if ($TestPortable) {
         Invoke-PortableTests
     }
+    Install-Distribution -StagedPackage $staging -StagedArchive $stagedArchive -Package $package -Archive $archive
     Write-Host "Distribution: $package"
     Write-Host "Archive: $archive"
 }
 finally {
     Pop-Location
+    [IO.File]::Delete($stagedArchive)
 }

@@ -105,6 +105,31 @@ public sealed class ModLibraryStartupTests : IDisposable
     }
 
     [Fact]
+    public async Task NativeUpdateMovesWithItsReceiptAndKeepsItsActivation()
+    {
+        CreateItemArchive();
+        string source = await InstallPreviousOfficialDescriptor();
+        string selected = Path.Combine(root, "Selected Mods");
+        var (archive, entry) = OfficialPackage("1.0.4", OfficialModCatalog.GirlNextDoor, usable: true);
+        Guid identity;
+        using (GameResourceHost previous = Host())
+        {
+            identity = previous.PackageInstaller.GetStatus(entry)!.InstallationId;
+            ModPackageInstallPlan plan = await previous.PackageInstaller.InspectAsync(archive, entry, Token);
+            await previous.PackageInstaller.RequestInstallAsync(plan, cancellationToken: Token, enableOnAcceptance: true, relocateTo: selected);
+        }
+
+        ModDirectories locations = new(selected, [Mods, selected], Path.Combine(root, "Preferences"), Mods);
+        using GameResourceHost restarted = new(Path.Combine(root, "game"), root, watch: false, modLocations: locations);
+        Assert.False(Directory.Exists(source));
+        Assert.Equal(identity, restarted.PackageInstaller.GetStatus(entry)!.InstallationId);
+        ModPackage installed = Assert.Single(restarted.Mods.InstalledPackages);
+        Assert.Equal(Path.Combine(selected, "Memoria", Path.GetFileName(source)), installed.RootDirectory);
+        Assert.Equal(ModEffectiveStatus.Active, installed.Status);
+        Assert.Equal(ItemType.Magazine, restarted.ItemOverrides.Find(163)?.Type);
+    }
+
+    [Fact]
     public async Task DisabledInstallIsAppliedBeforeDiscoveryAndRemainsDisabled()
     {
         RemoteModEntry entry = new("synthetic", modId, "Example", "1");
@@ -156,6 +181,39 @@ public sealed class ModLibraryStartupTests : IDisposable
         Assert.Contains(second.Mods.Diagnostics, diagnostic => diagnostic.Code == "library-recovery");
         Assert.False(second.ModLibrary.View.TargetSupported);
         Assert.Empty(second.Mods.Catalog.Packages);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task StartupMovesOnlyAnAcceptedUpdateAndRebindsItsResources(bool usable)
+    {
+        RemoteModEntry entry = new("synthetic", modId, "Example", "1");
+        RemoteModEntry update = entry with { Version = "2" };
+        string selected = Path.Combine(root, "Selected Mods");
+        using (GameResourceHost initial = Host())
+        {
+            ModPackageInstallPlan plan = await initial.PackageInstaller.InspectAsync(Package("1", true), entry, Token);
+            await initial.PackageInstaller.RequestInstallAsync(plan, cancellationToken: Token);
+        }
+        string source;
+        using (GameResourceHost previous = Host())
+        {
+            ModPackageInstallPlan plan = await previous.PackageInstaller.InspectAsync(Package("2", usable), update, Token);
+            source = plan.Destination;
+            await previous.PackageInstaller.RequestInstallAsync(plan, cancellationToken: Token, relocateTo: selected);
+        }
+
+        ModDirectories locations = new(selected, [Mods, selected], Path.Combine(root, "Preferences"), Mods);
+        using GameResourceHost restarted = new(Path.Combine(root, "game"), root, watch: false, modLocations: locations);
+        ModPackage package = Assert.Single(restarted.Mods.Catalog.Packages);
+        string expected = usable ? Path.Combine(selected, "Junction", Path.GetFileName(source)) : source;
+        Assert.Equal(expected, package.RootDirectory);
+        Assert.Equal(usable ? "2" : "1", package.JunctionMetadata?.Version);
+        Assert.Equal(!usable, Directory.Exists(source));
+        Assert.Equal(usable, restarted.PackageInstaller.GetStatus(update)?.Installed ?? false);
+        string media = restarted.ResolveGameFile("movies/example.avi");
+        Assert.Equal("retained media", File.ReadAllText(media));
     }
 
     [Fact]

@@ -210,6 +210,128 @@ public sealed class ModLibraryServiceTests
         Directory.Delete(root, true);
     }
 
+    [Fact]
+    public async Task UpdatingAfterChangingDestinationMovesTheVerifiedInstallation()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "mod-library-destination-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            const string oldProfile = "Classic/en/previous";
+            const string newProfile = "Classic/en/selected";
+            string previousRoot = Path.Combine(root, "Mods");
+            string selectedRoot = Path.Combine(root, "Selected");
+            string cache = Path.Combine(root, "cache");
+            ModPackageInstaller previous = new(ModPackageInstaller.StateDirectoryFor(previousRoot), previousRoot, oldProfile);
+            ModPackageInstaller selected = new(ModPackageInstaller.StateDirectoryFor(selectedRoot), selectedRoot, newProfile);
+            RemoteModEntry original = new("synthetic", Guid.NewGuid(), "Existing", "1");
+            RemoteModEntry update = original with { Version = "2" };
+            RemoteModEntry fresh = new("synthetic", Guid.NewGuid(), "New", "1");
+            string originalArchive = Path.Combine(root, "original.zip");
+            WritePackage(originalArchive, original);
+            ModPackageInstallPlan originalPlan = await previous.InspectAsync(originalArchive, original, TestContext.Current.CancellationToken);
+            ModPackageInstallResult originalInstall = await previous.RequestInstallAsync(originalPlan, false, TestContext.Current.CancellationToken);
+            Assert.Null(Assert.Single(previous.RecoverAndApply()).Error);
+            Assert.Null(Assert.Single(previous.CompleteStartupApplications([originalPlan.PackageId])).Error);
+            Guid updateJob = await WriteJob(update);
+            Guid freshJob = await WriteJob(fresh);
+
+            using ModRuntime mods = new(root, watch: false, additionalBaseDirectories: [root], modsDirectory: selectedRoot);
+            mods.PreparePending(true);
+            mods.CommitPending();
+            using HttpClient client = new(new Handler(_ => throw new InvalidOperationException("No network request was expected.")));
+            using ModLibraryService library = new(cache, selected, mods, newProfile, true, client, previousInstallers: [previous]);
+            try
+            {
+                await Until(() => library.View.Jobs.Count(job => job.CanResume) == 2);
+                library.Resume(updateJob);
+                library.Resume(freshJob);
+                await Until(() => library.View.Jobs.Count(job => job.CanInstall) == 2);
+                library.Install(updateJob);
+                library.Install(freshJob);
+                await Until(() => library.View.Jobs.Count(job => job.Phase == "Waiting to apply") == 2);
+                Assert.Null(selected.GetStatus(update));
+                Assert.Null(previous.GetStatus(fresh));
+                Assert.True(Directory.Exists(originalPlan.Destination));
+
+                ModPackageInstallResult updated = Assert.Single(previous.RecoverAndApply());
+                ModPackageInstallResult installed = Assert.Single(selected.RecoverAndApply());
+                Assert.Null(updated.Error);
+                Assert.Null(installed.Error);
+                Assert.Equal("2", updated.Version);
+                Assert.Equal(originalPlan.PackageId, updated.PackageId);
+                Assert.True(Directory.Exists(originalPlan.Destination));
+                Assert.Empty(previous.RecoverRelocations([previous, selected]));
+                Assert.Null(Assert.Single(previous.CompleteStartupApplications([updated.PackageId])).Error);
+                Assert.Null(Assert.Single(selected.CompleteStartupApplications([installed.PackageId])).Error);
+                Assert.NotNull(Assert.Single(previous.RecoverRelocations([previous])).Error);
+                Assert.True(Directory.Exists(originalPlan.Destination));
+                Assert.Null(selected.GetStatus(update));
+
+                string updatedDestination = Path.Combine(selectedRoot, updated.PackageId.Replace('/', Path.DirectorySeparatorChar));
+                Directory.CreateDirectory(updatedDestination);
+                string unrelated = Path.Combine(updatedDestination, "unrelated.txt");
+                File.WriteAllText(unrelated, "Keep this file.");
+                ModPackageInstallResult blocked = Assert.Single(previous.RecoverRelocations([previous, selected]));
+                Assert.NotNull(blocked.Error);
+                Assert.True(Directory.Exists(originalPlan.Destination));
+                Assert.Equal("Keep this file.", File.ReadAllText(unrelated));
+                Directory.Delete(updatedDestination, true);
+
+                ModPackageInstaller recoveredPrevious = new(ModPackageInstaller.StateDirectoryFor(previousRoot), previousRoot, oldProfile);
+                ModPackageInstallResult relocation = Assert.Single(recoveredPrevious.RecoverRelocations([recoveredPrevious, selected]));
+                Assert.Null(relocation.Error);
+                Assert.True(relocation.Relocated);
+                Assert.False(Directory.Exists(originalPlan.Destination));
+                Assert.Null(previous.GetStatus(update));
+                Assert.Equal(originalInstall.InstallationId, selected.GetStatus(update)!.InstallationId);
+                Assert.Equal("[Mod]\nenabled=0\n", File.ReadAllText(Path.Combine(updatedDestination, "mod.ini")));
+                mods.Refresh();
+                mods.PreparePending(true);
+                Assert.Equal(updatedDestination, Assert.Single(mods.InstalledPackages, package => package.Id == updated.PackageId).RootDirectory);
+                Assert.StartsWith(selectedRoot + Path.DirectorySeparatorChar, Assert.Single(mods.InstalledPackages, package => package.Id == installed.PackageId).RootDirectory);
+
+                await Until(() => library.View.Installations.Any(installation => installation.Id == update.Id && installation.CanUninstall));
+                library.Uninstall(update);
+                await Until(() => library.View.Installations.Any(installation => installation.Id == update.Id && installation.PendingRemoval));
+                Assert.True(Directory.Exists(updatedDestination));
+                Assert.True(selected.GetStatus(update)!.PendingRemoval);
+                Assert.Null(Assert.Single(selected.RecoverAndApply()).Error);
+                Assert.False(Directory.Exists(updatedDestination));
+                Assert.Null(selected.GetStatus(update));
+                Assert.True(selected.GetStatus(fresh)!.Installed);
+            }
+            finally
+            {
+                await library.StopAsync();
+            }
+
+            async Task<Guid> WriteJob(RemoteModEntry entry)
+            {
+                Guid id = Guid.NewGuid();
+                string directory = Path.Combine(cache, "downloads", id.ToString("N"));
+                Directory.CreateDirectory(directory);
+                string archive = Path.Combine(directory, "package.download");
+                WritePackage(archive, entry);
+                byte[] bytes = await File.ReadAllBytesAsync(archive, TestContext.Current.CancellationToken);
+                DownloadJobSnapshot job = new(id, entry, newProfile, false, ModDownloadPhase.ReadyToInstall) { ArchivePath = archive, CompletedBytes = bytes.Length, Sha256 = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant() };
+                await File.WriteAllTextAsync(Path.Combine(directory, "job.json"), JsonSerializer.Serialize(job), TestContext.Current.CancellationToken);
+                return id;
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    private static void WritePackage(string path, RemoteModEntry entry)
+    {
+        using ZipArchive archive = ZipFile.Open(path, ZipArchiveMode.Create);
+        using StreamWriter writer = new(archive.CreateEntry("mod.xml").Open());
+        writer.Write($"<ModInfo><ID>{entry.Id}</ID><Name>{entry.Name}</Name><Version>{entry.Version}</Version></ModInfo>");
+    }
+
     private static async Task Until(Func<bool> condition)
     {
         using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);

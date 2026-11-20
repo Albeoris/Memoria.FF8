@@ -4,6 +4,8 @@ The launcher also provides **Mods > Installed / Catalog** with search, category 
 
 Open **Mods** from the game menu. **Installed**, **Catalog**, **Downloads** and **Create** keep local configuration, online discovery, transfer progress and authoring separate.
 
+Set **Mods > Install mods in** in the launcher to choose the destination for new installations and verified updates. The in-game manager reads the same setting. A destination change leaves installed mods available where they are. On startup, an accepted update moves the managed package to the chosen destination and carries its existing settings with it. If the destination is busy or a file already occupies it, the manager keeps the source and reports what blocked the move.
+
 The Junction catalog is available for browsing independently of installed mods. Opening Catalog refreshes an old or missing saved catalog in the background. Refresh failures preserve the last good list. Installed mods work without a connection or catalog cache. Edition labels supplied by Junction describe its original client; Memoria checks packages for its own supported Classic English target.
 
 Select a catalog row to read its details, then choose **Download & check**. This downloads a pinned release and checks its identity, archive and supported layout. It does not install it. A successfully checked package offers **Install**, with the resulting plan and enablement consequence in Details. All installations and updates apply **on the next launch**, before resources are loaded. Until then Downloads says **Restart required**. Disk installation and activation in the running game are separate states.

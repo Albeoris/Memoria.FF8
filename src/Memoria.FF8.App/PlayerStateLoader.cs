@@ -60,7 +60,7 @@ internal static partial class PlayerStateLoader
 
     private static GameResourceHost OpenSelectedHost(LaunchOptions options)
     {
-        GameResourceHost selected = new(options.GameDirectory, watch: false, modsDirectory: options.ModsDirectory, resourceLanguage: options.ResourceLanguage, modelSourceDirectory: options.ModelSourceDirectory);
+        GameResourceHost selected = new(options.GameDirectory, watch: false, modsDirectory: options.ModsDirectory, resourceLanguage: options.ResourceLanguage, modelSourceDirectory: options.ModelSourceDirectory, modLocations: options.ModLocations);
         try
         {
             selected.ConnectEncounterMods();

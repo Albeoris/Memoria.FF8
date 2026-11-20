@@ -10,8 +10,9 @@ public sealed record ModPackageInstallLimits(long ExpandedBytes = 256L * 1024 * 
 
 public sealed class ModPackageInstallPlan
 {
-    internal ModPackageInstallPlan(Guid token, RemoteModEntry entry, string target, string packageId, string version, string destination, long bytes)
+    internal ModPackageInstallPlan(ModPackageInstaller installer, Guid token, RemoteModEntry entry, string target, string packageId, string version, string destination, long bytes)
     {
+        Installer = installer;
         Token = token;
         Entry = entry;
         TargetProfile = target;
@@ -21,6 +22,7 @@ public sealed class ModPackageInstallPlan
         RequiredBytes = bytes;
     }
 
+    internal ModPackageInstaller Installer { get; }
     internal Guid Token { get; }
     public RemoteModEntry Entry { get; }
     public string TargetProfile { get; }
@@ -38,14 +40,18 @@ public sealed record ModPackageInstallResult(Guid InstallationId, string Package
     public bool PendingEnable { get; init; }
     public bool PendingRemoval { get; init; }
     public bool CanUninstall { get; init; }
+    public bool Relocated { get; init; }
     public string? NativeDestinationName { get; internal init; }
 }
 
 /// <summary>Prepares immutable payloads off-thread. Applies queued changes only before runtime discovery at startup.</summary>
 public sealed partial class ModPackageInstaller
 {
+    public string ModsRoot => modsRoot;
+
     private readonly string stateRoot;
     private readonly string modsRoot;
+    private readonly string preferenceRoot;
     private readonly string targetProfile;
     private readonly bool junctionSupported;
     private readonly string edition;
@@ -58,10 +64,11 @@ public sealed partial class ModPackageInstaller
         public IReadOnlyList<OfficialModFile>? NativeFiles { get; init; }
     }
 
-    public ModPackageInstaller(string stateRoot, string modsRoot, string targetProfile, bool junctionSupported = true, ModPackageInstallLimits? limits = null)
+    public ModPackageInstaller(string stateRoot, string modsRoot, string targetProfile, bool junctionSupported = true, ModPackageInstallLimits? limits = null, string? preferenceRoot = null)
     {
         this.stateRoot = Path.GetFullPath(stateRoot);
         this.modsRoot = Path.GetFullPath(modsRoot);
+        this.preferenceRoot = preferenceRoot is null ? this.modsRoot : Path.GetFullPath(preferenceRoot);
         this.targetProfile = targetProfile;
         string[] target = targetProfile.Split('/');
         edition = target.Length >= 2 ? target[0] : "Classic";
@@ -222,7 +229,7 @@ public sealed partial class ModPackageInstaller
             prepared.Add(token, new(root, stable, hash, bytes, entry));
             string name = ManagedName(entry);
             string destination = Path.Combine(modsRoot, "Junction", name + (Directory.Exists(stable) ? "" : ".iroj"));
-            return new(token, entry, targetProfile, "Junction/" + Path.GetFileName(destination), package.Manifest.Version!, destination, bytes);
+            return new(this, token, entry, targetProfile, "Junction/" + Path.GetFileName(destination), package.Manifest.Version!, destination, bytes);
         }
         catch
         {
@@ -465,7 +472,7 @@ public sealed partial class ModPackageInstaller
     private string StatePath(string category, string name) => Path.Combine(stateRoot, category, name);
     private static string ManagedName(RemoteModEntry entry) => "managed-" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(entry.SourceId)))[..16].ToLowerInvariant() + "-" + entry.Id.ToString("N");
 
-    private static void EnsureNoLinks(string path)
+    internal static void EnsureNoLinks(string path)
     {
         for (string? current = Path.GetFullPath(path); current is not null; current = Path.GetDirectoryName(current))
         {

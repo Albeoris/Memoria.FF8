@@ -6,7 +6,7 @@ public sealed partial class ModRuntime
 {
     private const string LegacyStatusComponent = "Meltdown";
     private const string ImportedStatusMod = "memoria-meltdown";
-    private string LegacyStatusDirectory => Path.Combine(modsRoot, "Memoria", LegacyStatusComponent);
+    private string LegacyStatusDirectory => Path.Combine(legacyModsRoot, "Memoria", LegacyStatusComponent);
 
     private MemoriaSettings ImportStatusPreferences()
     {

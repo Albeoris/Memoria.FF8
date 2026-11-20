@@ -80,10 +80,18 @@ internal sealed partial class LauncherWindow
             {
                 OfficialCatalogSnapshot catalog = await OfficialModCatalog.RefreshAsync(OfficialModCatalog.DefaultCacheDirectory, force: force, cancellationToken: check.Token);
                 string edition = GameInstallationSelection.ResolveEdition(selected.Directory).ToString();
-                string modsRoot = ApplicationInstallation.ResolveModsDirectory(packageDirectory, HostPlatforms.Current, ApplicationPaths.Current.Configuration);
-                string profile = OfficialModNotifications.StateDirectory(ApplicationPaths.Current.Configuration, modsRoot, selected.Directory, edition, language);
+                ApplicationPaths paths = ApplicationPaths.Current;
+                ModDirectories locations = ApplicationInstallation.ResolveModDirectories(packageDirectory, selected.Directory, paths, LauncherSettings.Load(paths.LauncherSettings));
+                string profile = OfficialModNotifications.StateDirectory(paths.Configuration, locations.LegacyDefault, selected.Directory, edition, language);
                 string? engine = EngineBuildMetadata.ReadInstalledCompatibilityVersion(MacBundleUpdate.NormalizeRoot(packageDirectory));
-                IReadOnlyDictionary<string, ModPackageInstallResult> installed = ModPackageInstaller.ReadOfficialInventory(modsRoot);
+                Dictionary<string, ModPackageInstallResult> installed = new(StringComparer.OrdinalIgnoreCase);
+                foreach (string root in locations.Discovery)
+                {
+                    foreach ((string key, ModPackageInstallResult installation) in ModPackageInstaller.ReadOfficialInventory(root))
+                    {
+                        installed.TryAdd(key, installation);
+                    }
+                }
                 return OfficialModNotifications.Create(catalog, profile, engine, edition, language, installed);
             }, check.Token);
             if (!check.IsCancellationRequested)

@@ -15,6 +15,8 @@ public sealed partial class ModRuntime : IModService, IDisposable
     private readonly object gate = new();
     private readonly int ownerThread = Environment.CurrentManagedThreadId;
     private readonly string modsRoot;
+    private readonly string preferenceRoot;
+    private readonly string legacyModsRoot;
     private readonly string bundledModsRoot;
     private readonly Func<ModFormat, bool> isCompatible;
     private readonly Func<string, bool>? junctionPackageAllowed;
@@ -53,16 +55,22 @@ public sealed partial class ModRuntime : IModService, IDisposable
     private string? lastIdentity;
     private string? pendingIdentity;
 
-    public ModRuntime(string? applicationBaseDirectory = null, Func<ModFormat, bool>? isCompatible = null, Func<ModCatalogSnapshot, ModPreparationResult>? prepare = null, bool watch = true, TimeSpan? debounce = null, IEnumerable<string>? additionalBaseDirectories = null, string? modsDirectory = null, Func<string, bool>? junctionPackageAllowed = null, Func<string, string?>? nativeRootUnavailable = null, string edition = "Classic", string language = "en", Func<string, bool>? obsoleteBundledPackage = null)
+    public ModRuntime(string? applicationBaseDirectory = null, Func<ModFormat, bool>? isCompatible = null, Func<ModCatalogSnapshot, ModPreparationResult>? prepare = null, bool watch = true, TimeSpan? debounce = null, IEnumerable<string>? additionalBaseDirectories = null, string? modsDirectory = null, Func<string, bool>? junctionPackageAllowed = null, Func<string, string?>? nativeRootUnavailable = null, string edition = "Classic", string language = "en", Func<string, bool>? obsoleteBundledPackage = null, ModDirectories? modLocations = null)
     {
-        modsRoot = Path.TrimEndingDirectorySeparator(Path.GetFullPath(modsDirectory ?? DefaultModsDirectory(applicationBaseDirectory ?? AppContext.BaseDirectory)));
-        IEnumerable<string> roots = (additionalBaseDirectories ?? []).Select(directory => Path.Combine(directory, "Mods")).Append(modsRoot);
+        modsRoot = Path.TrimEndingDirectorySeparator(Path.GetFullPath(modLocations?.Primary ?? modsDirectory ?? DefaultModsDirectory(applicationBaseDirectory ?? AppContext.BaseDirectory)));
+        preferenceRoot = modLocations?.Preferences ?? modsRoot;
+        legacyModsRoot = modLocations?.LegacyDefault ?? modsRoot;
+        if (modLocations is not null)
+        {
+            ImportLocationPreferences(modLocations);
+        }
+        IEnumerable<string> roots = (additionalBaseDirectories ?? []).Select(directory => Path.Combine(directory, "Mods")).Concat(modLocations?.Discovery ?? []).Append(modsRoot);
         bundledModsRoot = Path.TrimEndingDirectorySeparator(Path.GetFullPath(Path.Combine(applicationBaseDirectory ?? AppContext.BaseDirectory, "BundledMods")));
         if (Directory.Exists(bundledModsRoot))
         {
             roots = roots.Append(bundledModsRoot);
         }
-        ModsDirectories = Array.AsReadOnly(roots.Select(directory => Path.TrimEndingDirectorySeparator(Path.GetFullPath(directory))).Distinct(StringComparer.OrdinalIgnoreCase).ToArray());
+        ModsDirectories = Array.AsReadOnly(roots.Select(directory => Path.TrimEndingDirectorySeparator(Path.GetFullPath(directory))).Distinct(ApplicationInstallation.ModPathComparer).ToArray());
         ReadLocalizationPreferences();
         this.isCompatible = isCompatible ?? (_ => true);
         this.junctionPackageAllowed = junctionPackageAllowed;
@@ -74,7 +82,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
         this.debounce = debounce ?? TimeSpan.FromMilliseconds(250);
         if (watch)
         {
-            foreach (string directory in ModsDirectories)
+            foreach (string directory in ModsDirectories.Append(preferenceRoot).Distinct(ApplicationInstallation.ModPathComparer))
             {
                 FileSystemWatcher watcher = new(ExistingWatchDirectory(directory))
                 {
@@ -111,6 +119,42 @@ public sealed partial class ModRuntime : IModService, IDisposable
 
     public IReadOnlyList<string> ModsDirectories { get; }
     public string PrimaryModsDirectory => modsRoot;
+    public string PreferencesDirectory => preferenceRoot;
+    public string LegacyModsDirectory => legacyModsRoot;
+
+    public static void ImportLocationPreferences(ModDirectories locations)
+    {
+        if (ApplicationInstallation.ModPathComparer.Equals(locations.Preferences, locations.LegacyDefault))
+        {
+            return;
+        }
+        foreach (string relative in new[] { "mods.ini", "localization-stack.json", Path.Combine("Memoria", MemoriaSettingsFile) })
+        {
+            string previous = Path.Combine(locations.LegacyDefault, relative);
+            string destination = Path.Combine(locations.Preferences, relative);
+            if (File.Exists(destination) || !File.Exists(previous))
+            {
+                continue;
+            }
+            ModPackageInstaller.EnsureNoLinks(previous);
+            ModPackageInstaller.EnsureNoLinks(destination);
+            Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+            string temporary = destination + "." + Guid.NewGuid().ToString("N") + ".tmp";
+            try
+            {
+                File.Copy(previous, temporary);
+                File.Move(temporary, destination);
+            }
+            catch (IOException) when (File.Exists(destination))
+            {
+                // Another process imported these settings or wrote a newer preference.
+            }
+            finally
+            {
+                File.Delete(temporary);
+            }
+        }
+    }
 
     public FieldLightingMods Lighting
     {
@@ -252,7 +296,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
             ThrowIfDisposed();
             try
             {
-                ModConfiguration.WriteBoolean(Path.Combine(modsRoot, "mods.ini"), "auto_enable_new_mods", enabled);
+                ModConfiguration.WriteBoolean(Path.Combine(preferenceRoot, "mods.ini"), "auto_enable_new_mods", enabled);
                 autoEnable = enabled;
                 ReconcilePreferences();
                 RequestRefreshCore(DateTime.MinValue);
@@ -599,7 +643,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
     private ModCatalogSnapshot Discover(out bool nextAutoEnable, out string identity)
     {
         memoriaSettingsViews.Clear();
-        nextAutoEnable = ModConfiguration.ReadBoolean(Path.Combine(modsRoot, "mods.ini"), "auto_enable_new_mods") ?? true;
+        nextAutoEnable = ModConfiguration.ReadBoolean(Path.Combine(preferenceRoot, "mods.ini"), "auto_enable_new_mods") ?? true;
         MemoriaSettings memoriaSettings = ImportStatusPreferences();
         List<ModPackage> packages = [];
         List<ModFile> files = [];
@@ -613,7 +657,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
         List<string> identities = [nextAutoEnable.ToString(), hardcore.ToString(), forceFf7EnemyIntegration.ToString(), string.Join(";", localizationOrder ?? []), LocalizationPrimaryTarget ?? ""];
         identities.AddRange(memoriaSettings.StatusSettings.OrderBy(setting => setting.Key, StringComparer.Ordinal).Select(setting => $"status-setting\0{setting.Key}\0{setting.Value}"));
         HashSet<string> visitedFiles = new(StringComparer.Ordinal);
-        Dictionary<string, IReadOnlyDictionary<string, ModPackageInstallResult>> managed = new(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, IReadOnlyDictionary<string, ModPackageInstallResult>> managed = new(ApplicationInstallation.ModPathComparer);
         foreach (string modRoot in ModsDirectories.Where(directory => Path.GetDirectoryName(directory) is not null && directory != bundledModsRoot))
         {
             try
@@ -759,7 +803,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 {
                     explicitEnabled = MemoriaComponentPreference(memoriaSettings, id, native?.Official, descriptor) ?? explicitEnabled;
                 }
-                if (native?.Official is { } official && ModPackageInstaller.HasPendingEnable(modRoot, official))
+                if (native?.Official is { } official && ModPackageInstaller.HasPendingEnable(modRoot, official, preferenceRoot))
                 {
                     explicitEnabled = true;
                 }
@@ -1073,7 +1117,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
     {
         try
         {
-            autoEnable = ModConfiguration.ReadBoolean(Path.Combine(modsRoot, "mods.ini"), "auto_enable_new_mods") ?? true;
+            autoEnable = ModConfiguration.ReadBoolean(Path.Combine(preferenceRoot, "mods.ini"), "auto_enable_new_mods") ?? true;
             MemoriaSettings memoriaSettings = ReadMemoriaSettings();
             installedPackages = Array.AsReadOnly(installedPackages.Select(package =>
             {
@@ -1093,7 +1137,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
 
     private string PreferencePath(ModPackage package)
     {
-        string root = package.Format == ModFormat.Memoria && IsWithin(bundledModsRoot, package.RootDirectory) ? Path.Combine(modsRoot, nameof(ModFormat.Memoria), Path.GetFileName(package.RootDirectory)) : package.RootDirectory;
+        string root = package.Format == ModFormat.Memoria && IsWithin(bundledModsRoot, package.RootDirectory) ? Path.Combine(preferenceRoot, nameof(ModFormat.Memoria), Path.GetFileName(package.RootDirectory)) : package.RootDirectory;
         return ConfigurationPath(root, package.Format);
     }
 
@@ -1114,7 +1158,8 @@ public sealed partial class ModRuntime : IModService, IDisposable
 
     private void ValidatePreferencePath(string path)
     {
-        if (!IsWithin(modsRoot, path))
+        string? root = IsWithin(preferenceRoot, path) ? preferenceRoot : ModsDirectories.FirstOrDefault(directory => IsWithin(directory, path));
+        if (root is null)
         {
             return;
         }
@@ -1123,7 +1168,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
             throw new IOException("Mod preference files must not be symbolic links.");
         }
         DirectoryInfo? directory = Directory.GetParent(path);
-        while (directory is not null && (IsWithin(modsRoot, directory.FullName) || directory.FullName.Equals(modsRoot, StringComparison.OrdinalIgnoreCase)))
+        while (directory is not null && (IsWithin(root, directory.FullName) || ApplicationInstallation.ModPathComparer.Equals(directory.FullName, root)))
         {
             if (directory.Exists && (directory.Attributes & FileAttributes.ReparsePoint) != 0)
             {

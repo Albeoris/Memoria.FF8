@@ -15,7 +15,7 @@ public sealed partial class ModRuntime
 
     private bool forceFf7EnemyIntegration;
     private readonly Dictionary<string, IReadOnlyList<BehaviorModSetting>> memoriaSettingsViews = new(StringComparer.OrdinalIgnoreCase);
-    private string MemoriaSettingsPath => Path.Combine(modsRoot, "Memoria", MemoriaSettingsFile);
+    private string MemoriaSettingsPath => Path.Combine(preferenceRoot, "Memoria", MemoriaSettingsFile);
 
     private sealed class MemoriaSettings
     {

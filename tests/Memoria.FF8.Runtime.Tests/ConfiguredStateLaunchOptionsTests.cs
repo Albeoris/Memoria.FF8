@@ -1,9 +1,41 @@
+using Memoria.FF8.Platform;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class ConfiguredStateLaunchOptionsTests
 {
+    [Fact]
+    public void DirectLaunchUsesSavedDestinationAndKeepsPreviousCustomRoots()
+    {
+        DirectoryInfo fixture = Directory.CreateTempSubdirectory("memoria-mod-location-");
+        try
+        {
+            string previous = Path.Combine(fixture.FullName, "old mods");
+            string current = Path.Combine(fixture.FullName, "new mods");
+            string game = Path.Combine(fixture.FullName, "game");
+            string path = Path.Combine(fixture.FullName, "launcher.json");
+            LauncherSettings settings = new LauncherSettings().WithModLocation(ModInstallationLocation.Custom, previous);
+            settings.WithModLocation(ModInstallationLocation.Custom, current).Save(path);
+
+            string[] arguments = ["--settings-dir", fixture.FullName, "--game-dir", game];
+            LaunchOptions options = LaunchOptions.Parse(arguments);
+
+            Assert.NotNull(options.ModLocations);
+            Assert.Equal(current, options.ModLocations.Primary);
+            Assert.Contains(previous, options.ModLocations.Discovery);
+            Assert.Contains(Path.Combine(game, "Mods"), options.ModLocations.Discovery);
+
+            LaunchOptions overridden = LaunchOptions.Parse([.. arguments, "--mods-dir", previous]);
+            Assert.Null(overridden.ModLocations);
+            Assert.Equal(previous, overridden.ModsDirectory);
+        }
+        finally
+        {
+            fixture.Delete(true);
+        }
+    }
+
     [Fact]
     public void Configured_loader_receives_all_final_resource_options_independent_of_argument_order()
     {

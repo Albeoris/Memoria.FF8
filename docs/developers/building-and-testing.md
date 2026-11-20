@@ -63,7 +63,7 @@ The complete Windows package also builds the isolated DX12 native runtime from i
 | `Mods/` | Slots for user mod packages beside the launcher. |
 | `artifacts/Memoria-FF8-win-x64.zip` | The distributable archive; its root contains the launcher, `Data/` and `Mods/`. |
 
-`Build.ps1` replaces its generated package directory on a successful build. Keep personal saves, mod packages and independently installed tools outside disposable build outputs, or preserve them before rebuilding.
+`Build.ps1` replaces the generated engine payload on a successful build and keeps the local `Mods/` directory and mod-library state at their original paths. Package validation uses a clean archive so local mods stay on the machine that installed them.
 
 Use `./Build.ps1 -Configuration Debug` for a Debug package. `Release` is the default.
 

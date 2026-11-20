@@ -4,7 +4,7 @@ using System.Text.Json.Nodes;
 
 namespace Memoria.FF8.Mods.Tests;
 
-public sealed class ModPackageInstallerTests : IDisposable
+public sealed partial class ModPackageInstallerTests : IDisposable
 {
     private readonly string root = Path.Combine(Path.GetTempPath(), "mod-install-tests-" + Guid.NewGuid().ToString("N"));
     private readonly Guid id = Guid.NewGuid();
@@ -425,11 +425,11 @@ public sealed class ModPackageInstallerTests : IDisposable
         Assert.Empty(Installer().RecoverAndApply());
     }
 
-    private string Iroj()
+    private string Iroj(string version = "1.0")
     {
         Directory.CreateDirectory(root);
         string path = Path.Combine(root, Guid.NewGuid().ToString("N") + ".download");
-        (string Name, byte[] Content)[] files = [("mod.xml", Encoding.UTF8.GetBytes(Manifest())), ("data/a.bin", "fixture"u8.ToArray())];
+        (string Name, byte[] Content)[] files = [("mod.xml", Encoding.UTF8.GetBytes(Manifest(version))), ("data/a.bin", "fixture"u8.ToArray())];
         using FileStream stream = File.Create(path);
         using BinaryWriter writer = new(stream, Encoding.Unicode);
         writer.Write(0x534f5249);

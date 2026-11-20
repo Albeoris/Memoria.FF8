@@ -18,11 +18,12 @@ public sealed partial class ModPackageInstaller
         public bool Enable { get; init; }
         public bool? PreviousPreference { get; init; }
         public string? RepairSourceHash { get; init; }
+        public string? RelocateTo { get; init; }
         [System.Text.Json.Serialization.JsonIgnore]
         public string? PreviousPayloadHash => RepairSourceHash ?? Previous?.PayloadHash;
     }
 
-    public Task<ModPackageInstallResult> RequestInstallAsync(ModPackageInstallPlan plan, bool autoEnableNewMods = true, CancellationToken cancellationToken = default, bool enableOnAcceptance = false, bool repair = false)
+    public Task<ModPackageInstallResult> RequestInstallAsync(ModPackageInstallPlan plan, bool autoEnableNewMods = true, CancellationToken cancellationToken = default, bool enableOnAcceptance = false, bool repair = false, string? relocateTo = null)
     {
         return Task.Run(async () =>
         {
@@ -39,14 +40,19 @@ public sealed partial class ModPackageInstaller
                     throw new InvalidDataException("The prepared payload changed; inspect again.");
                 }
                 string name = Path.GetFileName(plan.Destination);
-                string receiptPath = ReceiptPath(ManagedName(plan.Entry));
-                if (File.Exists(RemovalPath(ManagedName(plan.Entry))))
+                string key = ManagedName(plan.Entry);
+                string receiptPath = ReceiptPath(key);
+                if (Read<RelocationReservation>(IncomingRelocationPath(key)) is not null)
+                {
+                    throw new InvalidOperationException("An update is moving to this directory. Restart to complete the move first.");
+                }
+                if (File.Exists(RemovalPath(key)))
                 {
                     throw new InvalidOperationException("This mod is waiting to be uninstalled. Restart before installing it again.");
                 }
                 Receipt? previous = Read<Receipt>(receiptPath);
                 string destination = Destination(plan.Entry.SourceId, name);
-                if (File.Exists(JournalPath(ManagedName(plan.Entry))))
+                if (File.Exists(JournalPath(key)))
                 {
                     throw new InvalidOperationException("This installation already has a pending transaction. Restart to apply it first.");
                 }
@@ -69,6 +75,9 @@ public sealed partial class ModPackageInstaller
                 {
                     throw new NotSupportedException(unavailable);
                 }
+                string? relocationRoot = relocateTo is not null && previous is { Version.Length: > 0 } && plan.Entry.CompareVersion(previous.Version) is > 0
+                    ? ValidateRelocationRoot(relocateTo)
+                    : null;
                 Receipt next = new(1, previous?.InstallationId ?? Guid.NewGuid(), plan.Entry.SourceId, plan.Entry.Id, plan.Version, plan.Entry.Official is null ? targetProfile : "", name, item.Hash, Directory.Exists(item.Payload))
                 {
                     Official = plan.Entry.Official,
@@ -85,9 +94,10 @@ public sealed partial class ModPackageInstaller
                     MissingPrevious = previousPayloadExists ? null : previous,
                     Enable = enableOnAcceptance && next.Official is not null,
                     PreviousPreference = enableOnAcceptance && next.Official is not null ? ReadCentralPreference(next.Official.SettingsKey) : null,
-                    RepairSourceHash = repairSourceHash
+                    RepairSourceHash = repairSourceHash,
+                    RelocateTo = relocationRoot
                 };
-                WriteAtomic(JournalPath(ManagedName(plan.Entry)), journal);
+                WriteAtomic(JournalPath(key), journal);
                 prepared.Remove(plan.Token);
                 return Result(next, true, false) with { PendingEnable = journal.Enable };
             }
@@ -124,6 +134,10 @@ public sealed partial class ModPackageInstaller
                     EnsureNoLinks(path);
                     journal = Read<Journal>(path) ?? throw new InvalidDataException("Empty installation journal.");
                     ValidateJournal(journal, path);
+                    if (IsRelocationPhase(journal))
+                    {
+                        continue;
+                    }
                     if (journal.Phase == "RollingBack")
                     {
                         Rollback(journal, path);
@@ -136,7 +150,7 @@ public sealed partial class ModPackageInstaller
                 catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or NotSupportedException or ArgumentException or JsonException)
                 {
                     bool restored = false;
-                    if (journal?.Previous is not null)
+                    if (journal?.Previous is not null && !IsRelocationPhase(journal))
                     {
                         try
                         {
@@ -179,6 +193,14 @@ public sealed partial class ModPackageInstaller
         if (journal is not null)
         {
             ValidateJournal(journal, JournalPath(key));
+            if (journal.Phase == "Relocated")
+            {
+                return null;
+            }
+            if (journal.Phase == "Relocating")
+            {
+                return Result(journal.Next, true, false);
+            }
             // Applied files can await game resource validation without requiring another file application.
             bool applied = journal.Phase is "AwaitingValidation" or "Committed";
             if (applied)
@@ -190,7 +212,7 @@ public sealed partial class ModPackageInstaller
                     return Result(journal.Next, false, false, "The managed installation was removed outside the mod manager.");
                 }
             }
-            return Result(journal.Next, !applied, applied) with { PendingEnable = ShouldEnable(journal) };
+            return Result(journal.Next, !applied || journal.RelocateTo is not null, applied) with { PendingEnable = ShouldEnable(journal) };
         }
         Receipt? receipt = Read<Receipt>(ReceiptPath(key));
         if (receipt is null)
@@ -416,7 +438,15 @@ public sealed partial class ModPackageInstaller
         {
             throw new InvalidDataException("Invalid repair ownership in the installation journal.");
         }
-        if (journal.Phase is not ("PendingRestart" or "OldMoved" or "NewMoved" or "Committed" or "AwaitingValidation" or "RollingBack"))
+        if (journal.RelocateTo is { } relocation)
+        {
+            Receipt? previousOwner = journal.Previous ?? journal.MissingPrevious;
+            if (journal.TransactionId == Guid.Empty || relocation != ValidateRelocationRoot(relocation) || previousOwner is null || previousOwner.SourceId != journal.Next.SourceId || previousOwner.ModId != journal.Next.ModId || previousOwner.InstallationId != journal.Next.InstallationId)
+            {
+                throw new InvalidDataException("The update does not have a valid relocation destination or previous owner.");
+            }
+        }
+        if (journal.Phase is not ("PendingRestart" or "OldMoved" or "NewMoved" or "Committed" or "AwaitingValidation" or "RollingBack") && (!IsRelocationPhase(journal) || journal.RelocateTo is null))
         {
             throw new InvalidDataException("Unknown installation journal phase.");
         }

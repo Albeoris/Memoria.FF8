@@ -177,7 +177,7 @@ internal sealed partial class RecreateGame
         Ff7Scene scene = new(GraphicsDevice, installation, tools, new Ff7ProjectionDepth(native.FieldNearPlane, native.FieldFarPlane), movie => Ff7Scene.ResolveMovie(installation, tools, movie), state, appearance, options.AudioEnabled, audioOutput);
         try
         {
-            scene.ConfigureEnemyIntegrationMods(options.ModsDirectory);
+            scene.ConfigureEnemyIntegrationMods(options.ModsDirectory, options.ModLocations);
             scene.ReadStatusStatModifiers = difficulty => resourceHost!.ReadStatusStatModifiers(difficulty);
             scene.ConfigureCharacterIdentity(options.GameDirectory);
             ConfigureFf7Presentation(scene);

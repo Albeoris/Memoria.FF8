@@ -332,15 +332,33 @@ internal sealed partial class LauncherWindow : Window
         }
         try
         {
-            LauncherSettings settings = selected is null
-                ? LauncherSettings.Load(LauncherSettings.DefaultPath) with { CloseAfterLaunch = closeAfterLaunch.IsChecked == true, Ff7GameDirectory = selectedFf7GameDirectory, Appearance = SelectedLauncherAppearance }
-                : new LauncherSettings(selected.Directory, achievementsLocalOnly.IsChecked == true, SelectedResourceLanguageOverride, selectedModelSourceDirectory, closeAfterLaunch.IsChecked == true, selectedFf7GameDirectory, SelectedLauncherAppearance);
-            settings.Save(LauncherSettings.DefaultPath);
+            ReadSelectionSettings(selected?.Directory).Save(LauncherSettings.DefaultPath);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
             status.Text = "Could not save launcher settings: " + exception.Message;
         }
+    }
+
+    private LauncherSettings ReadSelectionSettings(string? directory)
+    {
+        LauncherSettings settings = LauncherSettings.Load(LauncherSettings.DefaultPath) with
+        {
+            CloseAfterLaunch = closeAfterLaunch.IsChecked == true,
+            Ff7GameDirectory = selectedFf7GameDirectory,
+            Appearance = SelectedLauncherAppearance
+        };
+        if (directory is not null)
+        {
+            settings = settings with
+            {
+                LastGameDirectory = directory,
+                AchievementsLocalOnly = achievementsLocalOnly.IsChecked == true,
+                ResourceLanguage = SelectedResourceLanguageOverride,
+                ModelSourceDirectory = selectedModelSourceDirectory
+            };
+        }
+        return settings;
     }
 
     private async Task RunSetupAsync()
@@ -718,7 +736,7 @@ internal sealed partial class LauncherWindow : Window
     {
         try
         {
-            new LauncherSettings(directory, achievementsLocalOnly.IsChecked == true, SelectedResourceLanguageOverride, selectedModelSourceDirectory, closeAfterLaunch.IsChecked == true, selectedFf7GameDirectory, SelectedLauncherAppearance).Save(LauncherSettings.DefaultPath);
+            ReadSelectionSettings(directory).Save(LauncherSettings.DefaultPath);
             installations.ItemsSource = GameInstallationSelection.Order(directory, installations.Items.Cast<GameInstallation>());
             installations.SelectedIndex = 0;
         }

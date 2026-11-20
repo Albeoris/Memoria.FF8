@@ -19,6 +19,7 @@ public sealed class ModLibraryService : IModLibraryService, IDisposable
     private readonly ModDownloadCoordinator downloads;
     private readonly ModDownloadCoordinator? officialDownloads;
     private readonly ModPackageInstaller installer;
+    private readonly IReadOnlyList<ModPackageInstaller> installers;
     private readonly IModService mods;
     private readonly string targetProfile;
     private readonly string targetLabel;
@@ -52,9 +53,10 @@ public sealed class ModLibraryService : IModLibraryService, IDisposable
     private int disposed;
 
     /// <param name="applyPendingChanges">Optional owner callback that applies staged files only while holding an exclusive resource-directory lease. Return false while readers prevent application; full runtime validation remains the game host's responsibility.</param>
-    public ModLibraryService(string cacheDirectory, ModPackageInstaller installer, IModService mods, string targetProfile, bool targetSupported, HttpClient? client = null, string? unavailableReason = null, Action<Uri>? openDownloadPage = null, string? officialCacheDirectory = null, bool officialSupported = false, Func<CancellationToken, Task<bool>>? applyPendingChanges = null)
+    public ModLibraryService(string cacheDirectory, ModPackageInstaller installer, IModService mods, string targetProfile, bool targetSupported, HttpClient? client = null, string? unavailableReason = null, Action<Uri>? openDownloadPage = null, string? officialCacheDirectory = null, bool officialSupported = false, Func<CancellationToken, Task<bool>>? applyPendingChanges = null, IReadOnlyList<ModPackageInstaller>? previousInstallers = null, string? officialDownloadsDirectory = null)
     {
         this.installer = installer;
+        installers = (previousInstallers ?? []).Prepend(installer).Distinct().ToArray();
         this.mods = mods;
         this.targetProfile = targetProfile;
         string[] targetParts = targetProfile.Split('/');
@@ -70,7 +72,7 @@ public sealed class ModLibraryService : IModLibraryService, IDisposable
         downloads = new ModDownloadCoordinator(Path.Combine(cacheDirectory, "downloads"), client);
         if (officialSupported && officialCacheDirectory is not null)
         {
-            officialDownloads = new ModDownloadCoordinator(installer.OfficialDownloadsDirectory, client);
+            officialDownloads = new ModDownloadCoordinator(officialDownloadsDirectory ?? installer.OfficialDownloadsDirectory, client);
         }
         view = new(0, catalog.Snapshot, [], targetProfile, supported) { TargetLabel = targetLabel };
         worker = Task.Run(RunAsync);
@@ -83,7 +85,7 @@ public sealed class ModLibraryService : IModLibraryService, IDisposable
         ModPackageInstallPlan? plan = entry is null ? null : View.Jobs.LastOrDefault(job => job.CanPreview && job.Entry.SourceId == entry.SourceId && job.Entry.Id == entry.Id && job.Entry.Version == entry.Version)?.PreviewPlan;
         if (plan is not null)
         {
-            return installer.OpenPreviewAsync(plan, cancellationToken);
+            return plan.Installer.OpenPreviewAsync(plan, cancellationToken);
         }
         if (installed is not null && ModPreviewDocument.CanOpenInstalled(installed))
         {
@@ -101,6 +103,26 @@ public sealed class ModLibraryService : IModLibraryService, IDisposable
     public void Queue(RemoteModEntry entry) => Post(() => QueueCore(entry, false));
 
     public void DownloadAndEnable(RemoteModEntry entry) => Post(() => QueueCore(entry, true));
+
+    private (ModPackageInstaller Installer, ModPackageInstallResult? Status) ResolveInstallation(RemoteModEntry entry)
+    {
+        ModPackageInstaller owner = installer;
+        ModPackageInstallResult? status = null;
+        foreach (ModPackageInstaller candidate in installers)
+        {
+            if (candidate.GetStatus(entry) is not { } found)
+            {
+                continue;
+            }
+            if (status is not null)
+            {
+                throw new InvalidOperationException("More than one mod directory has managed state for this package. Resolve the duplicate installations before making changes.");
+            }
+            owner = candidate;
+            status = found;
+        }
+        return (owner, status);
+    }
 
     private void QueueCore(RemoteModEntry entry, bool enable)
     {
@@ -122,7 +144,7 @@ public sealed class ModLibraryService : IModLibraryService, IDisposable
         {
             throw new InvalidOperationException("This release has changed. Review the new download in the catalog.");
         }
-        ModPackageInstallResult? status = installer.GetStatus(entry);
+        ModPackageInstallResult? status = ResolveInstallation(entry).Status;
         if (status?.PendingRemoval == true)
         {
             throw new InvalidOperationException("This mod is waiting to be uninstalled. Wait for removal before downloading it again.");
@@ -140,7 +162,7 @@ public sealed class ModLibraryService : IModLibraryService, IDisposable
             inspections.Remove(id);
             if (oldState.Plan is { } oldPlan)
             {
-                Observe(installer.DiscardAsync(oldPlan));
+                Observe(oldPlan.Installer.DiscardAsync(oldPlan));
             }
         }
         if (queue.Snapshot.FirstOrDefault(job => job.JobId == id)?.Phase is ModDownloadPhase.Paused or ModDownloadPhase.Failed or ModDownloadPhase.NeedsUserAction)
@@ -152,7 +174,7 @@ public sealed class ModLibraryService : IModLibraryService, IDisposable
 
     public void CancelPendingEnable(RemoteModEntry entry) => Post(() =>
     {
-        installer.CancelPendingEnable(entry);
+        ResolveInstallation(entry).Installer.CancelPendingEnable(entry);
         reconciledCatalog = null;
     });
 
@@ -211,7 +233,7 @@ public sealed class ModLibraryService : IModLibraryService, IDisposable
                 try
                 {
                     ModPackageInstallPlan completed = await preparation.ConfigureAwait(false);
-                    await installer.DiscardAsync(completed).ConfigureAwait(false);
+                    await completed.Installer.DiscardAsync(completed).ConfigureAwait(false);
                 }
                 catch (OperationCanceledException)
                 {
@@ -225,7 +247,7 @@ public sealed class ModLibraryService : IModLibraryService, IDisposable
         }
         if (state?.Plan is { } plan)
         {
-            Observe(installer.DiscardAsync(plan, lifetime.Token));
+            Observe(plan.Installer.DiscardAsync(plan, lifetime.Token));
             inspections.Remove(id);
         }
         QueueForJob(id).Cancel(id);
@@ -239,7 +261,7 @@ public sealed class ModLibraryService : IModLibraryService, IDisposable
         {
             throw new InvalidOperationException("Installation is finishing. Wait before uninstalling this mod.");
         }
-        installer.RequestUninstall(entry);
+        ResolveInstallation(entry).Installer.RequestUninstall(entry);
         reconciledCatalog = null;
         error = null;
     });
@@ -250,7 +272,7 @@ public sealed class ModLibraryService : IModLibraryService, IDisposable
         {
             if (state.Plan is { } oldPlan)
             {
-                Observe(installer.DiscardAsync(oldPlan));
+                Observe(oldPlan.Installer.DiscardAsync(oldPlan));
             }
             inspections.Remove(id);
         }
@@ -282,9 +304,18 @@ public sealed class ModLibraryService : IModLibraryService, IDisposable
         {
             throw new InvalidOperationException("Another mod directory owns this component. Resolve that installation before replacing it.");
         }
-        ModPackageInstallResult? local = state.Plan.Entry.Official is not null ? installer.GetStatus(state.Plan.Entry) : null;
-        bool repair = local is { RestartRequired: false, Installed: false } or { Version.Length: 0 };
-        state.Installation = installer.RequestInstallAsync(state.Plan, enable || mods.AutoEnableNewMods, lifetime.Token, enable, repair);
+        (ModPackageInstaller owner, ModPackageInstallResult? local) = ResolveInstallation(state.Plan.Entry);
+        if (!ReferenceEquals(owner, state.Plan.Installer))
+        {
+            throw new InvalidOperationException("The installation location changed. Retry to check the download again.");
+        }
+        bool repair = state.Plan.Entry.Official is not null && local is ({ RestartRequired: false, Installed: false } or { Version.Length: 0 });
+        string? relocateTo = null;
+        if (!ReferenceEquals(owner, installer) && local is { Version.Length: > 0 } && state.Plan.Entry.CompareVersion(local.Version) > 0)
+        {
+            relocateTo = installer.ModsRoot;
+        }
+        state.Installation = owner.RequestInstallAsync(state.Plan, enable || mods.AutoEnableNewMods, lifetime.Token, enable, repair, relocateTo);
     }
 
     private async Task RefreshAsync(bool includeJunction, bool force)
@@ -444,9 +475,17 @@ public sealed class ModLibraryService : IModLibraryService, IDisposable
                     {
                         try
                         {
-                            if (installer.GetStatus(entry) is { } status)
+                            if (ResolveInstallation(entry).Status is { } status)
                             {
-                                known.Add(new(entry.SourceId, entry.Id, status.Version, status.PackageId, status.RestartRequired) { Available = status.Installed || status.RestartRequired, Error = status.Error, PendingEnable = status.PendingEnable, PendingRemoval = status.PendingRemoval, CanUninstall = status.CanUninstall });
+                                known.Add(new(entry.SourceId, entry.Id, status.Version, status.PackageId, status.RestartRequired)
+                                {
+                                    Available = status.Installed || status.RestartRequired,
+                                    Error = status.Error,
+                                    PendingEnable = status.PendingEnable,
+                                    PendingRemoval = status.PendingRemoval,
+                                    CanUninstall = status.CanUninstall,
+                                    NeedsFileApplication = status.RestartRequired && !status.Installed
+                                });
                             }
                         }
                         catch (Exception exception) when (exception is not OperationCanceledException)
@@ -474,7 +513,7 @@ public sealed class ModLibraryService : IModLibraryService, IDisposable
                         inspections.Add(job.JobId, state);
                         try
                         {
-                            ModPackageInstallResult? installed = installer.GetStatus(job.Entry);
+                            (ModPackageInstaller owner, ModPackageInstallResult? installed) = ResolveInstallation(job.Entry);
                             if (installed is not null && (installed.Installed || installed.RestartRequired) && job.Entry.CompareVersion(installed.Version) == 0)
                             {
                                 state.Result = installed;
@@ -483,7 +522,7 @@ public sealed class ModLibraryService : IModLibraryService, IDisposable
                             else if (job.ArchivePath is not null)
                             {
                                 state.Cancellation = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
-                                state.Preparation = installer.InspectAsync(job.ArchivePath, job.Entry, state.Cancellation.Token);
+                                state.Preparation = owner.InspectAsync(job.ArchivePath, job.Entry, state.Cancellation.Token);
                             }
                         }
                         catch (Exception exception) when (exception is not OperationCanceledException)
@@ -531,7 +570,7 @@ public sealed class ModLibraryService : IModLibraryService, IDisposable
                         state.Installation = null;
                     }
                 }
-                if (applyPendingChanges is not null && DateTimeOffset.UtcNow >= nextApplyAttempt && (installations.Any(item => item.Pending) || inspections.Values.Any(state => state.Result?.RestartRequired == true)))
+                if (applyPendingChanges is not null && DateTimeOffset.UtcNow >= nextApplyAttempt && (installations.Any(item => item.NeedsFileApplication) || inspections.Values.Any(state => state.Result is { RestartRequired: true, Installed: false })))
                 {
                     nextApplyAttempt = DateTimeOffset.UtcNow.AddSeconds(1);
                     try
@@ -544,7 +583,7 @@ public sealed class ModLibraryService : IModLibraryService, IDisposable
                             {
                                 if (inspections.TryGetValue(job.JobId, out Inspection? state) && state.Result is not null)
                                 {
-                                    state.Result = installer.GetStatus(job.Entry);
+                                    state.Result = ResolveInstallation(job.Entry).Status;
                                     state.Error = state.Result?.Error;
                                     if (state.Result is null)
                                     {
@@ -606,7 +645,8 @@ public sealed class ModLibraryService : IModLibraryService, IDisposable
     private ModLibraryJob Project(DownloadJobSnapshot job)
     {
         inspections.TryGetValue(job.JobId, out Inspection? state);
-        bool pendingInstall = installations.Any(item => item.SourceId == job.Entry.SourceId && item.Id == job.Entry.Id && item.Pending && !item.PendingRemoval && job.Entry.CompareVersion(item.Version) == 0);
+        ModLibraryInstallation? pendingInstallation = installations.FirstOrDefault(item => item.SourceId == job.Entry.SourceId && item.Id == job.Entry.Id && item.Pending && !item.PendingRemoval && job.Entry.CompareVersion(item.Version) == 0);
+        bool pendingInstall = pendingInstallation is not null;
         bool pendingRemoval = installations.Any(item => item.SourceId == job.Entry.SourceId && item.Id == job.Entry.Id && item.PendingRemoval);
         bool installedCache = state?.Error is null && (job.Phase is ModDownloadPhase.Paused or ModDownloadPhase.ReadyToInstall) && installations.Any(item => item.SourceId == job.Entry.SourceId && item.Id == job.Entry.Id && item.Available && !item.Pending && job.Entry.CompareVersion(item.Version) == 0);
         string phase = job.Phase switch
@@ -632,7 +672,9 @@ public sealed class ModLibraryService : IModLibraryService, IDisposable
         }
         if (pendingInstall)
         {
-            details = "The checked installation is staged and waiting for its resource directory to become available. The launcher applies it while no game is using that directory. No network action is required.";
+            details = pendingInstallation!.NeedsFileApplication
+                ? "The checked installation is staged and waiting for its resource directory to become available. The launcher applies it while no game is using that directory. No network action is required."
+                : "Start the game to validate the update and finish moving the mod to the selected directory.";
         }
         if (pendingRemoval)
         {

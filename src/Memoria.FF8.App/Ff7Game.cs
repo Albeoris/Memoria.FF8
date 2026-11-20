@@ -53,10 +53,10 @@ internal sealed partial class Ff7Game : GamePresentationHost
     {
         batch = GraphicsHostReadiness.Initialize(() => new SpriteBatch(GraphicsDevice));
         scene = new Ff7Scene(GraphicsDevice, installation, mediaToolsDirectory, projection, resolveMovie, initialEnvelope, appearance, launchOptions?.AudioEnabled ?? true, audioOutput);
-        scene.ConfigureEnemyIntegrationMods(launchOptions?.ModsDirectory);
+        scene.ConfigureEnemyIntegrationMods(launchOptions?.ModsDirectory, launchOptions?.ModLocations);
         scene.ReadStatusStatModifiers = difficulty =>
         {
-            originResources ??= new GameResourceHost(launchOptions?.GameDirectory ?? throw new InvalidOperationException("Select the FFVIII installation before entering mixed combat."), modsDirectory: launchOptions?.ModsDirectory, resourceLanguage: launchOptions?.ResourceLanguage, modelSourceDirectory: launchOptions?.ModelSourceDirectory);
+            originResources ??= new GameResourceHost(launchOptions?.GameDirectory ?? throw new InvalidOperationException("Select the FFVIII installation before entering mixed combat."), modsDirectory: launchOptions?.ModsDirectory, resourceLanguage: launchOptions?.ResourceLanguage, modelSourceDirectory: launchOptions?.ModelSourceDirectory, modLocations: launchOptions?.ModLocations);
             return originResources.ReadStatusStatModifiers(difficulty);
         };
         scene.ConfigureCharacterIdentity(launchOptions?.GameDirectory ?? throw new InvalidOperationException("FFVII character presentation requires its primary game installation."));

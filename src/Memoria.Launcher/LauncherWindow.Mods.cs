@@ -1,6 +1,4 @@
 using System.Diagnostics;
-using System.Security.Cryptography;
-using System.Text;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
@@ -103,6 +101,7 @@ internal sealed partial class LauncherWindow
         Grid.SetColumn(launcherModRefresh, 1);
         navigation.Children.Add(launcherModRefresh);
         header.Children.Add(navigation);
+        header.Children.Add(CreateLauncherModLocationControl());
 
         Grid filters = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto,Auto"), ColumnSpacing = 8 };
         filters.Children.Add(launcherModSearch);
@@ -323,9 +322,23 @@ internal sealed partial class LauncherWindow
             return;
         }
         var edition = GameInstallationSelection.ResolveEdition(selected.Directory);
-        string root = ApplicationInstallation.ResolveModsDirectory(AppContext.BaseDirectory, HostPlatforms.Current, ApplicationPaths.Current.Configuration);
-        string identity = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(root + "\0" + Path.GetFullPath(selected.Directory) + "\0" + edition + "\0" + language)))[..16].ToLowerInvariant();
-        if (identity == launcherModIdentity && launcherModLibrary is not null)
+        ApplicationPaths paths = ApplicationPaths.Current;
+        ModDirectories locations;
+        try
+        {
+            locations = ApplicationInstallation.ResolveModDirectories(AppContext.BaseDirectory, selected.Directory, paths, LauncherSettings.Load(paths.LauncherSettings));
+        }
+        catch (ArgumentException exception)
+        {
+            await StopLauncherModLibraryAsync();
+            launcherModInitializationError = exception.Message;
+            RenderLauncherMods();
+            return;
+        }
+        string root = locations.Primary;
+        string targetIdentity = ModLibraryProfile.Identity(locations.LegacyDefault, selected.Directory, edition.ToString(), language);
+        string libraryIdentity = string.Join('\0', locations.Discovery.Prepend(root).Prepend(targetIdentity));
+        if (libraryIdentity == launcherModIdentity && launcherModLibrary is not null)
         {
             if (refresh)
             {
@@ -342,28 +355,27 @@ internal sealed partial class LauncherWindow
         }
         try
         {
-            string profile = $"{edition}/{language}/{identity}";
+            ModRuntime.ImportLocationPreferences(locations);
+            string profile = $"{edition}/{language}/{targetIdentity}";
             bool junction = ModCompatibility.IsCompatible(edition, ModFormat.Junction) && language.Equals("en", StringComparison.OrdinalIgnoreCase);
-            ModPackageInstaller installer = new(ModDirectoryResourceLease.StateDirectory(root), root, profile, junction);
+            ModPackageInstaller installer = ModLibraryProfile.CreateInstaller(root, selected.Directory, edition.ToString(), language, junction, locations.Preferences);
+            ModPackageInstaller[] previousInstallers = locations.Discovery
+                .Where(directory => !ApplicationInstallation.ModPathComparer.Equals(directory, root) && Directory.Exists(ModPackageInstaller.StateDirectoryFor(directory)))
+                .Select(directory => ModLibraryProfile.CreateInstaller(directory, selected.Directory, edition.ToString(), language, junction, locations.Preferences)).ToArray();
+            ModPackageInstaller[] installers = previousInstallers.Prepend(installer).OrderBy(item => item.ModsRoot, StringComparer.OrdinalIgnoreCase).ThenBy(item => item.ModsRoot, StringComparer.Ordinal).ToArray();
             // Apply managed transactions only at the same exclusive boundary used by game startup.
-            await Task.Run(() =>
-            {
-                using ModDirectoryResourceLease lease = ModDirectoryResourceLease.Acquire(root, true);
-                if (lease.IsWriter)
-                {
-                    installer.RecoverAndApply();
-                }
-            });
+            await Task.Run(() => RecoverLauncherModInstallations(installers, root));
             if (initialization != launcherModInitialization || busy || runningGame is not null || !Equals(installations.SelectedItem, selected))
             {
                 return;
             }
-            ModRuntime mods = new(ApplicationInstallation.DataDirectory, format => ModCompatibility.IsCompatible(edition, format), watch: false, additionalBaseDirectories: [selected.Directory], modsDirectory: root, edition: edition.ToString(), language: language);
+            ModRuntime mods = new(ApplicationInstallation.DataDirectory, format => ModCompatibility.IsCompatible(edition, format), watch: false, edition: edition.ToString(), language: language, modLocations: locations);
             launcherMods = mods;
             mods.PreparePending(true);
             mods.CommitPending();
-            launcherModLibrary = new ModLibraryService(Path.Combine(ApplicationPaths.Current.Cache, "mod-library", identity), installer, launcherMods, profile, junction, openDownloadPage: OpenLauncherModDownloadPage, officialCacheDirectory: OfficialModCatalog.DefaultCacheDirectory, officialSupported: true, applyPendingChanges: cancellationToken => ApplyLauncherModChangesAsync(installer, mods, root, cancellationToken));
-            launcherModIdentity = identity;
+            string? officialDownloads = ModLibraryProfile.OfficialDownloadsDirectory(locations.LegacyDefault, paths);
+            launcherModLibrary = new ModLibraryService(Path.Combine(paths.Cache, "mod-library", targetIdentity), installer, launcherMods, profile, junction, openDownloadPage: OpenLauncherModDownloadPage, officialCacheDirectory: OfficialModCatalog.DefaultCacheDirectory, officialSupported: true, applyPendingChanges: cancellationToken => ApplyLauncherModChangesAsync(installers, mods, cancellationToken), previousInstallers: previousInstallers, officialDownloadsDirectory: officialDownloads);
+            launcherModIdentity = libraryIdentity;
             launcherModLibrary.RefreshCatalog();
             launcherModTimer.Start();
             PollLauncherMods();
@@ -375,7 +387,53 @@ internal sealed partial class LauncherWindow
         }
     }
 
-    private async Task<bool> ApplyLauncherModChangesAsync(ModPackageInstaller installer, ModRuntime mods, string root, CancellationToken cancellationToken)
+    private static bool RecoverLauncherModInstallations(IEnumerable<ModPackageInstaller> installers, string primaryRoot)
+    {
+        bool applied = true;
+        List<ModDirectoryResourceLease> leases = [];
+        List<ModPackageInstaller> writable = [];
+        try
+        {
+            foreach (ModPackageInstaller installer in installers)
+            {
+                ModDirectoryResourceLease lease;
+                try
+                {
+                    lease = ModDirectoryResourceLease.Acquire(installer.ModsRoot, true);
+                }
+                catch (Exception exception) when (!ApplicationInstallation.ModPathComparer.Equals(installer.ModsRoot, primaryRoot)
+                    && exception is (IOException or UnauthorizedAccessException or InvalidDataException))
+                {
+                    applied = false;
+                    continue;
+                }
+                leases.Add(lease);
+                if (lease.IsWriter)
+                {
+                    writable.Add(installer);
+                }
+                else
+                {
+                    applied = false;
+                }
+            }
+            foreach (ModPackageInstaller installer in writable)
+            {
+                installer.RecoverRelocations(writable);
+                installer.RecoverAndApply();
+            }
+            return applied;
+        }
+        finally
+        {
+            foreach (ModDirectoryResourceLease lease in leases)
+            {
+                lease.Dispose();
+            }
+        }
+    }
+
+    private async Task<bool> ApplyLauncherModChangesAsync(IReadOnlyList<ModPackageInstaller> installers, ModRuntime mods, CancellationToken cancellationToken)
     {
         bool available = await Dispatcher.UIThread.InvokeAsync(() => !cancellationToken.IsCancellationRequested && !busy && runningGame is null && ReferenceEquals(launcherMods, mods));
         if (!available)
@@ -386,16 +444,11 @@ internal sealed partial class LauncherWindow
         return await Task.Run(() =>
         {
             cancellationToken.ThrowIfCancellationRequested();
-            using ModDirectoryResourceLease lease = ModDirectoryResourceLease.Acquire(root, true);
-            if (!lease.IsWriter)
-            {
-                return false;
-            }
-            installer.RecoverAndApply();
+            bool applied = RecoverLauncherModInstallations(installers, mods.PrimaryModsDirectory);
             mods.Refresh();
             mods.PreparePending(true);
             mods.CommitPending();
-            return true;
+            return applied;
         }, cancellationToken);
     }
 
@@ -453,6 +506,7 @@ internal sealed partial class LauncherWindow
 
     private void RenderLauncherMods()
     {
+        UpdateLauncherModLocationControl();
         launcherModClearFilters.IsEnabled = !string.IsNullOrEmpty(launcherModSearch.Text) || launcherModCategory.SelectedIndex > 0 || launcherModFilter.SelectedIndex > 0;
         if (launcherMods is null || launcherModLibrary is null)
         {

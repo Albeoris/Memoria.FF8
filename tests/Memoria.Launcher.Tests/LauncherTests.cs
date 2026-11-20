@@ -184,7 +184,7 @@ public sealed class LauncherTests : IDisposable
         Assert.True(argument >= 0);
         Assert.Equal("fr", start.ArgumentList[argument + 1]);
         Assert.Contains("--game-dir", start.ArgumentList);
-        Assert.Contains("--mods-dir", start.ArgumentList);
+        Assert.DoesNotContain("--mods-dir", start.ArgumentList);
         Assert.Contains("--media-tools", start.ArgumentList);
         Assert.Contains("--graphics-backend", start.ArgumentList);
         Assert.Contains("--achievements-local-only", start.ArgumentList);
@@ -233,7 +233,7 @@ public sealed class LauncherTests : IDisposable
     {
         ProcessStartInfo start = GameInstallationSelection.CreateStartInfo(directory, directory, true, directory, Memoria.FF8.Platform.GraphicsBackend.Vulkan);
         Assert.Contains("--game-dir", start.ArgumentList);
-        Assert.Contains("--mods-dir", start.ArgumentList);
+        Assert.DoesNotContain("--mods-dir", start.ArgumentList);
         Assert.Contains("--media-tools", start.ArgumentList);
         Assert.Contains("--achievements-local-only", start.ArgumentList);
         int argument = start.ArgumentList.IndexOf("--graphics-backend");
@@ -352,9 +352,10 @@ public sealed class LauncherTests : IDisposable
 
         Assert.Equal(Path.Combine(package, "Data", Memoria.FF8.Platform.HostPlatforms.Current.ExecutableName("Memoria.FF8")), result.FileName);
         Assert.Equal(Path.Combine(package, "Data"), result.WorkingDirectory);
-        Assert.Equal(new[] { "--game-dir", game, "--mods-dir", ApplicationInstallation.ResolveModsDirectory(package, HostPlatforms.Current, ApplicationPaths.Current.Configuration), "--media-tools", MediaToolsInstallation.ResolveDirectory() }, result.ArgumentList);
+        Assert.Equal(new[] { "--game-dir", game, "--media-tools", MediaToolsInstallation.ResolveDirectory() }, result.ArgumentList);
+        Assert.Equal(package, result.Environment[ApplicationInstallation.ModPackageDirectoryVariable]);
         string nextPackage = Path.Combine(directory, "Next release");
-        Assert.Equal(ApplicationInstallation.ResolveModsDirectory(nextPackage, HostPlatforms.Current, ApplicationPaths.Current.Configuration), GameInstallationSelection.CreateStartInfo(nextPackage, game).ArgumentList[3]);
+        Assert.Equal(nextPackage, GameInstallationSelection.CreateStartInfo(nextPackage, game).Environment[ApplicationInstallation.ModPackageDirectoryVariable]);
         Assert.False(result.UseShellExecute);
         Assert.True(result.RedirectStandardOutput);
         Assert.True(result.RedirectStandardError);
@@ -441,13 +442,15 @@ public sealed class LauncherTests : IDisposable
     [InlineData(HostPlatform.Windows, "Memoria.FF8.exe")]
     [InlineData(HostPlatform.Linux, "Memoria.FF8")]
     [InlineData(HostPlatform.MacOS, "Memoria.FF8")]
-    public void LaunchFactoryUsesPlatformExecutableAndWritableModPolicy(HostPlatform platform, string executable)
+    public void LaunchFactoryPassesPackageAndConfigurationToThePlatformExecutable(HostPlatform platform, string executable)
     {
         string package = Path.Combine(directory, "package.app", "Contents", "MacOS");
         string configuration = Path.Combine(directory, "user configuration");
         ProcessStartInfo start = GameInstallationSelection.CreateStartInfo(package, directory, hostPlatform: platform, configurationDirectory: configuration);
         Assert.Equal(Path.Combine(package, "Data", executable), start.FileName);
-        Assert.Equal(Path.Combine(platform == HostPlatform.MacOS ? configuration : package, "Mods"), start.ArgumentList[3]);
+        Assert.Equal(package, start.Environment[ApplicationInstallation.ModPackageDirectoryVariable]);
+        Assert.Equal("--settings-dir", start.ArgumentList[2]);
+        Assert.Equal(configuration, start.ArgumentList[3]);
         Assert.Equal(Path.Combine(package, "Data"), start.WorkingDirectory);
     }
 }

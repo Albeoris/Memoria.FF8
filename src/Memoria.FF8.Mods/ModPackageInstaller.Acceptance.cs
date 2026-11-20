@@ -37,6 +37,12 @@ public sealed partial class ModPackageInstaller
                     if (acceptedPackageIds.Contains(packageId, StringComparer.OrdinalIgnoreCase))
                     {
                         CommitEnable(journal);
+                        if (journal.RelocateTo is not null)
+                        {
+                            WriteAtomic(path, journal with { Phase = "Relocating", Enable = false });
+                            results.Add(Result(next, true, true));
+                            continue;
+                        }
                         WriteAtomic(path, journal with { Phase = "Committed" });
                         File.Delete(path);
                         results.Add(Result(next, false, true));

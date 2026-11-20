@@ -2,6 +2,7 @@ using Memoria.FF8.Assets;
 using Memoria.FF8.Assets.Localization;
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Mods;
+using Memoria.FF8.Platform;
 using Memoria.FF8.Resources;
 using Memoria.FF8.Resources.Localization;
 
@@ -19,18 +20,18 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
     private readonly string? modelSourceDirectory;
     private NativeTextureMods nativeTextureMods = NativeTextureMods.Empty;
 
-    public GameResourceHost(string gameDirectory, string? applicationBaseDirectory = null, bool watch = true, string? modsDirectory = null, string? resourceLanguage = null, string? modelSourceDirectory = null) : this(gameDirectory, CancellationToken.None, applicationBaseDirectory, watch, modsDirectory, resourceLanguage, modelSourceDirectory)
+    public GameResourceHost(string gameDirectory, string? applicationBaseDirectory = null, bool watch = true, string? modsDirectory = null, string? resourceLanguage = null, string? modelSourceDirectory = null, ModDirectories? modLocations = null) : this(gameDirectory, CancellationToken.None, applicationBaseDirectory, watch, modsDirectory, resourceLanguage, modelSourceDirectory, modLocations)
     {
     }
 
-    private GameResourceHost(string gameDirectory, CancellationToken startupCancellationToken, string? applicationBaseDirectory = null, bool watch = true, string? modsDirectory = null, string? resourceLanguage = null, string? modelSourceDirectory = null)
+    private GameResourceHost(string gameDirectory, CancellationToken startupCancellationToken, string? applicationBaseDirectory = null, bool watch = true, string? modsDirectory = null, string? resourceLanguage = null, string? modelSourceDirectory = null, ModDirectories? modLocations = null)
     {
         this.gameDirectory = gameDirectory;
         this.modelSourceDirectory = modelSourceDirectory;
         this.resourceLanguage = Memoria.FF8.Platform.GameResourceLanguages.Normalize(resourceLanguage);
         source = GameDataSourceFactory.Open(gameDirectory, modelSourceDirectory, this.resourceLanguage);
         Resources = new ResourceService(source, this.resourceLanguage);
-        Mods = new ModRuntime(applicationBaseDirectory ?? Memoria.FF8.Platform.ApplicationInstallation.DataDirectory, format => ModCompatibility.IsCompatible(source.Descriptor.Edition, format), Prepare, watch, additionalBaseDirectories: [gameDirectory], modsDirectory: modsDirectory, junctionPackageAllowed: CanReadJunctionPackage, nativeRootUnavailable: NativeRootUnavailable, edition: source.Descriptor.Edition.ToString(), language: this.resourceLanguage ?? source.Descriptor.Language, obsoleteBundledPackage: path => Path.GetFileName(path) == OfficialModCatalog.LegacyGirlNextDoorSettingsKey && GirlNextDoorMigration.IsComplete(Mods!.PrimaryModsDirectory));
+        Mods = new ModRuntime(applicationBaseDirectory ?? ApplicationInstallation.DataDirectory, format => ModCompatibility.IsCompatible(source.Descriptor.Edition, format), Prepare, watch, additionalBaseDirectories: [gameDirectory], modsDirectory: modsDirectory, junctionPackageAllowed: CanReadJunctionPackage, nativeRootUnavailable: NativeRootUnavailable, edition: source.Descriptor.Edition.ToString(), language: this.resourceLanguage ?? source.Descriptor.Language, obsoleteBundledPackage: path => Path.GetFileName(path) == OfficialModCatalog.LegacyGirlNextDoorSettingsKey && GirlNextDoorMigration.IsComplete(Mods!.LegacyModsDirectory), modLocations: modLocations);
         Resources.ReplacementFailed += (key, exception) =>
         {
             ModTextureLoadException? rejected = exception as ModTextureLoadException;
@@ -48,7 +49,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         {
             RecoverModLibrary(applicationBaseDirectory ?? Memoria.FF8.Platform.ApplicationInstallation.DataDirectory);
             CompleteStartupPreparation(startupCancellationToken);
-            ValidateModLibraryStartup();
+            ValidateModLibraryStartup(startupCancellationToken);
         }
         catch
         {

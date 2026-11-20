@@ -130,8 +130,12 @@ internal static class GameInstallationSelection
             result.ArgumentList.Add("--model-source-dir");
             result.ArgumentList.Add(Path.GetFullPath(modelSourceDirectory));
         }
-        result.ArgumentList.Add("--mods-dir");
-        result.ArgumentList.Add(ApplicationInstallation.ResolveModsDirectory(Path.GetFullPath(packageDirectory), platform, configurationDirectory ?? ApplicationPaths.Current.Configuration));
+        result.Environment[ApplicationInstallation.ModPackageDirectoryVariable] = Path.GetFullPath(packageDirectory);
+        if (configurationDirectory is not null)
+        {
+            result.ArgumentList.Add("--settings-dir");
+            result.ArgumentList.Add(Path.GetFullPath(configurationDirectory));
+        }
         result.ArgumentList.Add("--media-tools");
         result.ArgumentList.Add(MediaToolsInstallation.ResolveDirectory(mediaToolsDirectory));
         if (graphicsBackend is Memoria.FF8.Platform.GraphicsBackend backend)

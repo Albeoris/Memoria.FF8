@@ -234,6 +234,6 @@ public sealed class MediaToolsDiscoveryTests : IDisposable
     {
         string system = Path.Combine(root, "system tools");
         var start = GameInstallationSelection.CreateStartInfo(root, root, mediaToolsDirectory: system);
-        Assert.Equal(system, start.ArgumentList[5]);
+        Assert.Equal(system, start.ArgumentList[start.ArgumentList.IndexOf("--media-tools") + 1]);
     }
 }

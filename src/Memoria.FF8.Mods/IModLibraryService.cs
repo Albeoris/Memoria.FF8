@@ -35,6 +35,7 @@ public sealed record ModLibraryInstallation(string SourceId, Guid Id, string Ver
     public bool CanUninstall { get; init; }
     public bool Available { get; init; } = true;
     public string? Error { get; init; }
+    internal bool NeedsFileApplication { get; init; }
 }
 
 public sealed record ModLibraryJob(Guid Id, RemoteModEntry Entry, string Phase, long ReceivedBytes, long? TotalBytes, double BytesPerSecond, string? Error, string? Details, bool CanPause, bool CanResume, bool CanCancel, bool CanInstall, bool CanRetry)

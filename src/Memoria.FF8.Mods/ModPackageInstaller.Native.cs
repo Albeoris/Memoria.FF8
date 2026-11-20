@@ -155,7 +155,7 @@ public sealed partial class ModPackageInstaller
                 name = previous.DestinationName;
             }
             string destination = Destination(entry.SourceId, name);
-            return new(token, entry, targetProfile, component.RuntimePackageId, release.Version, destination, bytes);
+            return new(this, token, entry, targetProfile, component.RuntimePackageId, release.Version, destination, bytes);
         }
         catch
         {
@@ -307,7 +307,7 @@ public sealed partial class ModPackageInstaller
         return stamp.Digest.Equals(expected, StringComparison.OrdinalIgnoreCase);
     }
 
-    private string CentralSettingsPath => Path.Combine(modsRoot, "Memoria", ModRuntime.MemoriaSettingsFile);
+    private string CentralSettingsPath => Path.Combine(preferenceRoot, "Memoria", ModRuntime.MemoriaSettingsFile);
 
     private System.Text.Json.Nodes.JsonObject ReadCentralSettings()
     {
@@ -354,9 +354,9 @@ public sealed partial class ModPackageInstaller
         }
     }
 
-    internal static bool HasPendingEnable(string modsRoot, OfficialModComponent component)
+    internal static bool HasPendingEnable(string modsRoot, OfficialModComponent component, string? preferenceRoot = null)
     {
-        ModPackageInstaller installer = new(StateDirectoryFor(modsRoot), modsRoot, "");
+        ModPackageInstaller installer = new(StateDirectoryFor(modsRoot), modsRoot, "", preferenceRoot: preferenceRoot);
         Journal? journal = Read<Journal>(installer.JournalPath(ManagedName(component.ToEntry())));
         return journal is { Phase: "AwaitingValidation" } && installer.ShouldEnable(journal);
     }

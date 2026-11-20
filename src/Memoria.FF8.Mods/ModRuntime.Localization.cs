@@ -18,7 +18,7 @@ public sealed partial class ModRuntime
         }
     }
 
-    private string LocalizationPreferencesPath => Path.Combine(modsRoot, "localization-stack.json");
+    private string LocalizationPreferencesPath => Path.Combine(preferenceRoot, "localization-stack.json");
 
     private void ReadLocalizationPreferences()
     {
@@ -93,7 +93,7 @@ public sealed partial class ModRuntime
                     WriteMemoriaSettings(componentSettings);
                 }
                 originals.Add((LocalizationPreferencesPath, File.Exists(LocalizationPreferencesPath) ? File.ReadAllBytes(LocalizationPreferencesPath) : null));
-                Directory.CreateDirectory(modsRoot);
+                Directory.CreateDirectory(preferenceRoot);
                 string temporary = LocalizationPreferencesPath + ".tmp";
                 File.WriteAllText(temporary, JsonSerializer.Serialize(new LocalizationPreferences(lowToHigh.ToArray(), primaryTarget)));
                 File.Move(temporary, LocalizationPreferencesPath, true);

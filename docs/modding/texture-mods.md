@@ -4,7 +4,7 @@ Memoria reads native Memoria texture contributions, unpacked Tonberry and Demast
 
 ## Install and configure
 
-Place each package in an immediate child directory of `Mods/Tonberry` or `Mods/Demaster`, either under the selected game directory or beside `Memoria.Launcher.exe`. The launcher passes its adjacent `Mods` directory through `--mods-dir <directory>`. Direct starts from a package's `Data/Memoria.FF8.exe` use the same root when the adjacent launcher and package `Mods` directory are present. Other direct starts use `Mods` beside the executable. `--mods-dir <directory>` selects an explicit mod root. The selected game directory's `Mods` remains active in every case. Preserve its internal table and texture paths. Both roots participate; the working directory is irrelevant. Texture packages must be unpacked. No XML or JSON texture-package manifest is required. Junction archives use a separate [file replacement format](file-replacements.md); native scene configuration uses [Memoria field mods](field-mods.md).
+Place each unpacked package in an immediate child directory of `Tonberry` or `Demaster` under a [mod root](../players/getting-started.md). Preserve the package's internal table and texture paths. The selected game directory's `Mods` also participates. Texture packages use the table and texture files directly. Junction archives use the [file replacement format](file-replacements.md). Native scene configuration uses [Memoria field mods](field-mods.md).
 
 The Mods menu exposes enablement, automatic enablement of new packages, diagnostics and Refresh. Global policy lives in `mods.ini` under the selected mod root (the launcher-adjacent `Mods` directory for launcher starts):
 

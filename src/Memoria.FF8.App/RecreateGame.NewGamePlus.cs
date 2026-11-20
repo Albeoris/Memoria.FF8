@@ -64,7 +64,7 @@ internal sealed partial class RecreateGame
 
     private GameState CreateNewGamePlusDefaults(GameplayPreferences preferences)
     {
-        using GameResourceHost target = new(options.GameDirectory, watch: false, modsDirectory: options.ModsDirectory, resourceLanguage: options.ResourceLanguage, modelSourceDirectory: options.ModelSourceDirectory);
+        using GameResourceHost target = new(options.GameDirectory, watch: false, modsDirectory: options.ModsDirectory, resourceLanguage: options.ResourceLanguage, modelSourceDirectory: options.ModelSourceDirectory, modLocations: options.ModLocations);
         if (!target.SetGameplayDifficulty(preferences.Difficulty))
         {
             throw new InvalidOperationException(GameResourceHost.GameplayDifficultyProfilePending);
