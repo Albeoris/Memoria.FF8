@@ -6,6 +6,7 @@ internal static class NativeNavigationEntryProofTests
     public static void Run()
     {
         IdempotentControlPublications();
+        PartyMembershipBranches();
         var stable = Create();
         string before = JsonSerializer.Serialize(stable.Machine.Capture());
         FieldNavigationEntryProof proof = Prove(stable.Machine);
@@ -211,6 +212,51 @@ internal static class NativeNavigationEntryProofTests
             machine = FieldMachine.Restore(program, snapshot, host);
         }
         return (machine, program, host, code.Length);
+    }
+
+    private static void PartyMembershipBranches()
+    {
+        byte[] conditional = [0xCB, 1, 14, 0x16, 0x20, 0, 0, 0x7E, 2, 3, 6, 0x80, 0x10, 20, 1, 0, 0];
+        foreach (bool present in new[] { false, true })
+        {
+            var sample = PartyEntry(conditional);
+            sample.Machine.Variables.WriteByte(FieldBank.Persistent1Byte, 9, present ? (byte)1 : (byte)2);
+            string before = JsonSerializer.Serialize(sample.Machine.Capture());
+            FieldNavigationEntryProof proof = sample.Machine.ProveNavigationEntryHasNoEffect(1, 5, new(), [], []);
+            Check(proof.Complete && proof.HasNoEffect && proof.Reads.Contains(new(FieldBank.Persistent0Word, 0, true)), "Both party-membership successors did not retain their current stable native predicate proof.");
+            Check(before == JsonSerializer.Serialize(sample.Machine.Capture()) && sample.Host.Calls == 0, "Party branch proof changed native party, variables, scheduler or host state.");
+            Check(!sample.Machine.ProveNavigationEntryHasNoEffect(1, 5, new(), [new(FieldBank.Persistent0Byte, 1, false)], []).HasNoEffect, "Party branch proof lost external byte-alias invalidation of its story guard.");
+            var effect = PartyEntry([0xCB, 1, 5, 0x80, 0x10, 20, 1, 0]);
+            effect.Machine.Variables.WriteByte(FieldBank.Persistent1Byte, 9, present ? (byte)1 : (byte)2);
+            Check(!effect.Machine.ProveNavigationEntryHasNoEffect(1, 5, new(), [], []).HasNoEffect, "A party outcome with a side effect was skipped using the other outcome's current membership.");
+        }
+        var writer = PartyEntry(conditional, [0x81, 0x20, 0, 0x70, 2, 0]);
+        Check(!writer.Machine.ProveNavigationEntryHasNoEffect(1, 5, new(), [], []).HasNoEffect, "A real native writer invalidating a party-guard successor escaped producer closure.");
+        foreach (byte[] code in new byte[][] { [0xCB, 1], [0xCB, 1, 1, 0x11, 0xFC, 0xFF], [0xCB, 1, 2, 0xFF, 0, 0] })
+        {
+            var invalid = PartyEntry(code);
+            Check(!invalid.Machine.ProveNavigationEntryHasNoEffect(1, 5, new(), [], []).HasNoEffect, "A truncated, cyclic or unsupported party successor was certified read-only.");
+        }
+        Console.WriteLine("PASS read-only party branches require both native successors and retain variable writer invalidation");
+    }
+
+    private static (FieldMachine Machine, RejectHost Host) PartyEntry(byte[] entry, byte[]? producer = null)
+    {
+        byte[] code = [0, 0, .. entry, .. (producer ?? [])];
+        ushort[][] entries = [new ushort[32], new ushort[32]];
+        entries[1][5] = 2;
+        FieldProgram program = new(code, entries);
+        RejectHost host = new();
+        FieldMachine machine = new(program, host: host);
+        machine.Initialize();
+        machine.Variables.WriteWord(FieldBank.Persistent0Word, 0, 641);
+        if (producer is not null)
+        {
+            FieldVmSnapshot snapshot = machine.Capture();
+            snapshot.Entities[0] = snapshot.Entities[0] with { ProgramCounter = 2 + entry.Length };
+            machine = FieldMachine.Restore(program, snapshot, host);
+        }
+        return (machine, host);
     }
 
     private static void Check(bool condition, string message)

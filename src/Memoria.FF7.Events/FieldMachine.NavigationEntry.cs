@@ -131,32 +131,46 @@ public sealed partial class FieldMachine
             detached.entities[entity].Priority = 1;
             detached.entities[entity].Wait = 0;
             detached.Input = projectedInput;
-            HashSet<int> visited = [];
-            bool returned = false;
             bool publishesControls = false;
-            for (int handler = 0; handler < 8; handler++)
+            string? ProveReturn(int pc, int handlers, HashSet<int> ancestors)
             {
-                int pc = detached.entities[entity].Pc;
-                if (!visited.Add(pc))
+                if (handlers >= 8)
                 {
-                    return Reject("The entry does not expose a finite read-only return path.");
+                    return "The entry return exceeds one native handler quantum.";
                 }
+                if (!ancestors.Add(pc))
+                {
+                    return "The entry does not expose a finite read-only return path.";
+                }
+                detached.entities[entity].Pc = pc;
                 byte opcode = program.Read(pc);
                 if (opcode == 0)
                 {
-                    returned = true;
-                    break;
+                    return null;
+                }
+                if (opcode == 0xCB)
+                {
+                    // Prove both party-membership outcomes without borrowing mutable party facts.
+                    _ = program.Read(pc + 1);
+                    int distance = program.Read(pc + 2);
+                    detached.Advance(entity, 3);
+                    int present = detached.entities[entity].Pc;
+                    detached.entities[entity].Pc = pc;
+                    detached.Advance(entity, distance + 2);
+                    int absent = detached.entities[entity].Pc;
+                    string? presentFailure = ProveReturn(present, handlers + 1, new(ancestors));
+                    return presentFailure is not null ? presentFailure : ProveReturn(absent, handlers + 1, new(ancestors));
                 }
                 if (opcode is 0x33 or 0x4A)
                 {
                     bool value = program.Read(pc + 1) != 0;
                     if (controls is null || (opcode == 0x33 ? value != controls.PlayerLocked || !value && controls.PlayerAnimationStatus != 0 : value != controls.MenuDisabled))
                     {
-                        return Reject("The entry changes a captured native control publication.");
+                        return "The entry changes a captured native control publication.";
                     }
                     publishesControls = true;
                     detached.Advance(entity, 2);
-                    continue;
+                    return ProveReturn(detached.entities[entity].Pc, handlers + 1, ancestors);
                 }
                 if (opcode is >= 0x14 and <= 0x19)
                 {
@@ -172,16 +186,18 @@ public sealed partial class FieldMachine
                 }
                 else if (opcode is not (0x10 or 0x11 or 0x30 or 0x31 or 0x32))
                 {
-                    return Reject("The entry reaches an effect or an unsupported read-only instruction.");
+                    return "The entry reaches an effect or an unsupported read-only instruction.";
                 }
                 if (detached.Execute(entity))
                 {
-                    return Reject("The entry yields before its read-only return.");
+                    return "The entry yields before its read-only return.";
                 }
+                return ProveReturn(detached.entities[entity].Pc, handlers + 1, ancestors);
             }
-            if (!returned)
+            string? returnFailure = ProveReturn(program.Entry(entity, script), 0, []);
+            if (returnFailure is not null)
             {
-                return Reject("The entry return exceeds one native handler quantum.");
+                return Reject(returnFailure);
             }
             HashSet<FieldVariableRead> immutable = reads.SelectMany(Variables.SpatialSourceBytes).ToHashSet();
             if (externalWrites.SelectMany(Variables.SpatialSourceBytes).Any(immutable.Contains))

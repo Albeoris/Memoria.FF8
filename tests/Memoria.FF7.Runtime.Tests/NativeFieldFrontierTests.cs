@@ -51,6 +51,55 @@ internal static class NativeFieldFrontierTests
         {
             throw new InvalidOperationException("An effectless entry or perpetually ambient Touch was treated as a queued navigation request.");
         }
+        RunReturnedLineOriginal();
+    }
+
+    public static void RunReturnedLineOriginal()
+    {
+        string? path = Environment.GetEnvironmentVariable("MEMORIA_FF7_RETURNED_LINE_SAVE");
+        string? game = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        if (path is null || game is null)
+        {
+            return;
+        }
+        byte[] bytes = File.ReadAllBytes(path);
+        using MemoryStream input = new(bytes, writable: false);
+        using Ff7Session session = Ff7Session.Restore(Ff7Installation.Discover(game), CombinedSessionCodec.Read(input).Ff7!);
+        using Ff7AutoPlayPolicy policy = new(session, (_, _) => throw new InvalidOperationException("The returned native line requested an optional checkpoint."));
+        Ff7AutoPlayActiveEvent initial = policy.State.Active ?? throw new InvalidOperationException("The fixture has no selected native line.");
+        Ff7AutoPlayDiscovery discovery = new(session);
+        string navigation = discovery.Observe().NavigationKey;
+        int field = session.MapId;
+        HashSet<(int X, int Y, int Z)> positions = [];
+        Ff7AutoPlayController controller = new(session, policy.ChooseInput, chooseDialogueSelection: policy.ChooseDialogueSelection, readPlanningProgress: () => policy.WorkProgress);
+        controller.Start();
+        Stopwatch timer = Stopwatch.StartNew();
+        bool progressed = false;
+        while (controller.Running && timer.Elapsed < TimeSpan.FromSeconds(15))
+        {
+            controller.Advance(1);
+            if (session.World is not null || session.MapId != field || discovery.Observe().NavigationKey != navigation)
+            {
+                progressed = true;
+                break;
+            }
+            Ff7Actor player = session.Host.Process.Actors.Single(actor => actor.PlayerControlled);
+            positions.Add((player.X4096, player.Y4096, player.Z4096));
+            if (positions.Count > 2 && policy.State.Active is { } next && next.EventId != initial.EventId && policy.State.Coverage.Visits.Single(visit => visit.Visit.Key == next.VisitId).Events.Single(item => item.Event.Id == next.EventId).Conditions?.HasExecutedEntry(next.ConditionFingerprint) != true)
+            {
+                progressed = true;
+                break;
+            }
+        }
+        if (controller.Error is not null || !progressed)
+        {
+            throw new InvalidOperationException($"The ordinary controller did not leave its repeated returned-LINE contact cycle: {controller.Error}; status={policy.Status}; steps={controller.Steps}; positions={positions.Count}.");
+        }
+        if (!bytes.AsSpan().SequenceEqual(File.ReadAllBytes(path)))
+        {
+            throw new InvalidOperationException("Native returned-LINE continuation changed its authoritative source.");
+        }
+        Console.WriteLine($"PASS original returned-LINE contact cycle advances to a real native field/component or moving unconsumed goal; steps={controller.Steps}; elapsed={timer.Elapsed.TotalSeconds:F3}s; source unchanged");
     }
 
     public static void RunOriginal()
