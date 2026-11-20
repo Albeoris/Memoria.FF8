@@ -2,6 +2,7 @@ using System.Numerics;
 using Albeoris.Games.FF8.Imaging;
 using Memoria.FF8;
 using Memoria.FF8.Assets;
+using Memoria.FF8.Assets.Localization;
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Mods;
 
@@ -42,6 +43,69 @@ public sealed class LauncherModPreviewFieldModelTests
         frame = CatalogPreviewPresentation.DrawModels(models, camera, 0);
         Assert.DoesNotContain(back, frame.Before.Image!.Pixels);
         Assert.Contains(back, frame.After.Image!.Pixels);
+    }
+
+    [Fact]
+    public async Task FieldTextureComparisonUsesTheNativeFieldPoseAndLogicalTextureSize()
+    {
+        string? game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
+        Assert.SkipUnless(Directory.Exists(game), "Configure installed Classic game resources.");
+
+        CancellationToken token = TestContext.Current.CancellationToken;
+        string root = Path.Combine(Path.GetTempPath(), "launcher-preview-field-texture-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            using GameAssets assets = new(game!);
+            ModelCatalogEntry modelEntry = assets.GetFieldModelSource("eciway12", 9);
+            FieldModel fieldModel = assets.LoadCatalogFieldModel(modelEntry);
+            Assert.Equal("o196", fieldModel.TextureResourceName);
+            PixelImage original = fieldModel.Textures[0];
+            const int scale = 4;
+            PixelImage replacement = new(original.Width * scale, original.Height * scale);
+            for (int y = 0; y < replacement.Height; y++)
+            {
+                for (int x = 0; x < replacement.Width; x++)
+                {
+                    replacement[x, y] = original[x / scale, y / scale];
+                }
+            }
+            const string name = "o196-0_00";
+            string payload = Path.Combine(root, "package");
+            string texturePath = Path.Combine(payload, "mods", "textures", "field", "model", "second_chr", name + ".png");
+            Directory.CreateDirectory(Path.GetDirectoryName(texturePath)!);
+            File.WriteAllBytes(texturePath, LocalizationArtworkExporter.EncodePng(replacement));
+            File.WriteAllText(Path.Combine(payload, "mod.xml"), "<ModInfo><Name>Field texture fixture</Name></ModInfo>");
+
+            using ModRuntime mods = new(root, watch: false);
+            ModPackageInstaller installer = new(Path.Combine(root, "state"), Path.Combine(root, "Mods"), "Classic/en/test");
+            using ModLibraryService library = new(Path.Combine(root, "cache"), installer, mods, "Classic/en/test", false);
+            await library.StopAsync();
+            ModPackage package = new("Junction/fixture", "Field texture fixture", ModFormat.Junction, null, false, ModEffectiveStatus.Disabled, payload);
+            ModPreviewDocument document = await library.OpenPreviewAsync(null, package, token);
+            ModPreviewEntry item = Assert.Single(document.Entries, entry => entry.Name == name);
+            ModPreviewComparison pair = await CatalogPreviewPresentation.CompareAsync(document, item, CatalogPreviewPresentation.CreateProfile(game!, null, "en"), token);
+
+            FieldModel before = Assert.IsType<FieldModel>(pair.Before.FieldModel);
+            FieldModel after = Assert.IsType<FieldModel>(pair.After.FieldModel);
+            Assert.Equal(fieldModel.Name, before.Name);
+            Assert.Same(before.Faces, after.Faces);
+            Assert.Same(before.Animations, after.Animations);
+            Assert.Equal((original.Width, original.Height), (before.Textures[0].Width, before.Textures[0].Height));
+            Assert.Equal((replacement.Width, replacement.Height), (after.Textures[0].Width, after.Textures[0].Height));
+            Assert.Equal(new Vector2(original.Width, original.Height), ResourceTextureList.LogicalSize(after.Textures, 0));
+            PixelImage beforeImage = Assert.IsType<PixelImage>(pair.Before.Image);
+            PixelImage afterImage = Assert.IsType<PixelImage>(pair.After.Image);
+            Rgba32 background = beforeImage.Pixels[0];
+            Assert.Contains(beforeImage.Pixels, pixel => pixel != background);
+            Assert.True(beforeImage.Pixels.Select(pixel => pixel == background).SequenceEqual(afterImage.Pixels.Select(pixel => pixel == background)));
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
     }
 
     [Theory]

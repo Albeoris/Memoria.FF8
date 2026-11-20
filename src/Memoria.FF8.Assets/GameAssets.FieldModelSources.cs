@@ -129,9 +129,6 @@ public sealed partial class GameAssets
         {
             throw new ArgumentException("A field model source requires an available directory entry from this source catalog.", nameof(entry));
         }
-        ResourceKey owner = new(entry.ResourcePath);
-        byte[] one = resources.Read(owner);
-        FieldModel model = resources.GetSource<IFieldModelSource>() is { } source ? source.ReadModel(owner, one, ReadMainCharacter, entry.ModelIndex) : FieldModelReader.ReadSingle(one, ReadMainCharacter, entry.ModelIndex);
-        return model;
+        return LoadCatalogFieldModel(entry);
     }
 }

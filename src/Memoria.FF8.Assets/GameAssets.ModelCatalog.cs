@@ -146,15 +146,11 @@ public sealed partial class GameAssets
         {
             throw new NotSupportedException(entry.LoadError);
         }
-        byte[] bytes = resources.Read(new ResourceKey(entry.ResourcePath));
         if (entry.Category == "Field")
         {
-            ResourceKey owner = new(entry.ResourcePath);
-            FieldModel model = resources.GetSource<IFieldModelSource>() is { } source
-                ? source.ReadModel(owner, bytes, ReadMainCharacter, entry.ModelIndex)
-                : FieldModelReader.ReadSingle(bytes, ReadMainCharacter, entry.ModelIndex);
-            return ModelExchange.FromField(model);
+            return ModelExchange.FromField(LoadCatalogFieldModel(entry));
         }
+        byte[] bytes = resources.Read(new ResourceKey(entry.ResourcePath));
         if (entry.Category == "World character")
         {
             return ModelExchange.FromField(WorldAssetReader.ReadWorldCharacter(bytes, entry.ModelIndex), ModelExchange.WorldFramesPerSecond);
@@ -188,6 +184,23 @@ public sealed partial class GameAssets
             return ModelExchange.FromBattle(weapon);
         }
         return ModelExchange.FromBattle(resources.GetSource<IBattleModelSource>()?.ReadModel(new ResourceKey(entry.ResourcePath), bytes) ?? BattleResourceReader.ReadModel(filename, bytes));
+    }
+
+    public FieldModel LoadCatalogFieldModel(ModelCatalogEntry entry)
+    {
+        if (entry.LoadError is not null)
+        {
+            throw new NotSupportedException(entry.LoadError);
+        }
+        if (entry.Category != "Field")
+        {
+            throw new ArgumentException("The catalog entry must be a field model.", nameof(entry));
+        }
+        ResourceKey owner = new(entry.ResourcePath);
+        byte[] bytes = resources.Read(owner);
+        return resources.GetSource<IFieldModelSource>() is { } source
+            ? source.ReadModel(owner, bytes, ReadMainCharacter, entry.ModelIndex)
+            : FieldModelReader.ReadSingle(bytes, ReadMainCharacter, entry.ModelIndex);
     }
 
     private string ReadCatalogEnemyName(string path)

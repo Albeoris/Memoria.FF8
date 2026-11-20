@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Numerics;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Albeoris.Games.FF8.Imaging;
@@ -174,29 +175,39 @@ public static partial class ModPreviewResources
             {
                 resources.Prepare(packageTextures).Commit();
             }
-            EditableModel model = assets.LoadCatalogModel(entry);
-            if (materials.Count != model.Textures.Count)
+            FieldModel? fieldModel = entry.Category == "Field" ? assets.LoadCatalogFieldModel(entry) : null;
+            EditableModel? editable = fieldModel is null ? assets.LoadCatalogModel(entry) : null;
+            if (materials.Count != (fieldModel?.Textures.Count ?? editable!.Textures.Count))
             {
                 throw new InvalidDataException("The model's material directory does not match its texture slots.");
             }
-            PixelImage[] original = new PixelImage[materials.Count];
-            PixelImage[] modded = new PixelImage[materials.Count];
+            TextureValue[] original = new TextureValue[materials.Count];
+            TextureValue[] modded = new TextureValue[materials.Count];
             for (int index = 0; index < materials.Count; index++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 TextureBuildContext material = index == selectedIndex ? selected : materials[index];
-                TextureValue before = resources.ResolveOriginalForExport(material);
-                TextureValue after = resources.ResolveForExport(material);
                 string? variant = index == selectedIndex ? sheetVariant : null;
-                original[index] = ModelPixels(before, variant);
-                modded[index] = ModelPixels(after, variant);
+                original[index] = ModelTexture(resources.ResolveOriginalForExport(material), variant);
+                modded[index] = ModelTexture(resources.ResolveForExport(material), variant);
             }
-            return new(new(comparison.Before.Text) { Model = model with { Textures = original } }, new(comparison.After.Text) { Model = model with { Textures = modded } });
+            if (fieldModel is not null)
+            {
+                if (fieldModel.Animations.Count == 0)
+                {
+                    AnimationFrame bindPose = new(Vector3.Zero, new Vector3[fieldModel.Bones.Count]);
+                    fieldModel = fieldModel with { Animations = [new([bindPose])] };
+                }
+                return new(new(comparison.Before.Text) { FieldModel = fieldModel with { Textures = ResourceTextureList.FromResolvedTextures(original) } },
+                    new(comparison.After.Text) { FieldModel = fieldModel with { Textures = ResourceTextureList.FromResolvedTextures(modded) } });
+            }
+            return new(new(comparison.Before.Text) { Model = editable! with { Textures = original.Select(texture => texture.Image).ToArray() } },
+                new(comparison.After.Text) { Model = editable! with { Textures = modded.Select(texture => texture.Image).ToArray() } });
         }
 
-        static PixelImage ModelPixels(TextureValue value, string? variant)
+        static TextureValue ModelTexture(TextureValue value, string? variant)
         {
-            return variant is not null && value.Variants?.TryGetValue(variant, out PixelImage? image) == true ? image : value.Image;
+            return variant is not null && value.Variants?.TryGetValue(variant, out PixelImage? image) == true ? value with { Image = image } : value;
         }
 
         bool IsSelectedReplacement(TextureValue texture)

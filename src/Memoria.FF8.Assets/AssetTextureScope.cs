@@ -67,6 +67,7 @@ public sealed class ResourceTextureList(AssetHandle<TextureValue>[] textures) : 
     public IReadOnlyList<TextureKey> TextureKeys => snapshotKeys ?? textures.Select(texture => texture.TextureKey).OfType<TextureKey>().ToArray();
     public PixelImage this[int index] => GetTexture(index).Image;
     public TextureValue GetTexture(int index) => snapshot?[index] ?? textures[index].Value;
+    public static ResourceTextureList FromResolvedTextures(TextureValue[] values) => new((TextureValue[])values.Clone());
     public ResourceTextureList Snapshot() => new(Enumerable.Range(0, Count).Select(GetTexture).ToArray()) { snapshotKeys = TextureKeys };
     public static Vector2 LogicalSize(IReadOnlyList<PixelImage> textures, int index)
     {
