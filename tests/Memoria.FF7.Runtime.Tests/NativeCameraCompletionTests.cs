@@ -21,8 +21,7 @@ internal static class NativeCameraCompletionTests
         Check(Wait(vm, process with { CameraScroll = process.CameraScroll! with { Mode = 5 }, CameraTracking = new(1, 0, 0, 0, 0, Completed: true), Movie = new(13, false, 0, false, null) }), "Completed tracking or a prepared movie blocked finite scroll progress.");
         foreach (FieldVmSnapshot bad in new[]
         {
-            vm with { PendingRequests = [] },
-            vm with { PendingRequests = [request with { Entity = 1 }] },
+            vm with { PendingRequests = [request with { Entity = 1 }], Entities = [owner with { Priority = 7 }] },
             vm with { PendingRequests = [request with { Priority = 5 }] },
             vm with { PendingRequests = [request with { ProgramCounter = 2 }] },
             vm with { PendingRequests = [request with { Command = new FieldCameraCommand(FieldCameraOperation.ResetToPlayer) }] },
@@ -49,7 +48,8 @@ internal static class NativeCameraCompletionTests
         Check(Wait(vm, process with { CameraScroll = process.CameraScroll! with { Step = 80 } }), "The terminal interpolation callback was stranded before native completion.");
         Ff7FieldProcess ready = process with { CameraScroll = process.CameraScroll! with { Step = 80, Completed = true } };
         Check(Wait(vm, ready) && Wait(vm, process with { CameraScroll = null }), "An authenticated ready camera reply was stranded before its actual native return.");
-        Check(!Wait(vm with { PendingRequests = [] }, ready) && !Wait(vm with { Entities = [owner with { Priority = 7 }] }, ready) && !Wait(vm with { PendingRequests = [request with { ProgramCounter = 2 }] }, ready), "Completed camera presentation invented a waiter or its owner.");
+        Check(Wait(vm with { PendingRequests = [] }, process) && Wait(vm with { PendingRequests = [] }, ready), "An executing admitted camera wait could not issue its first native request.");
+        Check(!Wait(vm with { Entities = [owner with { Priority = 7 }] }, ready) && !Wait(vm with { PendingRequests = [request with { ProgramCounter = 2 }] }, ready), "Completed camera presentation invented a waiter or its owner.");
         Ff7AutoPlayNativeReadiness readyFrozen = new();
         bool readyWaiting = true;
         for (int i = 0; i <= Ff7AutoPlayNativeReadiness.RepeatedObservationLimit; i++)
@@ -57,6 +57,13 @@ internal static class NativeCameraCompletionTests
             readyWaiting = readyFrozen.ShouldWaitForCameraCompletion(1, "source", vm with { Tick = i }, ready, script);
         }
         Check(!readyWaiting, "A frozen ready camera reply retained planning indefinitely.");
+        Ff7AutoPlayNativeReadiness unissuedFrozen = new();
+        for (int i = 0; i <= Ff7AutoPlayNativeReadiness.RepeatedObservationLimit; i++)
+        {
+            readyWaiting = unissuedFrozen.ShouldWaitForCameraCompletion(1, "source", vm with { Tick = i, PendingRequests = [] }, process, script);
+        }
+        Check(!readyWaiting, "An unissued frozen current camera wait retained planning indefinitely.");
+        Check(!unissuedFrozen.ShouldWaitForCameraCompletion(1, "source", vm, process, script), "Issuing the pending request reset the same camera owner's frozen-work allowance.");
         Ff7AutoPlayNativeReadiness frozen = new();
         bool waiting = true;
         for (int i = 0; i <= Ff7AutoPlayNativeReadiness.RepeatedObservationLimit; i++)
@@ -173,6 +180,48 @@ internal static class NativeCameraCompletionTests
         Check(!session.Machine.Capture().PendingRequests!.Any(request => request.Id == requestId), "The completed target-camera wait did not return to its admitted owner.");
         Check(bytes.AsSpan().SequenceEqual(File.ReadAllBytes(path)), "The standalone source changed.");
         Console.WriteLine("PASS original finite target-camera completion without planning");
+    }
+
+    internal static void RunLiftOriginal()
+    {
+        string path = Environment.GetEnvironmentVariable("MEMORIA_FF7_CAMERA_COMPLETION_SAVE") ?? throw new InvalidOperationException("Select a native camera fixture.");
+        string game = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR") ?? throw new InvalidOperationException("Select resources.");
+        int destination = int.Parse(Environment.GetEnvironmentVariable("MEMORIA_FF7_CAMERA_COMPLETION_DESTINATION")!);
+        byte[] bytes = File.ReadAllBytes(path);
+        using MemoryStream stream = new(bytes, false);
+        using Ff7Session session = Ff7Session.Restore(Ff7Installation.Discover(game), CombinedSessionCodec.Read(stream).Ff7!);
+        Check(session.Host.Process.Movie is { Completed: true, Playing: false }, "The fixture has not completed its native movie.");
+        int sourceMap = session.MapId;
+        using Ff7AutoPlayPolicy policy = new(session, (_, _) => throw new InvalidOperationException("Unexpected choice boundary."));
+        Ff7NativeGatewayDeparture? departure = null;
+        session.NativeFieldDeparting += _ => departure = session.Capture().GatewayDeparture;
+        Ff7AutoPlayController controller = new(session, policy.ChooseInput, advanceTick: () => session.AdvanceTick(advanceClock: false), chooseDialogueSelection: policy.ChooseDialogueSelection, readPlanningProgress: () => policy.WorkProgress, readFrontierProgress: () => policy.FrontierProgress);
+        controller.Start();
+        Stopwatch elapsed = Stopwatch.StartNew();
+        bool usable = false;
+        long readyTick = -1;
+        int polls = 0;
+        while (controller.Running && session.MapId == sourceMap && polls++ < 1500 && elapsed.Elapsed.TotalSeconds < 30)
+        {
+            controller.Advance(1);
+            if (session.MapId != sourceMap)
+            {
+                break;
+            }
+            FieldVmSnapshot vm = session.Machine.Capture();
+            if (!usable && vm.Entities[0].Priority == 7 && vm.Entities[2].Priority == 7 && !session.Host.Process.PlayerLocked && session.Host.Process.Join is null)
+            {
+                Ff7Actor player = session.Host.Process.Actors.Single(actor => actor.PlayerControlled);
+                usable = session.Field.Triggers.Gateways.Where(gateway => gateway.DestinationField == destination).Any(gateway => Ff7AutoplayDriver.DiscoverGatewayContacts(session.Field.Walkmesh, session.Host.Process.BlockedTriangles, player, gateway).Count > 0);
+                if (usable)
+                {
+                    readyTick = vm.Tick;
+                }
+            }
+        }
+        Console.WriteLine($"Original complete lift continuation: callbacks={controller.Steps}, polls={polls}, readyTick={readyTick}, usable={usable}, map={session.MapId}, tick={session.Machine.Tick}, departure={departure}, physical={controller.PlanningProgress.PhysicalNodes}, detached={controller.PlanningProgress.DetachedNativeCallbacks}, error={controller.Error}");
+        Check(controller.Error is null && usable && session.MapId == destination && departure?.Transition.Map == destination, "Normal policy did not complete native lift setup and depart through its usable gateway.");
+        Check(bytes.AsSpan().SequenceEqual(File.ReadAllBytes(path)), "The standalone source changed.");
     }
 
     private static void Check(bool condition, string message)

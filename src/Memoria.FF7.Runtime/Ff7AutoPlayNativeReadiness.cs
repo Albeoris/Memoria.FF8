@@ -81,16 +81,17 @@ internal sealed class Ff7AutoPlayNativeReadiness
         {
             return false;
         }
-        foreach (FieldHostRequest request in vm.PendingRequests ?? [])
+        for (int entity = 0; entity < vm.Entities.Length; entity++)
         {
-            if (request.Command is not FieldCameraCommand { Operation: FieldCameraOperation.Wait } || (uint)request.Entity >= vm.Entities.Length)
+            FieldEntitySnapshot owner = vm.Entities[entity];
+            if (!HasAdmittedContinuation(owner, script) || script[owner.ProgramCounter] != 0x67)
             {
                 continue;
             }
-            FieldEntitySnapshot owner = vm.Entities[request.Entity];
-            if (owner.Priority == request.Priority && owner.ProgramCounter == request.ProgramCounter && HasAdmittedContinuation(owner, script) && script[owner.ProgramCounter] == 0x67)
+            bool conflict = (vm.PendingRequests ?? []).Any(request => request.Entity == entity && (request.Priority != owner.Priority || request.ProgramCounter != owner.ProgramCounter || request.Command is not FieldCameraCommand { Operation: FieldCameraOperation.Wait }));
+            if (!conflict)
             {
-                return ObserveWork(generation, $"{source}:camera-wait:{request.Entity}:{request.Priority}:{request.ProgramCounter}", vm, process, [request.Entity], includeCamera: true);
+                return ObserveWork(generation, $"{source}:camera-wait:{entity}:{owner.Priority}:{owner.ProgramCounter}", vm, process, [entity], includeCamera: true);
             }
         }
         return false;

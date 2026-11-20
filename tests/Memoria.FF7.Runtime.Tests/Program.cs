@@ -3,6 +3,12 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-lift-completion-original-only", StringComparer.Ordinal))
+{
+    NativeCameraCompletionTests.RunLiftOriginal();
+    return 0;
+}
+
 if (args.Contains("--transition-exploration-original-only", StringComparer.Ordinal))
 {
     NativeAutoPlayTransitionGuardTests.RunExplorationOriginal();
