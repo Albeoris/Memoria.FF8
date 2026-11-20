@@ -1,10 +1,83 @@
+using System.Collections.Frozen;
 using Memoria.FF8.Resources;
 using Albeoris.Games.FF8.Imaging;
+using Memoria.FF8.Assets;
 
 namespace Memoria.FF8.Mods;
 
 public sealed partial class FfnxTextureResolver
 {
+    private sealed record CardArtworkRegion(string Sheet, int X, int Y, int Width, int Height, int CanvasWidth, int CanvasHeight, int PaletteX = 0, int? PaletteY = null);
+
+    private static readonly FrozenDictionary<string, CardArtworkRegion> CardArtworkRegions = CreateCardArtworkRegions();
+
+    private static FrozenDictionary<string, CardArtworkRegion> CreateCardArtworkRegions()
+    {
+        Dictionary<string, CardArtworkRegion> regions = new(StringComparer.Ordinal)
+        {
+            ["back"] = new("cardgame/cards", 1664, 192, 64, 64, 1792, 256),
+            ["background"] = new("cardgame/intro", 0, 0, 384, 224, 384, 224),
+            ["board-background"] = new("cardgame/game", 0, 0, 384, 224, 384, 224)
+        };
+        for (int card = 0; card < CardArtwork.CardCount; card++)
+        {
+            regions.Add($"front/{card}", new("cardgame/cards", card / 8 * 128 + card % 2 * 64, card % 8 / 2 * 64, 64, 64, 1792, 256));
+        }
+        for (int element = 0; element < 8; element++)
+        {
+            regions.Add($"element/{element}", new("cardgame/icons", element % 4 * 64, (element / 4 + 1) * 16, 16, 16, 768, 192, PaletteY: 225 + element));
+        }
+        for (int banner = 0; banner < 3; banner++)
+        {
+            regions.Add($"outcome/{banner}", new("cardgame/icons", 256, banner * 48, 256, 48, 768, 192, PaletteY: 255));
+            regions.Add($"capture/{banner}", new("cardgame/icons", 512, banner * 64, 255, 64, 768, 192, PaletteX: 32, PaletteY: 224 + banner));
+        }
+        return regions.ToFrozenDictionary(StringComparer.Ordinal);
+    }
+
+    internal static IReadOnlyList<string> DescribeCardAtlasMembers(string path)
+    {
+        if (!path.StartsWith("mods/textures/", StringComparison.OrdinalIgnoreCase))
+        {
+            return [];
+        }
+        string stem = path[14..^Path.GetExtension(path).Length].ToLowerInvariant();
+        if (stem.StartsWith("eng/", StringComparison.Ordinal))
+        {
+            stem = stem[4..];
+        }
+        if (!stem.StartsWith("cardgame/", StringComparison.Ordinal))
+        {
+            return [];
+        }
+        return CardArtworkRegions.Where(binding => IsAtlasMember(binding.Value, stem)).Select(binding => binding.Key).ToArray();
+
+        static bool IsAtlasMember(CardArtworkRegion region, string stem)
+        {
+            if (region.Sheet is not ("cardgame/cards" or "cardgame/icons"))
+            {
+                return false;
+            }
+            if (stem == region.Sheet + "_00")
+            {
+                return true;
+            }
+            if (region.PaletteY is not int paletteY)
+            {
+                return false;
+            }
+            for (int x = region.X / 256 * 256; x < region.X + region.Width; x += 256)
+            {
+                int page = VramPageIndex(x, 0, 4);
+                if (stem == VramFileStem(region.Sheet, page, region.PaletteX, paletteY) || stem == VramFileStem(region.Sheet, page, 0, 0))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+    }
+
     /// <summary>Recognizes native menu image addresses separately from the external texture directory.</summary>
     public static bool IsNativeMenuArtworkFamilyPath(string path) => System.Text.RegularExpressions.Regex.IsMatch(path, @"^menu/(?:mag[0-9]{2}\.tex|hires/iconfl0[0-3]_[0-9]{2})\.(?:png|dds)$", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
 
@@ -43,41 +116,15 @@ public sealed partial class FfnxTextureResolver
         {
             return ReadRegion(context, $"data/eng/menu/mc{menu:00}", 0, 0, 0, 256, 256, 256, 256);
         }
-        if (owner != "cards/cards")
+        if (owner != "cards/cards" || !CardArtworkRegions.TryGetValue(part, out CardArtworkRegion? region))
         {
             return null;
         }
-        if (part.StartsWith("front/", StringComparison.Ordinal) && Number(part[6..], out int card) && card < 110)
+        if (region.PaletteY is int paletteY && ReadVramRegion(context, region.Sheet, new TextureSourceRegion(768, 0, 4, PaletteX: region.PaletteX, PaletteY: paletteY), region.X, region.Y, region.Width, region.Height) is { } page)
         {
-            return ReadRegion(context, "cardgame/cards", 0, card / 8 * 128 + card % 2 * 64, card % 8 / 2 * 64, 64, 64, 1792, 256);
+            return page;
         }
-        if (part == "back")
-        {
-            return ReadRegion(context, "cardgame/cards", 0, 1664, 192, 64, 64, 1792, 256);
-        }
-        if (part.StartsWith("element/", StringComparison.Ordinal) && Number(part[8..], out int element) && element < 8)
-        {
-            return ReadCardIconRegion(context, element % 4 * 64, (element / 4 + 1) * 16, 16, 16, 0, 225 + element);
-        }
-        if (part.StartsWith("outcome/", StringComparison.Ordinal) && Number(part[8..], out int outcome) && outcome < 3)
-        {
-            return ReadCardIconRegion(context, 256, outcome * 48, 256, 48, 0, 255);
-        }
-        if (part.StartsWith("capture/", StringComparison.Ordinal) && Number(part[8..], out int capture) && capture < 3)
-        {
-            return ReadCardIconRegion(context, 512, capture * 64, 255, 64, 32, 224 + capture);
-        }
-        if (part is "background" or "board-background")
-        {
-            return ReadRegion(context, part == "background" ? "cardgame/intro" : "cardgame/game", 0, 0, 0, 384, 224, 384, 224);
-        }
-        return null;
-    }
-
-    private TextureReplacement? ReadCardIconRegion(TextureBuildContext context, int x, int y, int width, int height, int paletteX, int paletteY)
-    {
-        return ReadVramRegion(context, "cardgame/icons", new TextureSourceRegion(768, 0, 4, PaletteX: paletteX, PaletteY: paletteY), x, y, width, height)
-            ?? ReadRegion(context, "cardgame/icons", 0, x, y, width, height, 768, 192);
+        return ReadRegion(context, region.Sheet, 0, region.X, region.Y, region.Width, region.Height, region.CanvasWidth, region.CanvasHeight);
     }
 
     private TextureReplacement? ResolveMenuIcons(TextureBuildContext context)

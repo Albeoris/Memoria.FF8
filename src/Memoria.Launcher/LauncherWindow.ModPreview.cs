@@ -2,7 +2,6 @@ using System.Runtime.InteropServices;
 using Albeoris.Games.FF8.Imaging;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Controls.Templates;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
@@ -21,16 +20,13 @@ internal sealed partial class LauncherWindow
         {
             return null;
         }
-        bool canPreview = installed?.Package is { Format: ModFormat.Memoria or ModFormat.Junction, IsSettingsGroup: false } ||
+        bool canPreview = ModPreviewDocument.CanOpenInstalled(installed?.Package) ||
             entry is not null && library.View.Jobs.Any(job => job.CanPreview && job.Entry.Id == entry.Id && job.Entry.SourceId == entry.SourceId && job.Entry.Version == entry.Version);
         if (!canPreview)
         {
             return null;
         }
-        ModPreviewResourcesProfile profile = CatalogPreviewPresentation.CreateProfile(game.Directory, selectedModelSourceDirectory, SelectedResourceLanguage) with
-        {
-            DecodeMedia = (input, video, seconds, token) => LauncherCatalogPreviewMedia.Decode(mediaDirectory, input, video, seconds, token)
-        };
+        ModPreviewResourcesProfile profile = CatalogPreviewPresentation.CreateProfile(game.Directory, selectedModelSourceDirectory, SelectedResourceLanguage);
         Button button = new() { Content = "Preview changes", Margin = new Thickness(0, 0, 8, 0) };
         button.Click += async (_, _) => await ShowLauncherModPreviewAsync(library, entry, installed?.Package, profile);
         return button;
@@ -45,8 +41,8 @@ internal sealed partial class LauncherWindow
         ModPreviewComparison? current = null;
         float yaw = 0.4f;
         float pose = 0;
-        double videoSeconds = 0;
-        using LauncherCatalogPreviewMedia.AudioComparison audio = new();
+        LauncherCatalogPreviewPlayer? player = null;
+        List<Task> retiredPlayers = [];
         Window window = new()
         {
             Title = (entry?.Name ?? installed?.Name ?? "Mod") + " · Preview changes",
@@ -57,10 +53,7 @@ internal sealed partial class LauncherWindow
             WindowStartupLocation = WindowStartupLocation.CenterOwner
         };
         Grid root = new() { ColumnDefinitions = new ColumnDefinitions("280,*"), RowDefinitions = new RowDefinitions("*,Auto"), ColumnSpacing = 12, RowSpacing = 8, Margin = new Thickness(12) };
-        TreeView tree = new()
-        {
-            ItemTemplate = new FuncTreeDataTemplate<PreviewBranch>((branch, _) => new TextBlock { Text = branch.Label, TextTrimming = TextTrimming.CharacterEllipsis }, branch => branch.Children)
-        };
+        LauncherModPreviewTree tree = new();
         root.Children.Add(tree);
         Grid comparison = new() { RowDefinitions = new RowDefinitions("*") };
         Grid.SetColumn(comparison, 1);
@@ -86,9 +79,13 @@ internal sealed partial class LauncherWindow
         };
         controls.Children.Add(expand);
         controls.Children.Add(close);
-        Grid.SetRow(controls, 1);
-        Grid.SetColumnSpan(controls, 2);
-        root.Children.Add(controls);
+        StackPanel playbackControls = new();
+        StackPanel footer = new() { Spacing = 8 };
+        footer.Children.Add(playbackControls);
+        footer.Children.Add(controls);
+        Grid.SetRow(footer, 1);
+        Grid.SetColumnSpan(footer, 2);
+        root.Children.Add(footer);
         window.Content = root;
         window.Closed += (_, _) =>
         {
@@ -96,6 +93,7 @@ internal sealed partial class LauncherWindow
             selection?.Cancel();
             world?.Dispose();
             world = null;
+            RetirePlayer();
         };
         ShowMessage("Reading package changes…");
         Task closed = window.ShowDialog(this);
@@ -106,36 +104,22 @@ internal sealed partial class LauncherWindow
             {
                 return;
             }
-            PreviewBranch[] branches = document.Entries.GroupBy(item => item.Category).Select(category =>
-                new PreviewBranch(category.Key, category.GroupBy(item => item.Group).Select(group =>
-                    new PreviewBranch(group.Key, group.Select(item => new PreviewBranch(item.Name, [], item)).ToArray())).ToArray())).ToArray();
-            tree.ItemsSource = branches;
             tree.SelectionChanged += async (_, _) =>
             {
-                if (tree.SelectedItem is PreviewBranch { Entry: { } item })
+                if (tree.SelectedItem is ModPreviewTreeNode { Entry: { } item })
                 {
                     await ReadComparison(item);
                 }
             };
-            if (branches.Length == 0)
+            if (document.Tree.Branches.Count == 0)
             {
                 ShowMessage("No changes are available for comparison.");
             }
             else
             {
                 expand.IsEnabled = true;
+                tree.Load(document.Tree);
                 tree.Focus();
-                PreviewBranch first = branches[0].Children[0].Children[0];
-                tree.SelectedItem = first;
-                if (tree.ContainerFromItem(branches[0]) is TreeViewItem category)
-                {
-                    category.IsExpanded = true;
-                    category.ApplyTemplate();
-                    if (category.ContainerFromItem(branches[0].Children[0]) is TreeViewItem group)
-                    {
-                        group.IsExpanded = true;
-                    }
-                }
             }
 
             async Task ReadComparison(ModPreviewEntry item)
@@ -146,14 +130,39 @@ internal sealed partial class LauncherWindow
                 current = null;
                 yaw = 0.4f;
                 pose = 0;
-                videoSeconds = 0;
-                audio.Dispose();
+                RetirePlayer();
                 interaction.Children.Clear();
                 using CancellationTokenSource requested = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
                 selection = requested;
                 ShowMessage("Comparing with the original game…");
                 try
                 {
+                    if (item.IsMedia)
+                    {
+                        CatalogMediaComparison media = await CatalogMediaComparison.OpenAsync(document, item, profile, mediaDirectory, requested.Token);
+                        if (requested.IsCancellationRequested)
+                        {
+                            await media.ReleaseAsync();
+                            return;
+                        }
+                        try
+                        {
+                            player = new(media);
+                        }
+                        catch
+                        {
+                            await media.ReleaseAsync();
+                            throw;
+                        }
+                        ClearComparison();
+                        comparison.ColumnDefinitions = new ColumnDefinitions("*,*");
+                        comparison.ColumnSpacing = 12;
+                        Grid.SetColumn(player.After, 1);
+                        comparison.Children.Add(player.Before);
+                        comparison.Children.Add(player.After);
+                        playbackControls.Children.Add(player.Controls);
+                        return;
+                    }
                     ModPreviewComparison result;
                     if (item.Id == ModPreviewDocument.WorldSceneId)
                     {
@@ -173,26 +182,6 @@ internal sealed partial class LauncherWindow
                             AddInteraction("North", token => readyWorld.RenderAsync(0, -900, token));
                             AddInteraction("South", token => readyWorld.RenderAsync(0, 900, token));
                             AddInteraction("East", token => readyWorld.RenderAsync(900, 0, token));
-                        }
-                        else if (item.IsMedia && item.Category == "Video")
-                        {
-                            AddInteraction("−3 s", token => StepVideo(-3, token));
-                            AddInteraction("+3 s", token => StepVideo(3, token));
-                        }
-                        else if (item.Category == "Audio")
-                        {
-                            if (result.Before.AudioPcm is { } before)
-                            {
-                                AddAudio("Play before", () => audio.Play(before));
-                            }
-                            if (result.After.AudioPcm is { } after)
-                            {
-                                AddAudio("Play after", () => audio.Play(after));
-                            }
-                            if (interaction.Children.Count > 0)
-                            {
-                                AddAudio("Stop", audio.Dispose);
-                            }
                         }
                         else if (result.Before.Model is not null)
                         {
@@ -219,11 +208,6 @@ internal sealed partial class LauncherWindow
                         selection = null;
                     }
                 }
-                Task<ModPreviewComparison> StepVideo(int step, CancellationToken token)
-                {
-                    videoSeconds = Math.Max(0, videoSeconds + step);
-                    return CatalogPreviewPresentation.CompareAsync(document, item, profile with { MediaSeconds = videoSeconds }, token);
-                }
             }
         }
         catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
@@ -237,6 +221,7 @@ internal sealed partial class LauncherWindow
         {
             await closed;
             ClearComparison();
+            await Task.WhenAll(retiredPlayers);
         }
 
         Task<ModPreviewComparison> MoveModel(float turn, float step, CancellationToken token)
@@ -249,21 +234,15 @@ internal sealed partial class LauncherWindow
             return Task.Run(() => CatalogPreviewPresentation.DrawModels(pair, angle, seconds), token);
         }
 
-        void AddAudio(string label, Action play)
+        void RetirePlayer()
         {
-            Button button = new() { Content = label };
-            button.Click += async (_, _) =>
+            if (player is not null)
             {
-                try
-                {
-                    play();
-                }
-                catch (IOException error)
-                {
-                    await LauncherDialogs.ShowAsync(window, "Could not play preview", error.Message);
-                }
-            };
-            interaction.Children.Add(button);
+                retiredPlayers.RemoveAll(task => task.IsCompletedSuccessfully);
+                retiredPlayers.Add(player.StopAsync());
+                player = null;
+            }
+            playbackControls.Children.Clear();
         }
 
         void AddInteraction(string label, Func<CancellationToken, Task<ModPreviewComparison>> render)
@@ -381,5 +360,4 @@ internal sealed partial class LauncherWindow
         return bitmap;
     }
 
-    private sealed record PreviewBranch(string Label, IReadOnlyList<PreviewBranch> Children, ModPreviewEntry? Entry = null);
 }

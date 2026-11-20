@@ -9,8 +9,8 @@ public sealed partial class MenuController
     private string? modPreviewMediaTools;
     private bool modPreviewMediaAudioEnabled = true;
     private PcmAudioOutput? modPreviewMediaAudioOutput;
-    private MediaPreview? modPreviewMedia;
-    private Task<MediaPreview>? modPreviewMediaOpening;
+    private CatalogMediaComparison? modPreviewMedia;
+    private Task<CatalogMediaComparison>? modPreviewMediaOpening;
     private Task<CatalogMediaPlayback>? modPreviewMediaSeeking;
     private bool resumePreviewAfterSeek;
 
@@ -26,20 +26,9 @@ public sealed partial class MenuController
         }
     }
 
-    private async Task<MediaPreview> OpenModPreviewMediaAsync(ModPreviewDocument document, ModPreviewEntry entry, ModPreviewResourcesProfile profile, CancellationToken token)
+    private Task<CatalogMediaComparison> OpenModPreviewMediaAsync(ModPreviewDocument document, ModPreviewEntry entry, ModPreviewResourcesProfile profile, CancellationToken token)
     {
-        ModPreviewMediaSources sources = await document.OpenMediaAsync(entry, profile, token).ConfigureAwait(false);
-        try
-        {
-            CatalogMediaPlayback playback = await CatalogMediaPlayback.OpenAsync(modPreviewMediaTools, CatalogNativeMedia.WithNativeDecoder(sources.Before), CatalogNativeMedia.WithNativeDecoder(sources.After), sources.Video, token, audioEnabled: modPreviewMediaAudioEnabled, output: modPreviewMediaAudioOutput).ConfigureAwait(false);
-            playback.ListenAfter = !playback.Before.HasAudio && playback.After.HasAudio;
-            return new(sources, playback);
-        }
-        catch
-        {
-            sources.Dispose();
-            throw;
-        }
+        return CatalogMediaComparison.OpenAsync(document, entry, profile, modPreviewMediaTools, token, modPreviewMediaAudioEnabled, modPreviewMediaAudioOutput);
     }
 
     private void PollModMedia()
@@ -66,10 +55,7 @@ public sealed partial class MenuController
             modPreviewMediaSeeking = null;
             if (seeking.IsCompletedSuccessfully)
             {
-                CatalogMediaPlayback previous = media.Playback;
-                media.Playback = seeking.Result;
-                media.Playback.ListenAfter = previous.ListenAfter;
-                media.Retire(previous);
+                media.ReplacePlayback(seeking.Result);
                 modPreviewResult = Describe(media.Playback);
                 modPreviewMessage = "";
                 SetModMediaPlaying(media.Playback, resumePreviewAfterSeek);
@@ -111,20 +97,7 @@ public sealed partial class MenuController
 
     private static ModPreviewComparison Describe(CatalogMediaPlayback playback)
     {
-        return new(DescribeSide(playback.Before, "Original media could not be matched."), DescribeSide(playback.After, "Package media is unavailable."));
-
-        static ModPreviewSide DescribeSide(CatalogMediaSide side, string unavailable)
-        {
-            if (string.IsNullOrWhiteSpace(side.Name))
-            {
-                return new(unavailable);
-            }
-            if (side.Error is { Length: > 0 } error)
-            {
-                return new($"{side.Name}\n{error}");
-            }
-            return new(side.HasVideo && !side.HasAudio ? $"{side.Name}\nNo audio track." : side.Name);
-        }
+        return new(CatalogMediaComparison.Describe(playback.Before, "Original media could not be matched."), CatalogMediaComparison.Describe(playback.After, "Package media is unavailable."));
     }
 
     private void ToggleModMediaPlayback()
@@ -178,9 +151,9 @@ public sealed partial class MenuController
 
     private void EndModMediaPreview()
     {
-        Task<MediaPreview>? opening = modPreviewMediaOpening;
+        Task<CatalogMediaComparison>? opening = modPreviewMediaOpening;
         Task<CatalogMediaPlayback>? seeking = modPreviewMediaSeeking;
-        MediaPreview? media = modPreviewMedia;
+        CatalogMediaComparison? media = modPreviewMedia;
         modPreviewMediaOpening = null;
         modPreviewMediaSeeking = null;
         modPreviewMedia = null;
@@ -195,11 +168,11 @@ public sealed partial class MenuController
         }
     }
 
-    private static async Task ReleaseOpeningAsync(Task<MediaPreview> opening)
+    private static async Task ReleaseOpeningAsync(Task<CatalogMediaComparison> opening)
     {
         try
         {
-            MediaPreview abandoned = await opening.ConfigureAwait(false);
+            CatalogMediaComparison abandoned = await opening.ConfigureAwait(false);
             await abandoned.ReleaseAsync().ConfigureAwait(false);
         }
         catch (Exception error) when (error is not OutOfMemoryException)
@@ -211,43 +184,6 @@ public sealed partial class MenuController
     private CatalogMediaSide? ModMediaSide(int slot)
     {
         return slot == 0 ? modPreviewMedia?.Playback.Before : modPreviewMedia?.Playback.After;
-    }
-
-    private sealed class MediaPreview(ModPreviewMediaSources sources, CatalogMediaPlayback playback)
-    {
-        private readonly List<Task> retirements = [];
-        public CatalogMediaPlayback Playback { get; set; } = playback;
-
-        public void Retire(CatalogMediaPlayback previous)
-        {
-            retirements.RemoveAll(task => task.IsCompletedSuccessfully);
-            retirements.Add(previous.DisposeAsync().AsTask());
-        }
-
-        public async Task ReleaseAsync(Task<CatalogMediaPlayback>? pendingSeek = null)
-        {
-            Retire(Playback);
-            try
-            {
-                if (pendingSeek is not null)
-                {
-                    try
-                    {
-                        CatalogMediaPlayback abandoned = await pendingSeek.ConfigureAwait(false);
-                        Retire(abandoned);
-                    }
-                    catch (Exception error) when (error is not OutOfMemoryException)
-                    {
-                        // A failed or cancelled seek releases its temporary inputs before completing.
-                    }
-                }
-                await Task.WhenAll(retirements).ConfigureAwait(false);
-            }
-            finally
-            {
-                sources.Dispose();
-            }
-        }
     }
 
     private sealed class PreviewMediaTimeline(MenuController menus) : UiElement

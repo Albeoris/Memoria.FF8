@@ -887,7 +887,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
         public string RelativePath => NativeModDescriptor.FileName;
     }
 
-    private static void EnumerateFiles(string packageRoot, string directory, string prefix, string id, HashSet<string> ancestors, List<(string Physical, string Relative)> files, List<ModDiagnostic> diagnostics, bool localizationPayload = false)
+    internal static void EnumerateFiles(string packageRoot, string directory, string prefix, string id, HashSet<string> ancestors, List<(string Physical, string Relative)> files, List<ModDiagnostic> diagnostics, bool localizationPayload = false, CancellationToken cancellationToken = default)
     {
         string actualDirectory = Path.GetFullPath(directory);
         if (!ancestors.Add(actualDirectory))
@@ -897,6 +897,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
         }
         foreach (FileSystemInfo entry in new DirectoryInfo(directory).EnumerateFileSystemInfos().OrderBy(item => item.Name, PathOrder))
         {
+            cancellationToken.ThrowIfCancellationRequested();
             string relative = ModCatalogSnapshot.NormalizePath(prefix + entry.Name);
             string physical = entry.FullName;
             if ((entry.Attributes & FileAttributes.ReparsePoint) != 0)
@@ -922,7 +923,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 }
                 else
                 {
-                    EnumerateFiles(packageRoot, physical, relative + "/", id, ancestors, files, diagnostics, localizationPayload);
+                    EnumerateFiles(packageRoot, physical, relative + "/", id, ancestors, files, diagnostics, localizationPayload, cancellationToken);
                 }
             }
             else
@@ -956,7 +957,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
         return bytes;
     }
 
-    private static void ValidateContentPath(string packageRoot, string path)
+    internal static void ValidateContentPath(string packageRoot, string path)
     {
         string current = packageRoot;
         foreach (string segment in new[] { string.Empty }.Concat(Path.GetRelativePath(packageRoot, path).Split(Path.DirectorySeparatorChar)))

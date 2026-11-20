@@ -52,7 +52,7 @@ public sealed partial class DemasterTextureResolver : ITextureReplacementResolve
                 continue;
             }
             string stem = path[..^extension.Length];
-            bool supported = TryWorldTarget(stem, "textures/world/dat/texl/texl_", out int texlId) && texlId >= 1 && HasLayout(source, "classic-world-texl");
+            bool supported = DescribeWorldTerrainTarget(stem) is not null && HasLayout(source, "classic-world-texl");
             supported |= HasLayout(source, "demaster-card-artwork") && IsCardArtworkTarget(stem);
             if (TryWorldTarget(stem, "textures/world/dat/wmset/wmset_", out int page))
             {
@@ -312,13 +312,24 @@ public sealed partial class DemasterTextureResolver : ITextureReplacementResolve
 
     private static bool TryWorldTarget(string stem, string prefix, out int id)
     {
+        return TryWorldTarget(stem, prefix, out id, out _);
+    }
+
+    internal static (int Page, int Palette)? DescribeWorldTerrainTarget(string stem)
+    {
+        return TryWorldTarget(stem, "textures/world/dat/texl/texl_", out int id, out int palette) && id >= 1 ? (id - 1, palette) : null;
+    }
+
+    private static bool TryWorldTarget(string stem, string prefix, out int id, out int palette)
+    {
         id = 0;
+        palette = 0;
         if (!stem.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }
         string[] parts = stem[prefix.Length..].Split('_');
-        return parts.Length == 2 && TryNonnegative(parts[0], out id) && TryNonnegative(parts[1], out int palette) && stem.Equals($"{prefix}{id:D3}_{palette}", StringComparison.OrdinalIgnoreCase);
+        return parts.Length == 2 && TryNonnegative(parts[0], out id) && TryNonnegative(parts[1], out palette) && stem.Equals($"{prefix}{id:D3}_{palette}", StringComparison.OrdinalIgnoreCase);
     }
 
     private static void ValidateName(string name)

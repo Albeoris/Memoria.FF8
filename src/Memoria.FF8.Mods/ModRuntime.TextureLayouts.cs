@@ -5,9 +5,9 @@ namespace Memoria.FF8.Mods;
 
 public sealed partial class ModRuntime
 {
-    private sealed record PackageTextureLayouts(IReadOnlyDictionary<string, TextureLayoutMetadata> Entries, string? Identity);
+    internal sealed record PackageTextureLayouts(IReadOnlyDictionary<string, TextureLayoutMetadata> Entries, string? Identity);
 
-    private static PackageTextureLayouts ReadTextureLayouts(string packageId, ModFormat format, List<(string Root, string Physical, string Relative)> files)
+    internal static PackageTextureLayouts ReadTextureLayouts(string packageId, ModFormat format, List<(string Root, string Physical, string Relative)> files)
     {
         if (format != ModFormat.Demaster)
         {

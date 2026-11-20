@@ -9,7 +9,7 @@ namespace Memoria.FF8.Mods;
 
 public static partial class ModPreviewResources
 {
-    public static ModPreviewComparison? CompareTexture(string gameDirectory, string? modelSourceDirectory, string? language, ModCatalogSnapshot catalog, string relativePath, CancellationToken cancellationToken, Func<FieldAssets, PixelImage>? renderField = null)
+    public static ModPreviewComparison? CompareTexture(string gameDirectory, string? modelSourceDirectory, string? language, ModCatalogSnapshot catalog, string relativePath, CancellationToken cancellationToken, Func<FieldAssets, PixelImage>? renderField = null, string? textureMember = null)
     {
         cancellationToken.ThrowIfCancellationRequested();
         relativePath = ModCatalogSnapshot.NormalizePath(relativePath);
@@ -20,7 +20,7 @@ public static partial class ModPreviewResources
         }
 
         IReadOnlyList<NativeTextureVariant> nativeTargets = [];
-        JunctionTextureTarget? junctionTarget = null;
+        LegacyTextureTarget? legacyTarget = null;
         ModCatalogSnapshot package = new(catalog.Generation, catalog.Packages.Where(candidate => candidate.Id.Equals(file.PackageId, StringComparison.OrdinalIgnoreCase)), catalog.Files.Where(candidate => candidate.PackageId.Equals(file.PackageId, StringComparison.OrdinalIgnoreCase) && candidate.Format == file.Format));
         ITextureReplacementResolver replacement;
         if (file.Format == ModFormat.Memoria && file.RelativePath.StartsWith("textures/", StringComparison.OrdinalIgnoreCase))
@@ -39,8 +39,13 @@ public static partial class ModPreviewResources
         }
         else if (file.Format == ModFormat.Junction && FindJunctionTextureTarget(file.RelativePath) is { } target)
         {
-            junctionTarget = target;
+            legacyTarget = target;
             replacement = new FfnxTextureResolver(package);
+        }
+        else if (file.Format == ModFormat.Demaster && FindDemasterTextureTarget(file.RelativePath) is { } demaster)
+        {
+            legacyTarget = demaster;
+            replacement = new DemasterTextureResolver(package);
         }
         else
         {
@@ -66,14 +71,16 @@ public static partial class ModPreviewResources
             }
         }
 
-        if (junctionTarget is not null && junctionTarget.Address(resources.ResourceLanguage) is { } address)
+        if (legacyTarget is not null && legacyTarget.Address(resources.ResourceLanguage) is { } address)
         {
             if (assets.LoadAddressableCatalogTextureUnit(address) is { } unit)
             {
                 foreach (TextureBuildContext context in unit)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    if (junctionTarget.Matches(TextureTarget.FromContext(context), context.Layout) && CompareContext(context, DescribeTextureContext(context)) is { } comparison)
+                    if ((textureMember is null || context.Key.Subresource == textureMember) && legacyTarget.Matches(TextureTarget.FromContext(context), context.Layout)
+                        && (legacyTarget.NativeMember is null || context.NativeAlias?.Subresource == legacyTarget.NativeMember)
+                        && CompareContext(context, textureMember is null ? DescribeTextureContext(context) : DescribeTextureAtlasMember(textureMember)) is { } comparison)
                     {
                         return comparison;
                     }
@@ -82,18 +89,18 @@ public static partial class ModPreviewResources
             return null;
         }
 
-        if (junctionTarget is not null && (junctionTarget.Model is not null || junctionTarget.Layout is "classic-battle" or "classic-model"))
+        if (legacyTarget is not null && (legacyTarget.Model is not null || legacyTarget.Layout is "classic-battle" or "classic-model"))
         {
             foreach (ModelCatalogEntry model in assets.EnumerateModelCatalog(cancellationToken))
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                if (model.LoadError is not null || !model.ResourcePath.StartsWith(junctionTarget.Owner, StringComparison.Ordinal) || junctionTarget.Model is { } modelName && !model.Name.StartsWith(modelName, StringComparison.OrdinalIgnoreCase))
+                if (model.LoadError is not null || !model.ResourcePath.StartsWith(legacyTarget.Owner, StringComparison.Ordinal) || legacyTarget.Model is { } modelName && !model.Name.StartsWith(modelName, StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
                 }
                 foreach (TextureBuildContext context in assets.LoadCatalogModelMaterialUnit(model))
                 {
-                    if (junctionTarget.Matches(TextureTarget.FromContext(context), context.Layout) && SelectModelPreviewPalette(context, junctionTarget.ModelPalette) is { } material && CompareContext(material, $"{model.Name} / {material.Key.Subresource}") is { } comparison)
+                    if (legacyTarget.Matches(TextureTarget.FromContext(context), context.Layout) && SelectModelPreviewPalette(context, legacyTarget.ModelPalette) is { } material && CompareContext(material, $"{model.Name} / {material.Key.Subresource}") is { } comparison)
                     {
                         return comparison;
                     }
@@ -104,7 +111,7 @@ public static partial class ModPreviewResources
 
         foreach (TextureCatalogEntry entry in assets.EnumerateTextureCatalog(cancellationToken))
         {
-            if (entry.Layout == "field-workspace" || (junctionTarget is not null ? !junctionTarget.Matches(entry.Target, entry.Layout) : !nativeTargets.Any(target => target.Target == entry.Target)))
+            if (entry.Layout == "field-workspace" || (legacyTarget is not null ? !legacyTarget.Matches(entry.Target, entry.Layout) : !nativeTargets.Any(target => target.Target == entry.Target)))
             {
                 continue;
             }
@@ -180,26 +187,32 @@ public static partial class ModPreviewResources
                 _ => ("Textures", "Artwork", $"{owner[^1]} / {member}")
             };
         }
-        if (file.Format == ModFormat.Junction && FindJunctionTextureTarget(file.RelativePath) is { } junction)
+        LegacyTextureTarget? legacy = file.Format switch
+        {
+            ModFormat.Junction => FindJunctionTextureTarget(file.RelativePath),
+            ModFormat.Demaster => FindDemasterTextureTarget(file.RelativePath),
+            _ => null
+        };
+        if (legacy is not null)
         {
             string name = Path.GetFileNameWithoutExtension(file.RelativePath);
-            if (junction.Field is { } field)
+            if (legacy.Field is { } field)
             {
                 return ("Fields", field, name);
             }
-            if (junction.Owner.StartsWith("world/", StringComparison.Ordinal))
+            if (legacy.Owner.StartsWith("world/", StringComparison.Ordinal))
             {
-                return ("World map", WorldTextureGroup(junction.Member), name);
+                return ("World map", WorldTextureGroup(legacy.Member), name);
             }
-            if (junction.Model is not null)
+            if (legacy.Model is not null)
             {
                 return ("Textures", "Field models", name);
             }
-            if (junction.Owner.StartsWith("battle/", StringComparison.Ordinal) || junction.Layout == "native-effect-texture")
+            if (legacy.Owner.StartsWith("battle/", StringComparison.Ordinal) || legacy.Layout == "native-effect-texture")
             {
                 return ("Textures", "Battle", name);
             }
-            return ("Textures", junction.Owner == "cards/cards" ? "Triple Triad" : "Menu artwork", name);
+            return ("Textures", legacy.Owner == "cards/cards" ? "Triple Triad" : "Menu artwork", name);
         }
         return null;
 
@@ -280,7 +293,7 @@ public static partial class ModPreviewResources
 
     private static string DescribeTextureContext(TextureBuildContext context) => $"{Path.GetFileNameWithoutExtension(context.Key.Owner.Path)} / {context.Key.Subresource} / palette {context.Key.Palette}";
 
-    private sealed record JunctionTextureTarget(string Owner, string? Member = null, int? Palette = null, string? Field = null, string? Model = null, string? Layout = null, int? ModelPalette = null)
+    private sealed record LegacyTextureTarget(string Owner, string? Member = null, int? Palette = null, string? Field = null, string? Model = null, string? Layout = null, int? ModelPalette = null, IReadOnlyList<string>? Members = null, string? NativeMember = null)
     {
         public TextureTarget? Address(string language)
         {
@@ -298,12 +311,12 @@ public static partial class ModPreviewResources
         public bool Matches(TextureTarget target, string layout)
         {
             return target.Owner.StartsWith(Owner, StringComparison.Ordinal) && (Layout is null || layout == Layout) && (Palette is null || target.Palette == Palette)
-                && (Member is null || (Member.EndsWith('/') ? target.Subresource.StartsWith(Member, StringComparison.Ordinal) : target.Subresource == Member))
+                && (Members is not null ? Members.Contains(target.Subresource) : Member is null || (Member.EndsWith('/') ? target.Subresource.StartsWith(Member, StringComparison.Ordinal) : target.Subresource == Member))
                 && (Model is null || target.Subresource.Contains("/" + Model + "/", StringComparison.Ordinal));
         }
     }
 
-    private static JunctionTextureTarget? FindJunctionTextureTarget(string path)
+    private static LegacyTextureTarget? FindJunctionTextureTarget(string path)
     {
         string stem = path[..^Path.GetExtension(path).Length].ToLowerInvariant();
         if (stem.StartsWith("mods/textures/", StringComparison.Ordinal))
@@ -357,15 +370,13 @@ public static partial class ModPreviewResources
         }
         if (stem.StartsWith("cardgame/", StringComparison.Ordinal))
         {
-            string? member = stem[9..].Split('_')[0] switch
+            return stem[9..].Split('_')[0] switch
             {
-                "cards" => "front/",
-                "icons" => "element/",
-                "intro" => "background",
-                "game" => "board-background",
+                "cards" or "icons" => new("cards/cards"),
+                "intro" => new("cards/cards", "background"),
+                "game" => new("cards/cards", "board-background"),
                 _ => null
             };
-            return member is null ? null : new("cards/cards", member);
         }
         if (stem.StartsWith("magic/", StringComparison.Ordinal) || stem.StartsWith("battle/", StringComparison.Ordinal))
         {

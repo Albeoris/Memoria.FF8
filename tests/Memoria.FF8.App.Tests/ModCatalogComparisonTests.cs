@@ -69,6 +69,10 @@ public sealed class ModCatalogComparisonTests
             string document = Path.Combine(mod, "example.json");
             await File.WriteAllTextAsync(document, """{"id":1,"type":"Magazine","use":{"action":"ShowImage","image":"sample.png"}}""", TestContext.Current.CancellationToken);
             await File.WriteAllBytesAsync(Path.Combine(mod, "sample.png"), LocalizationArtworkExporter.EncodePng(new PixelImage(1, 1, [new(10, 20, 30)])), TestContext.Current.CancellationToken);
+            for (int index = 0; index < 32; index++)
+            {
+                File.WriteAllBytes(Path.Combine(mod, $"test-{index:00}.bin"), []);
+            }
             using ModRuntime mods = new(root, watch: false);
             Assert.True(mods.PreparePending(force: true));
             Assert.True(mods.CommitPending());
@@ -86,7 +90,7 @@ public sealed class ModCatalogComparisonTests
             Assert.Equal("Inventory example", preview.Name);
             Assert.Empty(library.View.Installations);
             Assert.Empty(library.View.Jobs);
-            Assert.Equal(2, Directory.GetFiles(mod).Length);
+            Assert.Equal(34, Directory.GetFiles(mod).Length);
             MenuController menu = new();
             menu.ConnectMods(mods);
             menu.ConnectModLibrary(library);
@@ -102,15 +106,43 @@ public sealed class ModCatalogComparisonTests
                 await WaitForPreviewAsync();
                 view = menu.BuildView();
                 view.Resize(1280, 720);
-                Assert.True(Find(view.Root, "preview-tree").Visible);
+                UiList tree = Assert.IsType<UiList>(Find(view.Root, "preview-tree"));
+                Assert.True(tree.Visible);
+                Assert.Contains("Inventory (34)", tree.Items[0], StringComparison.Ordinal);
+                Assert.Contains("Items (34)", tree.Items[1], StringComparison.Ordinal);
+                Assert.Equal("example.json", tree.Items[tree.SelectedIndex].Trim());
+                Assert.InRange(tree.SelectedIndex, tree.ScrollOffset, tree.ScrollOffset + tree.VisibleRows - 1);
                 Assert.True(Find(view.Root, "preview-use").Visible);
+
+                menu.HandleModsWheel((int)tree.Bounds.X + 12, (int)tree.Bounds.Y + 12, -120);
+                Assert.Equal(3, tree.ScrollOffset);
+                Find(view.Root, "preview-expand").Key(UiKey.Confirm);
+                menu.Navigate(MenuInput.Cancel);
+                view = menu.BuildView();
+                view.Resize(1280, 720);
+                tree = Assert.IsType<UiList>(Find(view.Root, "preview-tree"));
+                Assert.Equal(3, tree.ScrollOffset);
+                Assert.Equal("example.json", tree.Items[tree.SelectedIndex].Trim());
+
+                tree.Key(UiKey.Up);
+                tree.Key(UiKey.Confirm);
+                view = menu.BuildView();
+                view.Resize(1280, 720);
+                tree = Assert.IsType<UiList>(Find(view.Root, "preview-tree"));
+                Assert.Equal(2, tree.Items.Count);
+                Assert.Equal(1, tree.SelectedIndex);
                 Find(view.Root, "preview-expand").Key(UiKey.Confirm);
                 view = menu.BuildView();
                 view.Resize(1280, 720);
                 Assert.False(Find(view.Root, "preview-tree").Visible);
                 Assert.Equal("preview-expand", view.FocusedElement?.Id);
                 menu.Navigate(MenuInput.Cancel);
-                Assert.True(Find(menu.BuildView().Root, "preview-tree").Visible);
+                view = menu.BuildView();
+                view.Resize(1280, 720);
+                tree = Assert.IsType<UiList>(Find(view.Root, "preview-tree"));
+                Assert.True(tree.Visible);
+                Assert.Equal(2, tree.Items.Count);
+                Assert.Equal(1, tree.SelectedIndex);
                 menu.Navigate(MenuInput.Cancel);
                 Assert.Equal("mods", menu.ScreenId);
             }

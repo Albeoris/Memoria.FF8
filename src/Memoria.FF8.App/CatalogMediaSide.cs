@@ -1,5 +1,6 @@
 using System.Buffers;
 using System.Diagnostics;
+using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
@@ -14,7 +15,6 @@ internal sealed class CatalogMediaSide : IDisposable
 {
     private const int Width = 640;
     private const int Height = 360;
-    private const int FramesPerSecond = 30;
     private const int FrameBytes = Width * Height * 4;
     private readonly CatalogMediaAsset? asset;
     private readonly CancellationTokenSource lifetime = new();
@@ -42,6 +42,7 @@ internal sealed class CatalogMediaSide : IDisposable
     public string? Error { get; private set; }
     public PixelImage? Image { get; private set; }
     public long ImageRevision { get; private set; }
+    internal double ImageTime { get; private set; }
     internal Task Cleanup { get; private set; } = Task.CompletedTask;
 
     public long VideoAvailableThrough => videoWorker is null || videoWorker.IsCompleted ? long.MaxValue : Volatile.Read(ref videoAvailableThrough);
@@ -121,18 +122,29 @@ internal sealed class CatalogMediaSide : IDisposable
         {
             return;
         }
-        double endPreroll = Math.Max(2d / FramesPerSecond, asset!.VideoFrameSeconds * 1.25);
+        double endPreroll = Math.Max(0.08, asset!.VideoFrameSeconds * 2);
         videoOffset = Math.Min(startSeconds, Math.Max(0, asset.VideoDuration - endPreroll));
         ProcessStartInfo start = asset.Decode(videoOffset);
-        CatalogMediaAsset.Add(start, "-map", "0:V:0", "-an", "-vf",
-            $"fps={FramesPerSecond}:start_time=0,scale={Width}:{Height}:force_original_aspect_ratio=decrease,pad={Width}:{Height}:(ow-iw)/2:(oh-ih)/2,setsar=1",
-            "-threads", "1", "-f", "rawvideo", "-pix_fmt", "rgba", "pipe:1");
-        videoPipe = new(start);
+        CatalogMediaAsset.Add(start, "-loglevel", "info", "-nostats", "-hide_banner", "-map", "0:V:0", "-an", "-vf",
+            $"scale={Width}:{Height}:force_original_aspect_ratio=decrease,pad={Width}:{Height}:(ow-iw)/2:(oh-ih)/2,setsar=1,showinfo=checksum=0",
+            "-fps_mode", "passthrough", "-threads", "1", "-f", "rawvideo", "-pix_fmt", "rgba", "pipe:1");
+        videoPipe = new(start, lifetime.Token, trackVideoTime: true);
         videoWorker = ReadVideoAsync(videoPipe, lifetime.Token);
         if (!await frames.Reader.WaitToReadAsync(token).ConfigureAwait(false))
         {
             await videoWorker.ConfigureAwait(false);
             throw new InvalidDataException("FFmpeg did not produce a video frame.");
+        }
+        if (startSeconds > videoOffset)
+        {
+            while (await frames.Reader.WaitToReadAsync(token).ConfigureAwait(false))
+            {
+                UpdateImage(startSeconds);
+                if (frames.Reader.TryPeek(out VideoFrame frame) && frame.Seconds > startSeconds)
+                {
+                    break;
+                }
+            }
         }
     }
 
@@ -140,7 +152,6 @@ internal sealed class CatalogMediaSide : IDisposable
     {
         try
         {
-            long index = 0;
             while (!token.IsCancellationRequested)
             {
                 byte[] pixels = ArrayPool<byte>.Shared.Rent(FrameBytes);
@@ -156,10 +167,10 @@ internal sealed class CatalogMediaSide : IDisposable
                     {
                         throw new InvalidDataException("FFmpeg produced an incomplete preview frame.");
                     }
-                    await frames.Writer.WriteAsync(new(index, pixels), token).ConfigureAwait(false);
+                    double timestamp = videoOffset + await decoder.ReadPresentationTimeAsync(token).ConfigureAwait(false);
+                    await frames.Writer.WriteAsync(new(timestamp, pixels), token).ConfigureAwait(false);
                     queued = true;
-                    index++;
-                    Volatile.Write(ref videoAvailableThrough, (long)Math.Ceiling((videoOffset + index / (double)FramesPerSecond) * CatalogMediaPlayback.SampleRate));
+                    Volatile.Write(ref videoAvailableThrough, checked((long)Math.Floor(timestamp * CatalogMediaPlayback.SampleRate) + 1));
                 }
                 finally
                 {
@@ -187,7 +198,7 @@ internal sealed class CatalogMediaSide : IDisposable
         {
             ProcessStartInfo start = asset.Decode(startSeconds);
             CatalogMediaAsset.Add(start, "-map", "0:a:0", "-vn", "-af", "aresample=44100:async=1:first_pts=0", "-f", "s16le", "-acodec", "pcm_s16le", "-ar", "44100", "-ac", "2", "pipe:1");
-            audioPipe = new(start);
+            audioPipe = new(start, lifetime.Token);
             audioPcm = await PcmStreamSource.CreateAsync(audioPipe.Output, 0, token).ConfigureAwait(false);
             if (audioPcm.IsCompleted)
             {
@@ -228,7 +239,7 @@ internal sealed class CatalogMediaSide : IDisposable
     public void UpdateImage(double seconds)
     {
         VideoFrame? latest = null;
-        while (frames.Reader.TryPeek(out VideoFrame frame) && videoOffset + frame.Index / (double)FramesPerSecond <= seconds && frames.Reader.TryRead(out frame))
+        while (frames.Reader.TryPeek(out VideoFrame frame) && (frame.Seconds <= seconds || Image is null && latest is null) && frames.Reader.TryRead(out frame))
         {
             if (latest is { } skipped)
             {
@@ -242,6 +253,7 @@ internal sealed class CatalogMediaSide : IDisposable
             {
                 Image ??= new(Width, Height);
                 MemoryMarshal.Cast<byte, Rgba32>(ready.Pixels.AsSpan(0, FrameBytes)).CopyTo(Image.Pixels);
+                ImageTime = ready.Seconds;
                 ImageRevision++;
             }
             finally
@@ -301,34 +313,66 @@ internal sealed class CatalogMediaSide : IDisposable
         }
     }
 
-    private readonly record struct VideoFrame(long Index, byte[] Pixels);
+    private readonly record struct VideoFrame(double Seconds, byte[] Pixels);
 
     private sealed class DecoderPipe : IDisposable
     {
         private readonly Process process;
+        private readonly Channel<double>? timestamps;
 
-        public DecoderPipe(ProcessStartInfo start)
+        public DecoderPipe(ProcessStartInfo start, CancellationToken token, bool trackVideoTime = false)
         {
+            timestamps = trackVideoTime ? Channel.CreateBounded<double>(8) : null;
             process = Process.Start(start) ?? throw new IOException("Could not start the preview decoder.");
-            Completion = ObserveExitAsync();
+            Completion = ObserveExitAsync(token);
         }
 
         public Stream Output => process.StandardOutput.BaseStream;
         public Task Completion { get; }
 
-        private async Task ObserveExitAsync()
+        public async ValueTask<double> ReadPresentationTimeAsync(CancellationToken token)
+        {
+            if (await timestamps!.Reader.WaitToReadAsync(token).ConfigureAwait(false) && timestamps.Reader.TryRead(out double timestamp))
+            {
+                return timestamp;
+            }
+            throw new InvalidDataException("FFmpeg produced a preview frame without its presentation time.");
+        }
+
+        private async Task ObserveExitAsync(CancellationToken token)
         {
             StringBuilder diagnostic = new();
-            char[] buffer = new char[1024];
-            int count;
-            while ((count = await process.StandardError.ReadAsync(buffer).ConfigureAwait(false)) != 0)
+            try
             {
-                diagnostic.Append(buffer, 0, Math.Min(count, 2048 - diagnostic.Length));
+                while (await process.StandardError.ReadLineAsync(token).ConfigureAwait(false) is { } line)
+                {
+                    if (timestamps is not null && line.StartsWith("[Parsed_showinfo_", StringComparison.Ordinal))
+                    {
+                        int begin = line.IndexOf(" pts_time:", StringComparison.Ordinal);
+                        if (begin >= 0)
+                        {
+                            ReadOnlySpan<char> value = line.AsSpan(begin + " pts_time:".Length).TrimStart();
+                            int end = value.IndexOf(' ');
+                            if (double.TryParse(end < 0 ? value : value[..end], NumberStyles.Float, CultureInfo.InvariantCulture, out double seconds) && double.IsFinite(seconds))
+                            {
+                                await timestamps.Writer.WriteAsync(seconds, token).ConfigureAwait(false);
+                            }
+                        }
+                    }
+                    else if (diagnostic.Length < 2048)
+                    {
+                        diagnostic.Append(line.AsSpan(0, Math.Min(line.Length, 2047 - diagnostic.Length))).Append('\n');
+                    }
+                }
+                await process.WaitForExitAsync().ConfigureAwait(false);
+                if (process.ExitCode != 0)
+                {
+                    throw new InvalidDataException($"FFmpeg preview decoding failed. {diagnostic.ToString().Trim()}");
+                }
             }
-            await process.WaitForExitAsync().ConfigureAwait(false);
-            if (process.ExitCode != 0)
+            finally
             {
-                throw new InvalidDataException($"FFmpeg preview decoding failed. {diagnostic.ToString().Trim()}");
+                timestamps?.Writer.TryComplete();
             }
         }
 

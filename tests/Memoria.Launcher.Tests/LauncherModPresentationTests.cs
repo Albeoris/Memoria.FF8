@@ -14,6 +14,45 @@ namespace Memoria.Launcher.Tests;
 public sealed class LauncherModPresentationTests(LauncherHeadlessFixture fixture)
 {
     [Fact]
+    public async Task InstalledDemasterPackageGetsThePreviewAction()
+    {
+        await fixture.Session.Dispatch(async () =>
+        {
+            string root = Path.Combine(Path.GetTempPath(), "launcher-preview-action-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(root);
+            try
+            {
+                using ModRuntime mods = new(root, watch: false);
+                ModPackageInstaller installer = new(Path.Combine(root, "state"), Path.Combine(root, "Mods"), "Classic/en/test");
+                using ModLibraryService library = new(Path.Combine(root, "cache"), installer, mods, "Classic/en/test", false);
+                await library.StopAsync();
+                LauncherWindow window = new();
+                try
+                {
+                    ComboBox installations = Get<ComboBox>(window, "installations");
+                    installations.ItemsSource = new[] { new GameInstallation(root, "Preview fixture") };
+                    installations.SelectedIndex = 0;
+                    Set(window, "launcherModLibrary", library);
+                    ModPackage package = new("Demaster/cards", "Cards", ModFormat.Demaster, true, true, ModEffectiveStatus.Active, root);
+                    ModPackageView installed = new(package, ModEffectiveStatus.Active, "Active", null, false, true);
+                    var method = typeof(LauncherWindow).GetMethod("CreateLauncherModPreview", BindingFlags.Instance | BindingFlags.NonPublic)!;
+                    Button button = Assert.IsType<Button>(method.Invoke(window, [installed, null]));
+                    Assert.Equal("Preview changes", button.Content);
+                }
+                finally
+                {
+                    window.Close();
+                }
+            }
+            finally
+            {
+                Directory.Delete(root, true);
+            }
+            return true;
+        }, TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
     public async Task CatalogPackageExpandsWithCrestAndKeepsComponentSelectionOnRefresh()
     {
         await fixture.Session.Dispatch(async () =>

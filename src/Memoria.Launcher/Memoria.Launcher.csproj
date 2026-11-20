@@ -25,10 +25,14 @@
     <PackageReference Include="SDL3-CS.macOS" Condition="'$(MemoriaTargetMac)' == 'true'" />
     <Using Include="System.IO" />
     <Compile Include="../Memoria.FF8.App/CatalogPreviewPresentation.cs" Link="CatalogPreviewPresentation.cs" />
+    <Compile Include="../Memoria.FF8.App/CatalogMedia*.cs" Link="%(Filename)%(Extension)" />
+    <Compile Include="../Memoria.FF8.App/CatalogNativeMedia.cs" Link="CatalogNativeMedia.cs" />
+    <Compile Include="../Memoria.FF8.App/PcmAudioOutput.cs" Link="PcmAudioOutput.cs" />
     <Compile Include="../Memoria.FF8.App/ModelPreviewRenderer.cs" Link="ModelPreviewRenderer.cs" />
     <Compile Include="../Memoria.FF8.App/GameUi/ModelPreviewCamera.cs" Link="ModelPreviewCamera.cs" />
     <ProjectReference Include="../Memoria.FF8.Rendering/Memoria.FF8.Rendering.csproj" />
     <ProjectReference Include="../Memoria.FF8.Audio/Memoria.FF8.Audio.csproj" />
+    <ProjectReference Include="../Memoria.FF8.Media/Memoria.FF8.Media.csproj" />
     <Compile Include="../Memoria.FF8.App/MediaToolsInstallation.cs" Link="MediaToolsInstallation.cs" />
     <Compile Include="../Memoria.FF8.App/Ff7ErrorReport.cs" Link="Ff7ErrorReport.cs" />
     <Compile Include="../Memoria.FF8.App/GameErrorReport.cs" Link="GameErrorReport.cs" />

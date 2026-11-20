@@ -204,6 +204,7 @@ internal sealed class CatalogMediaAsset
             RedirectStandardOutput = true,
             RedirectStandardError = true
         };
+        start.Environment["AV_LOG_FORCE_NOCOLOR"] = "1";
         string protocols = path.StartsWith("subfile,", StringComparison.Ordinal) ? "file,pipe,subfile" : "file,pipe";
         Add(start, "-v", "error", "-protocol_whitelist", protocols, "-format_whitelist", "avi,mov,matroska,webm,ogg,wav,mp3,flac,bink,mpeg,mpegts,m4v,mpegvideo,asf,flv,aac,aiff,ape,w64,tta,wv,ac3");
         return start;

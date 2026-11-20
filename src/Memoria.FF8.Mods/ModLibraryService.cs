@@ -85,7 +85,7 @@ public sealed class ModLibraryService : IModLibraryService, IDisposable
         {
             return installer.OpenPreviewAsync(plan, cancellationToken);
         }
-        if (installed is { Format: ModFormat.Memoria or ModFormat.Junction, IsSettingsGroup: false })
+        if (installed is not null && ModPreviewDocument.CanOpenInstalled(installed))
         {
             ModCatalogSnapshot preferences = mods.Catalog;
             return Task.Run(() => ModPreviewDocument.Open(installed, cancellationToken, preferences: preferences), cancellationToken);

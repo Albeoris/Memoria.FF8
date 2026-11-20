@@ -4,6 +4,24 @@ namespace Memoria.FF8.Ui.Tests;
 
 public sealed class ListLayoutTests
 {
+    [Fact]
+    public void ExplicitScrollCanRemainOutsideTheSelectionUntilKeyboardNavigation()
+    {
+        UiList list = new() { Items = ["First", "Second", "Third", "Fourth"], RowHeight = 20, AutoRowHeight = false, KeepSelectionVisibleOnDraw = false };
+        list.Arrange(new UiRect(0, 0, 160, 40));
+        list.ScrollOffset = 2;
+        MeasuringCanvas canvas = new();
+
+        list.Draw(canvas, new UiTheme());
+
+        Assert.Equal(0, list.SelectedIndex);
+        Assert.Equal(2, list.ScrollOffset);
+        Assert.Equal(new[] { "Third", "Fourth" }, canvas.Texts.Select(text => text.Text));
+        list.Key(UiKey.Down);
+        Assert.Equal(1, list.SelectedIndex);
+        Assert.Equal(1, list.ScrollOffset);
+    }
+
     [Theory]
     [InlineData(300, 20)]
     [InlineData(228, 93)]

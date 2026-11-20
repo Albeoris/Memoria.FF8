@@ -7,11 +7,50 @@ public sealed partial class DemasterTextureResolver
 {
     private static bool IsCardArtworkTarget(string stem)
     {
-        return Enumerable.Range(0, 10).Any(index => stem.Equals($"textures/mc{index:00}.tex", StringComparison.OrdinalIgnoreCase))
-            || stem.Equals("textures/mc05.tex_en", StringComparison.OrdinalIgnoreCase)
-            || Enumerable.Range(0, 14).Any(index => stem.Equals($"textures/cards/cards_{index}", StringComparison.OrdinalIgnoreCase))
-            || stem.Equals("textures/cards/cards_7_en", StringComparison.OrdinalIgnoreCase)
-            || new[] { "back_0", "back_1", "board_0", "board_1", "text_0" }.Any(name => stem.Equals("textures/cards/" + name, StringComparison.OrdinalIgnoreCase));
+        return DescribeCardArtworkTarget(stem) is not null;
+    }
+
+    internal static (string Owner, IReadOnlyList<string> Members)? DescribeCardArtworkTarget(string stem)
+    {
+        stem = stem.ToLowerInvariant();
+        if (stem == "textures/mc05.tex_en")
+        {
+            stem = "textures/mc05.tex";
+        }
+        if (stem.Length == 17 && stem.StartsWith("textures/mc0", StringComparison.Ordinal) && char.IsAsciiDigit(stem[12]) && stem.EndsWith(".tex", StringComparison.Ordinal))
+        {
+            return ("menu/" + stem[9..], ["atlas"]);
+        }
+        const string root = "textures/cards/";
+        if (!stem.StartsWith(root, StringComparison.Ordinal))
+        {
+            return null;
+        }
+        string name = stem[root.Length..];
+        if (name == "cards_7_en")
+        {
+            name = "cards_7";
+        }
+        if (name.StartsWith("cards_", StringComparison.Ordinal) && int.TryParse(name.AsSpan(6), out int sheet) && sheet is >= 0 and < 14 && name == $"cards_{sheet}")
+        {
+            List<string> members = [];
+            for (int id = sheet * 8; id < Math.Min(110, (sheet + 1) * 8); id++)
+            {
+                members.Add($"front/{id}");
+            }
+            if (sheet == 13)
+            {
+                members.Add("back");
+            }
+            return ("cards/cards", members);
+        }
+        return name switch
+        {
+            "back_0" or "back_1" => ("cards/cards", ["background"]),
+            "board_0" or "board_1" => ("cards/cards", ["board-background"]),
+            "text_0" => ("cards/cards", Enumerable.Range(0, 8).Select(index => $"element/{index}").ToArray()),
+            _ => null
+        };
     }
 
     private TextureReplacement? ResolveCardArtwork(TextureBuildContext context)
@@ -96,7 +135,8 @@ public sealed partial class DemasterTextureResolver
         {
             CopyCardRegion(right, image, 0, 0, 256 * scale, 128 * scale, 224 * scale);
         }
-        return new(image, $"{leftFile?.PackageId}/{leftFile?.RelativePath}@{leftFile?.Revision}+{rightFile?.PackageId}/{rightFile?.RelativePath}@{rightFile?.Revision}", context.LogicalWidth, context.LogicalHeight);
+        string provenance = string.Join(';', new[] { leftFile, rightFile }.OfType<ModFile>().Select(file => $"{file.PackageId}/{file.RelativePath}@{file.Revision}"));
+        return new(image, provenance, context.LogicalWidth, context.LogicalHeight);
     }
 
     private static int CardSheetScale(ModFile file, PixelImage sheet)

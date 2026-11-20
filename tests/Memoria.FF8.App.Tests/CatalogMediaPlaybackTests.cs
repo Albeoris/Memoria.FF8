@@ -102,8 +102,8 @@ public sealed class CatalogMediaPlaybackTests
         string afterPath = Path.GetTempFileName();
         try
         {
-            await GenerateVideoAsync(tools, beforePath, "green", "yellow", "1.5", "2", "0.25", token);
-            await GenerateVideoAsync(tools, afterPath, "red", "blue", "12.2", "14", "-0.25", token);
+            await GenerateVideoAsync(tools, beforePath, "green", "yellow", "1.5", "2", "0.25", 17, token);
+            await GenerateVideoAsync(tools, afterPath, "red", "blue", "12.2", "14", "-0.25", 48, token);
             byte[] clip = await File.ReadAllBytesAsync(beforePath, token);
             await using (FileStream archive = File.Create(beforePath))
             {
@@ -164,6 +164,8 @@ public sealed class CatalogMediaPlaybackTests
             Assert.Same(videoBuffer, seek.After.Image);
             Assert.True(seek.After.ImageRevision > initialRevision);
             Assert.Equal(14d, seek.PositionSeconds);
+            Assert.InRange(seek.Before.ImageTime, 33d / 17 - 0.002, 33d / 17 + 0.002);
+            Assert.InRange(seek.After.ImageTime, 671d / 48 - 0.002, 671d / 48 + 0.002);
         }
         finally
         {
@@ -357,7 +359,7 @@ public sealed class CatalogMediaPlaybackTests
         }
     }
 
-    private static async Task GenerateVideoAsync(string tools, string path, string firstColor, string secondColor, string changeSeconds, string duration, string sample, CancellationToken token)
+    private static async Task GenerateVideoAsync(string tools, string path, string firstColor, string secondColor, string changeSeconds, string duration, string sample, int fps, CancellationToken token)
     {
         ProcessStartInfo start = new(MediaToolPaths.ResolveExecutable(tools, "ffmpeg"))
         {
@@ -366,7 +368,7 @@ public sealed class CatalogMediaPlaybackTests
             UseShellExecute = false,
             CreateNoWindow = true
         };
-        CatalogMediaAsset.Add(start, "-v", "error", "-y", "-f", "lavfi", "-i", $"color=c={firstColor}:s=160x90:r=30:d={duration}",
+        CatalogMediaAsset.Add(start, "-v", "error", "-y", "-f", "lavfi", "-i", $"color=c={firstColor}:s=160x90:r={fps}:d={duration}",
             "-f", "lavfi", "-i", $"aevalsrc={sample}:s={CatalogMediaPlayback.SampleRate}:d={duration}",
             "-vf", $"drawbox=color={secondColor}:t=fill:enable='gte(t,{changeSeconds})'", "-c:v", "mpeg4", "-c:a", "pcm_s16le", "-f", "matroska", path);
         using Process generate = Process.Start(start)!;

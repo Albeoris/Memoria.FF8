@@ -18,7 +18,7 @@ public sealed partial class MenuController
     private bool modPreviewExpanded;
     private bool modPreviewUseItem;
     private CatalogPreviewPresentation.WorldComparison? modPreviewWorld;
-    private string? modPreviewTreeKey;
+    private ModPreviewTreeNode? modPreviewTreeSelection;
     private string modPreviewFocus = "preview-tree";
     private float modPreviewYaw;
     private float modPreviewTextOffset;
@@ -27,8 +27,8 @@ public sealed partial class MenuController
     private LocalizationModPreview? modPreviewLocalization;
     private PlayerAction? queuedPreviewAction;
     private long previewSceneUpdated;
-    private int modPreviewTreeOffset;
-    private readonly HashSet<string> modPreviewCollapsed = new(StringComparer.OrdinalIgnoreCase);
+    private int? modPreviewTreeOffset;
+    private readonly HashSet<ModPreviewTreeNode> modPreviewOpenFolders = [];
 
     internal void ConnectModPreview(ModPreviewResourcesProfile profile, string? mediaTools = null, bool mediaAudioEnabled = true, PcmAudioOutput? audioOutput = null)
     {
@@ -59,7 +59,7 @@ public sealed partial class MenuController
 
     private bool HasModPreview(RemoteModEntry entry) => modPreviewProfile is not null && (EntryJob(entry)?.CanPreview == true || PreviewInstalledPackage(entry) is not null);
 
-    private bool HasInstalledModPreview(ModPackage package) => modLibrary is not null && modPreviewProfile is not null && package is { Format: ModFormat.Memoria or ModFormat.Junction, IsSettingsGroup: false };
+    private bool HasInstalledModPreview(ModPackage package) => modLibrary is not null && modPreviewProfile is not null && ModPreviewDocument.CanOpenInstalled(package);
 
     private void OpenModPreview(RemoteModEntry entry)
     {
@@ -70,9 +70,7 @@ public sealed partial class MenuController
     {
         CloseModPreview();
         modPreviewExpanded = false;
-        modPreviewTreeOffset = 0;
-        modPreviewCollapsed.Clear();
-        modPreviewTreeKey = null;
+        modPreviewTreeOffset = null;
         modPreviewFocus = "preview-tree";
         modPreviewMessage = "Reading package changes…";
         modPreviewCancellation = new();
@@ -205,8 +203,11 @@ public sealed partial class MenuController
             if (opening.IsCompletedSuccessfully)
             {
                 modPreviewDocument = opening.Result;
-                if (modPreviewDocument.Entries.FirstOrDefault() is { } first)
+                IReadOnlyList<ModPreviewTreeNode> path = modPreviewDocument.Tree.InitialPath;
+                if (path.LastOrDefault() is { Entry: { } first } leaf)
                 {
+                    modPreviewOpenFolders.UnionWith(path.Take(path.Count - 1));
+                    modPreviewTreeSelection = leaf;
                     modPreviewFocus = "preview-tree";
                     SelectModPreview(first);
                 }
@@ -371,6 +372,8 @@ public sealed partial class MenuController
         modPreviewWorld = null;
         modPreviewDocument = null;
         modPreviewSelected = null;
+        modPreviewTreeSelection = null;
+        modPreviewOpenFolders.Clear();
         modPreviewResult = null;
     }
 
@@ -385,50 +388,31 @@ public sealed partial class MenuController
         private readonly UiScrollPanel beforeText;
         private readonly UiScrollPanel afterText;
         private readonly List<UiButton> interaction = [];
-        private readonly (string Key, string Label, ModPreviewEntry? Entry)[] rows;
+        private readonly List<ModPreviewTreeNode> rows = [];
         private UiRect comparison;
 
         public ModPreviewElement(MenuController menus)
         {
             this.menus = menus;
-            List<(string Key, string Label, ModPreviewEntry? Entry)> visible = [];
-            foreach (var category in (menus.modPreviewDocument?.Entries ?? []).GroupBy(entry => entry.Category))
-            {
-                string categoryKey = category.Key;
-                bool collapsed = menus.modPreviewCollapsed.Contains(categoryKey);
-                visible.Add((categoryKey, (collapsed ? "▸ " : "▾ ") + category.Key, null));
-                if (collapsed)
-                {
-                    continue;
-                }
-                foreach (var group in category.GroupBy(entry => entry.Group))
-                {
-                    string groupKey = categoryKey + "/" + group.Key;
-                    bool groupCollapsed = menus.modPreviewCollapsed.Contains(groupKey);
-                    visible.Add((groupKey, (groupCollapsed ? "    ▸ " : "    ▾ ") + group.Key, null));
-                    if (!groupCollapsed)
-                    {
-                        visible.AddRange(group.Select(entry => (entry.Id, "          " + entry.Name, (ModPreviewEntry?)entry)));
-                    }
-                }
-            }
-            rows = visible.ToArray();
+            List<string> labels = [];
+            AddRows(menus.modPreviewDocument?.Tree.Branches ?? [], 0);
             tree = new()
             {
                 Id = "preview-tree",
-                Visible = !menus.modPreviewExpanded && rows.Length > 0,
-                Items = rows.Select(row => row.Label).ToArray(),
+                Visible = !menus.modPreviewExpanded && rows.Count > 0,
+                Items = labels,
                 RowHeight = 28 * menus.TextScale,
                 FontSize = 16 * menus.TextScale,
                 AutoRowHeight = false,
+                KeepSelectionVisibleOnDraw = false,
                 TextFlow = UiTextFlow.SingleLine,
-                SelectedIndex = Math.Max(0, Array.FindIndex(rows, row => menus.modPreviewTreeKey is { } key ? row.Key == key : row.Entry is not null && row.Entry == menus.modPreviewSelected)),
+                SelectedIndex = menus.modPreviewTreeSelection is { } selected ? rows.IndexOf(selected) : 0,
                 Confirmed = ToggleGroup,
                 SelectionChanged = index =>
                 {
                     menus.modPreviewTreeOffset = tree!.ScrollOffset;
-                    menus.modPreviewTreeKey = rows.ElementAtOrDefault(index).Key;
-                    if (rows.ElementAtOrDefault(index).Entry is { } entry)
+                    menus.modPreviewTreeSelection = rows[index];
+                    if (rows[index].Entry is { } entry)
                     {
                         menus.SelectModPreview(entry);
                     }
@@ -492,6 +476,22 @@ public sealed partial class MenuController
                 AddControl("Rotate right", () => menus.RotatePreviewModels(0.35f, 0));
             }
 
+            void AddRows(IReadOnlyList<ModPreviewTreeNode> branches, int depth)
+            {
+                string indent = new(' ', depth * 4);
+                foreach (ModPreviewTreeNode branch in branches)
+                {
+                    rows.Add(branch);
+                    bool open = menus.modPreviewOpenFolders.Contains(branch);
+                    string marker = branch.Entry is null ? open ? "▾ " : "▸ " : "  ";
+                    labels.Add(indent + marker + branch.Label);
+                    if (open)
+                    {
+                        AddRows(branch.Children, depth + 1);
+                    }
+                }
+            }
+
             void AddControl(string label, Action click)
             {
                 UiButton button = Button("preview-action-" + interaction.Count, label, click);
@@ -502,14 +502,14 @@ public sealed partial class MenuController
 
         private void ToggleGroup(int index)
         {
-            var row = rows.ElementAtOrDefault(index);
-            if (row.Key is null || row.Entry is not null)
+            ModPreviewTreeNode row = rows[index];
+            if (row.Entry is not null)
             {
                 return;
             }
-            if (!menus.modPreviewCollapsed.Remove(row.Key))
+            if (!menus.modPreviewOpenFolders.Remove(row))
             {
-                menus.modPreviewCollapsed.Add(row.Key);
+                menus.modPreviewOpenFolders.Add(row);
             }
             menus._view = null;
         }
@@ -549,10 +549,18 @@ public sealed partial class MenuController
             float timelineHeight = timeline.Visible ? footer + 6 : 0;
             float height = Math.Max(0, inner.Bottom - footer - top - 8 - timelineHeight);
             float sidebar = tree.Visible ? Math.Min(inner.Width * 0.32f, 335 * menus.TextScale) : 0;
+            if (menus.modPreviewTreeOffset is null)
+            {
+                tree.ScrollOffset = 0;
+            }
             tree.Arrange(new(inner.X, top, Math.Max(0, sidebar - 8), height));
             if (tree.Visible)
             {
-                tree.ScrollOffset = menus.modPreviewTreeOffset;
+                if (menus.modPreviewTreeOffset is { } savedOffset)
+                {
+                    tree.ScrollOffset = savedOffset;
+                }
+                menus.modPreviewTreeOffset = tree.ScrollOffset;
             }
             comparison = new(inner.X + sidebar, top, Math.Max(0, inner.Width - sidebar), height);
             timeline.Arrange(new(inner.X, comparison.Bottom + 4, inner.Width, timeline.Visible ? footer : 0));

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.RegularExpressions;
 using Albeoris.Games.FF8.Imaging;
 using Memoria.FF8.Resources;
@@ -77,7 +78,23 @@ public sealed partial class DemasterTextureResolver
 
     private static bool IsFieldPageTarget(string stem)
     {
+        return DescribeFieldPageTarget(stem) is not null;
+    }
+
+    internal static (string Map, int NativePage, int? Palette)? DescribeFieldPageTarget(string stem)
+    {
+        if (!stem.StartsWith(FieldPagePrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
         Match match = fieldPageTarget.Match(stem);
-        return match.Success && match.Groups["map"].Value.StartsWith(match.Groups["prefix"].Value, StringComparison.OrdinalIgnoreCase);
+        string map = match.Groups["map"].Value;
+        if (!match.Success || !map.StartsWith(match.Groups["prefix"].Value, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+        int page = int.Parse(match.Groups["page"].ValueSpan, CultureInfo.InvariantCulture);
+        int? palette = match.Groups["palette"].Success ? int.Parse(match.Groups["palette"].ValueSpan, CultureInfo.InvariantCulture) : null;
+        return (map.ToLowerInvariant(), page + 16, palette);
     }
 }

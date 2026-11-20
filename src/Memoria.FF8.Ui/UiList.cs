@@ -113,6 +113,8 @@ public sealed class UiList : UiElement
 
     /// <summary>Expands vertical rows to fit the renderer's wrapped text measurements.</summary>
     public bool AutoRowHeight { get; set; } = true;
+    /// <summary>Keeps the selected row visible when drawing, including after an explicit scroll.</summary>
+    public bool KeepSelectionVisibleOnDraw { get; set; } = true;
     public UiTextFlow TextFlow { get; set; } = UiTextFlow.Auto;
     public UiAlignment SecondaryAlignment { get; set; } = UiAlignment.Start;
     /// <summary>Sizes the shared secondary column from the renderer's measurements of all item values.</summary>
@@ -243,7 +245,10 @@ public sealed class UiList : UiElement
         float rowWidth = Orientation == UiOrientation.Horizontal && Items.Count > 0 ? Bounds.Width / Items.Count : Bounds.Width;
         ListColumns columns = MeasureColumns(canvas, theme, rowWidth);
         MeasureRows(canvas, theme, columns);
-        EnsureSelectionVisible();
+        if (KeepSelectionVisibleOnDraw)
+        {
+            EnsureSelectionVisible();
+        }
         foreach ((int index, UiRect row) in VisibleRowBounds())
         {
             canvas.PushClip(row.Intersect(new UiRect(Bounds.X, Bounds.Y, Bounds.Width, UsesPagination ? ContentHeight : Bounds.Height)));

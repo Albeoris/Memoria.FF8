@@ -14,13 +14,15 @@ namespace Memoria.FF8.Mods;
 
 public sealed record ModPreviewEntry(string Id, string Category, string Group, string Name)
 {
+    public string? Folder { get; init; }
+    public string? SourcePath { get; init; }
+    internal string? TextureMember { get; init; }
     public bool IsMedia => Category == "Audio" || Category == "Video" && Group != "Camera tracks";
 }
 public sealed record ModPreviewSide(string Text, PixelImage? Image = null)
 {
     public EditableModel? Model { get; init; }
     public bool CanUseItem { get; init; }
-    public byte[]? AudioPcm { get; init; }
 }
 
 public sealed record ModPreviewTextRow(string Title, string Before, string After);
@@ -40,8 +42,6 @@ public sealed record ModPreviewResourcesProfile(string GameDirectory, string? Mo
     public Func<FieldAssets, PixelImage>? RenderField { get; init; }
     public Func<FieldAssets, IReadOnlyList<FieldBackgroundPatch>, PixelImage>? RenderFieldPatch { get; init; }
     public Func<FieldAssets, FieldAssets, IReadOnlyList<FieldScenePatch>, Func<int, FieldAssets>, CancellationToken, ModPreviewComparison>? CompareFieldScene { get; init; }
-    public Func<ModPreviewMediaInput, bool, double, CancellationToken, ModPreviewSide>? DecodeMedia { get; init; }
-    public double MediaSeconds { get; init; }
     public string? Ff7GameDirectory { get; init; }
     public Func<FieldAssets, int, int?>? ResolveFieldActorModel { get; init; }
 }
@@ -105,7 +105,7 @@ public sealed class ModPreviewDocument
         this.files = files.ToDictionary(file => file.RelativePath, StringComparer.OrdinalIgnoreCase);
         this.junction = junction;
         localization = new(() => LocalizationProjectIO.ReadForAuthoring(package.RootDirectory));
-        List<ModPreviewEntry> entries = files.Where(file => !file.RelativePath.EndsWith(TextureModMapping.Extension, StringComparison.OrdinalIgnoreCase)).Select(file => GetEntry(file, junction?.VideoExtension)).ToList();
+        List<ModPreviewEntry> entries = files.Where(file => !file.RelativePath.EndsWith(TextureModMapping.Extension, StringComparison.OrdinalIgnoreCase)).SelectMany(file => GetEntries(file, junction?.VideoExtension)).ToList();
         entries.AddRange(ModPreviewResources.DescribeBundledGameplay(package));
         entries.AddRange(ModPreviewResources.DescribeFieldGameplay(catalog));
         if (package.HasLocalization)
@@ -126,13 +126,17 @@ public sealed class ModPreviewDocument
             entries.AddRange(junction.GameplayOverrides.Select(change => new ModPreviewEntry("rule:" + change.Setting, "Gameplay", "Reviewed patches", Gameplay(change).Name)));
         }
         Entries = Array.AsReadOnly(entries.OrderBy(entry => entry.Category, StringComparer.OrdinalIgnoreCase).ThenBy(entry => entry.Group, StringComparer.OrdinalIgnoreCase).ThenBy(entry => entry.Name, StringComparer.OrdinalIgnoreCase).ThenBy(entry => entry.Id, StringComparer.Ordinal).ToArray());
+        Tree = ModPreviewTree.Create(Entries, this.files.Keys);
     }
 
     public string Name { get; }
     public IReadOnlyList<ModPreviewEntry> Entries { get; }
+    public ModPreviewTree Tree { get; }
     public ModCatalogSnapshot PackageCatalog => catalog;
     public const string WorldSceneId = "scene:world";
     public const string LocalizationSceneId = "scene:localization";
+
+    public static bool CanOpenInstalled(ModPackage? package) => package is { Format: ModFormat.Memoria or ModFormat.Junction or ModFormat.Demaster, IsSettingsGroup: false };
 
     internal static ModPreviewDocument Open(ModPackage package, CancellationToken cancellationToken, bool useInstalledOptions = true, ModCatalogSnapshot? preferences = null)
     {
@@ -167,19 +171,22 @@ public sealed class ModPreviewDocument
                 {
                     continue;
                 }
-                FileInfo info = new(path);
-                long length = info.Length;
-                long stamp = info.LastWriteTimeUtc.Ticks;
-                byte[] Read()
+                files.Add(CreatePreviewFile(package, path, relative, files.Count));
+            }
+        }
+        else if (package.Format == ModFormat.Demaster)
+        {
+            List<(string Physical, string Relative)> discovered = [];
+            ModRuntime.EnumerateFiles(package.RootDirectory, package.RootDirectory, string.Empty, package.Id, new(StringComparer.OrdinalIgnoreCase), discovered, [], cancellationToken: cancellationToken);
+            var selected = discovered.DistinctBy(file => file.Relative, StringComparer.OrdinalIgnoreCase).Select(file => (package.RootDirectory, file.Physical, file.Relative)).ToList();
+            var layouts = ModRuntime.ReadTextureLayouts(package.Id, package.Format, selected).Entries;
+            foreach (var (_, path, relative) in selected)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (TextureModPaths.IsImage(relative))
                 {
-                    using FileStream stream = File.OpenRead(path);
-                    if (stream.Length != length || File.GetLastWriteTimeUtc(path).Ticks != stamp)
-                    {
-                        throw new IOException("The mod changed on disk. Reopen its preview to compare the current version.");
-                    }
-                    return ReadSample(stream, length);
+                    files.Add(CreatePreviewFile(package, path, relative, files.Count, layouts.GetValueOrDefault(relative)));
                 }
-                files.Add(new(package.Id, package.Format, relative, files.Count, Read, cacheContent: false) { AbsolutePath = path, ContentStamp = (length, stamp) });
             }
         }
         else
@@ -187,6 +194,27 @@ public sealed class ModPreviewDocument
             throw new NotSupportedException("This package format does not support comparison.");
         }
         return new(package, files, junction, preferences);
+    }
+
+    private static ModFile CreatePreviewFile(ModPackage package, string path, string relative, long revision, TextureLayoutMetadata? textureLayout = null)
+    {
+        FileInfo info = new(path);
+        long length = info.Length;
+        long stamp = info.LastWriteTimeUtc.Ticks;
+        byte[] Read()
+        {
+            if (package.Format == ModFormat.Demaster)
+            {
+                ModRuntime.ValidateContentPath(package.RootDirectory, path);
+            }
+            using FileStream stream = File.OpenRead(path);
+            if (stream.Length != length || File.GetLastWriteTimeUtc(path).Ticks != stamp)
+            {
+                throw new IOException("The mod changed on disk. Reopen its preview to compare the current version.");
+            }
+            return ReadSample(stream, length);
+        }
+        return new(package.Id, package.Format, relative, revision, Read, cacheContent: false) { AbsolutePath = path, ContentStamp = (length, stamp), TextureLayout = textureLayout };
     }
 
     public Task<ModPreviewComparison> CompareAsync(ModPreviewEntry entry, ModPreviewResourcesProfile profile, CancellationToken cancellationToken = default)
@@ -222,7 +250,7 @@ public sealed class ModPreviewDocument
             var detail = Gameplay(rule);
             return new(new(detail.Before), new(detail.After));
         }
-        files.TryGetValue(entry.Id, out ModFile? file);
+        files.TryGetValue(entry.SourcePath ?? entry.Id, out ModFile? file);
         if (ModPreviewResources.CompareGameplay(catalog, entry, file, profile, cancellationToken) is { } gameplay)
         {
             return gameplay;
@@ -253,19 +281,19 @@ public sealed class ModPreviewDocument
                 return model;
             }
         }
-        if (entry.IsMedia && profile.DecodeMedia is { } decode)
-        {
-            return CompareMedia(file, profile, entry.Category == "Video", decode, cancellationToken);
-        }
         if (file.Format == ModFormat.Junction && entry is { Category: "Video", Group: "Camera tracks" })
         {
             return CompareMovieCamera(file, profile, cancellationToken);
         }
         if (TextureModPaths.IsImage(file.RelativePath))
         {
-            if (ModPreviewResources.CompareTexture(profile.GameDirectory, profile.ModelSourceDirectory, profile.Language, catalog, file.RelativePath, cancellationToken, profile.RenderField) is { } texture)
+            if (ModPreviewResources.CompareTexture(profile.GameDirectory, profile.ModelSourceDirectory, profile.Language, catalog, file.RelativePath, cancellationToken, profile.RenderField, entry.TextureMember) is { } texture)
             {
                 return texture;
+            }
+            if (entry.TextureMember is not null)
+            {
+                return new(new("Original asset could not be matched to this atlas entry."), new(entry.Name));
             }
             return new(new("Original asset could not be matched to this file."), new(entry.Name, ModImageDecoder.Decode(file).Image));
         }
@@ -322,26 +350,6 @@ public sealed class ModPreviewDocument
             throw new ArgumentException("Select an audio or video resource from this package.", nameof(entry));
         }
         return Task.Run(() => ResolveMedia(file, profile, entry.Category == "Video", cancellationToken), cancellationToken);
-    }
-
-    private ModPreviewComparison CompareMedia(ModFile file, ModPreviewResourcesProfile profile, bool video, Func<ModPreviewMediaInput, bool, double, CancellationToken, ModPreviewSide> decode, CancellationToken token)
-    {
-        using ModPreviewMediaSources pair = ResolveMedia(file, profile, video, token);
-        ModPreviewSide before = pair.Before is null ? new("Original media could not be matched.") : Decode(pair.Before);
-        return new(before, Decode(pair.After));
-
-        ModPreviewSide Decode(ModPreviewMediaInput input)
-        {
-            token.ThrowIfCancellationRequested();
-            try
-            {
-                return decode(input, video, profile.MediaSeconds, token);
-            }
-            catch (Exception error) when (error is IOException or InvalidDataException or NotSupportedException or TimeoutException or System.ComponentModel.Win32Exception)
-            {
-                return new($"{input.Name}\n{error.Message}");
-            }
-        }
     }
 
     private ModPreviewMediaSources ResolveMedia(ModFile file, ModPreviewResourcesProfile profile, bool video, CancellationToken token)
@@ -586,7 +594,8 @@ public sealed class ModPreviewDocument
         cancellationToken.ThrowIfCancellationRequested();
         using IResourceSource modifiedSource = GameDataSourceFactory.Open(profile.GameDirectory, profile.ModelSourceDirectory, profile.Language);
         ResourceService modifiedResources = new(modifiedSource, profile.Language);
-        modifiedResources.Prepare(new OrderedTextureResolver(textures, new FfnxTextureResolver(subset)), encodedResources: replacements).Commit();
+        ITextureReplacementResolver legacy = subset.Packages[0].Format == ModFormat.Demaster ? new DemasterTextureResolver(subset) : new FfnxTextureResolver(subset);
+        modifiedResources.Prepare(new OrderedTextureResolver(textures, legacy), encodedResources: replacements).Commit();
         using GameAssets modified = new(profile.GameDirectory, resources: modifiedResources);
         FieldAssets applied = modified.LoadField(id);
         FieldScenePatch[] patches = scenes.Patches.Where(owned => owned.Patch.FieldId == id).Select(owned => owned.Patch).ToArray();
@@ -710,6 +719,26 @@ public sealed class ModPreviewDocument
         }
         string stem = Path.GetFileNameWithoutExtension(path).ToLowerInvariant();
         return path.Equals("mod.json", StringComparison.OrdinalIgnoreCase) || path.Equals("mod.ini", StringComparison.OrdinalIgnoreCase) || stem is "readme" or "license" or "notice";
+    }
+
+    private static IEnumerable<ModPreviewEntry> GetEntries(ModFile file, string? junctionVideoExtension)
+    {
+        ModPreviewEntry entry = GetEntry(file, junctionVideoExtension);
+        IReadOnlyList<string> members = ModPreviewResources.DescribeTextureAtlasMembers(file);
+        if (members.Count == 0 || members is ["atlas"] or ["background"] or ["board-background"])
+        {
+            yield return entry;
+            yield break;
+        }
+        foreach (string member in members)
+        {
+            yield return new($"atlas:{entry.Id}#{member}", entry.Category, entry.Group, ModPreviewResources.DescribeTextureAtlasMember(member))
+            {
+                Folder = Path.GetFileName(entry.Id),
+                SourcePath = entry.Id,
+                TextureMember = member
+            };
+        }
     }
 
     private static ModPreviewEntry GetEntry(ModFile file, string? junctionVideoExtension)

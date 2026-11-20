@@ -123,6 +123,7 @@ internal sealed class CatalogMediaPlayback : IDisposable, IAsyncDisposable
         After.CheckForFailure();
         if (sourceAdded)
         {
+            audioOutput!.ThrowIfFailed();
             PositionSeconds = Math.Min(DurationSeconds, audioOutput!.CapturePlaybackPosition(clock.PositionBeforeQueuedFrames) / (double)SampleRate);
         }
         else if (IsPlaying)

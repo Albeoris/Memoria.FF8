@@ -37,7 +37,7 @@ public sealed partial class FfnxTextureResolver
         {
             for (int x = left / 256 * 256; x < left + width; x += 256)
             {
-                int page = x / pixelsPerWord / 64 + y / 256 * 16;
+                int page = VramPageIndex(x, y, region.BitsPerPixel);
                 ModFile? file = FindVramPage(roots, name, page, paletteX, paletteY) ?? FindVramPage(roots, name, page, 0, 0);
                 if (file is null)
                 {
@@ -81,7 +81,7 @@ public sealed partial class FfnxTextureResolver
                 return cached;
             }
         }
-        ModFile? file = FindExternalFile(roots, $"{name}_{page}_{paletteX}_{paletteY}");
+        ModFile? file = FindExternalFile(roots, VramFileStem(name, page, paletteX, paletteY));
         lock (textureCacheSync)
         {
             if (vramFiles.Count >= FileQueryCapacity)
@@ -92,4 +92,8 @@ public sealed partial class FfnxTextureResolver
         }
         return file;
     }
+
+    private static int VramPageIndex(int x, int y, int bitsPerPixel) => x / (16 / bitsPerPixel) / 64 + y / 256 * 16;
+
+    private static string VramFileStem(string name, int page, int paletteX, int paletteY) => $"{name}_{page}_{paletteX}_{paletteY}";
 }

@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using Memoria.FF8.Audio;
 using Memoria.FF8.Mods;
+using Memoria.FF8.Platform;
 
 namespace Memoria.FF8;
 
@@ -71,9 +72,12 @@ internal static class CatalogNativeMedia
         {
             throw new NotSupportedException("PSF preview requires a Junction music selection and its configured BIOS resource.");
         }
+        string executable = HostPlatforms.Current.ExecutableName("Memoria.PsfDecoder");
+        string packaged = Path.Combine(AppContext.BaseDirectory, "Data", "Game", "vulkan", executable);
+        string? decoder = !File.Exists(Path.Combine(AppContext.BaseDirectory, executable)) && File.Exists(packaged) ? packaged : null;
         using PsfPcmStream pcm = await PsfDecoder.OpenAsync(track.File.RelativePath, track.File.ReadBytes(),
             (requester, dependency) => track.ResolveDependency(requester, dependency).ReadBytes(),
-            bios.ReadBytes(), repeat: false, token).ConfigureAwait(false);
+            bios.ReadBytes(), repeat: false, token, decoderPath: decoder).ConfigureAwait(false);
 
         long start = output.Position;
         WriteWaveHeader(output, 0);
