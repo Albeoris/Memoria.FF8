@@ -6,6 +6,7 @@ namespace Memoria.FF7.Events;
 public sealed record FieldTransportRegionProof(bool Complete, uint Cost, string? Region, FieldVariableRead[] Reads, string? Reason = null)
 {
     public FieldTransitionCommand? Transition { get; init; }
+    public FieldScriptInstructionSite? ChoiceSite { get; init; }
 }
 
 public sealed partial class FieldMachine
@@ -85,6 +86,7 @@ public sealed partial class FieldMachine
             List<string> guards = [];
             HashSet<FieldTransitionCommand> transitions = [];
             int choices = 0;
+            FieldScriptInstructionSite? choiceSite = null;
             foreach (FieldScriptInstructionSite site in body.InstructionSites)
             {
                 int pc = site.ProgramCounter;
@@ -121,6 +123,7 @@ public sealed partial class FieldMachine
                     if (command is FieldDialogueCommand { FirstChoice: not null })
                     {
                         choices++;
+                        choiceSite = site;
                     }
                     if (command is not (FieldGilQuery or FieldGilCommand { Subtract: true } or FieldActorBind or FieldActorPlacement or FieldActorMove or FieldMovementAnimationCommand or FieldAnimation or FieldActorProperty or FieldWindowCommand or FieldDialogueCommand or FieldTransitionCommand or FieldControlCommand or FieldBackgroundCommand or FieldAudioCommand or FieldCameraCommand or FieldFadeCommand or FieldMusicCommand or FieldMusicChangeCommand or FieldActorTurn or FieldPartyProjection or FieldPartyCharacter or FieldPaletteCommand or FieldActorOffset or FieldPreloadCommand or FieldTriangleCommand or FieldLineCommand or FieldModelEffectCommand or FieldPartyJoin or FieldPartySplit or FieldActorFace or FieldActorFaceParty or FieldActorLadder or FieldActorJump))
                     {
@@ -214,7 +217,7 @@ public sealed partial class FieldMachine
                 }
             }
             string payload = $"transport-region:1:{program.Identity}:{entity}:{program.Entry(entity, script)}:{cost}:{string.Join(';', guards.Order(StringComparer.Ordinal))}:{ReadScriptAnalysisFingerprint(entity, script, dependencies.Reads)}";
-            return new(true, cost, Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(payload))), dependencies.Reads) { Transition = transitions.Single() };
+            return new(true, cost, Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(payload))), dependencies.Reads) { Transition = transitions.Single(), ChoiceSite = choiceSite };
         }
         catch (Exception error) when (error is NotSupportedException or InvalidDataException or ArgumentException or IndexOutOfRangeException or FieldExecutionException)
         {

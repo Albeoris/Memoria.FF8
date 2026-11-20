@@ -20,7 +20,7 @@ public sealed record Ff7AutoPlayGatewayTopology(string NavigationKey, string Eve
 /// <summary>Observational planner state; native progress and execution remain owned by the session.</summary>
 public sealed record Ff7AutoPlaySourceRevalidationTask(string NavigationKey, string EventId, string Condition, string DepartureReceiptKey, bool ArrivalAcknowledged = false);
 public sealed record Ff7AutoPlayTravelCommitment(AutoPlayTravelGoal Goal, string NavigationKey, ushort? DestinationField);
-public sealed record Ff7AutoPlayTransportEntry(string Region, uint Cost, uint BeforeGil, ushort? DestinationField = null);
+public sealed record Ff7AutoPlayTransportEntry(string Region, uint Cost, uint BeforeGil, ushort? DestinationField = null, int? ChoiceProgramCounter = null);
 public sealed record Ff7AutoPlayTransportRegion(string Condition, string Region, string? CompletedRegion = null, string? CompletedCondition = null, string? DestinationVisit = null, string? ChoiceKey = null);
 public sealed record Ff7AutoPlayChoicePreference(int Selection, string NativeContext, string GuestContext, Dictionary<string, string>? NativeComponents = null);
 

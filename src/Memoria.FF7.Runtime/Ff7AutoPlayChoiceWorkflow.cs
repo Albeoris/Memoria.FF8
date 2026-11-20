@@ -75,7 +75,7 @@ public sealed partial class Ff7AutoPlayChoiceWorkflow
                 state.Active = travel with { TravelSelections = [.. executed, new(key, selection)] };
                 return selection;
             }
-            RetireChangedTravelChoice(travel, key, first, last, executed);
+            RetireChangedTravelChoice(travel, dialogue, key, first, last, executed);
         }
         if (current?.OwnerIdentity != owner)
         {
@@ -111,11 +111,17 @@ public sealed partial class Ff7AutoPlayChoiceWorkflow
         return selected;
     }
 
-    private void RetireChangedTravelChoice(Ff7AutoPlayActiveEvent active, string key, int first, int last, IReadOnlyList<AutoPlayChoiceSelection> executed)
+    private void RetireChangedTravelChoice(Ff7AutoPlayActiveEvent active, Ff7Dialogue dialogue, string key, int first, int last, IReadOnlyList<AutoPlayChoiceSelection> executed)
     {
         AutoPlayEventRoute route = active.TravelRoute!;
         if (route.ConditionSignature != active.ConditionFingerprint || route.TargetId != active.EventId)
         {
+            if (nativeSession is not null && executed.Count == 0 && Ff7AutoPlayPolicy.CanReobserveTransportChoice(nativeSession, state, active, dialogue))
+            {
+                state.Active = active with { TravelRoute = null, TravelSelections = null };
+                state.Status = "Exploring the current authenticated native choice after revalidating its transport region";
+                return;
+            }
             throw new NotSupportedException("A changed travel choice lacks its authenticated native source attempt.");
         }
         if (route.Selections is null || executed.Count > route.Selections.Count || !route.Selections.Take(executed.Count).SequenceEqual(executed))

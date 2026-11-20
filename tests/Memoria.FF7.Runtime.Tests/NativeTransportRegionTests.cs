@@ -31,6 +31,7 @@ internal static class NativeTransportRegionTests
         Check(!Fixture(external: [0x80, 0x50, 11, 1, 0]).ProveTransportRegion(0, 1, 100, [new(0, 1), new(1, 1)]).Complete, "An external byte-alias writer to Gil output was ignored.");
         Check(!Fixture([0x80, 0x30, 55, 1]).ProveTransportRegion(0, 1, 100, [new(0, 1)]).Complete, "Persistent progress writes were certified as paid transport utility.");
         CheckPlanner();
+        CheckChoiceAuthentication();
         Console.WriteLine("PASS transport affordability/native alias/reward barriers, optional intrinsic-goal suppression and paid-route reuse");
     }
 
@@ -118,6 +119,102 @@ internal static class NativeTransportRegionTests
         Ff7AutoPlayState legacy = JsonSerializer.Deserialize<Ff7AutoPlayState>("{\"TransportRegions\":null}")!;
         legacy.Validate();
         Check(legacy.TransportRegions.Count == 0, "Missing legacy derived metadata did not remain unknown.");
+    }
+
+    private static void CheckChoiceAuthentication()
+    {
+        string current = new('A', 64);
+        string historical = new('B', 64);
+        string region = new('C', 64);
+        AutoPlayEventRoute route = new("destination", historical, false, [new("old-key", 3)], "actor");
+        Ff7AutoPlayTransportEntry entry = new(region, 10, 100, 10, 20);
+        Ff7AutoPlayActiveEvent active = new("visit", "actor", current, 7, 0, 1, Ff7AutoPlayTargetKind.ActorTalk, 10, 641, "witness", Accepted: true, NavigationKey: "nav", TravelRoute: route, TravelSelections: [], TransportEntry: entry);
+        Ff7AutoPlayTarget target = new("actor", 0, 1, Ff7AutoPlayTargetKind.ActorTalk, current, false, System.Numerics.Vector3.Zero);
+        Ff7AutoPlayObservation observation = new("visit", "program", 7, [target], false, true) { NavigationKey = "nav" };
+        FieldEntitySnapshot owner = new(20, 1, 0, new int[8], new FieldSyncState[8], Enumerable.Repeat(-1, 8).ToArray(), true);
+        FieldHostRequest request = new(1, 0, 1, 20, new FieldDialogueCommand(0, 10, 3, 4, 3));
+        FieldVmSnapshot vm = new(1, FieldMachine.SemanticProfile, "program", 1, true, new byte[1280], new byte[256], [owner], PendingRequests: [request]);
+        Ff7Dialogue dialogue = new(1, 0, 10, 3, 4, 3, AwaitingInput: true);
+        Ff7AutoPlayState state = new() { Active = active };
+        AutoPlayEventCoverage<Ff7AutoPlayDeferral> coverage = new() { Event = new("actor", AutoPlayEventKind.Interaction, ConditionSignature: current), Available = true, Completed = true, Conditions = new() { ActiveEntry = current, ConsumedEntries = new(StringComparer.Ordinal) { historical } }, Routes = [route] };
+        state.Coverage.Visits.Add(new() { Visit = new("visit", "program"), Events = [coverage] });
+        state.Coverage.Choices.Add(new() { Key = "old-key", FirstOption = 3, OptionCount = 2, Finished = true, CompletedOptions = [3, 4] });
+        state.TransportRegions["visit|actor"] = new(current, region, region, historical, "destination", "old-key");
+        bool Valid(FieldVmSnapshot? source = null, Ff7Dialogue? prompt = null, Ff7AutoPlayTransportEntry? proof = null) => Ff7AutoPlayPolicy.HasAuthenticatedTransportChoice(state, state.Active!, observation, source ?? vm, prompt ?? dialogue, 100, proof ?? entry);
+        string before = JsonSerializer.Serialize(state);
+        Check(Valid(), "The actual current owned prompt and certified historical route could not reobserve their choice.");
+        foreach (FieldVmSnapshot wrong in new[] { vm with { PendingRequests = [] }, vm with { PendingRequests = [request with { Entity = 1 }] }, vm with { PendingRequests = [request with { ProgramCounter = 21 }] }, vm with { Entities = [owner with { Priority = 6 }] }, vm with { Entities = [owner with { ProgramCounter = 21 }] }, vm with { ProgramIdentity = "other" } })
+        {
+            Check(!Valid(source: wrong), "A missing/wrong native prompt owner authenticated a historical recipe detach.");
+        }
+        Check(!Valid(prompt: dialogue with { RequestId = 2 }) && !Valid(prompt: dialogue with { LastChoice = 5 }) && !Valid(prompt: dialogue with { Text = 11 }), "A different actual native prompt inherited recipe authentication.");
+        Check(!Valid(proof: entry with { Region = new('D', 64) }) && !Valid(proof: entry with { BeforeGil = 99 }) && !Valid(proof: entry with { Cost = 11 }), "Unknown region/current wallet facts authenticated detach.");
+        coverage.Conditions.ActiveEntry = "different";
+        Check(!Valid(), "A missing current native entry-attempt marker was forged.");
+        coverage.Conditions.ActiveEntry = null;
+        Check(!Valid(), "A missing current native entry-attempt marker was forged.");
+        coverage.Conditions.ActiveEntry = current;
+        coverage.Routes.Clear();
+        Check(!Valid(), "An unrecorded historical recipe authenticated detach.");
+        coverage.Routes.Add(route);
+        state.Active = active with { Accepted = false };
+        Check(!Valid(), "An unadmitted current event authenticated detach.");
+        state.Active = active;
+        state.TransportRegions["visit|actor"] = state.TransportRegions["visit|actor"] with { CompletedRegion = null };
+        Check(!Valid(), "An uncertified transport inherited cross-condition authentication.");
+        state.TransportRegions["visit|actor"] = state.TransportRegions["visit|actor"] with { Region = new('D', 64), CompletedRegion = new('D', 64) };
+        Check(!Valid(), "A stale learned certificate differing from actual fresh/admitted proof authenticated detach.");
+        state.TransportRegions["visit|actor"] = state.TransportRegions["visit|actor"] with { Region = region, CompletedRegion = region };
+        Check(before == JsonSerializer.Serialize(state), "Authentication inspection changed route/native credit metadata.");
+    }
+
+    internal static void RunChoiceOriginal()
+    {
+        string path = Environment.GetEnvironmentVariable("MEMORIA_FF7_TRANSPORT_REGION_SAVE") ?? throw new InvalidOperationException("Select a current authenticated transport choice fixture.");
+        byte[] bytes = File.ReadAllBytes(path);
+        using MemoryStream input = new(bytes, false);
+        CombinedSessionSave combined = CombinedSessionCodec.Read(input);
+        Ff7SessionSave saved = combined.Ff7!;
+        string directory = Path.Combine(Path.GetTempPath(), "memoria-transport-choice-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            using Ff7Session session = Ff7Session.Restore(Ff7Installation.Discover(Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR")!), saved);
+            using Ff7AutoPlayPolicy policy = new(session, (id, snapshot) =>
+            {
+                string file = Path.Combine(directory, "current-before.ffsave");
+                using FileStream output = File.Create(file);
+                CombinedSessionCodec.Write(output, combined with { Ff7 = snapshot });
+                return file;
+            });
+            Ff7AutoPlayActiveEvent source = saved.AutoPlay!.Active!;
+            string oldChoice = source.TravelRoute!.Selections!.Single().Key;
+            string history = JsonSerializer.Serialize(policy.State.Coverage.Visits.Single(item => item.Visit.Key == source.VisitId).Events.Single(item => item.Event.Id == source.EventId).Routes);
+            bool chosen = false;
+            Ff7AutoPlayController controller = new(session, policy.ChooseInput, chooseDialogueSelection: dialogue =>
+            {
+                Check(session.Progress.Gil == saved.Progress.Gil, "Current choice baseline wallet changed before selection.");
+                int? selected = policy.ChooseDialogueSelection(dialogue);
+                Check(session.Progress.Gil == saved.Progress.Gil, "Planning choice authentication edited the native wallet.");
+                chosen = true;
+                return selected;
+            }, advanceTick: () => session.AdvanceTick(advanceClock: false));
+            controller.Start();
+            Stopwatch elapsed = Stopwatch.StartNew();
+            while (controller.Running && controller.Steps < 4 && !chosen && elapsed.Elapsed < TimeSpan.FromSeconds(5))
+            {
+                controller.Advance(1);
+            }
+            Check(controller.Error is null && chosen && policy.State.Active is { Accepted: true, TravelRoute: null } actual && actual.ConditionFingerprint == source.ConditionFingerprint && policy.State.NavigationGoal == saved.AutoPlay.NavigationGoal, $"Normal current transport choice failed authentication: {controller.Error}");
+            Check(policy.State.Choice is { } choice && choice.Key != oldChoice && policy.State.Coverage.Choices.Single(item => item.Key == choice.Key) is { Finished: false, ActiveOption: 3, CompletedOptions.Count: 0 }, "The current choice was not genuinely opened under its own identity.");
+            Check(history == JsonSerializer.Serialize(policy.State.Coverage.Visits.Single(item => item.Visit.Key == source.VisitId).Events.Single(item => item.Event.Id == source.EventId).Routes), "Detaching a live recipe rewrote historical route facts.");
+            Check(bytes.AsSpan().SequenceEqual(File.ReadAllBytes(path)), "The original current choice fixture changed.");
+            Console.WriteLine($"PASS original normal current transport choice authentication: {controller.Steps} callbacks/{elapsed.Elapsed.TotalSeconds:F3}s; planning baseline Gil{saved.Progress.Gil} unchanged, after-native Gil{session.Progress.Gil}; new actual choice/goal and historical route preserved; source unchanged.");
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
     }
 
     internal static void RunOriginal()

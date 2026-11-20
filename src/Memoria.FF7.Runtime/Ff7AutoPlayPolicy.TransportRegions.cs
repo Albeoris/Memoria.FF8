@@ -76,12 +76,53 @@ public sealed partial class Ff7AutoPlayPolicy
         }
         FieldNavigationEntryPoint[] entries = observation.Events.Where(item => item.Entity >= 0 && item.Script >= 0).Select(item => new FieldNavigationEntryPoint(item.Entity, item.Script)).Distinct().ToArray();
         FieldTransportRegionProof proof = source.Machine.ProveTransportRegion(target.Entity, target.Script, source.Progress.Gil, entries);
-        if (!proof.Complete || proof.Region is null || proof.Transition is null)
+        if (!proof.Complete || proof.Region is null || proof.Transition is null || proof.ChoiceSite?.Entity != target.Entity)
         {
             return null;
         }
         string region = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new { proof.Region, Role = role })));
-        return new(region, proof.Cost, source.Progress.Gil, proof.Transition.Map);
+        return new(region, proof.Cost, source.Progress.Gil, proof.Transition.Map, proof.ChoiceSite.ProgramCounter);
+    }
+
+    internal static bool CanReobserveTransportChoice(Ff7Session source, Ff7AutoPlayState state, Ff7AutoPlayActiveEvent active, Ff7Dialogue dialogue)
+    {
+        if (source.World is not null || source.Battle is not null)
+        {
+            return false;
+        }
+        Ff7AutoPlayObservation observation = new Ff7AutoPlayDiscovery(source).Observe();
+        Ff7AutoPlayTarget? target = observation.Events.SingleOrDefault(item => item.Id == active.EventId && item.Entity == active.Entity && item.Script == active.Script && item.ConditionFingerprint == active.ConditionFingerprint);
+        if (target is null)
+        {
+            return false;
+        }
+        Ff7Actor? actor = source.Host.Process.Actors.SingleOrDefault(actor => actor.EntityBound && actor.Entity == target.Entity);
+        Ff7AutoPlayTransportEntry? fresh = ReadTransportEntry(source, observation, target, ReadTransportRole(actor, target));
+        return HasAuthenticatedTransportChoice(state, active, observation, source.Machine.Capture(), dialogue, source.Progress.Gil, fresh);
+    }
+
+    internal static bool HasAuthenticatedTransportChoice(Ff7AutoPlayState state, Ff7AutoPlayActiveEvent active, Ff7AutoPlayObservation observation, FieldVmSnapshot vm, Ff7Dialogue dialogue, uint gil, Ff7AutoPlayTransportEntry? fresh)
+    {
+        if (state.Active != active || state.Choice is not null || state.PendingRestore is not null || state.NativeRoute is not null || !active.Accepted || active.Returned || active.TransitionOwned || active.CompletionRecorded || active.Generation != observation.Generation || vm.ProgramIdentity != observation.ProgramIdentity || active.VisitId != observation.VisitId || active.NavigationKey != observation.NavigationKey || active.TravelRoute is not { } route || active.TravelSelections is { Count: > 0 } || active.TransportEntry is not { } admitted || fresh is not { ChoiceProgramCounter: int pc } || fresh.Region != admitted.Region || fresh.Cost != admitted.Cost || fresh.BeforeGil != gil || admitted.BeforeGil != gil || fresh.DestinationField != active.DestinationField || fresh.DestinationField != admitted.DestinationField || dialogue.Completed || !dialogue.ChoiceReady || dialogue.FirstChoice is null || dialogue.LastChoice is null || (uint)active.Entity >= vm.Entities.Length)
+        {
+            return false;
+        }
+        if (!observation.Events.Any(target => target.Id == active.EventId && target.Entity == active.Entity && target.Script == active.Script && target.Kind == active.Kind && target.AnalysisComplete && target.ConditionFingerprint == active.ConditionFingerprint))
+        {
+            return false;
+        }
+        FieldEntitySnapshot owner = vm.Entities[active.Entity];
+        FieldHostRequest? request = (vm.PendingRequests ?? []).SingleOrDefault(item => item.Id == dialogue.RequestId);
+        if (owner.Priority != 1 || owner.ProgramCounter != pc || request is not { Priority: 1, Command: FieldDialogueCommand { FirstChoice: not null } command } || request.Entity != active.Entity || request.ProgramCounter != pc || command.Window != dialogue.Window || command.Text != dialogue.Text || command.FirstChoice != dialogue.FirstChoice || command.LastChoice != dialogue.LastChoice)
+        {
+            return false;
+        }
+        if (!state.TransportRegions.TryGetValue(TransportKey(active.VisitId, active.EventId), out Ff7AutoPlayTransportRegion? learned) || learned is null || learned.Region != fresh.Region || learned.CompletedRegion != fresh.Region)
+        {
+            return false;
+        }
+        AutoPlayEventCoverage<Ff7AutoPlayDeferral>? coverage = state.Coverage.Visits.SingleOrDefault(item => item.Visit.Key == active.VisitId)?.Events.SingleOrDefault(item => item.Event.Id == active.EventId);
+        return coverage is { Completed: true } && coverage.Event.ConditionSignature == active.ConditionFingerprint && coverage.Conditions?.ActiveEntry == active.ConditionFingerprint && route.ConditionSignature is string historical && coverage.Conditions.HasExecutedEntry(historical) && IsReusableTransportRoute(state, active.VisitId, coverage.Event, route) && coverage.Routes.Any(recorded => recorded.ConditionSignature == route.ConditionSignature && recorded.DestinationVisitKey == route.DestinationVisitKey && recorded.TargetId == route.TargetId && recorded.ObservedStoryChanged == route.ObservedStoryChanged && (recorded.Selections is null ? route.Selections is null : route.Selections is not null && recorded.Selections.SequenceEqual(route.Selections)));
     }
 
     private void LearnTransportCompletion(Ff7AutoPlayActiveEvent active, Ff7AutoPlayObservation observation, bool changedField)
