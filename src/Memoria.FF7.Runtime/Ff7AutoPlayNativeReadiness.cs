@@ -3,7 +3,7 @@ using Memoria.FF7.Events;
 
 namespace Memoria.FF7.Runtime;
 
-/// <summary>Bounds neutral continuation of existing synchronous native work when no physical frontier is currently available.</summary>
+/// <summary>Bounds neutral continuation of already admitted native work when no physical frontier is currently available.</summary>
 internal sealed class Ff7AutoPlayNativeReadiness
 {
     internal const int RepeatedObservationLimit = 64;
@@ -35,7 +35,7 @@ internal sealed class Ff7AutoPlayNativeReadiness
         {
             FieldEntitySnapshot target = vm.Entities[targetId];
             int currentPc = target.ProgramCounter;
-            if (HasFiniteHostWork(vm, process, targetId))
+            if (HasFiniteHostWork(vm, process, targetId) || HasAdmittedContinuation(target, script))
             {
                 work.Add(targetId);
             }
@@ -100,6 +100,29 @@ internal sealed class Ff7AutoPlayNativeReadiness
             repeatedObservations++;
         }
         return repeatedObservations < RepeatedObservationLimit && totalObservations < ObservationLimit;
+    }
+
+    private static bool HasAdmittedContinuation(FieldEntitySnapshot owner, ReadOnlySpan<byte> script)
+    {
+        if (owner.Priority is < 0 or >= 7 || (uint)owner.ProgramCounter >= script.Length || script[owner.ProgramCounter] == 0 || owner.SavedProgramCounters.Length != 8)
+        {
+            return false;
+        }
+        bool suspended = false;
+        for (int priority = owner.Priority + 1; priority < owner.SavedProgramCounters.Length; priority++)
+        {
+            int pc = owner.SavedProgramCounters[priority];
+            if (pc == 0)
+            {
+                continue;
+            }
+            if ((uint)pc >= script.Length)
+            {
+                return false;
+            }
+            suspended = true;
+        }
+        return suspended;
     }
 
     private static bool HasFiniteHostWork(FieldVmSnapshot vm, Ff7FieldProcess process, int entity)

@@ -10,6 +10,7 @@ internal static class NativeAutoPlayReadinessTests
     {
         CheckFiniteRequest();
         CheckStandaloneFiniteAnimation();
+        CheckAdmittedStartup();
         CheckStagnation();
         CheckTimedMessageClose();
         CheckOriginal();
@@ -61,6 +62,42 @@ internal static class NativeAutoPlayReadinessTests
         FieldScriptInputDemand input = new("input", vm.ProgramIdentity, 0, 6, 0, FieldScriptInputKind.Pressed, 0x20, false, true);
         Check(!Wait(vm, process, [input]), "A real native button wait was mistaken for autonomous standalone animation work.");
         Check(before == JsonSerializer.Serialize(new { vm, process }), "Standalone readiness inspection mutated native facts.");
+    }
+
+    private static void CheckAdmittedStartup()
+    {
+        int[] saved = new int[8];
+        saved[7] = 127;
+        FieldEntitySnapshot owner = new(0, 6, 0, saved, new FieldSyncState[8], Enumerable.Repeat(-1, 8).ToArray());
+        FieldVmSnapshot vm = Snapshot() with { Entities = [owner], PendingRequests = [] };
+        byte[] script = Enumerable.Repeat((byte)0xA3, 128).ToArray();
+        script[127] = 0;
+        bool Wait(FieldEntitySnapshot entity, FieldScriptInputDemand[]? input = null) => new Ff7AutoPlayNativeReadiness().ShouldWait(1, "startup", vm with { Entities = [entity] }, new(), script, input ?? []);
+        Check(Wait(owner), "An admitted preempting native script could not execute its next instruction before producing host work.");
+        Check(!Wait(owner with { Priority = 7 }), "The ambient main priority inherited a preempting script's scheduling readiness.");
+        Check(!Wait(owner with { SavedProgramCounters = new int[8] }), "An owner without a suspended native continuation invented admission evidence.");
+        int[] wrongPriority = new int[8];
+        wrongPriority[5] = 127;
+        Check(!Wait(owner with { SavedProgramCounters = wrongPriority }), "An inactive higher-priority saved PC was mistaken for a lower-priority suspended caller.");
+        Check(!Wait(owner with { SavedProgramCounters = [] }), "Missing scheduler continuation storage invented admission evidence.");
+        int[] invalid = saved.ToArray();
+        invalid[7] = script.Length;
+        Check(!Wait(owner with { SavedProgramCounters = invalid }), "An out-of-program suspended PC invented scheduling readiness.");
+        Check(!Wait(owner with { ProgramCounter = 127 }), "An already returned native script masked an empty frontier.");
+        FieldScriptInputDemand input = new("startup-input", vm.ProgramIdentity, 0, 6, 0, FieldScriptInputKind.Pressed, 0x20, false, true);
+        Check(!Wait(owner, [input]), "A preempting owner waiting for a real button was treated as autonomous startup.");
+        Ff7AutoPlayNativeReadiness stationary = new();
+        bool waiting = true;
+        for (int tick = 0; tick <= Ff7AutoPlayNativeReadiness.RepeatedObservationLimit; tick++)
+        {
+            waiting = stationary.ShouldWait(1, "startup", vm with { Tick = tick }, new(), script, []);
+        }
+        Check(!waiting, "An unchanged admitted startup bypassed existing stagnation limits.");
+        Ff7AutoPlayNativeReadiness progressing = new();
+        for (int pc = 0; pc <= Ff7AutoPlayNativeReadiness.RepeatedObservationLimit; pc++)
+        {
+            Check(progressing.ShouldWait(1, "startup", vm with { Entities = [owner with { ProgramCounter = pc }] }, new(), script, []), "Real admitted native instruction progress was mistaken for a stationary startup.");
+        }
     }
 
     private static void CheckStagnation()
@@ -204,7 +241,9 @@ internal static class NativeAutoPlayReadinessTests
         byte[] source = File.ReadAllBytes(path);
         using MemoryStream input = new(source, writable: false);
         using Ff7Session session = Ff7Session.Restore(Ff7Installation.Discover(root), CombinedSessionCodec.Read(input).Ff7!);
-        FieldHostRequest initial = (session.Machine.Capture().PendingRequests ?? []).Single(request => request.Command is FieldAnimation { Blocking: true });
+        FieldHostRequest? initial = (session.Machine.Capture().PendingRequests ?? []).SingleOrDefault(request => request.Command is FieldAnimation { Blocking: true });
+        FieldEntitySnapshot? startup = initial is null ? session.Machine.Capture().Entities.FirstOrDefault(entity => entity.Priority < 7 && entity.SavedProgramCounters.Skip(entity.Priority + 1).Any(pc => pc != 0)) : null;
+        Check(initial is not null || startup is not null, "The selected native fixture has no admitted standalone work.");
         long tick = session.Machine.Tick;
         string before = JsonSerializer.Serialize(session.Capture());
         Ff7AutoPlayObservation observation = new Ff7AutoPlayDiscovery(session).Observe();
@@ -213,13 +252,15 @@ internal static class NativeAutoPlayReadinessTests
         using Ff7AutoPlayPolicy policy = new(session, (_, _) => throw new InvalidOperationException("Finite native animation continuation requested an optional checkpoint."));
         Ff7AutoPlayController controller = new(session, policy.ChooseInput, chooseDialogueSelection: policy.ChooseDialogueSelection, readPlanningProgress: () => policy.WorkProgress);
         controller.Start();
-        while ((session.Machine.Capture().PendingRequests ?? []).Any(request => request.Id == initial.Id) && controller.Running && controller.Steps < Ff7AutoPlayNativeReadiness.ObservationLimit)
+        bool observedBlockingWork = initial is not null;
+        while ((initial is not null ? (session.Machine.Capture().PendingRequests ?? []).Any(request => request.Id == initial.Id) : !observedBlockingWork) && controller.Running && controller.Steps < Ff7AutoPlayNativeReadiness.ObservationLimit)
         {
             controller.Advance(1);
+            observedBlockingWork |= (session.Machine.Capture().PendingRequests ?? []).Any(request => request.Command is FieldAnimation { Blocking: true });
         }
-        Check(controller.Error is null && session.Machine.Tick > tick && !(session.Machine.Capture().PendingRequests ?? []).Any(request => request.Id == initial.Id), $"The real standalone native animation did not finish through the ordinary controller: {controller.Error}; steps={controller.Steps}.");
+        Check(controller.Error is null && session.Machine.Tick > tick && (initial is not null ? !(session.Machine.Capture().PendingRequests ?? []).Any(request => request.Id == initial.Id) : observedBlockingWork), $"The real standalone native animation did not finish through the ordinary controller: {controller.Error}; steps={controller.Steps}.");
         Check(source.AsSpan().SequenceEqual(File.ReadAllBytes(path)), "Standalone native continuation changed its authoritative source file.");
-        Console.WriteLine($"PASS original standalone blocking animation completed through normal controller; tick {tick}->{session.Machine.Tick}; callbacks={controller.Steps}; source unchanged");
+        Console.WriteLine($"PASS original standalone native owner advanced through normal controller; tick {tick}->{session.Machine.Tick}; callbacks={controller.Steps}; source unchanged");
     }
 
     private static void Check(bool condition, string message)
