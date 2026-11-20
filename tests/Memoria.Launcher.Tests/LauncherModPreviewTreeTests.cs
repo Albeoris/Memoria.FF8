@@ -10,6 +10,67 @@ namespace Memoria.Launcher.Tests;
 [Collection("Incident dialog UI")]
 public sealed class LauncherModPreviewTreeTests(LauncherHeadlessFixture fixture)
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task NestsCameraTracksUnderTheirMovies(bool includeUnmatchedTrack)
+    {
+        CancellationToken token = TestContext.Current.CancellationToken;
+        string root = Path.Combine(Path.GetTempPath(), "catalog-preview-tree-" + Guid.NewGuid().ToString("N"));
+        string payload = Path.Combine(root, "payload");
+        string movies = Path.Combine(payload, "movies");
+        Directory.CreateDirectory(movies);
+        try
+        {
+            File.WriteAllText(Path.Combine(payload, "mod.xml"), "<ModInfo><Name>Movie sample</Name><FFNxConfig><ffmpeg_video_ext>qt</ffmpeg_video_ext></FFNxConfig></ModInfo>");
+            File.WriteAllBytes(Path.Combine(movies, "disc00_00h.qt"), []);
+            File.WriteAllBytes(Path.Combine(movies, "DISC00_00.CAM"), []);
+            File.WriteAllBytes(Path.Combine(movies, "disc00_01h.qt"), []);
+            File.WriteAllBytes(Path.Combine(payload, "disc00_01.cam"), []);
+            File.WriteAllBytes(Path.Combine(movies, "disc00_02h.qt"), []);
+            if (includeUnmatchedTrack)
+            {
+                File.WriteAllBytes(Path.Combine(movies, "disc00_03.cam"), []);
+            }
+            using ModRuntime mods = new(root, watch: false);
+            ModPackageInstaller installer = new(Path.Combine(root, "state"), Path.Combine(root, "Mods"), "Classic/en/test");
+            using ModLibraryService library = new(Path.Combine(root, "cache"), installer, mods, "Classic/en/test", false);
+            await library.StopAsync();
+            ModPackage package = new("Junction/movies", "Movie sample", ModFormat.Junction, null, false, ModEffectiveStatus.Disabled, payload);
+            ModPreviewDocument document = await library.OpenPreviewAsync(null, package, token);
+
+            ModPreviewTreeNode video = Assert.Single(document.Tree.Branches);
+            Assert.Equal(includeUnmatchedTrack ? "Video (6)" : "Video (5)", video.Label);
+            ModPreviewTreeNode movieGroup = Assert.Single(video.Children, branch => branch.Label == "Movies (3)");
+            Assert.Collection(movieGroup.Children,
+                movie => AssertTrack(movie, "DISC00_00.CAM"),
+                movie => AssertTrack(movie, "disc00_01.cam"),
+                movie => Assert.Empty(movie.Children));
+            if (includeUnmatchedTrack)
+            {
+                ModPreviewTreeNode cameraGroup = Assert.Single(video.Children, branch => branch.Label == "Camera tracks (1)");
+                Assert.Equal("disc00_03.cam", Assert.Single(cameraGroup.Children).Label);
+            }
+            else
+            {
+                Assert.Same(movieGroup, Assert.Single(video.Children));
+                Assert.Same(movieGroup.Children[0], document.Tree.InitialPath[^1]);
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+
+        static void AssertTrack(ModPreviewTreeNode movie, string name)
+        {
+            Assert.True(movie.Entry?.IsMedia);
+            ModPreviewTreeNode track = Assert.Single(movie.Children);
+            Assert.Equal(name, track.Label, ignoreCase: true);
+            Assert.False(track.Entry?.IsMedia);
+        }
+    }
+
     [Fact]
     public async Task RevealsTheFirstAtlasMemberAndKeepsUserCollapse()
     {

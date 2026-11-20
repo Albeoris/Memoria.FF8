@@ -28,15 +28,46 @@ public sealed class ModPreviewTree
     internal static ModPreviewTree Create(IReadOnlyList<ModPreviewEntry> entries, IEnumerable<string> physicalPaths)
     {
         HashSet<string> files = new(physicalPaths, StringComparer.OrdinalIgnoreCase);
+        var movies = entries.Where(entry => entry is { Category: "Video", Group: "Movies" })
+            .ToLookup(entry => Path.ChangeExtension(entry.Id, null), StringComparer.OrdinalIgnoreCase);
+        var cameraTracks = entries.Where(entry => entry is { Category: "Video", Group: "Camera tracks" })
+            .Select(track => (Track: track, Movie: FindMovie(track)))
+            .Where(pair => pair.Movie is not null).ToArray();
+        var tracksByMovie = cameraTracks.ToLookup(pair => pair.Movie!, pair => pair.Track);
+        HashSet<ModPreviewEntry> nestedTracks = cameraTracks.Select(pair => pair.Track).ToHashSet();
         ModPreviewTreeNode[] branches = entries.GroupBy(entry => entry.Category, StringComparer.OrdinalIgnoreCase)
-            .Select(category => Folder(category.Key, category, category.GroupBy(entry => entry.Group, StringComparer.OrdinalIgnoreCase)
+            .Select(category => Folder(category.Key, category, category.Where(entry => !nestedTracks.Contains(entry)).GroupBy(entry => entry.Group, StringComparer.OrdinalIgnoreCase)
                 .Select(group => Folder(group.Key, group, BuildGroup(group))))).ToArray();
         List<ModPreviewTreeNode> initialPath = [];
-        if ((entries.FirstOrDefault(IsFile) ?? entries.FirstOrDefault()) is { } first)
+        if ((entries.FirstOrDefault(entry => IsFile(entry) && !nestedTracks.Contains(entry)) ?? entries.FirstOrDefault()) is { } first)
         {
             FindPath(branches, first, initialPath);
         }
         return new(Array.AsReadOnly(branches), initialPath.AsReadOnly());
+
+        ModPreviewEntry? FindMovie(ModPreviewEntry track)
+        {
+            string stem = Path.ChangeExtension(track.Id, null);
+            ModPreviewEntry? movie = movies[stem + "h"].FirstOrDefault() ?? movies[stem].FirstOrDefault();
+            if (movie is not null)
+            {
+                return movie;
+            }
+            // Junction also accepts movie and camera files at the package root.
+            if (!stem.Contains('/'))
+            {
+                stem = "movies/" + stem;
+            }
+            else if (string.Equals(Path.GetDirectoryName(stem), "movies", StringComparison.OrdinalIgnoreCase))
+            {
+                stem = Path.GetFileName(stem);
+            }
+            else
+            {
+                return null;
+            }
+            return movies[stem + "h"].FirstOrDefault() ?? movies[stem].FirstOrDefault();
+        }
 
         bool IsFile(ModPreviewEntry entry) => files.Contains(entry.SourcePath ?? entry.Id);
 
@@ -57,7 +88,9 @@ public sealed class ModPreviewTree
                 }
                 foreach (ModPreviewEntry entry in folder)
                 {
-                    yield return Leaf(entry);
+                    yield return tracksByMovie.Contains(entry)
+                        ? new(entry.Name, Array.AsReadOnly(tracksByMovie[entry].Select(Leaf).ToArray()), entry)
+                        : Leaf(entry);
                 }
             }
         }

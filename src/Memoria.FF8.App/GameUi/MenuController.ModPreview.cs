@@ -409,7 +409,7 @@ public sealed partial class MenuController
                 TextFlow = UiTextFlow.SingleLine,
                 SelectedIndex = menus.modPreviewTreeSelection is { } selected ? rows.FindIndex(row => row.Node == selected) : 0,
                 Confirmed = ToggleGroup,
-                TreeRow = index => (rows[index].Depth, rows[index].Node.Entry is null ? menus.modPreviewOpenFolders.Contains(rows[index].Node) : null),
+                TreeRow = index => (rows[index].Depth, rows[index].Node.Children.Count > 0 ? menus.modPreviewOpenFolders.Contains(rows[index].Node) : null),
                 SelectionChanged = index =>
                 {
                     menus.modPreviewTreeOffset = tree!.ScrollOffset;
@@ -504,7 +504,7 @@ public sealed partial class MenuController
         private void ToggleGroup(int index)
         {
             ModPreviewTreeNode row = rows[index].Node;
-            if (row.Entry is not null)
+            if (row.Children.Count == 0)
             {
                 return;
             }
