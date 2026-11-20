@@ -374,9 +374,8 @@ internal sealed partial class LauncherWindow
             mods.PreparePending(true);
             mods.CommitPending();
             string? officialDownloads = ModLibraryProfile.OfficialDownloadsDirectory(locations.LegacyDefault, paths);
-            launcherModLibrary = new ModLibraryService(Path.Combine(paths.Cache, "mod-library", targetIdentity), installer, launcherMods, profile, junction, openDownloadPage: OpenLauncherModDownloadPage, officialCacheDirectory: OfficialModCatalog.DefaultCacheDirectory, officialSupported: true, applyPendingChanges: cancellationToken => ApplyLauncherModChangesAsync(installers, mods, cancellationToken), previousInstallers: previousInstallers, officialDownloadsDirectory: officialDownloads);
+            launcherModLibrary = new ModLibraryService(Path.Combine(paths.Cache, "mod-library", targetIdentity), installer, launcherMods, profile, junction, openDownloadPage: OpenLauncherModDownloadPage, officialCacheDirectory: OfficialModCatalog.DefaultCacheDirectory, officialSupported: true, applyPendingChanges: cancellationToken => ApplyLauncherModChangesAsync(installers, mods, cancellationToken), previousInstallers: previousInstallers, officialDownloadsDirectory: officialDownloads, refreshCatalogOnStartup: true);
             launcherModIdentity = libraryIdentity;
-            launcherModLibrary.RefreshCatalog();
             launcherModTimer.Start();
             PollLauncherMods();
         }
@@ -605,7 +604,8 @@ internal sealed partial class LauncherWindow
             ModLibraryInstallation? managed = LauncherManagedMod(row.Entry, snapshot);
             string state = LauncherModStatusText(row.Installed, row.Entry, row.Job, managed, snapshot);
             status.Text = string.IsNullOrWhiteSpace(row.Category) ? state : row.Category + " · " + state;
-            status.Foreground = row.Job?.Error is null && row.Installed?.NeedsAttention != true && managed?.Error is null && row.Entry?.CompatibilityError is null ? LauncherMuted : LauncherProblem;
+            bool hasProblem = row.Job?.Error is not null || row.Installed?.NeedsAttention == true || managed?.Error is not null || row.Entry?.CompatibilityError is not null;
+            status.Foreground = hasProblem ? LauncherProblem : row.Job?.VersionWarning is not null ? LauncherWarning : LauncherMuted;
         }
         string? previousSelection = launcherModSelectedKey;
         launcherModSelectedKey = SelectLauncherModKey(keys, launcherModSelectedKey);
@@ -659,7 +659,7 @@ internal sealed partial class LauncherWindow
             1 => row.Entry is not null && row.Job is null && row.Installed is null && managed is null && LauncherModDownloadAllowed(row.Entry, snapshot),
             2 => row.Installed is not null || managed is not null,
             3 => row.Job is not null,
-            4 => row.Job?.Error is not null || row.Installed?.NeedsAttention == true || managed?.Error is not null || row.Entry?.CompatibilityError is not null,
+            4 => row.Job is { Error: not null } or { VersionWarning: not null } || row.Installed?.NeedsAttention == true || managed?.Error is not null || row.Entry?.CompatibilityError is not null,
             5 => row.IsMemoria,
             _ => true
         };
@@ -730,7 +730,8 @@ internal sealed partial class LauncherWindow
 
     private static string LauncherModJobStatus(ModLibraryJob job)
     {
-        return job.Phase + (job.TotalBytes is > 0 ? $" | {job.ReceivedBytes * 100 / job.TotalBytes}%" : job.ReceivedBytes > 0 ? $" | {job.ReceivedBytes / (1024 * 1024)} MB" : "");
+        string progress = job.TotalBytes is > 0 ? $" | {job.ReceivedBytes * 100 / job.TotalBytes}%" : job.ReceivedBytes > 0 ? $" | {job.ReceivedBytes / (1024 * 1024)} MB" : "";
+        return job.Phase + progress + (job.VersionWarning is not null ? " · Version mismatch" : "");
     }
 
     private static string LauncherModStatusText(ModPackageView? installed, RemoteModEntry? entry, ModLibraryJob? job, ModLibraryInstallation? managed, ModLibrarySnapshot snapshot)
@@ -914,6 +915,13 @@ internal sealed partial class LauncherWindow
             details.Add(entry.Author);
         }
         details.Add(state);
+        if (job?.VersionWarning is { } versionWarning)
+        {
+            TextBlock warning = LauncherDescription(versionWarning);
+            warning.Foreground = LauncherWarning;
+            body.Children.Add(warning);
+            details.Add(versionWarning);
+        }
         string? blocker = entry is null || installed is not null ? null : LauncherModDownloadBlocker(entry, snapshot);
         WrapPanel actions = new() { Orientation = Orientation.Horizontal };
         if (installed is not null)
@@ -977,7 +985,8 @@ internal sealed partial class LauncherWindow
             }
             if (job.CanInstall)
             {
-                AddAction("Install", () => launcherModLibrary?.Install(job.Id));
+                bool allowVersionMismatch = job.VersionWarning is not null;
+                AddAction(allowVersionMismatch ? "Install anyway" : "Install", () => launcherModLibrary?.Install(job.Id, allowVersionMismatch));
             }
             if (job.CanRetry)
             {
@@ -992,7 +1001,7 @@ internal sealed partial class LauncherWindow
                 AddAction("Cancel", () => launcherModLibrary?.Cancel(job.Id));
             }
         }
-        if (CreateLauncherModPreview(installed, entry) is { } preview)
+        if (CreateLauncherModPreview(installed, job) is { } preview)
         {
             actions.Children.Add(preview);
         }

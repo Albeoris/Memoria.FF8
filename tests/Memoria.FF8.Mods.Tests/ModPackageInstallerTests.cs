@@ -167,10 +167,40 @@ public sealed partial class ModPackageInstallerTests : IDisposable
     }
 
     [Fact]
-    public async Task RejectsWrongPinnedIdentityAndVersion()
+    public async Task RejectsWrongPinnedIdentityAndRequiresApprovalForVersionMismatch()
     {
-        await Assert.ThrowsAsync<InvalidDataException>(() => Installer().InspectAsync(Zip(("mod.xml", Manifest())), Entry() with { Id = Guid.NewGuid() }, cancellationToken: TestContext.Current.CancellationToken));
-        await Assert.ThrowsAsync<InvalidDataException>(() => Installer().InspectAsync(Zip(("mod.xml", Manifest("2"))), Entry(), cancellationToken: TestContext.Current.CancellationToken));
+        CancellationToken token = TestContext.Current.CancellationToken;
+        ModPackageInstaller installer = Installer();
+        RemoteModEntry entry = Entry();
+        Guid other = Guid.NewGuid();
+        InvalidDataException mismatch = await Assert.ThrowsAsync<InvalidDataException>(() => installer.InspectAsync(Zip(("mod.xml", Manifest())), entry with { Id = other }, token));
+        Assert.Equal($"Package GUID {entry.Id} does not match catalog GUID {other}.", mismatch.Message);
+        ModPackageInstallPlan first = await installer.InspectAsync(Zip(("mod.xml", Manifest())), entry, token);
+        Assert.Null(first.VersionWarning);
+        await installer.RequestInstallAsync(first, cancellationToken: token);
+        installer.RecoverAndApply();
+        installer.CompleteStartupApplications([first.PackageId]);
+
+        ModPackageInstallPlan plan = await installer.InspectAsync(Zip(("mod.xml", Manifest("2"))), entry, token);
+        Assert.Equal($"The catalog lists version {entry.Version}, but the downloaded package contains version 2.", plan.VersionWarning);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => installer.RequestInstallAsync(plan, cancellationToken: token));
+        await installer.RequestInstallAsync(plan, cancellationToken: token, allowVersionMismatch: true);
+        Assert.Equal("2", Assert.Single(installer.RecoverAndApply()).Version);
+        Assert.Equal("2", installer.GetStatus(entry)!.Version);
+    }
+
+    [Fact]
+    public async Task AcceptingVersionMismatchCannotBypassCompatibilityRules()
+    {
+        CancellationToken token = TestContext.Current.CancellationToken;
+        ModPackageInstaller installer = Installer();
+        RemoteModEntry entry = Entry();
+        string compatibility = $"<Compatibility><Forbid ModID=\"{Guid.NewGuid()}\">Other mod</Forbid></Compatibility>";
+        ModPackageInstallPlan plan = await installer.InspectAsync(Zip(("mod.xml", Manifest("2", compatibility))), entry, token);
+        Assert.NotNull(plan.VersionWarning);
+        Assert.Contains("compatibility rules", plan.InstallationBlocker);
+        await Assert.ThrowsAsync<NotSupportedException>(() => installer.RequestInstallAsync(plan, cancellationToken: token, allowVersionMismatch: true));
+        Assert.Null(installer.GetStatus(entry));
     }
 
     [Fact]

@@ -147,7 +147,11 @@ public sealed partial class MenuController
             }
             if (Job is { } job)
             {
-                return job.CanInstall ? "Install" : job.CanRetry ? "Retry" : job.CanResume ? "Resume" : downloads ? "Full details" : "View download";
+                if (job.CanInstall)
+                {
+                    return job.VersionWarning is null ? "Install" : "Install anyway";
+                }
+                return job.CanRetry ? "Retry" : job.CanResume ? "Resume" : downloads ? "Full details" : "View download";
             }
             if (Entry is { } missing && menus.ManagedRepairNeeded(missing) || Entry is { } legacy && menus.ManagedMod(legacy) is { Version.Length: 0 } && menus.CanDownload(legacy))
             {
@@ -175,7 +179,7 @@ public sealed partial class MenuController
             {
                 if (job.CanInstall)
                 {
-                    menus.modLibrary!.Install(job.Id);
+                    menus.modLibrary!.Install(job.Id, job.VersionWarning is not null);
                 }
                 else if (job.CanRetry)
                 {
@@ -491,6 +495,7 @@ public sealed partial class MenuController
             if (Job is { } job)
             {
                 lines.Add(DownloadProgress(job));
+                lines.Add(job.VersionWarning ?? "");
                 lines.Add(job.Details ?? "");
                 lines.Add(job.Error ?? "");
             }

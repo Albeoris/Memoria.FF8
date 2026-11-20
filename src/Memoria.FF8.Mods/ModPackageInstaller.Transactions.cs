@@ -23,7 +23,7 @@ public sealed partial class ModPackageInstaller
         public string? PreviousPayloadHash => RepairSourceHash ?? Previous?.PayloadHash;
     }
 
-    public Task<ModPackageInstallResult> RequestInstallAsync(ModPackageInstallPlan plan, bool autoEnableNewMods = true, CancellationToken cancellationToken = default, bool enableOnAcceptance = false, bool repair = false, string? relocateTo = null)
+    public Task<ModPackageInstallResult> RequestInstallAsync(ModPackageInstallPlan plan, bool autoEnableNewMods = true, CancellationToken cancellationToken = default, bool enableOnAcceptance = false, bool repair = false, string? relocateTo = null, bool allowVersionMismatch = false)
     {
         return Task.Run(async () =>
         {
@@ -35,6 +35,15 @@ public sealed partial class ModPackageInstaller
                 {
                     throw new InvalidOperationException("The install plan expired or belongs to another target; inspect again.");
                 }
+                if (plan.InstallationBlocker is { } blocker)
+                {
+                    throw new NotSupportedException(blocker);
+                }
+                if (plan.VersionWarning is not null && !allowVersionMismatch)
+                {
+                    throw new InvalidOperationException(plan.VersionWarning);
+                }
+                RemoteModEntry accepted = plan.Entry with { Version = plan.Version };
                 if (Fingerprint(item.Payload, false, cancellationToken) != item.Hash)
                 {
                     throw new InvalidDataException("The prepared payload changed; inspect again.");
@@ -59,7 +68,7 @@ public sealed partial class ModPackageInstaller
                 string? repairSourceHash = repair && previous is not null && plan.Entry.Official is not null && Directory.Exists(destination) ? Fingerprint(destination, false, cancellationToken) : null;
                 CheckOwnership(plan.Entry, destination, previous, allowMissing: true, repairSourceHash);
                 bool previousPayloadExists = Exists(destination);
-                if (previousPayloadExists && previous?.PayloadHash == item.Hash && plan.Entry.CompareVersion(previous.Version) == 0)
+                if (previousPayloadExists && previous?.PayloadHash == item.Hash && accepted.CompareVersion(previous.Version) == 0)
                 {
                     prepared.Remove(plan.Token);
                     Directory.Delete(item.Root, true);
@@ -69,13 +78,13 @@ public sealed partial class ModPackageInstaller
                 string settings = File.Exists(settingsPath) ? File.ReadAllText(settingsPath) : plan.Entry.Official is null ? "[Mod]\nenabled=" + (autoEnableNewMods ? "1" : "0") + "\n" : "";
                 if (previous is not null && plan.Entry.Official is null)
                 {
-                    ValidatePackage(item.Payload, plan.Entry, ModConfiguration.ReadJunctionOptions(settingsPath));
+                    ValidatePackage(item.Payload, accepted, ModConfiguration.ReadJunctionOptions(settingsPath));
                 }
                 if (CompatibilityError(plan.Entry) is { } unavailable)
                 {
                     throw new NotSupportedException(unavailable);
                 }
-                string? relocationRoot = relocateTo is not null && previous is { Version.Length: > 0 } && plan.Entry.CompareVersion(previous.Version) is > 0
+                string? relocationRoot = relocateTo is not null && previous is { Version.Length: > 0 } && accepted.CompareVersion(previous.Version) is > 0
                     ? ValidateRelocationRoot(relocateTo)
                     : null;
                 Receipt next = new(1, previous?.InstallationId ?? Guid.NewGuid(), plan.Entry.SourceId, plan.Entry.Id, plan.Version, plan.Entry.Official is null ? targetProfile : "", name, item.Hash, Directory.Exists(item.Payload))

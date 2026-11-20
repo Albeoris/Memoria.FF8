@@ -18,6 +18,7 @@ internal sealed partial class LauncherWindow
     private static readonly SolidColorBrush LauncherMuted = new(Color.Parse("#A8B9CB"));
     private static readonly SolidColorBrush LauncherAccent = new(Color.Parse("#214D78"));
     private static readonly SolidColorBrush LauncherSuccess = new(Color.Parse("#74D5A5"));
+    private static readonly SolidColorBrush LauncherWarning = new(Color.Parse("#F3A654"));
     private static readonly SolidColorBrush LauncherProblem = new(Color.Parse("#EF8EA8"));
     private readonly Grid launcherHeader = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto"), RowDefinitions = new RowDefinitions("Auto,Auto"), Margin = new Thickness(24, 14), ColumnSpacing = 12 };
     private readonly ComboBox selectedGame = new() { MinHeight = 36, Width = 270 };

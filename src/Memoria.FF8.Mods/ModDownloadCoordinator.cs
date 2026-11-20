@@ -115,17 +115,39 @@ public sealed class ModDownloadCoordinator : IDisposable
     public void Resume(Guid id) => Retry(id);
     public void Retry(Guid id)
     {
+        if (!TryRetry(id) && tasks.TryGetValue(id, out Task? task))
+        {
+            _ = task.ContinueWith(_ => TryRetry(id), TaskScheduler.Default);
+        }
+    }
+
+    internal bool TryRetry(Guid id, RemoteModEntry? refreshedEntry = null, bool recheckCompleted = false)
+    {
         EnsureInitialized();
-        if (jobs.TryGetValue(id, out DownloadJobSnapshot? job) && job.Phase is ModDownloadPhase.Paused or ModDownloadPhase.Failed or ModDownloadPhase.NeedsUserAction)
+        if (jobs.TryGetValue(id, out DownloadJobSnapshot? job) && (job.Phase is ModDownloadPhase.Paused or ModDownloadPhase.Failed or ModDownloadPhase.NeedsUserAction || recheckCompleted && job.Phase == ModDownloadPhase.ReadyToInstall))
         {
             if (tasks.TryGetValue(id, out Task? task) && !task.IsCompleted)
             {
-                _ = task.ContinueWith(_ => Retry(id), TaskScheduler.Default);
-                return;
+                return false;
             }
-            jobs[id] = job with { Phase = ModDownloadPhase.Queued, ErrorCode = null, Message = null };
+            RemoteModEntry entry = refreshedEntry ?? job.Entry;
+            bool sameDownload = job.Entry.Links.SequenceEqual(entry.Links) && job.Entry.Official?.Latest?.Artifact == entry.Official?.Latest?.Artifact;
+            jobs[id] = job with
+            {
+                Entry = entry,
+                Phase = ModDownloadPhase.Queued,
+                CompletedBytes = sameDownload ? job.CompletedBytes : 0,
+                TotalBytes = sameDownload ? job.TotalBytes : null,
+                ArchivePath = sameDownload ? job.ArchivePath : null,
+                Sha256 = sameDownload ? job.Sha256 : null,
+                HttpStatus = null,
+                ErrorCode = null,
+                Message = null,
+                Details = null
+            };
             Start(id);
         }
+        return true;
     }
 
     public string? GetCompletedPath(Guid id) => jobs.TryGetValue(id, out DownloadJobSnapshot? job) && job.Phase == ModDownloadPhase.ReadyToInstall ? job.ArchivePath : null;

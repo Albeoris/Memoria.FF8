@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using System.Reflection;
 using Avalonia;
 using Avalonia.Controls;
@@ -38,6 +39,80 @@ public sealed class LauncherModPresentationTests(LauncherHeadlessFixture fixture
                     var method = typeof(LauncherWindow).GetMethod("CreateLauncherModPreview", BindingFlags.Instance | BindingFlags.NonPublic)!;
                     Button button = Assert.IsType<Button>(method.Invoke(window, [installed, null]));
                     Assert.Equal("Preview changes", button.Content);
+                }
+                finally
+                {
+                    window.Close();
+                }
+            }
+            finally
+            {
+                Directory.Delete(root, true);
+            }
+            return true;
+        }, TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task CheckedVersionMismatchKeepsItsPreviewAndExplicitInstallAfterCatalogRefresh()
+    {
+        await fixture.Session.Dispatch(async () =>
+        {
+            string root = Path.Combine(Path.GetTempPath(), "launcher-version-warning-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(root);
+            try
+            {
+                RemoteModEntry pinned = new("external", Guid.NewGuid(), "Fixture", "1") { Links = ["https://example.invalid/mod.zip"] };
+                RemoteModEntry current = pinned with { Version = "3" };
+                string archive = Path.Combine(root, "mod.zip");
+                using (ZipArchive zip = ZipFile.Open(archive, ZipArchiveMode.Create))
+                {
+                    using (StreamWriter manifest = new(zip.CreateEntry("mod.xml").Open()))
+                    {
+                        manifest.Write($"<ModInfo><ID>{pinned.Id}</ID><Name>Fixture</Name><Version>2</Version></ModInfo>");
+                    }
+                    using StreamWriter payload = new(zip.CreateEntry("a.bin").Open());
+                    payload.Write("Preview fixture");
+                }
+                using ModRuntime mods = new(root, watch: false);
+                ModPackageInstaller installer = new(Path.Combine(root, "state"), Path.Combine(root, "Mods"), "Classic/en/test");
+                using ModLibraryService library = new(Path.Combine(root, "cache"), installer, mods, "Classic/en/test", true);
+                await library.StopAsync();
+                ModPackageInstallPlan plan = await installer.InspectAsync(archive, pinned, TestContext.Current.CancellationToken);
+                string warning = Assert.IsType<string>(plan.VersionWarning);
+                ModLibraryJob job = new(Guid.NewGuid(), pinned, "Ready", 0, null, 0, null, null, false, false, false, true, false) { VersionWarning = warning };
+                typeof(ModLibraryJob).GetProperty("PreviewPlan", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(job, plan);
+                ModLibrarySnapshot snapshot = new(1, new([current], null, false, false, null), [job], "Classic/en/test", true);
+                typeof(ModLibraryService).GetField("view", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(library, snapshot);
+                LauncherWindow window = new();
+                try
+                {
+                    ComboBox installations = Get<ComboBox>(window, "installations");
+                    installations.ItemsSource = new[] { new GameInstallation(root, "Preview fixture") };
+                    installations.SelectedIndex = 0;
+                    Set(window, "launcherMods", mods);
+                    Set(window, "launcherModLibrary", library);
+                    TabControl tabs = Get<TabControl>(window, "launcherModTabs");
+                    StackPanel details = Get<StackPanel>(window, "launcherModDetails");
+                    tabs.SelectedIndex = 2;
+                    Render(window);
+
+                    TextBlock notice = Assert.Single(details.GetLogicalDescendants().OfType<TextBlock>(), block => block.Text == warning);
+                    Color color = Assert.IsAssignableFrom<ISolidColorBrush>(notice.Foreground).Color;
+                    Assert.Contains(color, new[] { Color.Parse("#F3A654"), Color.Parse("#9A4600") });
+                    Assert.Contains(warning, Get<string>(window, "launcherModDetailText"));
+                    string[] actions = details.GetLogicalDescendants().OfType<Button>().Select(button => (string)button.Content!).ToArray();
+                    Assert.Contains("Install anyway", actions);
+                    Assert.DoesNotContain("Install", actions);
+                    Assert.Contains("Preview changes", actions);
+                    Get<ComboBox>(window, "launcherModFilter").SelectedIndex = 4;
+                    Assert.Single(Get<ListBox>(window, "launcherModRows").Items);
+
+                    Get<ComboBox>(window, "launcherModFilter").SelectedIndex = 0;
+                    tabs.SelectedIndex = 1;
+                    Render(window);
+                    Assert.Contains(details.GetLogicalDescendants().OfType<Button>(), button => Equals(button.Content, "Download & check"));
+                    Assert.DoesNotContain(details.GetLogicalDescendants().OfType<Button>(), button => Equals(button.Content, "Install anyway"));
                 }
                 finally
                 {

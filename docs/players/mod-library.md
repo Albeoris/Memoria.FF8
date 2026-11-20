@@ -27,7 +27,9 @@ Only one game instance can manage a given mod directory. A second instance can u
 
 An exact local Junction manifest GUID associates a manual mod with a catalog entry. It does not transfer ownership: the downloader cannot overwrite or update that manual installation automatically. Names alone do not establish identity. Managed versions are compared using Junction decimal release semantics; metadata revisions do not imply a content update.
 
-Supported downloads are a full standalone IROJ, or a ZIP/7z containing one IROJ or one unpacked Junction package. The inner IROJ and conditional folders remain intact. GUID and release version must match the selected catalog release. Existing reviewed executable-behavior rules still apply; unknown code is never executed.
+Supported downloads are a full standalone IROJ, or a ZIP/7z containing one IROJ or one unpacked Junction package. The inner IROJ and conditional folders remain intact. The package GUID must match the catalog GUID. If only the versions differ, the launcher shows both versions in a warning. **Preview changes** remains available and **Install anyway** installs the version declared in the package. Existing package validation and reviewed executable-behavior rules still apply.
+
+The launcher refreshes the catalog at startup and before **Retry**. Retry checks the download against the refreshed release. If the download source is unchanged, it can reuse the verified archive.
 
 Packages needing multiple component choices, coordinated dependency/option relationships, delta patching, unsupported extraction directives or a change between archive and directory installation shapes are blocked with an explanation. This release does not provide automatic adoption or uninstall of manual mods. Unsupported or ambiguous packages remain available for investigation without touching installed files.
 

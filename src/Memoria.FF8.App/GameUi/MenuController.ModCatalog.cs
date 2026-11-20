@@ -185,6 +185,7 @@ public sealed partial class MenuController
         if (job is not null)
         {
             details.Add(job.Phase + " · " + DownloadProgress(job));
+            details.Add(job.VersionWarning ?? "");
             details.Add(job.Details ?? "");
             details.Add(job.Error ?? "");
             if (job.CanOpenDownloadPage)

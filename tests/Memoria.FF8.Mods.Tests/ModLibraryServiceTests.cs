@@ -83,7 +83,7 @@ public sealed class ModLibraryServiceTests
         Assert.False(Directory.Exists(Path.Combine(root, "Mods", "Junction")));
         Assert.Empty(mods.Catalog.Packages);
         Assert.True(installer.GetStatus(job.Entry)!.RestartRequired);
-        Assert.Equal(2, requests);
+        Assert.Equal(3, requests);
         installer.RecoverAndApply();
         ModPackageInstallResult installed = installer.GetStatus(job.Entry)!;
         installer.CompleteStartupApplications([installed.PackageId]);
@@ -95,8 +95,80 @@ public sealed class ModLibraryServiceTests
         Assert.Null(library.View.Jobs.Single().Error);
         library.Install(job.Id);
         await Until(() => library.View.Jobs.Single().Phase == "Waiting to apply");
-        Assert.Equal(2, requests);
+        Assert.Equal(3, requests);
         // The service cancels without waiting on network or package workers. Temporary data is outside discovery.
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task StartupRefreshesCatalogAndRetryRechecksAgainstRefreshedRelease(bool hasCompatibilityRules)
+    {
+        string root = Path.Combine(Path.GetTempPath(), "mod-library-version-" + Guid.NewGuid().ToString("N"));
+        Guid id = Guid.NewGuid();
+        using MemoryStream bytes = new();
+        using (ZipArchive archive = new(bytes, ZipArchiveMode.Create, true))
+        {
+            using StreamWriter writer = new(archive.CreateEntry("mod.xml").Open());
+            string compatibility = hasCompatibilityRules ? $"<Compatibility><Forbid ModID=\"{Guid.NewGuid()}\">Other mod</Forbid></Compatibility>" : "";
+            writer.Write($"<ModInfo><ID>{id}</ID><Name>Example</Name><Version>2.11</Version>{compatibility}</ModInfo>");
+        }
+        byte[] package = bytes.ToArray();
+        int catalogRequests = 0;
+        int downloads = 0;
+        using HttpClient client = new(new Handler(request =>
+        {
+            if (request.RequestUri!.Host == "codeload.github.com")
+            {
+                string version = Interlocked.Increment(ref catalogRequests) == 1 ? "2.10" : "2.11";
+                byte[] catalog = Encoding.UTF8.GetBytes($"<Catalog><Mods><Mod><ID>{id}</ID><Name>Example</Name><LatestVersion><Version>{version}</Version><Link>iroj://Url/https$example.test/package</Link></LatestVersion></Mod></Mods></Catalog>");
+                return new(HttpStatusCode.OK) { Content = new ByteArrayContent(catalog) };
+            }
+            Interlocked.Increment(ref downloads);
+            return new(HttpStatusCode.OK) { Content = new ByteArrayContent(package) };
+        }));
+        try
+        {
+            using ModRuntime mods = new(root, watch: false);
+            ModPackageInstaller installer = new(Path.Combine(root, "state"), Path.Combine(root, "Mods"), "test");
+            using ModLibraryService library = new(Path.Combine(root, "cache"), installer, mods, "test", true, client, refreshCatalogOnStartup: true);
+            await Until(() => library.View.Catalog.Entries.Count == 1);
+            RemoteModEntry entry = Assert.Single(library.View.Catalog.Entries);
+            library.DownloadAndEnable(entry);
+            await Until(() => library.View.Jobs.Any(job => job.CanPreview && job.VersionWarning is not null));
+            ModLibraryJob warning = Assert.Single(library.View.Jobs);
+            Assert.True(warning.CanRetry);
+            Assert.True(warning.CanPreview);
+            Assert.Equal(!hasCompatibilityRules, warning.CanInstall);
+            if (hasCompatibilityRules)
+            {
+                Assert.Contains("compatibility rules", warning.Error);
+            }
+            else
+            {
+                Assert.Null(warning.Error);
+            }
+            Assert.Null(installer.GetStatus(entry));
+            ModPreviewDocument preview = await library.OpenPreviewAsync(entry, null, TestContext.Current.CancellationToken);
+            Assert.Equal("Example", preview.Name);
+
+            library.Retry(warning.Id);
+            await Until(() => library.View.Jobs.Any(job => job.Entry.Version == "2.11" && job.Phase == (hasCompatibilityRules ? "Needs attention" : "Waiting to apply")));
+            ModLibraryJob updated = Assert.Single(library.View.Jobs);
+            Assert.Equal(warning.Id, updated.Id);
+            Assert.Equal("2.11", updated.Entry.Version);
+            Assert.Null(updated.VersionWarning);
+            Assert.Equal(2, catalogRequests);
+            Assert.Equal(1, downloads);
+            await library.StopAsync();
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, true);
+            }
+        }
     }
 
     [Fact]

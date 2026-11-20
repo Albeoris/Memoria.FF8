@@ -19,15 +19,14 @@ namespace Memoria.Launcher;
 
 internal sealed partial class LauncherWindow
 {
-    private Control? CreateLauncherModPreview(ModPackageView? installed, RemoteModEntry? entry)
+    private Control? CreateLauncherModPreview(ModPackageView? installed, ModLibraryJob? job)
     {
         if (launcherModLibrary is not { } library || installations.SelectedItem is not GameInstallation game)
         {
             return null;
         }
-        bool canPreview = ModPreviewDocument.CanOpenInstalled(installed?.Package) ||
-            entry is not null && library.View.Jobs.Any(job => job.CanPreview && job.Entry.Id == entry.Id && job.Entry.SourceId == entry.SourceId && job.Entry.Version == entry.Version);
-        if (!canPreview)
+        RemoteModEntry? entry = job is { CanPreview: true } ? job.Entry : null;
+        if (entry is null && !ModPreviewDocument.CanOpenInstalled(installed?.Package))
         {
             return null;
         }

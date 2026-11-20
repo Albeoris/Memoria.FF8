@@ -13,6 +13,7 @@ public interface IModLibraryService
     void Resume(Guid id);
     void Cancel(Guid id);
     void Install(Guid id);
+    void Install(Guid id, bool allowVersionMismatch) => Install(id);
     void Retry(Guid id);
     void DeleteDownload(Guid id) => Cancel(id);
     void Uninstall(RemoteModEntry entry) => throw new NotSupportedException("This library does not support uninstalling managed mods.");
@@ -40,6 +41,7 @@ public sealed record ModLibraryInstallation(string SourceId, Guid Id, string Ver
 
 public sealed record ModLibraryJob(Guid Id, RemoteModEntry Entry, string Phase, long ReceivedBytes, long? TotalBytes, double BytesPerSecond, string? Error, string? Details, bool CanPause, bool CanResume, bool CanCancel, bool CanInstall, bool CanRetry)
 {
+    public string? VersionWarning { get; init; }
     public bool CanOpenDownloadPage { get; init; }
     public bool CanDeleteDownload { get; init; }
     public bool CanPreview => PreviewPlan is not null;

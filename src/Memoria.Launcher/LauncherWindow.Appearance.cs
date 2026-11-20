@@ -57,6 +57,7 @@ internal sealed partial class LauncherWindow
         LauncherMuted.Color = Color.Parse(dark ? "#A8B9CB" : "#4D647B");
         LauncherAccent.Color = Color.Parse(dark ? "#214D78" : "#245B8F");
         LauncherSuccess.Color = Color.Parse(dark ? "#74D5A5" : "#17633F");
+        LauncherWarning.Color = Color.Parse(dark ? "#F3A654" : "#9A4600");
         LauncherProblem.Color = Color.Parse(dark ? "#EF8EA8" : "#A12548");
         foreach (var hero in gameHeroes)
         {
