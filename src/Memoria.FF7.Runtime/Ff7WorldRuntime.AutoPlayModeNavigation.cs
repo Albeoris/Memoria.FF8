@@ -4,15 +4,28 @@ internal sealed record Ff7AutoPlayWorldModeGuide(Ff7AutoPlayWorldGuide Transport
 
 public sealed partial class Ff7WorldRuntime
 {
-    internal Ff7AutoPlayWorldModeGuide ReadAutoPlaySurfaceVehicleGuide(Ff7AutoPlayWorldScriptObservation target, Func<Ff7AutoPlayWorldGuideFace, Ff7AutoPlayWorldGuideFace?, Ff7WorldTerrainReference?> readLanding, int maximumNodes = 16384, int maximumChunks = 128, IReadOnlySet<(Ff7WorldTerrainReference From, Ff7WorldTerrainReference To)>? unproductiveEdges = null)
+    internal Ff7WorldModeTopologyCursor CreateAutoPlaySurfaceVehicleGuide(Ff7AutoPlayWorldScriptObservation target, Func<Ff7AutoPlayWorldGuideFace, Ff7AutoPlayWorldGuideFace?, Ff7WorldTerrainReference?> readLanding, IReadOnlySet<(Ff7WorldTerrainReference From, Ff7WorldTerrainReference To)>? unproductiveEdges = null)
     {
-        return ReadAutoPlaySurfaceVehicleGuide(target.Faces.Select(face => face.Source).ToHashSet(), readLanding, maximumNodes, maximumChunks, unproductiveEdges);
+        return new(EnumerateAutoPlaySurfaceVehicleGuide(target.Faces.Select(face => face.Source).ToHashSet(), readLanding, unproductiveEdges).GetEnumerator());
     }
 
-    internal Ff7AutoPlayWorldModeGuide ReadAutoPlaySurfaceVehicleGuide(IReadOnlySet<Ff7WorldTerrainReference> goals, Func<Ff7AutoPlayWorldGuideFace, Ff7AutoPlayWorldGuideFace?, Ff7WorldTerrainReference?> readLanding, int maximumNodes = 16384, int maximumChunks = 128, IReadOnlySet<(Ff7WorldTerrainReference From, Ff7WorldTerrainReference To)>? unproductiveEdges = null)
+    internal Ff7AutoPlayWorldModeGuide ReadAutoPlaySurfaceVehicleGuide(Ff7AutoPlayWorldScriptObservation target, Func<Ff7AutoPlayWorldGuideFace, Ff7AutoPlayWorldGuideFace?, Ff7WorldTerrainReference?> readLanding, int maximumNodes = 16384, IReadOnlySet<(Ff7WorldTerrainReference From, Ff7WorldTerrainReference To)>? unproductiveEdges = null)
+    {
+        return ReadAutoPlaySurfaceVehicleGuide(target.Faces.Select(face => face.Source).ToHashSet(), readLanding, maximumNodes, unproductiveEdges);
+    }
+
+    internal Ff7AutoPlayWorldModeGuide ReadAutoPlaySurfaceVehicleGuide(IReadOnlySet<Ff7WorldTerrainReference> goals, Func<Ff7AutoPlayWorldGuideFace, Ff7AutoPlayWorldGuideFace?, Ff7WorldTerrainReference?> readLanding, int maximumNodes = 16384, IReadOnlySet<(Ff7WorldTerrainReference From, Ff7WorldTerrainReference To)>? unproductiveEdges = null)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(maximumNodes, 1);
+        using Ff7WorldModeTopologyCursor cursor = new(EnumerateAutoPlaySurfaceVehicleGuide(goals, readLanding, unproductiveEdges).GetEnumerator());
+        cursor.Resume(new(maximumNodes, TimeSpan.MaxValue));
+        Ff7AutoPlayWorldGuide pending = new([], (int)cursor.Operations, true, "The native vehicle/rider topology traversal has remaining work.");
+        return cursor.Result ?? new(pending, ReadSurfaceVehicleRider(), null, null, pending, [], (int)cursor.Operations, true, pending.Reason);
+    }
+
+    private IEnumerable<Ff7AutoPlayWorldModeGuide?> EnumerateAutoPlaySurfaceVehicleGuide(IReadOnlySet<Ff7WorldTerrainReference> goals, Func<Ff7AutoPlayWorldGuideFace, Ff7AutoPlayWorldGuideFace?, Ff7WorldTerrainReference?> readLanding, IReadOnlySet<(Ff7WorldTerrainReference From, Ff7WorldTerrainReference To)>? unproductiveEdges)
     {
         ArgumentNullException.ThrowIfNull(readLanding);
-        ArgumentOutOfRangeException.ThrowIfLessThan(maximumNodes, 1);
         int rider = ReadSurfaceVehicleRider();
         Ff7AutoPlayWorldModeGuide Unavailable(int expanded, bool limited, string reason)
         {
@@ -21,10 +34,27 @@ public sealed partial class Ff7WorldRuntime
         }
         if (Resources.World != 0 || ReadAutoPlaySurfaceVehicleRider() is null || rider == controlledModel || input.GroundTriangle is not { } start)
         {
-            return Unavailable(0, false, "No native surface-vehicle rider route is available.");
+            yield return Unavailable(0, false, "No native surface-vehicle rider route is available.");
+            yield break;
         }
-        AutoPlayTerrainGraph graph = CreateAutoPlayTerrainGraph(goals, true, maximumChunks);
+        AutoPlayTerrainGraph graph = CreateAutoPlayTerrainGraph(goals, true, 36 * 28);
+        foreach (Ff7AutoPlayWorldModeGuide? result in EnumerateSurfaceVehicleTopology(graph, goals, start, controlledModel, rider, RequireEntity(controlledModel).Terrain, terrain => CanLeaveSurfaceVehicle(controlledModel, terrain & 31) && (controlledModel != SubmarineModel || (terrain & 31) == 18), readLanding, unproductiveEdges))
+        {
+            yield return result;
+        }
+    }
+
+    internal static IEnumerable<Ff7AutoPlayWorldModeGuide?> EnumerateSurfaceVehicleTopology(AutoPlayTerrainGraph graph, IReadOnlySet<Ff7WorldTerrainReference> goals, Ff7WorldTerrainReference start, int transportModel, int rider, int startTerrain, Func<int, bool> canLeave, Func<Ff7AutoPlayWorldGuideFace, Ff7AutoPlayWorldGuideFace?, Ff7WorldTerrainReference?> readLanding, IReadOnlySet<(Ff7WorldTerrainReference From, Ff7WorldTerrainReference To)>? unproductiveEdges = null)
+    {
         graph.Read(start);
+        int bookkeeping = 0;
+        long batchStarted = System.Diagnostics.Stopwatch.GetTimestamp();
+        bool BatchFinished() => ++bookkeeping >= 64 || System.Diagnostics.Stopwatch.GetElapsedTime(batchStarted) >= TimeSpan.FromMilliseconds(8);
+        void RestartBatch()
+        {
+            bookkeeping = 0;
+            batchStarted = System.Diagnostics.Stopwatch.GetTimestamp();
+        }
         Dictionary<Ff7WorldTerrainReference, Ff7WorldTerrainReference> riderNext = [];
         HashSet<Ff7WorldTerrainReference> riderReachable = [];
         Queue<Ff7WorldTerrainReference> reverse = new();
@@ -32,15 +62,20 @@ public sealed partial class Ff7WorldRuntime
         {
             if (!graph.Ensure(goal))
             {
-                return Unavailable(0, true, "The native terrain-advice chunk budget was exhausted while observing rider goals.");
+                throw new InvalidDataException("A native world goal could not be materialized within the complete world extent.");
             }
             if (graph.Eligible(goal, graph.ReadTerrain(goal), rider) && riderReachable.Add(goal))
             {
                 reverse.Enqueue(goal);
             }
+            if (BatchFinished())
+            {
+                yield return null;
+                RestartBatch();
+            }
         }
         int expanded = 0;
-        while (expanded < maximumNodes && reverse.TryDequeue(out Ff7WorldTerrainReference? reverseCurrent))
+        while (reverse.TryDequeue(out Ff7WorldTerrainReference? reverseCurrent))
         {
             expanded++;
             foreach (Ff7WorldTerrainReference previous in graph.Adjacent(reverseCurrent, rider, graph.ReadTerrain(reverseCurrent), true))
@@ -51,9 +86,18 @@ public sealed partial class Ff7WorldRuntime
                     reverse.Enqueue(previous);
                 }
             }
+            if (BatchFinished())
+            {
+                yield return null;
+                RestartBatch();
+            }
         }
-        // A partial reverse search can still supply positive routes, but never a negative component proof.
-        bool riderLimited = reverse.Count > 0 || graph.IsLimited();
+
+        if (bookkeeping > 0)
+        {
+            yield return null;
+        }
+
         graph.Read(start);
         Dictionary<Ff7WorldTerrainReference, double> costs = new() { [start] = 0 };
         Dictionary<Ff7WorldTerrainReference, Ff7WorldTerrainReference> parents = [];
@@ -61,17 +105,18 @@ public sealed partial class Ff7WorldRuntime
         PriorityQueue<Ff7WorldTerrainReference, double> open = new();
         open.Enqueue(start, 0);
         int transportExpanded = 0;
-        while (transportExpanded < maximumNodes && open.TryDequeue(out Ff7WorldTerrainReference? current, out _))
+        while (open.TryDequeue(out Ff7WorldTerrainReference? current, out _))
         {
             if (!closed.Add(current))
             {
                 continue;
             }
+            yield return null;
             transportExpanded++;
             Ff7AutoPlayWorldGuideFace source = graph.Read(current);
             Ff7AutoPlayWorldGuideFace? predecessor = parents.TryGetValue(current, out Ff7WorldTerrainReference? previous) ? graph.Read(previous) : null;
-            int sourceTerrain = current == start ? RequireEntity(controlledModel).Terrain : source.Terrain;
-            if (CanLeaveSurfaceVehicle(controlledModel, sourceTerrain & 31) && (controlledModel != SubmarineModel || (sourceTerrain & 31) == 18))
+            int sourceTerrain = current == start ? startTerrain : source.Terrain;
+            if (canLeave(sourceTerrain))
             {
                 Ff7WorldTerrainReference? landing = readLanding(source, predecessor);
                 if (landing is not null && riderReachable.Contains(landing) && graph.Eligible(landing, graph.ReadTerrain(landing), rider))
@@ -91,10 +136,11 @@ public sealed partial class Ff7WorldRuntime
                         riderRoute.Add(graph.Read(next));
                         cursor = next;
                     }
-                    return new(new(transportRoute.ToArray(), transportExpanded, false, null), rider, current, landing, new(riderRoute.ToArray(), expanded, false, null), riderReachable.ToArray(), expanded + transportExpanded, false, null);
+                    yield return new(new(transportRoute.ToArray(), transportExpanded, false, null), rider, current, landing, new(riderRoute.ToArray(), expanded, false, null), riderReachable.ToArray(), expanded + transportExpanded, false, null);
+                    yield break;
                 }
             }
-            foreach (Ff7WorldTerrainReference next in graph.Adjacent(current, controlledModel, sourceTerrain, false).Where(next => unproductiveEdges?.Contains((current, next)) != true))
+            foreach (Ff7WorldTerrainReference next in graph.Adjacent(current, transportModel, sourceTerrain, false).Where(next => unproductiveEdges?.Contains((current, next)) != true))
             {
                 System.Numerics.Vector3 a = source.Center;
                 System.Numerics.Vector3 b = graph.Read(next).Center;
@@ -112,7 +158,39 @@ public sealed partial class Ff7WorldRuntime
                 open.Enqueue(next, cost);
             }
         }
-        bool limited = riderLimited || open.Count > 0 || graph.IsLimited();
-        return Unavailable(expanded + transportExpanded, limited, limited ? "The bounded vehicle-to-rider terrain advice is incomplete." : "No legal native landing source connects the vehicle component to the rider goal component.");
+        string reason = "No legal native landing source connects the vehicle component to the rider goal component.";
+        Ff7AutoPlayWorldGuide empty = new([], expanded + transportExpanded, false, reason);
+        yield return new(empty, rider, null, null, empty, [], expanded + transportExpanded, false, reason);
+    }
+}
+
+internal sealed class Ff7WorldModeTopologyCursor(IEnumerator<Ff7AutoPlayWorldModeGuide?> search) : IDisposable
+{
+    internal bool Completed { get; private set; }
+    internal long Operations { get; private set; }
+    internal Ff7AutoPlayWorldModeGuide? Result { get; private set; }
+
+    internal void Resume(Ff7NativePlanningQuantum quantum)
+    {
+        while (!Completed && quantum.TryBeginOperation())
+        {
+            Operations++;
+            if (!search.MoveNext())
+            {
+                Completed = true;
+                Dispose();
+            }
+            else if (search.Current is { } result)
+            {
+                Result = result;
+                Completed = true;
+                Dispose();
+            }
+        }
+    }
+
+    public void Dispose()
+    {
+        search.Dispose();
     }
 }

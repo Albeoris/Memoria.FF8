@@ -102,6 +102,12 @@ public sealed partial class Ff7AutoPlayPolicy
         {
             return control.WorldModeGoal is not null && control.WorldControl is null ? AdvanceWorldModeApproach(driver, world, observation, control) : AdvanceWorldControl(world, observation, control);
         }
+        if (worldModeTopologyPending)
+        {
+            driver.DeferPlanning();
+            State.Status = "Planning native vehicle/rider topology";
+            return default;
+        }
         ReplanConsumedWorldProbeForControl();
         if (State.Active is { Kind: Ff7AutoPlayTargetKind.WorldMesh or Ff7AutoPlayTargetKind.WorldModel, Accepted: true } active && State.WorldDispatch is { } dispatch)
         {

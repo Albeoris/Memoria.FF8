@@ -72,7 +72,7 @@ public sealed partial class Ff7WorldRuntime
         return graph.IsLimited() && result.Faces.Length == 0 ? result with { Limited = true, Reason = "The native terrain-advice chunk budget was exhausted.", DeferredComponent = null } : result;
     }
 
-    private sealed record AutoPlayTerrainGraph(Func<Ff7WorldTerrainReference, Ff7AutoPlayWorldGuideFace> Read, Func<Ff7WorldTerrainReference, int> ReadTerrain, Func<Ff7WorldTerrainReference, int, int, bool, IEnumerable<Ff7WorldTerrainReference>> Adjacent, Func<bool> IsLimited, Func<Ff7WorldTerrainReference, int, int, bool> Eligible, Func<Ff7WorldTerrainReference, bool> Ensure);
+    internal sealed record AutoPlayTerrainGraph(Func<Ff7WorldTerrainReference, Ff7AutoPlayWorldGuideFace> Read, Func<Ff7WorldTerrainReference, int> ReadTerrain, Func<Ff7WorldTerrainReference, int, int, bool, IEnumerable<Ff7WorldTerrainReference>> Adjacent, Func<bool> IsLimited, Func<Ff7WorldTerrainReference, int, int, bool> Eligible, Func<Ff7WorldTerrainReference, bool> Ensure);
 
     private AutoPlayTerrainGraph CreateAutoPlayTerrainGraph(IReadOnlySet<Ff7WorldTerrainReference> goals, bool admitGoalTerrainScripts, int maximumChunks)
     {

@@ -3,6 +3,17 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--world-mode-topology-only", StringComparer.Ordinal))
+{
+    WorldModeTopologyContinuationTests.Run();
+    return 0;
+}
+if (args.Contains("--world-mode-topology-original-only", StringComparer.Ordinal))
+{
+    WorldModeTopologyContinuationTests.RunOriginal();
+    return 0;
+}
+
 if (args.Contains("--world-physical-continuation-only", StringComparer.Ordinal))
 {
     WorldPhysicalSearchContinuationTests.Run();

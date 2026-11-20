@@ -124,32 +124,86 @@ public sealed partial class Ff7AutoPlayPolicy
         return result;
     }
 
-    private sealed class WorldModeCandidate(Ff7AutoPlayWorldScriptObservation target, Ff7AutoPlayWorldModeGoal goal)
+    internal static bool RequiresWorldRiderPrerequisite(Memoria.FF7.Events.WorldScriptAnalysis current, Memoria.FF7.Events.WorldScriptAnalysis rider)
+    {
+        return current.Complete && current.IsInert && rider.Complete && rider.IsPureFieldTransfer && rider.MayEnterField;
+    }
+
+    internal sealed class WorldModeCandidate(Ff7AutoPlayWorldScriptObservation target, Ff7AutoPlayWorldModeGoal goal)
     {
         public Ff7AutoPlayWorldScriptObservation Target { get; } = target;
         public Ff7AutoPlayWorldModeGoal Goal { get; } = goal;
         public Ff7AutoPlayWorldModeGuide? Guide { get; set; }
+        public Ff7WorldModeTopologyCursor? Search { get; set; }
+        public string? SearchContext { get; set; }
     }
 
     private readonly Dictionary<string, WorldModeCandidate> worldModeCatalog = new(StringComparer.Ordinal);
     private readonly Queue<WorldModeCandidate> worldModeQueue = new();
     private Ff7WorldRuntime? worldModeOwner;
     private int worldModeModel = -1;
+    private void CancelWorldModePlanning()
+    {
+        DisposeWorldModeCandidates(worldModePrerequisites.Values, worldModeCatalog.Values);
+        worldModePrerequisites.Clear();
+        worldModeCatalog.Clear();
+        worldModeQueue.Clear();
+        worldModeCandidatesObserved = false;
+        worldModeTopologyPending = false;
+    }
+
+    internal static void DisposeWorldModeCandidates(IEnumerable<WorldModeCandidate> prerequisites, IEnumerable<WorldModeCandidate> catalog)
+    {
+        foreach (WorldModeCandidate candidate in prerequisites.Concat(catalog).Distinct())
+        {
+            candidate.Search?.Dispose();
+        }
+    }
+
     private bool worldModeCandidatesObserved;
+    private bool worldModeTopologyPending;
+    private readonly Dictionary<string, WorldModeCandidate> worldModePrerequisites = new(StringComparer.Ordinal);
 
     private void ObserveWorldModeGoals(Ff7WorldRuntime world, string visitKey, Dictionary<string, AutoPlayEvent> events)
     {
+        worldModeTopologyPending = false;
         foreach (string id in events.Keys.Where(id => id.StartsWith("mode:", StringComparison.Ordinal)).ToArray())
         {
             events.Remove(id);
         }
         if (!ReferenceEquals(worldModeOwner, world) || worldModeModel != world.ControlledModel)
         {
+            foreach (WorldModeCandidate previous in worldModePrerequisites.Values)
+            {
+                previous.Search?.Dispose();
+            }
+            worldModePrerequisites.Clear();
             worldModeCatalog.Clear();
             worldModeQueue.Clear();
             worldModeCandidatesObserved = false;
             worldModeOwner = world;
             worldModeModel = world.ControlledModel;
+        }
+        foreach (var retained in worldModePrerequisites.ToArray())
+        {
+            WorldModeCandidate item = retained.Value;
+            Ff7AutoPlayWorldScriptObservation? current = world.ReadAutoPlayFrontierCatalog(item.Goal.Chunk.X, item.Goal.Chunk.Z).Scripts.SingleOrDefault(target => target.Id == item.Target.Id);
+            bool valid = current is { Complete: true } && WorldCondition(current) == WorldCondition(item.Target) && RequiresWorldRiderPrerequisite(world.ReadAutoPlayMeshEntryForModel(current, world.ControlledModel), world.ReadAutoPlayMeshEntryForModel(current, item.Goal.RiderModel));
+            if (!valid)
+            {
+                item.Search?.Dispose();
+                worldModePrerequisites.Remove(retained.Key);
+                worldModeCatalog.Remove("mode:surface-rider:" + retained.Key);
+                worldModeCandidatesObserved = false;
+                if (State.Active is { WorldControl: null, WorldModeGoal: { } plannedMode } && plannedMode.TargetEventId == retained.Key)
+                {
+                    State.Active = null;
+                }
+            }
+        }
+        if (!worldModeCandidatesObserved)
+        {
+            worldModeQueue.Clear();
         }
         if (State.Active is { WorldModeGoal: { } ownedGoal } active)
         {
@@ -163,6 +217,11 @@ public sealed partial class Ff7AutoPlayPolicy
         }
         if (!world.Process.Initialized || !world.Process.MovementEnabled || world.Process.MainState != 1 || world.ReadAutoPlaySurfaceVehicleRider() is not int rider)
         {
+            foreach (WorldModeCandidate previous in worldModePrerequisites.Values)
+            {
+                previous.Search?.Dispose();
+            }
+            worldModePrerequisites.Clear();
             worldModeCatalog.Clear();
             worldModeQueue.Clear();
             worldModeCandidatesObserved = false;
@@ -185,7 +244,7 @@ public sealed partial class Ff7AutoPlayPolicy
                 }
                 var currentEntry = world.ReadAutoPlayMeshEntryForModel(target, world.ControlledModel);
                 var riderEntry = world.ReadAutoPlayMeshEntryForModel(target, rider);
-                if (!currentEntry.Complete || !currentEntry.IsInert || !riderEntry.Complete || !riderEntry.MayEnterField)
+                if (!RequiresWorldRiderPrerequisite(currentEntry, riderEntry))
                 {
                     continue;
                 }
@@ -206,22 +265,46 @@ public sealed partial class Ff7AutoPlayPolicy
                 });
                 candidates.Add((new(target, new(target.Id, chunk, script, rider)), visited, distance));
             }
-            foreach (var item in candidates.OrderBy(item => item.Candidate.Target.Id == State.NavigationGoal?.EventId ? 0 : 1).ThenBy(item => item.Visited).ThenBy(item => item.Distance).ThenBy(item => item.Candidate.Target.Id, StringComparer.Ordinal))
+            foreach (var item in candidates.OrderBy(item => item.Candidate.Target.Id == State.Active?.EventId ? 0 : item.Candidate.Target.Id == State.NavigationGoal?.EventId ? 1 : 2).ThenBy(item => item.Visited).ThenBy(item => item.Distance).ThenBy(item => item.Candidate.Target.Id, StringComparer.Ordinal))
             {
+                worldModePrerequisites[item.Candidate.Target.Id] = item.Candidate;
                 worldModeQueue.Enqueue(item.Candidate);
             }
             worldModeCandidatesObserved = true;
         }
-        if (worldModeCatalog.Count == 0 && worldModeQueue.TryDequeue(out WorldModeCandidate? candidate))
+        foreach (string targetId in worldModePrerequisites.Keys)
+        {
+            events.Remove(targetId);
+        }
+        WorldModeCandidate? selected = State.Active is { Kind: Ff7AutoPlayTargetKind.WorldMesh, Accepted: false } raw && worldModePrerequisites.TryGetValue(raw.EventId, out WorldModeCandidate? prerequisite) ? prerequisite : null;
+        worldModeQueue.TryPeek(out WorldModeCandidate? queued);
+        WorldModeCandidate? candidate = SelectWorldModePrerequisite(State.Active, worldModePrerequisites, worldModeCatalog.Count, queued);
+        if (candidate is not null)
         {
             candidate.Guide = ReadWorldModeGuide(world, candidate);
-            if (candidate.Guide.Limited && candidate.Guide.TransportGuide.Faces.Length == 0)
+            if (candidate.Guide is null)
             {
-                throw new NotSupportedException(candidate.Guide.Reason ?? "The native vehicle/rider route requires a larger bounded geometry contract.");
+                worldModeTopologyPending = true;
             }
-            if (candidate.Guide.TransportGuide.Faces.Length > 0)
+            else
             {
-                worldModeCatalog.Add("mode:surface-rider:" + candidate.Target.Id, candidate);
+                if (worldModeQueue.TryPeek(out WorldModeCandidate? head) && ReferenceEquals(head, candidate))
+                {
+                    worldModeQueue.Dequeue();
+                }
+                if (candidate.Guide.TransportGuide.Faces.Length > 0)
+                {
+                    string modeId = "mode:surface-rider:" + candidate.Target.Id;
+                    worldModeCatalog[modeId] = candidate;
+                    if (selected is not null && State.Active is { Accepted: false } planned)
+                    {
+                        State.Active = planned with { EventId = modeId, Kind = Ff7AutoPlayTargetKind.WorldControl, ConditionFingerprint = WorldCondition(candidate.Target) + ":rider:" + candidate.Goal.RiderModel, WorldModeGoal = candidate.Goal };
+                    }
+                }
+                else if (selected is not null)
+                {
+                    State.Active = null;
+                }
             }
         }
         foreach (var entry in worldModeCatalog)
@@ -230,9 +313,46 @@ public sealed partial class Ff7AutoPlayPolicy
         }
     }
 
-    private static Ff7AutoPlayWorldModeGuide ReadWorldModeGuide(Ff7WorldRuntime world, WorldModeCandidate candidate)
+    internal static WorldModeCandidate? SelectWorldModePrerequisite(Ff7AutoPlayActiveEvent? active, IReadOnlyDictionary<string, WorldModeCandidate> prerequisites, int completedCount, WorldModeCandidate? queued)
     {
-        return world.ReadAutoPlaySurfaceVehicleGuide(candidate.Target, (source, predecessor) => world.PreviewAutoPlaySurfaceLandingAtFace(source, predecessor).Ground);
+        if (active is { Accepted: true })
+        {
+            return null;
+        }
+        if (active is { Kind: Ff7AutoPlayTargetKind.WorldMesh } && prerequisites.TryGetValue(active.EventId, out WorldModeCandidate? selected))
+        {
+            return selected;
+        }
+        return completedCount == 0 ? queued : null;
+    }
+
+    private Ff7AutoPlayWorldModeGuide? ReadWorldModeGuide(Ff7WorldRuntime world, WorldModeCandidate candidate)
+    {
+        string context = System.Text.Json.JsonSerializer.Serialize(new { World = world.Process, Vm = world.Machine.Capture(), State.NavigationGoal, State.DestinationField, Target = WorldCondition(candidate.Target) });
+        if (candidate.SearchContext != context)
+        {
+            candidate.Search?.Dispose();
+            candidate.Search = null;
+            candidate.Guide = null;
+            candidate.SearchContext = context;
+        }
+        if (candidate.Guide is not null)
+        {
+            return candidate.Guide;
+        }
+        candidate.Search ??= world.CreateAutoPlaySurfaceVehicleGuide(candidate.Target, (source, predecessor) =>
+        {
+            Ff7AutoPlayWorldLandingPreview preview = world.PreviewAutoPlaySurfaceLandingAtFace(source, predecessor);
+            if (!preview.Supported)
+            {
+                throw new NotSupportedException(preview.Reason ?? "The native landing preview is unsupported.");
+            }
+            return preview.Ground;
+        });
+        long before = candidate.Search.Operations;
+        candidate.Search.Resume(nativePlanningQuantum ?? new());
+        nativePlanningWork += candidate.Search.Operations - before;
+        return candidate.Search.Result;
     }
 
     private Ff7AutoplayInput AdvanceWorldModeApproach(Ff7AutoplayDriver driver, Ff7WorldRuntime world, Ff7AutoPlayObservation observation, Ff7AutoPlayActiveEvent active)
@@ -246,6 +366,12 @@ public sealed partial class Ff7AutoPlayPolicy
         {
             guide = ReadWorldModeGuide(world, candidate);
             candidate.Guide = guide;
+        }
+        if (guide is null)
+        {
+            driver.DeferPlanning();
+            State.Status = "Planning native vehicle/rider topology";
+            return default;
         }
         if (guide.TransportGuide.Faces.Length == 0)
         {
