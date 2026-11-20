@@ -45,7 +45,7 @@ public static partial class LocalizationProjectBuilder
             ReferenceKeys = manifest.ReferenceLanguages.ToDictionary(pair => pair.Key, pair => (IReadOnlyList<string>)(Normalize(pair.Value).Equals(Normalize(source.Language), StringComparison.OrdinalIgnoreCase) ? [source.Key] : []), StringComparer.Ordinal),
             ExtensionData = extensions
         };
-        LocalizationProjectIO.Validate(new LocalizationProject { Manifest = manifest with { Artwork = [] }, Entries = [row] });
+        LocalizationProjectIO.Validate(new LocalizationProject { Manifest = manifest with { Artwork = [], EditionBindingPaths = null }, Entries = [row] });
         return row;
     }
 

@@ -168,7 +168,7 @@ public static partial class LocalizationProjectIO
                 {
                     return false;
                 }
-                Validate(new LocalizationProject { Manifest = manifest with { Artwork = [] }, Entries = [new LocalizationRecord { Category = parts[0], File = parts[1], Key = parts[2], SourcePresent = false }] });
+                Validate(new LocalizationProject { Manifest = manifest with { Artwork = [], EditionBindingPaths = null }, Entries = [new LocalizationRecord { Category = parts[0], File = parts[1], Key = parts[2], SourcePresent = false }] });
                 return true;
             }
             if (data.Keys.Any(key => !used.Contains(key) && !RemovedPayloadIdentity(key)))
@@ -182,7 +182,13 @@ public static partial class LocalizationProjectIO
         {
             stamps.Remove(missing);
         }
-        LocalizationProject result = new() { Manifest = manifest, Entries = rows, Artwork = artwork, EncodingFiles = ReadEncodingFiles(root, ReadBytes) };
+        Dictionary<string, IReadOnlyList<LocalizationEditionBinding>> editionBindings = new(StringComparer.OrdinalIgnoreCase);
+        foreach ((string profile, string path) in manifest.EditionBindingPaths ?? new Dictionary<string, string>())
+        {
+            using JsonDocument bindings = ParseJson(ReadBytes(Resolve(root, path)));
+            editionBindings.Add(profile, bindings.RootElement.Deserialize<LocalizationEditionBinding[]>(JsonOptions) ?? throw new InvalidDataException($"{profile}: empty edition bindings."));
+        }
+        LocalizationProject result = new() { Manifest = manifest, Entries = rows, Artwork = artwork, EncodingFiles = ReadEncodingFiles(root, ReadBytes), EditionBindings = editionBindings };
         Validate(result, cache);
         foreach (var (path, stamp) in stamps)
         {
@@ -294,6 +300,13 @@ public static partial class LocalizationProjectIO
                 System.IO.File.WriteAllBytes(Resolve(staging, extensionsPath), JsonBytes(extensions));
             }
             WriteArtwork(project, staging, cancellation);
+            foreach ((string profile, string path) in manifest.EditionBindingPaths ?? new Dictionary<string, string>())
+            {
+                string bindingPath = Resolve(staging, path);
+                Directory.CreateDirectory(Path.GetDirectoryName(bindingPath)!);
+                using FileStream output = new(bindingPath, FileMode.CreateNew);
+                JsonSerializer.Serialize(output, project.EditionBindings[profile], JsonOptions);
+            }
             foreach (LocalizationDependencyFile dependency in project.EncodingFiles)
             {
                 cancellation.ThrowIfCancellationRequested();
@@ -329,6 +342,7 @@ public static partial class LocalizationProjectIO
     public static void Validate(LocalizationProject project, LocalizationProjectReadCache? cache = null)
     {
         ValidateManifest(project.Manifest);
+        LocalizationEditionProjection.ValidateBindings(project);
         ValidateArtworkFiles(project, cache);
         HashSet<string> keys = new(StringComparer.Ordinal);
         Dictionary<string, string> files = new(StringComparer.OrdinalIgnoreCase);
@@ -436,6 +450,10 @@ public static partial class LocalizationProjectIO
             yield break;
         }
         HashSet<string> declared = manifest.Payloads.Select(payload => payload.Path.Replace('\\', '/')).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (manifest.EditionBindingPaths is { } bindings)
+        {
+            declared.UnionWith(bindings.Values);
+        }
         string content = Resolve(root, "Localization");
         foreach (string path in Directory.EnumerateFiles(content, "*." + manifest.Format, SearchOption.AllDirectories).Order(StringComparer.Ordinal))
         {

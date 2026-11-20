@@ -9,7 +9,10 @@ public sealed record LocalizationProject
     public IReadOnlyList<LocalizationRecord> Entries { get; init; } = [];
     public IReadOnlyList<LocalizationArtworkFile> Artwork { get; init; } = [];
     public IReadOnlyList<LocalizationDependencyFile> EncodingFiles { get; init; } = [];
+    public IReadOnlyDictionary<string, IReadOnlyList<LocalizationEditionBinding>> EditionBindings { get; init; } = new Dictionary<string, IReadOnlyList<LocalizationEditionBinding>>();
 }
+
+public sealed record LocalizationEditionBinding(LocalizationRecord Native, string? CanonicalKey = null, string? PresentationPrefix = null);
 
 public sealed record LocalizationDependencyFile(string Path, byte[] Content);
 
@@ -33,6 +36,8 @@ public sealed record LocalizationManifest
     public IReadOnlyList<LocalizationPayload> Payloads { get; init; } = [];
     public IReadOnlyList<LocalizationArtworkDeclaration> Artwork { get; init; } = [];
     public string? ExtensionsPath { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyDictionary<string, string>? EditionBindingPaths { get; init; }
     [JsonExtensionData]
     public Dictionary<string, JsonElement> ExtensionData { get; init; } = new(StringComparer.Ordinal);
 }

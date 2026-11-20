@@ -22,7 +22,8 @@ public static partial class LocalizationProjectExport
             Manifest = source.Manifest with { ProjectId = Guid.NewGuid().ToString("D"), BaseProjectId = source.Manifest.ProjectId, Payloads = [], ExtensionsPath = null, ExtensionData = metadata },
             Entries = source.Entries.Select(row => Snapshot(row, source.Manifest.ReferenceLanguages.Keys) with { Target = "" }).ToArray(),
             Artwork = source.Artwork.Select(file => CopyArtwork(file, emptyTarget: true)).ToArray(),
-            EncodingFiles = source.EncodingFiles.Select(file => file with { Content = file.Content.ToArray() }).ToArray()
+            EncodingFiles = source.EncodingFiles.Select(file => file with { Content = file.Content.ToArray() }).ToArray(),
+            EditionBindings = source.EditionBindings.ToDictionary(pair => pair.Key, pair => (IReadOnlyList<LocalizationEditionBinding>)pair.Value.Select(binding => binding with { Native = binding.Native with { Target = "" } }).ToArray(), StringComparer.OrdinalIgnoreCase)
         };
         LocalizationProjectIO.Validate(patch);
         return patch;
@@ -42,6 +43,10 @@ public static partial class LocalizationProjectExport
         if (projects.Select(project => project.Manifest.ProjectId).Distinct(StringComparer.Ordinal).Count() != projects.Count)
         {
             throw new InvalidDataException("A localization contribution was selected more than once.");
+        }
+        if (projects.Count > 1 && projects.Any(project => project.EditionBindings.Count != 0))
+        {
+            throw new InvalidDataException("Resolve each native edition before flattening a stack with edition bindings.");
         }
         if (!replacementOfSameTargetProfile && projects.Any(project => string.Equals(project.Manifest.TargetLanguage, targetLanguage, StringComparison.OrdinalIgnoreCase)))
         {
@@ -88,7 +93,8 @@ public static partial class LocalizationProjectExport
             Manifest = first with { ProjectId = Guid.NewGuid().ToString("D"), BaseProjectId = null, TargetLanguage = targetLanguage, TargetColumn = "Target [" + targetLanguage + "]", Payloads = [], ExtensionsPath = null, ExtensionData = provenance, Artwork = artwork.Select(file => file.Declaration).ToArray() },
             Entries = rows.Values.OrderBy(row => row.Category, StringComparer.Ordinal).ThenBy(row => row.File, StringComparer.Ordinal).ThenBy(row => row.Key, StringComparer.Ordinal).ToArray(),
             Artwork = artwork,
-            EncodingFiles = MergeEncodingFiles(projects)
+            EncodingFiles = MergeEncodingFiles(projects),
+            EditionBindings = projects[0].EditionBindings
         };
         LocalizationProjectIO.Validate(result);
         return result;

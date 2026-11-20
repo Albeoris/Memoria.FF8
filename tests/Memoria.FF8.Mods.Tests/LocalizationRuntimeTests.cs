@@ -29,6 +29,37 @@ public sealed class LocalizationRuntimeTests : IDisposable
     }
 
     [Fact]
+    public void EditionProjectionUsesCanonicalTargetsAndEditionOnlyRowsAfterConversion()
+    {
+        const string common = "$en_sample_0000";
+        const string classicOnly = "$en_sample_0001";
+        const string remasteredCommon = "$en_sample_0002";
+        const string remasteredOnly = "$en_sample_0003";
+        string initial = Path.Combine(root, "shared-source");
+        string converted = Path.Combine(root, "shared-workbook");
+        LocalizationProject project = new()
+        {
+            Manifest = new() { SourceLanguage = "en", TargetLanguage = "ru", MappingVersion = FieldCorrespondenceCatalog.Version, CompatibleVariants = ["Classic:en", "Remastered:en"], EditionBindingPaths = new Dictionary<string, string> { ["Remastered:en"] = "Localization/EditionBindings/Remastered.en.json" } },
+            Entries = [Row(common, "Общий"), Row(classicOnly, "Классика")],
+            EditionBindings = new Dictionary<string, IReadOnlyList<LocalizationEditionBinding>> { ["Remastered:en"] = [new(Row(remasteredCommon, ""), common), new(Row(remasteredOnly, "Ремастер"))] }
+        };
+        LocalizationProjectIO.WriteNew(project, initial, "json", "split", TestContext.Current.CancellationToken);
+        LocalizationProjectIO.Convert(initial, converted, "xlsx", "single", TestContext.Current.CancellationToken);
+        ModPackage package = new("shared", "shared", ModFormat.Memoria, true, true, ModEffectiveStatus.Active, converted) { HasLocalization = true, LocalizationOnly = true };
+        ModCatalogSnapshot snapshot = new(1, [package], []);
+        LocalizationPreparation classic = LocalizationRuntime.Prepare(snapshot, [package.Id], Source, TestContext.Current.CancellationToken);
+        LocalizationPreparation remastered = LocalizationRuntime.Prepare(snapshot, [package.Id], Source with { Edition = GameDataEdition.Remastered }, TestContext.Current.CancellationToken);
+
+        Assert.Equal("Общий", classic.Catalog.Resolve(common, "original"));
+        Assert.Equal("Классика", classic.Catalog.Resolve(classicOnly, "original"));
+        Assert.Equal("original", classic.Catalog.Resolve(remasteredOnly, "original"));
+        Assert.Equal("Общий", remastered.Catalog.Resolve(remasteredCommon, "original"));
+        Assert.Equal("Ремастер", remastered.Catalog.Resolve(remasteredOnly, "original"));
+        Assert.Equal("original", remastered.Catalog.Resolve(classicOnly, "original"));
+        Assert.Equal(new[] { common, classicOnly }, LocalizationProjectIO.Read(converted).Entries.Select(row => row.Key));
+    }
+
+    [Fact]
     public void ExplicitEmptyShadowsAWinningTranslationAndKeepsItsContributor()
     {
         const string key = "$en_kernel_misctexts_text_0119";

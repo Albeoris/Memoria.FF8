@@ -293,7 +293,13 @@ internal sealed partial class RecreateGame
         authoringSelectionTask = Task.Run(() =>
         {
             LocalizationPreparation prepared = LocalizationRuntime.PrepareAuthoringProject(candidate, package.Id, descriptor, authoringCancellation.Token, watchForPublication: true);
-            LocalizationProject project = prepared.Layers.Single(layer => layer.PackageId == package.Id).Project;
+            LocalizationLayer selectedLayer = prepared.Layers.Single(layer => layer.PackageId == package.Id);
+            if (selectedLayer.EditionProjected)
+            {
+                prepared.InputRevision?.Dispose();
+                throw new InvalidDataException("Edit edition-bound translations in the canonical package payload. Native edition addresses are runtime bindings.");
+            }
+            LocalizationProject project = selectedLayer.Project;
             return new AuthoringSelection(package, project, prepared.Catalog, project.Entries.ToDictionary(row => row.Key, StringComparer.Ordinal), AuthoringInputIdentity(candidate, package.Id), prepared.InputRevision);
         }, authoringCancellation.Token);
         authoringNotice = "Reading localization project…";

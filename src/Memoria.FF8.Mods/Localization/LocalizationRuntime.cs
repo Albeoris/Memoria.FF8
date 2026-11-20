@@ -7,7 +7,10 @@ using Memoria.FF8.Resources.Localization;
 
 namespace Memoria.FF8.Mods.Localization;
 
-public sealed record LocalizationLayer(string PackageId, string Name, LocalizationProject Project);
+public sealed record LocalizationLayer(string PackageId, string Name, LocalizationProject Project)
+{
+    public bool EditionProjected { get; init; }
+}
 public sealed record LocalizationPreparation(LocalizationCatalog Catalog, IReadOnlyList<LocalizationLayer> Layers, IReadOnlyList<string> RequestedOrder, bool RequiresSelection, double PreparationMilliseconds)
 {
     public LocalizationInputRevision? InputRevision { get; init; }
@@ -119,7 +122,8 @@ public static class LocalizationRuntime
             {
                 throw new InvalidDataException($"{package.Name}: resource variant {variant} is not declared compatible.");
             }
-            layers.Add(new(package.Id, package.Name, project));
+            bool projected = project.EditionBindings.ContainsKey(variant);
+            layers.Add(new(package.Id, package.Name, LocalizationEditionProjection.Activate(project, variant)) { EditionProjected = projected });
         }
         if (layers.Select(layer => layer.Project.Manifest.ProjectId).Distinct(StringComparer.Ordinal).Count() != layers.Count)
         {
@@ -152,7 +156,7 @@ public static class LocalizationRuntime
                 {
                     continue;
                 }
-                ValidateTarget(row);
+                ValidateTarget(row, layer.EditionProjected);
                 LocalizationValue value = new(row.Target, layer.PackageId, layer.Project.Manifest.ProjectId) { Category = row.Category, File = row.File, Field = row.Category == "Fields" ? LocalizationFieldPreparation.Prepare(row) : null };
                 if (row.Category == "Fields" && value.Field is null)
                 {
@@ -196,7 +200,7 @@ public static class LocalizationRuntime
         return new(image.Width, image.Height, image.Pixels.ToImmutableArray());
     }
 
-    private static void ValidateTarget(LocalizationRecord row)
+    private static void ValidateTarget(LocalizationRecord row, bool editionProjected)
     {
         // Runtime controls and placeholders retain their own syntax; source/reference cells never override presentation.
         if (row.Target!.Contains('\0'))
@@ -208,7 +212,7 @@ public static class LocalizationRuntime
             int suffixStart = row.Key.IndexOf('_') + row.File.Length + 2;
             int contextStart = row.Key.IndexOf("_ctx_", suffixStart, StringComparison.Ordinal);
             string baseKey = contextStart < 0 ? row.Key : row.Key[..contextStart];
-            if (!FieldCorrespondenceCatalog.Contains(baseKey))
+            if (!editionProjected && !FieldCorrespondenceCatalog.Contains(baseKey))
             {
                 throw new InvalidDataException($"{row.Key}: unknown field source identity.");
             }
