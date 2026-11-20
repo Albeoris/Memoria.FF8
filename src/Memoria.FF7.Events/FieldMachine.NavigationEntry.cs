@@ -107,8 +107,8 @@ public sealed partial class FieldMachine
         }
     }
 
-    /// <summary>Proves a read-only entry returns within one native handler quantum. The caller must supply every possible external variable publication and competing external script entry before dispatch; this method includes all captured owners, saved continuations and native child requests.</summary>
-    public FieldNavigationEntryProof ProveNavigationEntryHasNoEffect(int entity, int script, FieldInputState projectedInput, IReadOnlyList<FieldVariableRead> externalWrites, IReadOnlyList<FieldNavigationEntryPoint> possibleExternalEntries, int instructionBudget = 8192, FieldNavigationControlState? controls = null)
+    /// <summary>Proves an entry has no observable effect and returns within one native handler quantum. The caller must supply every possible external variable publication and competing external script entry before dispatch; this method includes all captured owners, saved continuations and native child requests.</summary>
+    public FieldNavigationEntryProof ProveNavigationEntryHasNoEffect(int entity, int script, FieldInputState projectedInput, IReadOnlyList<FieldVariableRead> externalWrites, IReadOnlyList<FieldNavigationEntryPoint> possibleExternalEntries, int instructionBudget = 8192, FieldNavigationControlState? controls = null, bool allInputs = false)
     {
         ArgumentNullException.ThrowIfNull(projectedInput);
         ArgumentNullException.ThrowIfNull(externalWrites);
@@ -141,13 +141,22 @@ public sealed partial class FieldMachine
                 }
                 if (!ancestors.Add(pc))
                 {
-                    return "The entry does not expose a finite read-only return path.";
+                    return "The entry does not expose a finite no-effect return path.";
                 }
                 detached.entities[entity].Pc = pc;
                 byte opcode = program.Read(pc);
                 if (opcode == 0)
                 {
                     return null;
+                }
+                if (allInputs && opcode is >= 0x30 and <= 0x32)
+                {
+                    // Discovery must not confuse today's unpressed button with a terminal entry.
+                    _ = program.Read(pc + 1);
+                    _ = program.Read(pc + 2);
+                    int unmatched = pc + 3 + program.Read(pc + 3);
+                    string? matchedFailure = ProveReturn(pc + 4, handlers + 1, new(ancestors), new(unknown));
+                    return matchedFailure is not null ? matchedFailure : ProveReturn(unmatched, handlers + 1, new(ancestors), new(unknown));
                 }
                 if (opcode == 0xCB)
                 {

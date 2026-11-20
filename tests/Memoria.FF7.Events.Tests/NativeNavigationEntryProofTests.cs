@@ -8,6 +8,7 @@ internal static class NativeNavigationEntryProofTests
         IdempotentControlPublications();
         PartyMembershipBranches();
         DeadDirectionQueryPublication();
+        DiscoveryInputAlternatives();
         var stable = Create();
         string before = JsonSerializer.Serialize(stable.Machine.Capture());
         FieldNavigationEntryProof proof = Prove(stable.Machine);
@@ -307,6 +308,27 @@ internal static class NativeNavigationEntryProofTests
         Check(!Prove(external.Machine, entries: [new(0, 1)]).HasNoEffect, "An external entry could observe a query output's word alias.");
         var writer = CreateQuery(consumer: [0x80, 0x10, 20, 0, 0], location: "active");
         Check(!Prove(writer.Machine).HasNoEffect, "The immutable-guard producer closure lost a native writer.");
+    }
+
+    private static void DiscoveryInputAlternatives()
+    {
+        foreach (byte opcode in new byte[] { 0x30, 0x31, 0x32 })
+        {
+            byte[] code = [0, 0, opcode, 0x20, 0, 7, 0x80, 0x10, 30, 1, 0, 0, 0];
+            ushort[][] entries = [new ushort[32]];
+            entries[0][5] = 2;
+            RejectHost host = new();
+            FieldMachine machine = new(new(code, entries), host: host);
+            machine.Initialize();
+            string before = JsonSerializer.Serialize(machine.Capture());
+            Check(machine.ProveNavigationEntryHasNoEffect(0, 5, new(), [], []).HasNoEffect, "A single unpressed boundary projection no longer retains its original return proof.");
+            Check(!machine.ProveNavigationEntryHasNoEffect(0, 5, new(), [], [], allInputs: true).HasNoEffect, "Discovery hid a held/pressed/released outcome behind the current unpressed return.");
+            Check(before == JsonSerializer.Serialize(machine.Capture()) && host.Calls == 0, "All-input discovery inspection changed native input, state or hosts.");
+            code[6] = 0;
+            FieldMachine terminal = new(new(code, entries), host: new RejectHost());
+            terminal.Initialize();
+            Check(terminal.ProveNavigationEntryHasNoEffect(0, 5, new(), [], [], allInputs: true).HasNoEffect, "Both read-only input successors were not admitted as a terminal entry.");
+        }
     }
 
     private static void Check(bool condition, string message)

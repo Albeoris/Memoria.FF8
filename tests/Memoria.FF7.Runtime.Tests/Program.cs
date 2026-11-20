@@ -742,6 +742,12 @@ if (args.Contains("--native-effect-alias-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--native-town-exit-cycle-original-only", StringComparer.Ordinal))
+{
+    NativeTownExitCycleTests.RunOriginal();
+    return 0;
+}
+
 if (args.Contains("--native-post-pickup-cycle-original-only", StringComparer.Ordinal))
 {
     NativePostPickupLineTests.RunCycleOriginal();

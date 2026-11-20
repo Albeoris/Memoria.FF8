@@ -223,7 +223,7 @@ public sealed partial class Ff7AutoPlayDiscovery(Ff7Session session)
                     analyses[(entity, script)] = analysis;
                 }
             }
-            if (analysis.Complete && analysis.HostReads.Any(read => read.Kind == FieldHostReadKind.Actor && read.Selector == (int)FieldActorQueryKind.Direction) && session.ReadNavigationEntryProof(entity, script, session.Machine.Input).HasNoEffect)
+            if (analysis.Complete && session.ReadNavigationEntryProof(entity, script, session.Machine.Input, allInputs: true) is { Complete: true, HasNoEffect: true })
             {
                 return;
             }

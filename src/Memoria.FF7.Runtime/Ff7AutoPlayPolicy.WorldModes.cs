@@ -193,7 +193,7 @@ public sealed partial class Ff7AutoPlayPolicy
                 });
                 candidates.Add((new(target, new(target.Id, chunk, script, rider)), visited, distance));
             }
-            foreach (var item in candidates.OrderBy(item => item.Visited).ThenBy(item => item.Distance).ThenBy(item => item.Candidate.Target.Id, StringComparer.Ordinal))
+            foreach (var item in candidates.OrderBy(item => item.Candidate.Target.Id == State.NavigationGoal?.EventId ? 0 : 1).ThenBy(item => item.Visited).ThenBy(item => item.Distance).ThenBy(item => item.Candidate.Target.Id, StringComparer.Ordinal))
             {
                 worldModeQueue.Enqueue(item.Candidate);
             }

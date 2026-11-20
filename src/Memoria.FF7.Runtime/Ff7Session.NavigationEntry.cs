@@ -59,7 +59,7 @@ public sealed partial class Ff7Session
         new(FieldBank.Persistent3Byte, 30, false)
     }).ToArray();
 
-    internal FieldNavigationEntryProof ReadNavigationEntryProof(int entity, int script, FieldInputState input, bool talkContext = false)
+    internal FieldNavigationEntryProof ReadNavigationEntryProof(int entity, int script, FieldInputState input, bool talkContext = false, bool allInputs = false)
     {
         Ff7FieldProcess process = Host.Process;
         if (World is not null || Battle is not null || HasPendingTick || Machine.CycleCursor is not null || !Machine.HasCompletedInitialCycle || process.GlobalCommand != Ff7GlobalCommand.None || process.PlayerLocked || process.Join is not null || process.Transition is not null || process.Dialogues.Any(dialogue => !dialogue.Completed) || process.Actors.Any(actor => actor.PlayerControlled && (actor.Ladder is not null || actor.Jump is not null || Host.HasScriptedMotion(actor))))
@@ -98,7 +98,7 @@ public sealed partial class Ff7Session
             }
             controls = new(process.PlayerLocked, process.MenuDisabled, player.Entity, player.AnimationStatus, controlEntries.ToArray());
         }
-        return Machine.ProveNavigationEntryHasNoEffect(entity, script, input, navigationExternalWrites, possibleEntries.ToArray(), controls: controls);
+        return Machine.ProveNavigationEntryHasNoEffect(entity, script, input, navigationExternalWrites, possibleEntries.ToArray(), controls: controls, allInputs: allInputs);
     }
 
     internal static bool CanScopeNavigationControlEntries(IReadOnlyList<Ff7Actor> actors, Func<Ff7Actor, bool> hasScriptedMotion)
