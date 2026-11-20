@@ -178,22 +178,7 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
                 throw new Ff7AutoPlayNavigationUnavailableException(-1, "FFVII gateway has no reachable native floor contact.");
             }
             var crossingContact = SelectFloorContact(crossingContacts, target, null);
-            string? previousContext = navigationTalkContactContext;
-            Func<Ff7Actor, bool>? previousGoal = navigationTalkContactGoal;
-            bool previousRequiresSearch = navigationTalkContactRequiresSearch;
-            navigationTalkContactContext = $"native-gateway-crossing:1:{session.FieldGeneration}:{gateway.A}:{gateway.B}:{gateway.DestinationField}:{gateway.DestinationTriangle}";
-            navigationTalkContactGoal = Reached;
-            navigationTalkContactRequiresSearch = true;
-            try
-            {
-                return Approach(target, crossingContact.Triangle, run);
-            }
-            finally
-            {
-                navigationTalkContactContext = previousContext;
-                navigationTalkContactGoal = previousGoal;
-                navigationTalkContactRequiresSearch = previousRequiresSearch;
-            }
+            return ApproachGatewayContact(gateway, target, crossingContact.Triangle, run, requiresSearch: true);
         }
         var contacts = DiscoverGatewayContacts(session.Field.Walkmesh, session.Host.Process.BlockedTriangles, player, gateway);
         if (contacts.Count == 0)
@@ -201,7 +186,27 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
             throw new Ff7AutoPlayNavigationUnavailableException(-1, "FFVII gateway has no reachable native floor contact.");
         }
         var selected = ChooseFloorContact(contacts, player);
-        return Approach(selected.Point, selected.Triangle, run);
+        return ApproachGatewayContact(gateway, selected.Point, selected.Triangle, run, requiresSearch: false);
+    }
+
+    private Ff7AutoplayInput ApproachGatewayContact(PcFieldGateway gateway, Vector3 target, int triangle, bool run, bool requiresSearch)
+    {
+        string? previousContext = navigationTalkContactContext;
+        Func<Ff7Actor, bool>? previousGoal = navigationTalkContactGoal;
+        bool previousRequiresSearch = navigationTalkContactRequiresSearch;
+        navigationTalkContactContext = $"native-gateway-crossing:1:{session.FieldGeneration}:{gateway.A}:{gateway.B}:{gateway.DestinationField}:{gateway.DestinationTriangle}";
+        navigationTalkContactGoal = actor => ReadGatewayCrossingInput(gateway, actor, run) is not null;
+        navigationTalkContactRequiresSearch = requiresSearch;
+        try
+        {
+            return Approach(target, triangle, run);
+        }
+        finally
+        {
+            navigationTalkContactContext = previousContext;
+            navigationTalkContactGoal = previousGoal;
+            navigationTalkContactRequiresSearch = previousRequiresSearch;
+        }
     }
 
     private Ff7AutoplayInput? ReadGatewayCrossingInput(PcFieldGateway gateway, Ff7Actor actor, bool run)

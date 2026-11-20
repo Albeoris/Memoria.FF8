@@ -83,4 +83,39 @@ internal static class NativeGatewayBoundaryTests
         }
         Console.WriteLine($"PASS original gateway boundary: callbacks={controller.Steps}, destination={session.MapId}/{departure.Transition.Triangle}, gateway={departure.GatewayIndex}, elapsed={elapsed.Elapsed.TotalSeconds:F3}s; old refusal retained, line credit/source unchanged");
     }
+
+    internal static void RunSemanticOriginal()
+    {
+        string path = Environment.GetEnvironmentVariable("MEMORIA_FF7_GATEWAY_SEMANTIC_SAVE") ?? throw new InvalidOperationException("Select a native gateway semantic fixture.");
+        string game = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR") ?? throw new InvalidOperationException("Select resources.");
+        int sourceMap = int.Parse(Environment.GetEnvironmentVariable("MEMORIA_FF7_GATEWAY_SEMANTIC_MAP")!);
+        int gatewayIndex = int.Parse(Environment.GetEnvironmentVariable("MEMORIA_FF7_GATEWAY_SEMANTIC_INDEX")!);
+        byte[] bytes = File.ReadAllBytes(path);
+        using MemoryStream stream = new(bytes, false);
+        using Ff7Session session = Ff7Session.Restore(Ff7Installation.Discover(game), CombinedSessionCodec.Read(stream).Ff7!);
+        using Ff7AutoPlayPolicy policy = new(session, (_, _) => throw new InvalidOperationException("Unexpected choice boundary."));
+        policy.State.FrontierProgressKey = null;
+        policy.State.FrontierIdleSteps = 0;
+        Ff7NativeGatewayDeparture? departure = null;
+        session.NativeFieldDeparting += _ =>
+        {
+            if (session.MapId == sourceMap)
+            {
+                departure = session.Capture().GatewayDeparture;
+            }
+        };
+        Ff7AutoPlayController controller = new(session, policy.ChooseInput, advanceTick: () => session.AdvanceTick(advanceClock: false), chooseDialogueSelection: policy.ChooseDialogueSelection, readPlanningProgress: () => policy.WorkProgress, readFrontierProgress: () => policy.FrontierProgress);
+        controller.Start();
+        Stopwatch elapsed = Stopwatch.StartNew();
+        int polls = 0;
+        while (controller.Running && departure is null && polls < 100000 && elapsed.Elapsed < TimeSpan.FromSeconds(30))
+        {
+            controller.Advance(1);
+            polls++;
+        }
+        Console.WriteLine($"Native gateway semantic continuation: callbacks={controller.Steps}, polls={polls}, elapsed={elapsed.Elapsed.TotalSeconds:F3}s, map={session.MapId}, tick={session.Machine.Tick}, active={policy.State.Active?.EventId}, physical={controller.PlanningProgress.PhysicalNodes}, departure={departure}, error={controller.Error}");
+        Check(controller.Error is null && departure?.GatewayIndex == gatewayIndex, "Ordinary gateway navigation did not reach the selected native departure.");
+        Check(bytes.AsSpan().SequenceEqual(File.ReadAllBytes(path)), "The external standalone source changed.");
+        Console.WriteLine("PASS ordinary native gateway semantic approach and selected admission");
+    }
 }
