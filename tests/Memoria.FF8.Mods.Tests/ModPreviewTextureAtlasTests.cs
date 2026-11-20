@@ -1,7 +1,9 @@
 using System.Runtime.InteropServices;
 using Albeoris.Games.FF8.Imaging;
+using Memoria.FF8.Assets;
 using Memoria.FF8.Assets.Localization;
 using Memoria.FF8.Rendering;
+using Memoria.FF8.Resources;
 
 namespace Memoria.FF8.Mods.Tests;
 
@@ -114,6 +116,50 @@ public sealed class ModPreviewTextureAtlasTests
         Assert.False(firstOriginal.Pixels.SequenceEqual(lastOriginal.Pixels));
         Assert.Equal(firstColor, Assert.IsType<PixelImage>(firstComparison.After.Image)[0, 0]);
         Assert.Equal(lastColor, Assert.IsType<PixelImage>(lastComparison.After.Image)[0, 0]);
+    }
+
+    [Theory]
+    [InlineData(ModFormat.Junction)]
+    [InlineData(ModFormat.Memoria)]
+    public void ComparesRagnarokWithAllOfTheSelectedPackagesModelTextures(ModFormat format)
+    {
+        string? game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
+        Assert.SkipUnless(Directory.Exists(game), "Configure optional installed game resources.");
+        using IResourceSource source = GameDataSourceFactory.Open(game!);
+        using GameAssets assets = new(game!, resources: new(source));
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        ModelCatalogEntry entry = assets.EnumerateModelCatalog(cancellationToken).First(model => model.Id == "world/1");
+        EditableModel installed = assets.LoadCatalogModel(entry);
+        Rgba32[] colors = [new(255, 0, 255), new(0, 255, 255)];
+        ModFile[] files = [CreateReplacement(0), CreateReplacement(1)];
+
+        ModPreviewComparison? comparison = ModPreviewResources.CompareTexture(game!, null, "en", new(1, [], files), files[1].RelativePath, cancellationToken);
+
+        Assert.NotNull(comparison);
+        EditableModel before = Assert.IsType<EditableModel>(comparison.Before.Model);
+        EditableModel after = Assert.IsType<EditableModel>(comparison.After.Model);
+        Assert.Null(comparison.Before.Image);
+        Assert.Null(comparison.After.Image);
+        Assert.Equal(installed.Name, before.Name);
+        Assert.Same(before.Meshes, after.Meshes);
+        Assert.Contains(after.Meshes, mesh => mesh.Texture == 1);
+        Assert.Equal(installed.Textures[1].Pixels, before.Textures[1].Pixels);
+        Assert.Equal(colors[0], after.Textures[0][0, 0]);
+        Assert.Equal(colors[1], after.Textures[1][0, 0]);
+        Assert.Equal(before.Textures[1].Width * 2, after.Textures[1].Width);
+        Assert.Equal(before.Textures[2].Pixels, after.Textures[2].Pixels);
+
+        ModFile CreateReplacement(int slot)
+        {
+            string path = format == ModFormat.Junction
+                ? $"mods/textures/world/esk/chara_one/model1-{slot}_00.png"
+                : new TextureTarget("ff8", "world/chara.one", $"model/1/texture/{slot}").CanonicalPath();
+            PixelImage original = installed.Textures[slot];
+            PixelImage image = new(original.Width * 2, original.Height * 2);
+            Array.Fill(image.Pixels, colors[slot]);
+            byte[] bytes = LocalizationArtworkExporter.EncodePng(image);
+            return new("fixture", format, path, 1, () => bytes);
+        }
     }
 
     private sealed class PreviewFixture : IAsyncDisposable

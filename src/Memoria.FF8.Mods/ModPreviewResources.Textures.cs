@@ -35,7 +35,10 @@ public static partial class ModPreviewResources
             {
                 return null;
             }
-            replacement = native;
+            replacement = nativeTargets.Any(variant => TryGetWorldCharacterShape(variant.Target, out _))
+                && NativeTextureMods.TryPrepare(package, out NativeTextureMods packageTextures, out _, cancellationToken)
+                ? packageTextures
+                : native;
         }
         else if (file.Format == ModFormat.Junction && FindJunctionTextureTarget(file.RelativePath) is { } target)
         {
@@ -59,6 +62,14 @@ public static partial class ModPreviewResources
 
         foreach (NativeTextureVariant native in nativeTargets)
         {
+            if (TryGetWorldCharacterShape(native.Target, out int shape))
+            {
+                if (CompareWorldCharacter(native.Target, shape) is { } character)
+                {
+                    return character;
+                }
+                continue;
+            }
             if (assets.LoadAddressableCatalogTextureUnit(native.Target) is { } unit)
             {
                 TextureBuildContext? context = unit.FirstOrDefault(native.Target.Matches);
@@ -69,6 +80,12 @@ public static partial class ModPreviewResources
             {
                 return comparison;
             }
+        }
+
+        if (legacyTarget is { Owner: "world/chara.one", Member: { } member })
+        {
+            TextureTarget worldTarget = new("ff8", legacyTarget.Owner, member);
+            return TryGetWorldCharacterShape(worldTarget, out int shape) ? CompareWorldCharacter(worldTarget, shape) : null;
         }
 
         if (legacyTarget is not null && legacyTarget.Address(resources.ResourceLanguage) is { } address)
@@ -124,12 +141,48 @@ public static partial class ModPreviewResources
 
         ModPreviewComparison? CompareEntry(TextureCatalogEntry entry) => CompareContext(assets.LoadCatalogTexture(entry), entry.Name);
 
+        bool IsSelectedReplacement(TextureValue texture)
+        {
+            string provenance = $"{file.PackageId}/{file.RelativePath}";
+            return texture.IsReplacement && texture.Provenance.Split(';', StringSplitOptions.TrimEntries).Any(value => MatchesTextureProvenance(value, provenance));
+        }
+
+        ModPreviewComparison? CompareWorldCharacter(TextureTarget target, int shape)
+        {
+            ModelCatalogEntry? entry = assets.EnumerateModelCatalog(cancellationToken).FirstOrDefault(model => model.Category == "World character" && model.ModelIndex == shape && model.LoadError is null);
+            if (entry is null)
+            {
+                return null;
+            }
+            IReadOnlyList<TextureBuildContext> materials = assets.LoadCatalogModelMaterialUnit(entry);
+            TextureBuildContext? selected = materials.FirstOrDefault(target.Matches);
+            if (selected is null)
+            {
+                return null;
+            }
+            TextureValue selectedTexture = resources.ResolveForExport(selected);
+            if (!IsSelectedReplacement(selectedTexture))
+            {
+                return null;
+            }
+            EditableModel model = assets.LoadCatalogModel(entry);
+            PixelImage[] before = new PixelImage[materials.Count];
+            PixelImage[] after = new PixelImage[materials.Count];
+            for (int index = 0; index < materials.Count; index++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                TextureBuildContext material = materials[index];
+                before[index] = resources.ResolveOriginalForExport(material).Image;
+                after[index] = ReferenceEquals(material, selected) ? selectedTexture.Image : resources.ResolveForExport(material).Image;
+            }
+            return new(new(entry.Name) { Model = model with { Textures = before } }, new(entry.Name) { Model = model with { Textures = after } });
+        }
+
         ModPreviewComparison? CompareContext(TextureBuildContext context, string name)
         {
             cancellationToken.ThrowIfCancellationRequested();
             TextureValue after = resources.ResolveForExport(context);
-            string provenance = $"{file.PackageId}/{file.RelativePath}";
-            if (!after.IsReplacement || !after.Provenance.Split(';', StringSplitOptions.TrimEntries).Any(value => MatchesTextureProvenance(value, provenance)))
+            if (!IsSelectedReplacement(after))
             {
                 return null;
             }
@@ -166,6 +219,13 @@ public static partial class ModPreviewResources
                 return null;
             }
         }
+    }
+
+    private static bool TryGetWorldCharacterShape(TextureTarget target, out int shape)
+    {
+        shape = 0;
+        return target.Owner == "world/chara.one" && target.Subresource.Split('/') is ["model", var index, "texture", _]
+            && int.TryParse(index, NumberStyles.None, CultureInfo.InvariantCulture, out shape);
     }
 
     internal static (string Category, string Group, string Name)? DescribeTexturePath(ModFile file)
