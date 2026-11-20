@@ -43,9 +43,41 @@ internal static class NativeChoiceContinuationTests
         byte[] status = better.Progress.Characters[0].NativeRecord.ToArray();
         status[31] = 1;
         Check(!Ff7AutoPlayChoiceWorkflow.ActualContinuationDominates(primary, better with { Progress = better.Progress with { Characters = [better.Progress.Characters[0] with { NativeRecord = status }] } }, proof), "Different healing/status benefits were discarded.");
+        CheckPresentationProjection(primary, better, proof);
         CheckCandidatePublication(primary, better);
         CheckCertificate();
-        Console.WriteLine("PASS actual service continuation utility, native flags/heading/suspended ownership, guest barrier and three-option immutable checkpoint selection");
+        Console.WriteLine("PASS actual service continuation utility, certified presentation scope, native flags/heading/suspended ownership, guest barrier and three-option immutable checkpoint selection");
+    }
+
+    private static void CheckPresentationProjection(Ff7SessionSave primary, Ff7SessionSave better, FieldChoiceServiceProof proof)
+    {
+        Ff7Actor actor = primary.Process.Actors[0] with { Slot = 7, PlayerControlled = false };
+        primary = primary with { Process = primary.Process with { Actors = [actor] } };
+        better = better with { Process = better.Process with { Actors = [actor with { AnimationFrame16 = 16 }] } };
+        Check(Ff7AutoPlayChoiceWorkflow.ActualContinuationDominates(primary, better, proof), "A certified nonplayer looping animation phase was treated as a service benefit, or certification incorrectly used the actor slot.");
+        Check(!Ff7AutoPlayChoiceWorkflow.ActualContinuationDominates(primary, better, proof with { PresentationEntities = [7] }), "An actor slot was mistaken for the certified script entity.");
+        foreach (Ff7Actor finite in new[] { actor with { AnimationLoop = false }, actor with { RequestedAnimation = 1 }, actor with { PlayerControlled = true } })
+        {
+            var first = primary with { Process = primary.Process with { Actors = [finite] } };
+            var second = better with { Process = better.Process with { Actors = [finite with { AnimationFrame16 = 16 }] } };
+            Check(!Ff7AutoPlayChoiceWorkflow.ActualContinuationDominates(first, second, proof), "A finite, requested or player animation phase was discarded.");
+        }
+        Check(!Ff7AutoPlayChoiceWorkflow.ActualContinuationDominates(primary, better with { Process = better.Process with { Actors = [actor with { AnimationFrame16 = 16, Direction = 64 }] } }, proof), "Certified animation presentation discarded a changed actor heading.");
+        var waitingPrimary = primary with { Process = primary.Process with { AnimationRequests = [new(1, actor.Entity)] } };
+        var waitingBetter = better with { Process = better.Process with { AnimationRequests = [new(1, actor.Entity)] } };
+        Check(!Ff7AutoPlayChoiceWorkflow.ActualContinuationDominates(waitingPrimary, waitingBetter, proof), "A native animation wait discarded its current frame phase.");
+        var presentation = better with { Process = better.Process with { PaletteRows = [[1]], PaletteBuffer = [2], PaletteVersion = 3, SoundChannelPanVersions = [1, 0, 0, 0, 0] } };
+        Check(!Ff7AutoPlayChoiceWorkflow.ActualContinuationDominates(primary, presentation, proof), "Uncertified palette or sound publication state was discarded.");
+        var certified = proof with { PalettePresentation = true, SoundPanPublication = true };
+        Check(Ff7AutoPlayChoiceWorkflow.ActualContinuationDominates(primary, presentation, certified), "Certified palette presentation or sound publication versions prevented strict service dominance.");
+        Check(!Ff7AutoPlayChoiceWorkflow.ActualContinuationDominates(primary, presentation, certified with { PalettePresentation = false }), "A sound certificate discarded unproved palette state.");
+        Check(!Ff7AutoPlayChoiceWorkflow.ActualContinuationDominates(primary, presentation, certified with { SoundPanPublication = false }), "A palette certificate discarded unproved sound publication state.");
+        Check(!Ff7AutoPlayChoiceWorkflow.ActualContinuationDominates(primary, presentation with { Process = presentation.Process with { SoundChannelPans = [1, 64, 64, 64, 64] } }, certified), "A sound publication certificate discarded changed actual pan payload.");
+        Check(!Ff7AutoPlayChoiceWorkflow.ActualContinuationDominates(primary, presentation with { Process = presentation.Process with { SoundChannelPanFades = [new(32, 10), null, null, null, null] } }, certified), "A sound publication certificate discarded an active pan fade.");
+        Check(!Ff7AutoPlayChoiceWorkflow.ActualContinuationDominates(primary, presentation with { Process = presentation.Process with { MusicVolume = 1 } }, certified), "A presentation certificate discarded changed music volume.");
+        byte[] changed = presentation.Vm.PersistentVariables.ToArray();
+        changed[40] = 1;
+        Check(!Ff7AutoPlayChoiceWorkflow.ActualContinuationDominates(primary, presentation with { Vm = presentation.Vm with { PersistentVariables = changed } }, certified), "Certified presentation discarded a persistent native flag.");
     }
 
     private static Ff7SessionSave Fixture(uint gil)
@@ -93,6 +125,11 @@ internal static class NativeChoiceContinuationTests
 
     private static void CheckCertificate()
     {
+        FieldMachine palette = new(new FieldProgram([0, 0xEA, 0, 0, 0, 0, 16, 64, 64, 64, 255, 0], [new ushort[32]]));
+        palette.Initialize();
+        string paletteBefore = JsonSerializer.Serialize(palette.Capture());
+        FieldChoiceServiceProof paletteProof = palette.ProveChoiceService(0, 1, []);
+        Check(paletteProof.Complete && paletteProof.PalettePresentation && !paletteProof.SoundPanPublication && paletteBefore == JsonSerializer.Serialize(palette.Capture()), "A pure palette footprint was rejected, acquired audio allowances or changed native state.");
         byte[] body = [0x80, 0x50, 6, 1, 0x48, 0x05, 3, 0, 2, 3, 6, 0x3B, 0x66, 20, 18, 0];
         ushort[][] entries = [new ushort[32], new ushort[32]];
         entries[1][1] = 2;

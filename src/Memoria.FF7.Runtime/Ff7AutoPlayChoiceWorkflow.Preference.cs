@@ -70,7 +70,7 @@ public sealed partial class Ff7AutoPlayChoiceWorkflow
         {
             return Miss("metadata-domain-owner-or-countdown");
         }
-        FieldHostRequest? owner = source.Vm.PendingRequests?.SingleOrDefault(request => request.Id == prompt.RequestId && request.Entity == active.Entity && request.Priority == 1 && request.Command is FieldDialogueCommand);
+        FieldHostRequest? owner = ReadOwnedServicePrompt(source, active, prompt.RequestId);
         if (owner is null)
         {
             return Miss("pending-owner");

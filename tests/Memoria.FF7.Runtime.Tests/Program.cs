@@ -3,6 +3,24 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--owned-service-prompt-only", StringComparer.Ordinal))
+{
+    NativeOwnedServicePromptTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-choice-service-audio-only", StringComparer.Ordinal))
+{
+    NativeChoiceServiceAudioTests.Run();
+    return 0;
+}
+
+if (args.Contains("--owned-inn-continuation-original-only", StringComparer.Ordinal))
+{
+    NativeOwnedInnContinuationTests.RunOriginal();
+    return 0;
+}
+
 if (args.Contains("--native-execution-provenance-only", StringComparer.Ordinal))
 {
     NativeAutoPlayExecutionProvenanceTests.Run();

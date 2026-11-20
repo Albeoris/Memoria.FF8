@@ -6,6 +6,13 @@ namespace Memoria.FF7.Runtime;
 
 public sealed partial class Ff7AutoPlayChoiceWorkflow
 {
+    internal static FieldHostRequest? ReadOwnedServicePrompt(Ff7SessionSave source, Ff7AutoPlayActiveEvent active, long? requestId = null)
+    {
+        IReadOnlyDictionary<int, int> owners = Ff7AutoPlayScriptedInput.ReadInteractionOwners(source.Vm, active, source.FieldGeneration);
+        FieldHostRequest[] prompts = (source.Vm.PendingRequests ?? []).Where(request => (requestId is null || request.Id == requestId) && request.Command is FieldDialogueCommand { FirstChoice: not null } && owners.TryGetValue(request.Entity, out int priority) && priority == request.Priority && (uint)request.Entity < source.Vm.Entities.Length && source.Vm.Entities[request.Entity].ProgramCounter == request.ProgramCounter).ToArray();
+        return prompts.Length == 1 ? prompts[0] : null;
+    }
+
     private string? PreferActualContinuation(Ff7AutoPlayChoiceState choice, AutoPlayChoiceCoverage coverage, Ff7SessionSave current)
     {
         if (nativeSession is null || choice.BeforeActive is not { Accepted: true } before || state.Active is not { Accepted: true, Returned: true } actual || actual.Entity != before.Entity || actual.Script != before.Script || actual.EventId != before.EventId || actual.Generation != before.Generation || coverage.BeforeCheckpoint is not string sourcePath || coverage.ContinuationCheckpoint is not string primaryPath)
@@ -19,7 +26,7 @@ public sealed partial class Ff7AutoPlayChoiceWorkflow
             CombinedSessionSave source = CombinedSessionCodec.Read(sourceInput);
             using FileStream primaryInput = File.OpenRead(primaryPath);
             CombinedSessionSave primary = CombinedSessionCodec.Read(primaryInput);
-            FieldHostRequest? owner = source.Ff7?.Vm.PendingRequests?.SingleOrDefault(request => request.Command is FieldDialogueCommand { FirstChoice: not null } && request.Entity == before.Entity && request.Priority == 1);
+            FieldHostRequest? owner = source.Ff7 is null ? null : ReadOwnedServicePrompt(source.Ff7, before);
             if (owner is null || primary.Ff7 is null || source.Ff7 is null || source.Ff7.FieldGeneration != current.FieldGeneration || source.Ff7.FieldName != current.FieldName)
             {
                 state.ChoiceContinuationDiagnostic = "retained:missing-owned-prompt-or-native-source";
@@ -160,8 +167,22 @@ public sealed partial class Ff7AutoPlayChoiceWorkflow
                 return false;
             }
         }
-        Ff7Actor[] actors = candidate.Process.Actors.Select(actor => actor with { BlinkCountdown = primary.Process.Actors.Single(item => item.Slot == actor.Slot).BlinkCountdown }).ToArray();
+        Ff7Actor[] actors = candidate.Process.Actors.Select(actor =>
+        {
+            Ff7Actor first = primary.Process.Actors.Single(item => item.Slot == actor.Slot);
+            bool animationWait = primary.Process.AnimationRequests.Any(request => request.Entity == actor.Entity) || candidate.Process.AnimationRequests.Any(request => request.Entity == actor.Entity) || (primary.Vm.PendingRequests ?? []).Concat(candidate.Vm.PendingRequests ?? []).Any(request => request.Entity == actor.Entity && request.Command is FieldAnimation);
+            bool loopingPresentation = proof.PresentationEntities.Contains(actor.Entity) && !actor.PlayerControlled && actor.AnimationLoop && first.AnimationLoop && actor.RequestedAnimation is null && first.RequestedAnimation is null && !animationWait;
+            return actor with { BlinkCountdown = first.BlinkCountdown, AnimationFrame16 = loopingPresentation ? first.AnimationFrame16 : actor.AnimationFrame16 };
+        }).ToArray();
         Ff7FieldProcess process = candidate.Process with { Tick = primary.Process.Tick, BlinkRandomIndex = primary.Process.BlinkRandomIndex, Actors = actors, Windows = primary.Process.Windows, BackgroundStates = primary.Process.BackgroundStates, Fade = primary.Process.Fade, FadeState = primary.Process.FadeState, MusicTicks = primary.Process.MusicTicks, Audio = primary.Process.Audio, SoundVolumeClockSubmillisecondTicks = primary.Process.SoundVolumeClockSubmillisecondTicks };
+        if (proof.PalettePresentation)
+        {
+            process = process with { PaletteRows = primary.Process.PaletteRows, PaletteBuffer = primary.Process.PaletteBuffer, PaletteVersion = primary.Process.PaletteVersion };
+        }
+        if (proof.SoundPanPublication)
+        {
+            process = process with { SoundChannelPanVersions = primary.Process.SoundChannelPanVersions };
+        }
         if (!Same(primary.Process, process) || !Same(primary.Vm.Input, candidate.Vm.Input) || !Same(primary.Vm.PendingRequests, candidate.Vm.PendingRequests))
         {
             reason = "process:" + DifferentProperties(primary.Process, process) + ":input:" + !Same(primary.Vm.Input, candidate.Vm.Input) + ":requests:" + !Same(primary.Vm.PendingRequests, candidate.Vm.PendingRequests);

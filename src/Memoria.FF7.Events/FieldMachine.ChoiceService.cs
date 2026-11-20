@@ -3,6 +3,8 @@ namespace Memoria.FF7.Events;
 public sealed record FieldChoiceServiceProof(bool Complete, int[] ScratchMapBytes, int[] PresentationMapBytes, int[] PresentationEntities, string? Reason = null)
 {
     public bool FieldStepCounterIndependent { get; init; }
+    public bool PalettePresentation { get; init; }
+    public bool SoundPanPublication { get; init; }
 }
 
 public sealed partial class FieldMachine
@@ -13,6 +15,8 @@ public sealed partial class FieldMachine
         try
         {
             bool deferredParameterRead = false;
+            bool palettePresentation = false;
+            bool soundPanPublication = false;
             (FieldScriptAnalysis Analysis, HashSet<FieldVariableRead> Writes, bool Presentation) Inspect(int owner, int pc, bool requests = true)
             {
                 FieldScriptAnalysis analysis = AnalyzeScriptCore(owner, 0, pc, instructionBudget, null, 0, collectRandomReads: true);
@@ -61,11 +65,14 @@ public sealed partial class FieldMachine
                         {
                             throw new NotSupportedException("Service preference does not certify another choice.");
                         }
-                        bool ambient = command is FieldBackgroundCommand or FieldActorTurn or FieldRandomCommand or FieldActorFaceParty or FieldAnimation or FieldWindowCommand or FieldDialogueCommand { FirstChoice: null } or FieldControlCommand { Property: FieldControlKind.PlayerLocked or FieldControlKind.MenuDisabled };
+                        bool ambient = command is FieldBackgroundCommand or FieldPaletteCommand or FieldActorTurn or FieldRandomCommand or FieldActorFaceParty or FieldAnimation or FieldWindowCommand or FieldDialogueCommand { FirstChoice: null } or FieldControlCommand { Property: FieldControlKind.PlayerLocked or FieldControlKind.MenuDisabled };
                         presentation &= ambient;
-                        if (!ambient && command is not (FieldGilQuery or FieldGilCommand or FieldPartyRecovery or FieldDialogueCommand or FieldWindowCommand or FieldFadeCommand or FieldMusicCommand or FieldMusicChangeCommand or FieldMusicPlayingQuery or FieldControlCommand { Property: FieldControlKind.PlayerLocked or FieldControlKind.MenuDisabled }))
+                        bool literalAudio = command is FieldAudioCommand { Operation: 0x28 or 0xC0 or 0xC1 } && opcode == 0xF2 && program.Read(address + 1) == 0 && program.Read(address + 2) == 0 && program.Read(address + 3) == 0;
+                        palettePresentation |= command is FieldPaletteCommand;
+                        soundPanPublication |= literalAudio && command is FieldAudioCommand { Operation: 0x28 };
+                        if (!ambient && !literalAudio && command is not (FieldGilQuery or FieldGilCommand or FieldPartyRecovery or FieldDialogueCommand or FieldWindowCommand or FieldFadeCommand or FieldMusicCommand or FieldMusicChangeCommand or FieldMusicPlayingQuery or FieldControlCommand { Property: FieldControlKind.PlayerLocked or FieldControlKind.MenuDisabled }))
                         {
-                            throw new NotSupportedException($"Choice utility does not classify {command.GetType().Name}.");
+                            throw new NotSupportedException($"Choice utility does not classify {command} at {address:X4} (opcode {opcode:X2}, operands {program.Read(address + 1):X2}/{program.Read(address + 2):X2}/{program.Read(address + 3):X2}).");
                         }
                     }
                 }
@@ -105,7 +112,7 @@ public sealed partial class FieldMachine
             List<(HashSet<FieldVariableRead> Reads, HashSet<FieldVariableRead> Writes, bool Presentation)> consumers = [];
             foreach (var root in roots)
             {
-                if (pendingSelection && root.Entity == entity && root.Pc == programCounter && entities[entity].Priority == 1 && pendingRequests.Values.Any(request => request.Entity == entity && request.Priority == 1 && request.ProgramCounter == programCounter && request.Command is FieldDialogueCommand { FirstChoice: not null }))
+                if (pendingSelection && root.Entity == entity && root.Pc == programCounter && entities[entity].Priority is >= 0 and < 7 && entities[entity].Pc == programCounter && pendingRequests.Values.Any(request => request.Entity == entity && request.Priority == entities[entity].Priority && request.ProgramCounter == programCounter && request.Command is FieldDialogueCommand { FirstChoice: not null }))
                 {
                     continue;
                 }
@@ -171,7 +178,7 @@ public sealed partial class FieldMachine
                     unclassified.Add($"{owner}:{entities[owner].Pc:X4}: {error.Message}");
                 }
             }
-            return new(true, scratch.Select(write => (int)write.Operand).Order().ToArray(), presentationWrites.Select(write => (int)write.Operand).Order().ToArray(), presentationEntities.Order().ToArray(), unclassified.Count == 0 ? null : string.Join("; ", unclassified)) { FieldStepCounterIndependent = stepCounterIndependent };
+            return new(true, scratch.Select(write => (int)write.Operand).Order().ToArray(), presentationWrites.Select(write => (int)write.Operand).Order().ToArray(), presentationEntities.Order().ToArray(), unclassified.Count == 0 ? null : string.Join("; ", unclassified)) { FieldStepCounterIndependent = stepCounterIndependent, PalettePresentation = palettePresentation, SoundPanPublication = soundPanPublication };
         }
         catch (Exception error) when (error is NotSupportedException or FieldExecutionException or InvalidDataException or ArgumentException or IndexOutOfRangeException)
         {
