@@ -294,6 +294,7 @@ public sealed partial class Ff7Session : IDisposable
         Machine.AdvanceTick();
         Ff7TickContinuation completedContinuation = tickContinuation;
         tickTailInProgress = true;
+        nativeTailScriptActivity = NativeTickCompleted is null ? null : (completedContinuation.ScriptActivity ?? []).ToList();
         tickContinuation = null;
         Host.PublishCurrentNativeMovieCameraFrame();
         AdvancePlayerInput();
@@ -302,7 +303,8 @@ public sealed partial class Ff7Session : IDisposable
         FieldVmSnapshot snapshot = Machine.Capture();
         Host.RetireCompletedRequests((snapshot.PendingRequests ?? []).Select(request => request.Id).ToHashSet());
         tickTailInProgress = false;
-        Ff7NativeTickObservation? observation = CompleteNativeObservation(completedContinuation, snapshot);
+        Ff7NativeTickObservation? observation = CompleteNativeObservation(nativeTailScriptActivity is null ? completedContinuation : completedContinuation with { ScriptActivity = nativeTailScriptActivity.ToArray() }, snapshot);
+        nativeTailScriptActivity = null;
         CompleteFieldTransition();
         if (deferNavigationFieldDeparture && Host.Process.Transition is not null)
         {

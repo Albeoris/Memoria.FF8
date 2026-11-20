@@ -354,7 +354,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         if (State.Active is { } active && (active.Returned || active.Generation != observation.Generation))
         {
             bool changedField = active.Generation != observation.Generation;
-            bool nativeCompletion = active.Accepted && active.Returned || changedField && (active.TransitionOwned && active.Kind is not (Ff7AutoPlayTargetKind.WorldMesh or Ff7AutoPlayTargetKind.WorldModel) || active.Kind == Ff7AutoPlayTargetKind.Gateway && active.DestinationField == session.MapId || IsSpatialTransitionCompletion(active, session.MapId) || IsAcceptedWorldDeparture(active, State.WorldDispatch, observation.Generation, session.MapId));
+            bool nativeCompletion = active.Accepted && active.Returned && !Ff7AutoPlayExecutionOwners.HasOutstandingChildren(readinessVm, active, observation.Generation) || changedField && (active.TransitionOwned && active.Kind is not (Ff7AutoPlayTargetKind.WorldMesh or Ff7AutoPlayTargetKind.WorldModel) || active.Kind == Ff7AutoPlayTargetKind.Gateway && active.DestinationField == session.MapId || IsSpatialTransitionCompletion(active, session.MapId) || IsAcceptedWorldDeparture(active, State.WorldDispatch, observation.Generation, session.MapId));
             if (nativeCompletion)
             {
                 CompleteActive(observation, active, changedField, driver, physicalGuards);
@@ -733,15 +733,18 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         {
             State.TravelCommitment = null;
         }
-        if (accepted && State.Active is { } active && active.Generation == session.FieldGeneration && active.Entity == entity && active.Script == script && scriptedInput.IsEntryInputSatisfied(entity, script))
+        if (accepted && State.Active is { Accepted: false } active && active.Generation == session.FieldGeneration && active.Entity == entity && active.Script == script && scriptedInput.IsEntryInputSatisfied(entity, script))
         {
             Ff7AutoPlayObservation observation = ObservePlanner();
             string signature = observation.Events.SingleOrDefault(target => target.Id == active.EventId)?.ConditionFingerprint ?? active.ConditionFingerprint;
             string? availability = State.Coverage.Visits.Single(visit => visit.Visit.Key == active.VisitId).Events.Single(item => item.Event.Id == active.EventId).AvailabilityFingerprint;
             planner.BeginEvent(active.VisitId, active.EventId);
-            State.Active = active with { Accepted = true, ConditionFingerprint = signature, BeforeStory = Story(), BeforeWitness = session.CaptureEventProgressWitness(), NavigationKey = observation.NavigationKey, EntryAvailabilityFingerprint = availability, TransportEntry = ReadCurrentTransportEntry(observation, active.EventId) };
+            Ff7AutoPlayActiveEvent admitted = active with { Accepted = true, ConditionFingerprint = signature, BeforeStory = Story(), BeforeWitness = session.CaptureEventProgressWitness(), NavigationKey = observation.NavigationKey, EntryAvailabilityFingerprint = availability, TransportEntry = ReadCurrentTransportEntry(observation, active.EventId) };
+            bool started = admitted.Kind is >= Ff7AutoPlayTargetKind.ActorTalk and <= Ff7AutoPlayTargetKind.LineLeave && admitted.SpatialOwner is null && admitted.DirectEffectOwner is null && currentInteractionAdmission is { Accepted: true, Started: true, Priority: 1 } actual && actual.Entity == entity && actual.Script == script;
+            State.Active = admitted with { ExecutionProvenance = started ? Ff7AutoPlayExecutionOwners.Begin(admitted, session.Machine.ProgramIdentity, session.Field.Scripts.Entities[entity].ScriptOffsets[script], session.Machine.Tick) : active.ExecutionProvenance };
             Publish();
         }
+        currentInteractionAdmission = null;
     }
 
     private Ff7AutoPlayObservation ObservePlanner()
@@ -860,6 +863,10 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             return;
         }
         bool spatialChanged = false;
+        Ff7AutoPlayActiveEvent tracked = Ff7AutoPlayExecutionOwners.Observe(active, observation.Generation, session.Machine.ProgramIdentity, observation.Tick, observation.ScriptActivity ?? [], (entity, script) => session.Field.Scripts.Entities[entity].ScriptOffsets[script]);
+        bool provenanceChanged = !ReferenceEquals(active, tracked);
+        active = tracked;
+        State.Active = active;
         if (active.SpatialOwner is not null || active.DirectEffectOwner is not null)
         {
             Ff7AutoPlayActiveEvent observed = ObserveSpatialScriptActivity(active, observation.ScriptActivity ?? []);
@@ -867,9 +874,9 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             active = observed;
             State.Active = active;
         }
-        bool returned = active.SpatialOwner is null && active.DirectEffectOwner is null && active.Accepted && observation.ScriptReturns.Any(owner => owner.Entity == active.Entity && owner.Priority == 1);
+        bool returned = active.SpatialOwner is null && active.DirectEffectOwner is null && active.Accepted && (active.ExecutionProvenance?.RootReturned ?? observation.ScriptReturns.Any(owner => owner.Entity == active.Entity && owner.Priority == 1));
         bool transition = IsOwnedTransition(observation, active);
-        if (returned || transition || spatialChanged)
+        if (returned || transition || spatialChanged || provenanceChanged)
         {
             State.Active = active with { Returned = active.Returned || returned, TransitionOwned = active.TransitionOwned || transition };
             Publish();
@@ -922,7 +929,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         {
             return IsDirectSpatialTransition(observation, active);
         }
-        return active is { Accepted: true, Returned: false } && active.Generation == observation.Generation && observation.Transition is not null && observation.TransitionOwner is { } owner && owner.Command == observation.Transition && observation.TransitionOwnership is { } proof && proof.RootEntity == active.Entity && proof.RootScript == active.Script && proof.OwnerEntity == owner.Entity && proof.OwnerPriority == owner.Priority;
+        return active.Accepted && (!active.Returned || active.ExecutionProvenance is not null) && active.Generation == observation.Generation && observation.Transition is not null && observation.TransitionOwner is { } owner && owner.Command == observation.Transition && observation.TransitionOwnership is { } proof && proof.RootEntity == active.Entity && proof.RootScript == active.Script && proof.OwnerEntity == owner.Entity && proof.OwnerPriority == owner.Priority;
     }
 
     private Ff7AutoplayInput ChooseLineInput(Ff7AutoplayDriver driver, Ff7AutoPlayTarget target, bool run = true)

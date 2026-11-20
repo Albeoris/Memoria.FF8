@@ -5,8 +5,11 @@ namespace Memoria.FF7.Runtime;
 
 public sealed partial class Ff7AutoPlayPolicy
 {
+    private FieldExternalScriptAdmission? currentInteractionAdmission;
+
     private void ObserveEffectAliasAdmission(FieldExternalScriptAdmission admission)
     {
+        currentInteractionAdmission = admission;
         if (!admission.Accepted || !admission.Started || admission.Priority != 1 || State.NativeRoute is not null || State.Choice is not null || State.PendingRestore is not null || State.Active is not { Accepted: false, Returned: false, TransitionOwned: false, CompletionRecorded: false } planned || planned.Entity != admission.Entity || planned.Script == admission.Script || planned.Generation != session.FieldGeneration || planned.TravelRoute is not null || planned.SpatialOwner is not null || planned.DirectEffectOwner is not null)
         {
             return;
@@ -52,7 +55,7 @@ public sealed partial class Ff7AutoPlayPolicy
         {
             return null;
         }
-        return planned with { EventId = actual.Id, Script = actual.Script, Kind = actual.Kind, ConditionFingerprint = actual.ConditionFingerprint, NavigationProbeKey = null, EntryAvailabilityFingerprint = null, TravelRoute = null, TravelSelections = null };
+        return planned with { EventId = actual.Id, Script = actual.Script, Kind = actual.Kind, ConditionFingerprint = actual.ConditionFingerprint, NavigationProbeKey = null, EntryAvailabilityFingerprint = null, TravelRoute = null, TravelSelections = null, ExecutionProvenance = null };
     }
 
     internal static bool HasCompatibleEffectAliasInput(Ff7AutoPlayTarget expected, Ff7AutoPlayTarget actual)

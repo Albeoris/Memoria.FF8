@@ -7,7 +7,8 @@ namespace Memoria.FF7.Runtime;
 
 public sealed record Ff7NativeHostOperation(FieldHostRequest Request, FieldHostReply Reply);
 public sealed record Ff7NativeInstructionBoundary(int Entity, int Priority, int ProgramCounter, byte Opcode);
-public sealed record Ff7NativeScriptActivity(FieldScriptDispatch? Dispatch = null, FieldScriptReturn? Return = null, Ff7NativeHostOperation? HostOperation = null, Ff7NativeInstructionBoundary? Boundary = null);
+public sealed record Ff7NativeExternalAdmission(FieldExternalScriptAdmission Admission, long Tick);
+public sealed record Ff7NativeScriptActivity(FieldScriptDispatch? Dispatch = null, FieldScriptReturn? Return = null, Ff7NativeHostOperation? HostOperation = null, Ff7NativeInstructionBoundary? Boundary = null, Ff7NativeExternalAdmission? ExternalAdmission = null);
 
 public sealed record Ff7NativeGatewayPosition(int X, int Y, int Z, int Triangle);
 public sealed record Ff7NativeGatewayDeparture(string Field, long Generation, long Tick, int GatewayIndex, FieldTransitionCommand Transition, Ff7NativeGatewayPosition From, Ff7NativeGatewayPosition To);
@@ -25,6 +26,7 @@ public sealed partial class Ff7Session
     internal event Action<Ff7NativeGatewayDeparture?>? NativeFieldDeparting;
     internal Ff7NativeGatewayDeparture? GatewayDeparture { get; private set; }
     private bool deferNavigationFieldDeparture;
+    private List<Ff7NativeScriptActivity>? nativeTailScriptActivity;
 
     internal bool HasNativeGatewayDeparture(Ff7NativeGatewayDeparture expected)
     {
@@ -70,6 +72,7 @@ public sealed partial class Ff7Session
     private bool RequestInteractionScript(int entity, int script, bool actorTalk = false)
     {
         FieldExternalScriptAdmission admission = Machine.RequestExternalScript(entity, script);
+        ObserveNativeScriptActivity(new(ExternalAdmission: new(admission, Machine.Tick)));
         NativeInteractionScriptRequested?.Invoke(admission);
         if (actorTalk)
         {
@@ -101,6 +104,10 @@ public sealed partial class Ff7Session
 
     private void ObserveNativeHostOperation(FieldHostRequest request, FieldHostReply reply)
     {
+        if (request.Command is FieldTransitionCommand && reply.Completed && AutoPlayState?.Active?.ExecutionProvenance is not null)
+        {
+            ObserveNativeScriptActivity(new(HostOperation: new(request, reply)));
+        }
         if (AutoPlayState?.Active is not { Kind: Ff7AutoPlayTargetKind.AutonomousSpatial, Accepted: false, DirectEffectOwner: { } owner } active || active.Generation != FieldGeneration || !Ff7AutoPlayPolicy.MatchesDirectSpatialEffect(owner, request))
         {
             return;
@@ -111,6 +118,11 @@ public sealed partial class Ff7Session
     private void ObserveNativeInstruction(int entity, int priority, int programCounter, byte opcode)
     {
         Ff7AutoPlayActiveEvent? active = AutoPlayState?.Active;
+        bool queuedStart = active?.ExecutionProvenance is not null && (active.ExecutionProvenance.Owners.Any(owner => owner.Queued && owner.Entity == entity && owner.Priority == priority && owner.Entry == programCounter) || (tickContinuation?.ScriptActivity ?? []).Any(activity => activity.Dispatch is { Accepted: true, Queued: true } dispatch && dispatch.TargetEntity == entity && dispatch.TargetPriority == priority && Field.Scripts.Entities[entity].ScriptOffsets[dispatch.TargetScript] == programCounter));
+        if (queuedStart)
+        {
+            ObserveNativeScriptActivity(new(Boundary: new(entity, priority, programCounter, opcode)));
+        }
         if (active is not { Kind: Ff7AutoPlayTargetKind.AutonomousSpatial, Returned: false, DirectEffectOwner: { } owner } || active.Generation != FieldGeneration || owner.Entity != entity || owner.Priority != priority || !owner.ExitProgramCounters.Contains(programCounter))
         {
             return;
@@ -124,8 +136,20 @@ public sealed partial class Ff7Session
 
     private void ObserveNativeScriptActivity(Ff7NativeScriptActivity activity)
     {
-        if (NativeTickCompleted is null || tickContinuation is null)
+        if (NativeTickCompleted is null)
         {
+            return;
+        }
+        if (tickContinuation is null)
+        {
+            if (nativeTailScriptActivity is not null)
+            {
+                if (nativeTailScriptActivity.Count == 4096)
+                {
+                    throw new InvalidDataException("FFVII script activity exceeded its bounded callback allocation.");
+                }
+                nativeTailScriptActivity.Add(activity);
+            }
             return;
         }
         Ff7NativeScriptActivity[] prior = tickContinuation.ScriptActivity ?? [];
@@ -144,13 +168,37 @@ public sealed partial class Ff7Session
         }
         FieldHostRequest? transitionOwner = Host.Process.Transition is null ? null : Host.Capture().Receipts.FirstOrDefault(receipt => receipt.Request.Id == Host.Process.GlobalRequestId)?.Request;
         FieldScriptReturn[] returns = continuation.ScriptReturns?.ToArray() ?? [];
-        Ff7NativeTransitionOwnership? ownership = ReadTransitionOwnership(sourceVm, transitionOwner, AutoPlayState?.Active, FieldGeneration, returns);
+        Ff7NativeTransitionOwnership? ownership = ReadTransitionOwnership(sourceVm, transitionOwner, AutoPlayState?.Active, FieldGeneration, returns, continuation.ScriptActivity, (entity, script) => Field.Scripts.Entities[entity].ScriptOffsets[script]);
         return new(Field.Name, FieldGeneration, Machine.Tick, returns, Host.Process.Transition, CaptureEventProgressWitness(), transitionOwner, ownership, continuation.ScriptActivity ?? []);
     }
 
-    internal static Ff7NativeTransitionOwnership? ReadTransitionOwnership(FieldVmSnapshot sourceVm, FieldHostRequest? owner, Ff7AutoPlayActiveEvent? active, long generation, IReadOnlyList<FieldScriptReturn> returns)
+    internal static Ff7NativeTransitionOwnership? ReadTransitionOwnership(FieldVmSnapshot sourceVm, FieldHostRequest? owner, Ff7AutoPlayActiveEvent? active, long generation, IReadOnlyList<FieldScriptReturn> returns, IReadOnlyList<Ff7NativeScriptActivity>? activities = null, Func<int, int, int>? readEntry = null)
     {
-        if (owner is not { Command: FieldTransitionCommand } || active is null || returns.Any(returned => returned.Entity == (active.SpatialOwner?.TargetEntity ?? active.Entity) && returned.Priority == (active.DirectEffectOwner?.Priority ?? active.SpatialOwner?.TargetPriority ?? 1)) || !Ff7AutoPlayScriptedInput.ReadInteractionOwners(sourceVm, active, generation).TryGetValue(owner.Entity, out int priority) || priority != owner.Priority)
+        if (owner is { Command: FieldTransitionCommand } && active is not null)
+        {
+            if (active.ExecutionProvenance is not null && !Ff7AutoPlayExecutionOwners.Matches(active, generation, sourceVm.ProgramIdentity))
+            {
+                return null;
+            }
+            Ff7AutoPlayActiveEvent tracked = activities is not null && readEntry is not null ? Ff7AutoPlayExecutionOwners.Observe(active, generation, sourceVm.ProgramIdentity, sourceVm.Tick, activities, readEntry) : active;
+            if (tracked.ExecutionProvenance is { } provenance && provenance.AcceptedTransition == owner && provenance.AcceptedTransitionTick == sourceVm.Tick)
+            {
+                return new(active.Entity, active.Script, owner.Entity, owner.Priority);
+            }
+            if (active.ExecutionProvenance is not null && ((uint)owner.Entity >= sourceVm.Entities.Length || sourceVm.Entities[owner.Entity].Priority != owner.Priority || sourceVm.Entities[owner.Entity].ProgramCounter != owner.ProgramCounter || !(sourceVm.PendingRequests ?? []).Contains(owner)))
+            {
+                return null;
+            }
+            if (Ff7AutoPlayExecutionOwners.ReadCurrentOwners(sourceVm, tracked, generation).TryGetValue(owner.Entity, out int recordedPriority) && recordedPriority == owner.Priority)
+            {
+                return new(active.Entity, active.Script, owner.Entity, owner.Priority);
+            }
+            if (active.ExecutionProvenance is not null)
+            {
+                return null;
+            }
+        }
+        if (owner is not { Command: FieldTransitionCommand } || active is null || returns.Any(returned => returned.Entity == (active.SpatialOwner?.TargetEntity ?? active.Entity) && returned.Priority == (active.DirectEffectOwner?.Priority ?? active.SpatialOwner?.TargetPriority ?? 1)) || !Ff7AutoPlayScriptedInput.ReadInteractionOwners(sourceVm, active with { ExecutionProvenance = null }, generation).TryGetValue(owner.Entity, out int priority) || priority != owner.Priority)
         {
             return null;
         }

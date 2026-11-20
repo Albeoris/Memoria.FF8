@@ -157,7 +157,11 @@ public sealed partial class Ff7AutoPlayScriptedInput(Ff7Session session)
 
     internal static IReadOnlyDictionary<int, int> ReadInteractionOwners(FieldVmSnapshot vm, Ff7AutoPlayActiveEvent? active, long generation)
     {
-        Dictionary<int, int> owners = [];
+        Dictionary<int, int> owners = Ff7AutoPlayExecutionOwners.ReadCurrentOwners(vm, active, generation).ToDictionary();
+        if (active?.ExecutionProvenance is not null)
+        {
+            return owners;
+        }
         bool continuation = active is { Returned: true, SpatialOwner: not null };
         int root = continuation ? active!.Entity : active?.DirectEffectOwner?.Entity ?? active?.SpatialOwner?.TargetEntity ?? active?.Entity ?? -1;
         int rootPriority = continuation ? active!.SpatialOwner!.SourcePriority : active?.DirectEffectOwner?.Priority ?? active?.SpatialOwner?.TargetPriority ?? 1;
@@ -165,7 +169,7 @@ public sealed partial class Ff7AutoPlayScriptedInput(Ff7Session session)
         {
             return owners;
         }
-        owners.Add(root, rootPriority);
+        owners.TryAdd(root, rootPriority);
         bool added;
         do
         {
