@@ -130,7 +130,7 @@ public sealed class BalambEncounterStartupTests
             Assert.Equal((float)(1d - (double)0.8f), battle.Presentation!.Memory.PrimitiveProcess.Depth.RemainingWeight);
             Assert.Equal(new NativeBattleMusicCommandState(false, null, null, null, 0x1CE075C, false), battle.NativeMusicProcess!.Commands);
             BattleSnapshot snapshot = battle.Capture();
-            BattleSession restored = BattleSession.Restore(snapshot);
+            BattleSession restored = battle.ForkForContinuation();
             Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(restored.Capture()));
             battle.Tick();
             restored.Tick();

@@ -149,13 +149,13 @@ public sealed partial class BattlePresentationProcess
                 }
                 NativeBattleRawMesh mesh = index == weaponObject ? linked[0] : geometry[index];
                 NativeBattleModelTextureBinding selectedBinding = index == weaponObject ? model.LinkedTextureSlots ?? throw new NotSupportedException("Native507E20 requires its executed weapon texture relocation.") : binding;
-                NativeBattleRawGeometryPackets.AppendModel5099D0(primitives, [mesh], matrices, projection, color, 1, null, 17, 4, selectedBinding, publishProjectedScratch: PublishNativeBodyProjectionScratch, viewport: SceneGeometryViewport, pilotIdentity: NativePilotModelIdentity(0x502D40, owner, index), actorId: actorId, material: material);
+                NativeBattleRawGeometryPackets.AppendModel5099D0(primitives, [mesh], matrices, projection, color, 1, null, 17, 4, selectedBinding, publishProjectedScratch: PublishActorProjectionScratch, viewport: SceneGeometryViewport, pilotIdentity: NativePilotModelIdentity(0x502D40, owner, index), actorId: actorId, material: material);
             }
             bodyPrimitives = primitives.Freeze();
         }
         else if (bodyDraw)
         {
-            bodyPrimitives = NativeBattleRawGeometryPackets.EmitModel5099D0(geometry, matrices, projection, color, mask, null, 17, 4, resource.GeometryRelocated507550 ? null : binding, publishProjectedScratch: PublishNativeBodyProjectionScratch, viewport: SceneGeometryViewport, pilotIdentity: NativePilotModelIdentity(0x502D40, owner), actorId: actorId, material: material);
+            bodyPrimitives = NativeBattleRawGeometryPackets.EmitModel5099D0(geometry, matrices, projection, color, mask, null, 17, 4, resource.GeometryRelocated507550 ? null : binding, publishProjectedScratch: PublishActorProjectionScratch, viewport: SceneGeometryViewport, pilotIdentity: NativePilotModelIdentity(0x502D40, owner), actorId: actorId, material: material);
         }
         if (bodyDraw)
         {
@@ -167,7 +167,7 @@ public sealed partial class BattlePresentationProcess
             foreach (NativeBattleActorSurface hands in resource.ActorSurfaces)
             {
                 var handMaterial = PrepareActorSurfaceMaterial(owner, hands);
-                NativeBattleModelPrimitiveBatch handPrimitives = NativeBattleRawGeometryPackets.EmitModel5099D0(hands.Geometry, matrices, projection, color, uint.MaxValue, null, 17, 4, handMaterial.Binding, publishProjectedScratch: PublishNativeBodyProjectionScratch, viewport: SceneGeometryViewport, pilotIdentity: NativePilotModelIdentity(0x502D40, owner, hands.AuthoredMeshBase), actorId: actorId, material: handMaterial.Material);
+                NativeBattleModelPrimitiveBatch handPrimitives = NativeBattleRawGeometryPackets.EmitModel5099D0(hands.Geometry, matrices, projection, color, uint.MaxValue, null, 17, 4, handMaterial.Binding, publishProjectedScratch: PublishActorProjectionScratch, viewport: SceneGeometryViewport, pilotIdentity: NativePilotModelIdentity(0x502D40, owner, hands.AuthoredMeshBase), actorId: actorId, material: handMaterial.Material);
                 graphics = AppendNativeModelRendererPackets(graphics, handPrimitives, true, measureModelPlacement: true);
             }
         }
@@ -176,7 +176,7 @@ public sealed partial class BattlePresentationProcess
             ImmutableArray<NativeBattleActionMatrix> linkedMatrices = NativeBattlePoseMatrices.LinkedDrawGeometryMatrices502D40(model, resource.LinkedPoseSource ?? throw new NotSupportedException("Native linked geometry requires its original independent skeleton."), view, actualCameraEye);
             if (ResetAndEnterNativeModelRenderer5099D0(color))
             {
-                NativeBattleModelPrimitiveBatch linkedPrimitives = NativeBattleRawGeometryPackets.EmitModel5099D0(linked, linkedMatrices, projection, color, uint.MaxValue, null, 17, 4, model.LinkedTextureSlots ?? throw new NotSupportedException("Native linked geometry requires its executed507400 material relocation."), publishProjectedScratch: PublishNativeBodyProjectionScratch, viewport: SceneGeometryViewport, pilotIdentity: NativePilotModelIdentity(0x507BF0, owner), actorId: actorId, material: material);
+                NativeBattleModelPrimitiveBatch linkedPrimitives = NativeBattleRawGeometryPackets.EmitModel5099D0(linked, linkedMatrices, projection, color, uint.MaxValue, null, 17, 4, model.LinkedTextureSlots ?? throw new NotSupportedException("Native linked geometry requires its executed507400 material relocation."), publishProjectedScratch: PublishActorProjectionScratch, viewport: SceneGeometryViewport, pilotIdentity: NativePilotModelIdentity(0x507BF0, owner), actorId: actorId, material: material);
                 graphics = AppendNativeModelRendererPackets(graphics, linkedPrimitives, true, measureModelPlacement: true);
             }
         }
@@ -202,6 +202,31 @@ public sealed partial class BattlePresentationProcess
             return null;
         }
         return new(0, bank, slot, 0, primitive);
+    }
+
+    private void PublishActorProjectionScratch(ReadOnlySpan<NativeBattleProjectedVertex> vertices)
+    {
+        NativeBattleModelCpuResources cpu = NativeModelCpuResources ?? throw new NotSupportedException("Actor projection requires its retained model CPU owner.");
+        ushort maximum = cpu.ScratchMaximum ?? throw new NotSupportedException("Actor projection requires its loaded scratch allocation maximum.");
+        if (vertices.Length > maximum)
+        {
+            // Hosted geometry can require more entries than its source trailer reserves.
+            // Hosted enemies own separate storage. The stage prefix still occupies the shared bank.
+            int occupiedBytes = cpu.EnemyResources is null
+                ? cpu.EnemyCursor ?? throw new NotSupportedException("Actor projection requires the shared enemy heap cursor.")
+                : this.resources.NativeStageSource?.PhysicalSource?.Prefix.Length ?? 0;
+            long start = NativeBattleBodyProjectionScratch.EndAddress - (long)vertices.Length * NativeBattleBodyProjectionScratch.BytesPerVertex;
+            if (vertices.Length > ushort.MaxValue || start < NativeBattleModelCpuResources.EnemyAddress + (long)occupiedBytes)
+            {
+                throw new InvalidDataException($"Actor projection needs {vertices.Length} vertices, which exceeds the available shared workspace.");
+            }
+            maximum = (ushort)vertices.Length;
+        }
+        NativeFileStaging = NativeBattleBodyProjectionScratch.Publish(NativeFileStaging ?? throw new NotSupportedException("Actor projection requires its canonical shared byte owner."), maximum, vertices);
+        if (maximum != cpu.ScratchMaximum)
+        {
+            NativeModelCpuResources = cpu with { ScratchMaximum = maximum };
+        }
     }
 
     private void PublishNativeBodyProjectionScratch(ReadOnlySpan<NativeBattleProjectedVertex> vertices)
