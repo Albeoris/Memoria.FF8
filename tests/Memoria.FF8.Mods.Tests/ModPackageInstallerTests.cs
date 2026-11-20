@@ -190,17 +190,18 @@ public sealed partial class ModPackageInstallerTests : IDisposable
     }
 
     [Fact]
-    public async Task AcceptingVersionMismatchCannotBypassCompatibilityRules()
+    public async Task InstallingWithVersionMismatchPreservesCompatibilityRules()
     {
         CancellationToken token = TestContext.Current.CancellationToken;
         ModPackageInstaller installer = Installer();
         RemoteModEntry entry = Entry();
-        string compatibility = $"<Compatibility><Forbid ModID=\"{Guid.NewGuid()}\">Other mod</Forbid></Compatibility>";
+        Guid conflictingMod = Guid.NewGuid();
+        string compatibility = $"<Compatibility><Forbid ModID=\"{conflictingMod}\">Other mod</Forbid></Compatibility>";
         ModPackageInstallPlan plan = await installer.InspectAsync(Zip(("mod.xml", Manifest("2", compatibility))), entry, token);
         Assert.NotNull(plan.VersionWarning);
-        Assert.Contains("compatibility rules", plan.InstallationBlocker);
-        await Assert.ThrowsAsync<NotSupportedException>(() => installer.RequestInstallAsync(plan, cancellationToken: token, allowVersionMismatch: true));
-        Assert.Null(installer.GetStatus(entry));
+        await installer.RequestInstallAsync(plan, cancellationToken: token, allowVersionMismatch: true);
+        Assert.True(Assert.Single(installer.RecoverAndApply()).Installed);
+        Assert.Equal(conflictingMod, Assert.Single(JunctionModImporter.Open(plan.Destination).Manifest.ForbiddenMods));
     }
 
     [Fact]

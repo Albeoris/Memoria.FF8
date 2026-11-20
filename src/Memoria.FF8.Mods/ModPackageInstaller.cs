@@ -29,7 +29,6 @@ public sealed class ModPackageInstallPlan
     public string PackageId { get; }
     public string Version { get; }
     public string? VersionWarning { get; internal init; }
-    public string? InstallationBlocker { get; internal init; }
     public string Destination { get; }
     public long RequiredBytes { get; }
     public bool RestartRequired => true;
@@ -223,7 +222,7 @@ public sealed partial class ModPackageInstaller
             {
                 File.Move(payload, stable);
             }
-            JunctionModPackage package = ValidatePackage(stable, entry, inspectOnly: true);
+            JunctionModPackage package = ValidatePackage(stable, entry, allowVersionMismatch: true);
             string version = package.Manifest.Version!;
             ValidateInnerPayload(stable, cancellationToken);
             long bytes = PayloadBytes(stable);
@@ -234,8 +233,7 @@ public sealed partial class ModPackageInstaller
             string destination = Path.Combine(modsRoot, "Junction", name + (Directory.Exists(stable) ? "" : ".iroj"));
             return new(this, token, entry, targetProfile, "Junction/" + Path.GetFileName(destination), version, destination, bytes)
             {
-                VersionWarning = entry.CompareVersion(version) == 0 ? null : $"The catalog lists version {entry.Version}, but the downloaded package contains version {version}.",
-                InstallationBlocker = JunctionRelationshipBlocker(package.Manifest)
+                VersionWarning = entry.CompareVersion(version) == 0 ? null : $"The catalog lists version {entry.Version}, but the downloaded package contains version {version}."
             };
         }
         catch
@@ -245,14 +243,7 @@ public sealed partial class ModPackageInstaller
         }
     }
 
-    private static string? JunctionRelationshipBlocker(JunctionManifestMetadata manifest)
-    {
-        return manifest.RequiredMods.Count > 0 || manifest.ForbiddenMods.Count > 0 || manifest.SettingConstraints.Count > 0
-            ? "The package declares compatibility rules for other mods or their options. The installer cannot plan these relationships yet."
-            : null;
-    }
-
-    private JunctionModPackage ValidatePackage(string path, RemoteModEntry entry, IReadOnlyDictionary<string, int>? options = null, bool inspectOnly = false)
+    private JunctionModPackage ValidatePackage(string path, RemoteModEntry entry, IReadOnlyDictionary<string, int>? options = null, bool allowVersionMismatch = false)
     {
         if (!junctionSupported)
         {
@@ -271,13 +262,9 @@ public sealed partial class ModPackageInstaller
         {
             throw new InvalidDataException($"The catalog has an invalid version: {entry.Version}.");
         }
-        if (!inspectOnly && actual != expected)
+        if (!allowVersionMismatch && actual != expected)
         {
             throw new InvalidDataException($"Package version {package.Manifest.Version} does not match the accepted version {entry.Version}.");
-        }
-        if (!inspectOnly && JunctionRelationshipBlocker(package.Manifest) is { } blocker)
-        {
-            throw new NotSupportedException(blocker);
         }
         if (package.Manifest.ExternalMusicExtension is "psf" or "minipsf" || package.Files.Any(file => Path.GetExtension(file.RelativePath).Equals(".psf", StringComparison.OrdinalIgnoreCase) || Path.GetExtension(file.RelativePath).Equals(".minipsf", StringComparison.OrdinalIgnoreCase)))
         {

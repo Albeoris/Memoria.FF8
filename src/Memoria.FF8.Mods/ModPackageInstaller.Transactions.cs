@@ -35,10 +35,6 @@ public sealed partial class ModPackageInstaller
                 {
                     throw new InvalidOperationException("The install plan expired or belongs to another target; inspect again.");
                 }
-                if (plan.InstallationBlocker is { } blocker)
-                {
-                    throw new NotSupportedException(blocker);
-                }
                 if (plan.VersionWarning is not null && !allowVersionMismatch)
                 {
                     throw new InvalidOperationException(plan.VersionWarning);

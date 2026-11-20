@@ -14,7 +14,8 @@ public enum ModEffectiveStatus
     Disabled,
     IncompatibleEdition,
     NoUsableEntries,
-    ReloadFailure
+    ReloadFailure,
+    JunctionCompatibilityBlocked
 }
 
 public sealed record ModDiagnostic(string Code, string Message, string? PackageId = null, string? RelativePath = null);

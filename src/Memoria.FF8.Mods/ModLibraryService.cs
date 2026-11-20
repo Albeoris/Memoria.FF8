@@ -590,7 +590,7 @@ public sealed class ModLibraryService : IModLibraryService, IDisposable
                         state.Cancellation?.Dispose();
                         state.Cancellation = null;
                     }
-                    if (job.InstallAfterDownload && state is { Plan: { VersionWarning: null, InstallationBlocker: null }, Error: null, Result: null, Installation: null })
+                    if (job.InstallAfterDownload && state is { Plan: { VersionWarning: null }, Error: null, Result: null, Installation: null })
                     {
                         try
                         {
@@ -698,7 +698,7 @@ public sealed class ModLibraryService : IModLibraryService, IDisposable
         bool installedCache = state?.Error is null && (job.Phase is ModDownloadPhase.Paused or ModDownloadPhase.ReadyToInstall) && installations.Any(item => item.SourceId == job.Entry.SourceId && item.Id == job.Entry.Id && item.Available && !item.Pending && accepted.CompareVersion(item.Version) == 0);
         bool retrying = pendingRetries.Contains(job.JobId);
         string? versionWarning = state?.Plan?.VersionWarning;
-        string? inspectionProblem = state?.Error ?? state?.Plan?.InstallationBlocker;
+        string? inspectionProblem = state?.Error;
         string phase = job.Phase switch
         {
             ModDownloadPhase.ReadyToInstall => inspectionProblem is not null ? "Needs attention" : state?.Result?.Installed == true ? "Installed" : state?.Result?.RestartRequired == true ? "Waiting to apply" : state?.Installation is not null ? "Preparing installation" : state?.Plan is not null ? "Ready to install" : "Inspecting package",
@@ -718,11 +718,7 @@ public sealed class ModLibraryService : IModLibraryService, IDisposable
         string? details = job.Details ?? job.Message;
         if (state?.Plan is { } plan)
         {
-            details = $"Version {plan.Version} · {plan.PackageId}.";
-            if (plan.InstallationBlocker is null)
-            {
-                details += $" Installation is applied when its resource directory is available. {(mods.AutoEnableNewMods ? "New installations will be enabled." : "New installations will remain disabled.")} Existing choices are preserved. Integrity: {(job.Entry.Official is null ? "local SHA-256" : "verified publisher SHA-256")}.";
-            }
+            details = $"Version {plan.Version} · {plan.PackageId}. Installation is applied when its resource directory is available. {(mods.AutoEnableNewMods ? "New installations will be enabled." : "New installations will remain disabled.")} Existing choices are preserved. Integrity: {(job.Entry.Official is null ? "local SHA-256" : "verified publisher SHA-256")}.";
         }
         if (installedCache)
         {

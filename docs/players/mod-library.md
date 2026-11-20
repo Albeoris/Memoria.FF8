@@ -31,7 +31,9 @@ Supported downloads are a full standalone IROJ, or a ZIP/7z containing one IROJ 
 
 The launcher refreshes the catalog at startup and before **Retry**. Retry checks the download against the refreshed release. If the download source is unchanged, it can reuse the verified archive.
 
-Packages needing multiple component choices, coordinated dependency/option relationships, delta patching, unsupported extraction directives or a change between archive and directory installation shapes are blocked with an explanation. This release does not provide automatic adoption or uninstall of manual mods. Unsupported or ambiguous packages remain available for investigation without touching installed files.
+A Junction package can require or exclude other active mods by GUID and constrain their options. These rules are checked when applying the active configuration. If a rule blocks an installed mod, the mod stays installed and **Installed** explains the conflict. After you resolve the conflict, the mod can activate using its existing enablement setting.
+
+Packages needing multiple component choices, catalog-level installation requirements, delta patching, unsupported extraction directives or a change between archive and directory installation shapes are blocked with an explanation. This release does not provide automatic adoption or uninstall of manual mods. Unsupported or ambiguous packages remain available for investigation without touching installed files.
 
 ## Removing downloaded mods
 

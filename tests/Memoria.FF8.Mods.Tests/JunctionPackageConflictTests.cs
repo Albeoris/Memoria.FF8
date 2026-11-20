@@ -41,7 +41,7 @@ public sealed class JunctionPackageConflictTests : IDisposable
         using ModRuntime runtime = new(root, watch: false);
         Publish(runtime);
 
-        Assert.Equal(ModEffectiveStatus.ReloadFailure, Package(runtime, "Owner").Status);
+        Assert.Equal(ModEffectiveStatus.JunctionCompatibilityBlocked, Package(runtime, "Owner").Status);
         Assert.Equal(ModEffectiveStatus.Active, Package(runtime, "Target").Status);
         Assert.Equal("Junction/Target", Assert.Single(runtime.Catalog.Files).PackageId);
         Assert.Contains(runtime.Diagnostics, diagnostic => diagnostic.Code == "junction-package-conflict" && diagnostic.PackageId == "Junction/Owner");
@@ -95,7 +95,7 @@ public sealed class JunctionPackageConflictTests : IDisposable
         Publish(runtime);
 
         Assert.Equal(ModEffectiveStatus.NoUsableEntries, Package(runtime, "Target").Status);
-        Assert.Equal(ModEffectiveStatus.ReloadFailure, Package(runtime, "Owner").Status);
+        Assert.Equal(ModEffectiveStatus.JunctionCompatibilityBlocked, Package(runtime, "Owner").Status);
         Assert.Empty(runtime.Catalog.Files);
     }
 
@@ -109,8 +109,8 @@ public sealed class JunctionPackageConflictTests : IDisposable
         using ModRuntime runtime = new(root, watch: false);
         Publish(runtime);
 
-        Assert.Equal(ModEffectiveStatus.ReloadFailure, Package(runtime, "Owner").Status);
-        Assert.Equal(ModEffectiveStatus.ReloadFailure, Package(runtime, "Dependent").Status);
+        Assert.Equal(ModEffectiveStatus.JunctionCompatibilityBlocked, Package(runtime, "Owner").Status);
+        Assert.Equal(ModEffectiveStatus.JunctionCompatibilityBlocked, Package(runtime, "Dependent").Status);
         Assert.Equal(new[] { "Junction/TargetA", "Junction/TargetB" }, runtime.Catalog.Files.Select(file => file.PackageId));
         Assert.Contains(runtime.Diagnostics, diagnostic => diagnostic.Code == "junction-package-conflict" && diagnostic.PackageId == "Junction/Owner");
         Assert.Contains(runtime.Diagnostics, diagnostic => diagnostic.Code == "junction-dependency-inactive" && diagnostic.PackageId == "Junction/Dependent");
@@ -126,7 +126,7 @@ public sealed class JunctionPackageConflictTests : IDisposable
         using ModRuntime runtime = new(root, watch: false);
         Publish(runtime);
 
-        Assert.All(runtime.Catalog.Packages, package => Assert.Equal(ModEffectiveStatus.ReloadFailure, package.Status));
+        Assert.All(runtime.Catalog.Packages, package => Assert.Equal(ModEffectiveStatus.JunctionCompatibilityBlocked, package.Status));
         Assert.Empty(runtime.Catalog.Files);
         Assert.Equal(2, runtime.Diagnostics.Count(diagnostic => diagnostic.Code == "junction-package-conflict"));
     }
@@ -138,7 +138,7 @@ public sealed class JunctionPackageConflictTests : IDisposable
         using ModRuntime runtime = new(root, watch: false);
         Publish(runtime);
 
-        Assert.Equal(ModEffectiveStatus.ReloadFailure, Package(runtime, "Owner").Status);
+        Assert.Equal(ModEffectiveStatus.JunctionCompatibilityBlocked, Package(runtime, "Owner").Status);
         Assert.Empty(runtime.Catalog.Files);
         Assert.Contains(runtime.Diagnostics, diagnostic => diagnostic.Code == "junction-package-conflict" && diagnostic.PackageId == "Junction/Owner");
     }

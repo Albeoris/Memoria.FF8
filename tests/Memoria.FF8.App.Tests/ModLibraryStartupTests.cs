@@ -148,6 +148,79 @@ public sealed class ModLibraryStartupTests : IDisposable
         Assert.True(next.PackageInstaller.GetStatus(entry)!.Installed);
     }
 
+    [Theory]
+    [InlineData("Require", "junction-dependency-inactive")]
+    [InlineData("Forbid", "junction-package-conflict")]
+    [InlineData("Setting", "junction-setting-conflict")]
+    public async Task CompatibilityBlockedInstallKeepsItsReceiptAndActivatesWhenResolved(string rule, string diagnosticCode)
+    {
+        const string targetPackageId = "Junction/Target";
+        const string movie = "movies/example.avi";
+        Guid targetId = Guid.NewGuid();
+        string targetDirectory = Path.Combine(Mods, targetPackageId);
+        Directory.CreateDirectory(Path.Combine(targetDirectory, "payload", "movies"));
+        File.WriteAllText(Path.Combine(targetDirectory, "payload", "movies", "target.avi"), "target media");
+        File.WriteAllText(Path.Combine(targetDirectory, "mod.xml"), $"<ModInfo><ID>{targetId}</ID><ConfigOption><Type>Bool</Type><ID>mode</ID><Default>1</Default><Option Value='0'/><Option Value='1'/></ConfigOption><ModFolder Folder='payload'/></ModInfo>");
+        string targetPreferences = Path.Combine(targetDirectory, "mod.ini");
+        if (rule == "Require")
+        {
+            File.WriteAllText(targetPreferences, "enabled = 0\n");
+        }
+
+        string constraint = rule == "Setting"
+            ? $"<Setting><ModID>{targetId}</ModID><TheirID>mode</TheirID><Require>0</Require></Setting>"
+            : $"<{rule} ModID='{targetId}'>Target</{rule}>";
+        RemoteModEntry entry = new("synthetic", modId, "Example", "1");
+        ModPackageInstallPlan plan;
+        Guid installation;
+        using (GameResourceHost first = Host())
+        {
+            plan = await first.PackageInstaller.InspectAsync(Package("1", true, $"<Compatibility>{constraint}</Compatibility>"), entry, Token);
+            ModPackageInstallResult pending = await first.PackageInstaller.RequestInstallAsync(plan, autoEnableNewMods: true, cancellationToken: Token);
+            Assert.True(pending.RestartRequired);
+            installation = pending.InstallationId;
+        }
+
+        for (int restart = 0; restart < 2; restart++)
+        {
+            using GameResourceHost blocked = Host();
+            ModPackageInstallResult receipt = Assert.IsType<ModPackageInstallResult>(blocked.PackageInstaller.GetStatus(entry));
+            Assert.Equal((installation, "1", true, false), (receipt.InstallationId, receipt.Version, receipt.Installed, receipt.RestartRequired));
+            Assert.Null(receipt.Error);
+            ModPackage package = Assert.Single(blocked.Mods.InstalledPackages, package => package.Id == plan.PackageId);
+            Assert.Equal(plan.Destination, package.RootDirectory);
+            Assert.True(package.ExplicitEnabled);
+            Assert.True(package.RequestedEnabled);
+            Assert.Equal(ModEffectiveStatus.JunctionCompatibilityBlocked, package.Status);
+            Assert.True(File.Exists(Path.Combine(plan.Destination, "payload", movie)));
+            Assert.DoesNotContain(blocked.Mods.Catalog.Files, file => file.PackageId == plan.PackageId);
+            Assert.Contains(blocked.Mods.Diagnostics, diagnostic => diagnostic.PackageId == plan.PackageId && diagnostic.Code == diagnosticCode);
+            Assert.DoesNotContain(blocked.Mods.Diagnostics, diagnostic => diagnostic.Code == "library-activation");
+        }
+
+        using (GameResourceHost resolving = Host())
+        {
+            if (rule == "Setting")
+            {
+                File.WriteAllText(targetPreferences, "option.mode = 0\n");
+                resolving.Mods.Refresh();
+            }
+            else
+            {
+                Assert.True(resolving.Mods.SetEnabled(targetPackageId, rule == "Require").Success);
+            }
+            Assert.True(resolving.Pump(force: true));
+            Assert.Equal(ModEffectiveStatus.Active, Assert.Single(resolving.Mods.Catalog.Packages, package => package.Id == plan.PackageId).Status);
+            Assert.DoesNotContain(resolving.Mods.Diagnostics, diagnostic => diagnostic.PackageId == plan.PackageId && diagnostic.Code == diagnosticCode);
+            Assert.Equal("retained media", File.ReadAllText(resolving.ResolveGameFile(movie)));
+        }
+
+        using GameResourceHost active = Host();
+        Assert.Equal(installation, active.PackageInstaller.GetStatus(entry)!.InstallationId);
+        Assert.Equal(ModEffectiveStatus.Active, Assert.Single(active.Mods.InstalledPackages, package => package.Id == plan.PackageId).Status);
+        Assert.Equal("retained media", File.ReadAllText(active.ResolveGameFile(movie)));
+    }
+
     [Fact]
     public async Task UnusableUpdateRestoresPreviousPayloadBeforeConsumersReadIt()
     {
@@ -371,13 +444,13 @@ public sealed class ModLibraryStartupTests : IDisposable
 
     private static string Digest(byte[] content) => Convert.ToHexStringLower(SHA256.HashData(content));
 
-    private string Package(string version, bool media)
+    private string Package(string version, bool media, string compatibility = "")
     {
         string path = Path.Combine(root, Guid.NewGuid().ToString("N") + ".zip");
         using ZipArchive archive = ZipFile.Open(path, ZipArchiveMode.Create);
         using (StreamWriter manifest = new(archive.CreateEntry("mod.xml").Open()))
         {
-            manifest.Write($"<ModInfo><ID>{modId}</ID><Name>Example</Name><Version>{version}</Version>{(media ? "<ModFolder Folder=\"payload\"/>" : "")}</ModInfo>");
+            manifest.Write($"<ModInfo><ID>{modId}</ID><Name>Example</Name><Version>{version}</Version>{compatibility}{(media ? "<ModFolder Folder=\"payload\"/>" : "")}</ModInfo>");
         }
         if (media)
         {

@@ -12,7 +12,7 @@ public sealed class JunctionSettingConstraintTests : IDisposable
         Write("Owner", $"<ModInfo>{Option("gate", 1)}<Compatibility><Setting><MyID>gate</MyID><MyValue>1</MyValue><ModID>{Target}</ModID><TheirID>mode</TheirID><Require>0</Require></Setting></Compatibility><ModFolder Folder='assets'/></ModInfo>");
         using ModRuntime runtime = new(root, watch: false);
         Publish(runtime);
-        Assert.Equal(ModEffectiveStatus.ReloadFailure, runtime.Catalog.Packages.Single(package => package.Id == "Junction/Owner").Status);
+        Assert.Equal(ModEffectiveStatus.JunctionCompatibilityBlocked, runtime.Catalog.Packages.Single(package => package.Id == "Junction/Owner").Status);
         Assert.Equal("Junction/Target", Assert.Single(runtime.Catalog.Files).PackageId);
         Assert.Contains(runtime.Diagnostics, diagnostic => diagnostic.Code == "junction-setting-conflict");
         File.WriteAllText(Path.Combine(root, "Mods/Junction/Target/mod.ini"), "option.mode = 0\n");
@@ -50,7 +50,7 @@ public sealed class JunctionSettingConstraintTests : IDisposable
         using ModRuntime runtime = new(root, watch: false);
         Publish(runtime);
         Assert.Equal(ModEffectiveStatus.Active, runtime.Catalog.Packages.Single(package => package.Id == "Junction/Target").Status);
-        Assert.Equal(ModEffectiveStatus.ReloadFailure, runtime.Catalog.Packages.Single(package => package.Id == "Junction/Owner").Status);
+        Assert.Equal(ModEffectiveStatus.JunctionCompatibilityBlocked, runtime.Catalog.Packages.Single(package => package.Id == "Junction/Owner").Status);
     }
 
     [Theory]

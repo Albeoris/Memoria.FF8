@@ -26,7 +26,8 @@ public enum ModPackagePresentationKind
     EnableFailed,
     ActiveUpdating,
     ActiveDisabling,
-    Enabling
+    Enabling,
+    JunctionCompatibilityBlocked
 }
 
 public enum ModPackageProblemKind
@@ -78,6 +79,7 @@ public sealed record ModServiceView(IReadOnlyList<ModPackageView> Packages, bool
             bool active = actual?.Status == ModEffectiveStatus.Active;
             bool incompatible = package.Status == ModEffectiveStatus.IncompatibleEdition;
             bool unusable = package.Status == ModEffectiveStatus.NoUsableEntries;
+            bool compatibilityBlocked = actual?.Status == ModEffectiveStatus.JunctionCompatibilityBlocked;
             bool loadFailure = actual?.Status == ModEffectiveStatus.ReloadFailure || package.Status == ModEffectiveStatus.ReloadFailure && current is ModUpdateOutcome.Idle or ModUpdateOutcome.PublishedWithWarnings;
             ModDiagnostic? issue = notices.FirstOrDefault(diagnostic => string.Equals(diagnostic.PackageId, package.Id, StringComparison.OrdinalIgnoreCase));
             bool changed = package.RequestedEnabled != active || changedPackageIds?.Contains(package.Id) == true || !discovered.Contains(package.Id);
@@ -107,6 +109,12 @@ public sealed record ModServiceView(IReadOnlyList<ModPackageView> Packages, bool
                 presentation = ModPackagePresentationKind.NoUsableEntries;
                 FallbackProblem("This package has no usable entries for the current configuration.", ModPackageProblemKind.NoUsableEntries);
             }
+            else if (compatibilityBlocked)
+            {
+                status = "Not active · compatibility conflict";
+                presentation = ModPackagePresentationKind.JunctionCompatibilityBlocked;
+                FallbackProblem("Resolve this package's Junction compatibility rules to activate it.", ModPackageProblemKind.Diagnostic);
+            }
             else if (loadFailure && !failed)
             {
                 status = active ? "Active · load failed" : "Not active · load failed";
@@ -131,7 +139,7 @@ public sealed record ModServiceView(IReadOnlyList<ModPackageView> Packages, bool
                 presentation = active ? package.RequestedEnabled && discovered.Contains(package.Id) ? ModPackagePresentationKind.ActiveUpdating : ModPackagePresentationKind.ActiveDisabling : package.RequestedEnabled ? ModPackagePresentationKind.Enabling : ModPackagePresentationKind.Basic;
                 FallbackProblem("The saved request is waiting for runtime publication.", ModPackageProblemKind.Pending);
             }
-            packages.Add(new(package, actual?.Status, status, problem, incompatible || unusable || loadFailure || affected || issue is not null, !incompatible && discovered.Contains(package.Id)) { PresentationKind = presentation, ProblemKind = problemKind });
+            packages.Add(new(package, actual?.Status, status, problem, incompatible || unusable || compatibilityBlocked || loadFailure || affected || issue is not null, !incompatible && discovered.Contains(package.Id)) { PresentationKind = presentation, ProblemKind = problemKind });
         }
         return new(Array.AsReadOnly(packages.ToArray()), autoEnable, pending, current, Array.AsReadOnly(notices));
     }

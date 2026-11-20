@@ -213,7 +213,10 @@ internal sealed partial class GameResourceHost
         ModServiceView view = Mods.View;
         foreach ((string root, ModPackageInstaller installer, IReadOnlyList<ModPackageInstallResult> applications) in modLibraryRecovery)
         {
-            HashSet<string> accepted = view.Packages.Where(package => !package.Package.RequestedEnabled || package.CommittedStatus == ModEffectiveStatus.Active && !package.NeedsAttention).Where(package => !package.Package.Id.StartsWith("Junction/managed-", StringComparison.OrdinalIgnoreCase) || ApplicationInstallation.ModPathComparer.Equals(Path.GetFullPath(package.Package.RootDirectory), Path.GetFullPath(Path.Combine(root, package.Package.Id.Replace('/', Path.DirectorySeparatorChar))))).Select(package => package.Package.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            HashSet<string> accepted = view.Packages
+                .Where(package => !package.Package.RequestedEnabled || package.CommittedStatus == ModEffectiveStatus.JunctionCompatibilityBlocked || package.CommittedStatus == ModEffectiveStatus.Active && !package.NeedsAttention)
+                .Where(package => !package.Package.Id.StartsWith("Junction/managed-", StringComparison.OrdinalIgnoreCase) || ApplicationInstallation.ModPathComparer.Equals(Path.GetFullPath(package.Package.RootDirectory), Path.GetFullPath(Path.Combine(root, package.Package.Id.Replace('/', Path.DirectorySeparatorChar)))))
+                .Select(package => package.Package.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
             foreach (ModPackageInstallResult application in applications.Where(result => result.Installed && result.NativeDestinationName is not null))
             {
                 string destination = Path.Combine(root, "Memoria", application.NativeDestinationName!);

@@ -139,21 +139,14 @@ public sealed class ModLibraryServiceTests
             ModLibraryJob warning = Assert.Single(library.View.Jobs);
             Assert.True(warning.CanRetry);
             Assert.True(warning.CanPreview);
-            Assert.Equal(!hasCompatibilityRules, warning.CanInstall);
-            if (hasCompatibilityRules)
-            {
-                Assert.Contains("compatibility rules", warning.Error);
-            }
-            else
-            {
-                Assert.Null(warning.Error);
-            }
+            Assert.True(warning.CanInstall);
+            Assert.Null(warning.Error);
             Assert.Null(installer.GetStatus(entry));
             ModPreviewDocument preview = await library.OpenPreviewAsync(entry, null, TestContext.Current.CancellationToken);
             Assert.Equal("Example", preview.Name);
 
             library.Retry(warning.Id);
-            await Until(() => library.View.Jobs.Any(job => job.Entry.Version == "2.11" && job.Phase == (hasCompatibilityRules ? "Needs attention" : "Waiting to apply")));
+            await Until(() => library.View.Jobs.Any(job => job.Entry.Version == "2.11" && job.Phase == "Waiting to apply"));
             ModLibraryJob updated = Assert.Single(library.View.Jobs);
             Assert.Equal(warning.Id, updated.Id);
             Assert.Equal("2.11", updated.Entry.Version);

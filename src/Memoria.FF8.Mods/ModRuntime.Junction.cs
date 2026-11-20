@@ -166,10 +166,11 @@ public sealed partial class ModRuntime
         {
             foreach (Guid forbidden in package.JunctionMetadata?.ForbiddenMods ?? [])
             {
-                if (identities.TryGetValue(forbidden, out ModPackage[]? candidates) && candidates.Any(candidate => candidate.RequestedEnabled && candidate.Status is ModEffectiveStatus.Active or ModEffectiveStatus.NoUsableEntries))
+                ModPackage? other = identities.GetValueOrDefault(forbidden)?.FirstOrDefault(candidate => candidate.RequestedEnabled && candidate.Status is ModEffectiveStatus.Active or ModEffectiveStatus.NoUsableEntries);
+                if (other is not null)
                 {
                     conflicting.Add(package.Id);
-                    notices.Add(new("junction-package-conflict", $"Forbidden Junction mod {forbidden} is active; disable one of the conflicting packages.", package.Id));
+                    notices.Add(new("junction-package-conflict", $"This package conflicts with {other.Name} ({forbidden}). Disable one of the packages.", package.Id));
                 }
             }
         }
@@ -223,10 +224,11 @@ public sealed partial class ModRuntime
                         {
                             continue;
                         }
-                        if (constraint.Require is int required && target != required || constraint.Forbid.Contains(target))
+                        string? problem = constraint.Require is int required && target != required ? $"requires {required}" : constraint.Forbid.Contains(target) ? $"forbids {target}" : null;
+                        if (problem is not null)
                         {
                             rejected.Add(package.Id);
-                            notices.Add(new("junction-setting-conflict", $"Junction setting {constraint.ModId}/{constraint.TheirId}={target} conflicts with this package; select a compatible option or disable one of the packages.", package.Id));
+                            notices.Add(new("junction-setting-conflict", $"This package {problem} for {active[0].Name}/{constraint.TheirId}, currently {target}. Select a compatible option or disable one of the packages.", package.Id));
                             changed = true;
                             break;
                         }
@@ -236,6 +238,7 @@ public sealed partial class ModRuntime
             while (changed);
         }
         RejectRequirements();
+        HashSet<string> invalidOrder = new(StringComparer.OrdinalIgnoreCase);
         Dictionary<string, HashSet<string>> edges = junction.Where(IsActive).ToDictionary(package => package.Id, _ => new HashSet<string>(StringComparer.OrdinalIgnoreCase), StringComparer.OrdinalIgnoreCase);
         foreach (ModPackage package in junction.Where(IsActive))
         {
@@ -249,6 +252,7 @@ public sealed partial class ModRuntime
                 {
                     notices.Add(new("junction-order-ambiguous", $"Junction order target {target} is ambiguous.", package.Id));
                     rejected.Add(package.Id);
+                    invalidOrder.Add(package.Id);
                     return;
                 }
                 ModPackage other = candidates[0];
@@ -275,6 +279,7 @@ public sealed partial class ModRuntime
             if (Reaches(id, id, new HashSet<string>(StringComparer.OrdinalIgnoreCase)))
             {
                 rejected.Add(id);
+                invalidOrder.Add(id);
                 notices.Add(new("junction-order-cycle", "Junction package participates in a load-order cycle.", id));
             }
         }
@@ -287,7 +292,9 @@ public sealed partial class ModRuntime
             ordered.Add(next);
             pending.Remove(next);
         }
-        ordered.AddRange(junction.Where(package => !IsActive(package)).Select(package => rejected.Contains(package.Id) ? package with { Status = ModEffectiveStatus.ReloadFailure } : package));
+        ordered.AddRange(junction.Where(package => !IsActive(package)).Select(package => rejected.Contains(package.Id)
+            ? package with { Status = invalidOrder.Contains(package.Id) ? ModEffectiveStatus.ReloadFailure : ModEffectiveStatus.JunctionCompatibilityBlocked }
+            : package));
         int insertion = packages.FindIndex(package => package.Format == ModFormat.Junction);
         if (insertion >= 0)
         {
