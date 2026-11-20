@@ -1,4 +1,6 @@
 using System.Numerics;
+using System.Security.Cryptography;
+using System.Text.Json;
 using Memoria.FF7.Events;
 using Memoria.FF7.Formats;
 
@@ -59,6 +61,94 @@ public sealed partial class Ff7AutoplayDriver
     private bool? navigationActionProgress;
     private bool navigationEscapeAction;
 
+    private readonly Dictionary<(int Entity, int Script), (string Condition, bool Independent)> navigationModeClockContracts = [];
+    private string? navigationModeClockProgram;
+
+    internal static bool HasClockIndependentModeAnalysis(FieldScriptAnalysis analysis)
+    {
+        return analysis.Complete && analysis.StochasticPresentation is null && !analysis.Reads.Any(IsNativeClockAccess) && analysis.HostReads.All(read => read.Kind is FieldHostReadKind.Gil or FieldHostReadKind.ItemQuantity or FieldHostReadKind.PartyAvailable or FieldHostReadKind.Actor or FieldHostReadKind.PreviousMap or FieldHostReadKind.BattleResult or FieldHostReadKind.MateriaCapacity or FieldHostReadKind.MusicPlaying);
+    }
+
+    private bool CanIgnoreNavigationModeElapsedClock(Ff7AutoPlayTarget target, IReadOnlyList<Ff7AutoPlayTarget> offeredTargets)
+    {
+        if (!HasNativeRouteClockContract(session) || (session.Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 95) & 2) != 0)
+        {
+            return false;
+        }
+        if (navigationModeClockProgram != session.Machine.ProgramIdentity)
+        {
+            navigationModeClockContracts.Clear();
+            navigationModeClockProgram = session.Machine.ProgramIdentity;
+        }
+        foreach (Ff7AutoPlayTarget candidate in offeredTargets.Append(target).DistinctBy(candidate => candidate.Id))
+        {
+            if (!candidate.AnalysisComplete)
+            {
+                return false;
+            }
+            if (candidate.Kind == Ff7AutoPlayTargetKind.Gateway)
+            {
+                continue;
+            }
+            if (candidate.Entity < 0 || candidate.Script < 0)
+            {
+                return false;
+            }
+            var key = (candidate.Entity, candidate.Script);
+            if (!navigationModeClockContracts.TryGetValue(key, out var known) || known.Condition != candidate.ConditionFingerprint)
+            {
+                known = (candidate.ConditionFingerprint, HasClockIndependentModeAnalysis(session.Machine.AnalyzeScript(candidate.Entity, candidate.Script)));
+                navigationModeClockContracts[key] = known;
+            }
+            if (!known.Independent)
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    internal static string ReadNavigationModeExecutionFence(Ff7Progress progress, FieldVmSnapshot vm, bool elapsedClockIndependent)
+    {
+        Ff7Progress observed = progress;
+        if (elapsedClockIndependent && progress.Clock is { CountdownSeconds: 0 } && vm.PersistentVariables.Length > 95 && (vm.PersistentVariables[95] & 2) == 0)
+        {
+            observed = progress with { Clock = new() };
+        }
+        return Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new { Progress = observed, Vm = vm })));
+    }
+
+    private readonly Dictionary<bool, NavigationModeState> parkedNavigationModes = [];
+    private Ff7NativePlanningQuantum? navigationModeQuantum;
+    private bool preparingNavigationMode;
+    private bool nextPendingNavigationRun = true;
+    private bool? selectedNavigationRun;
+    private string? navigationModeSource;
+    private string? navigationModeIntent;
+    private string? navigationModeGoal;
+
+    private void ClearParkedNavigationModes(bool preserveSelection = false)
+    {
+        parkedNavigationModes.Clear();
+        nextPendingNavigationRun = true;
+        if (!preserveSelection)
+        {
+            selectedNavigationRun = null;
+        }
+    }
+
+    private void UpdateNavigationModeGoal(string goal)
+    {
+        if (navigationModeGoal == goal)
+        {
+            return;
+        }
+        navigationModeGoal = goal;
+        navigationTalkContactSearchPhase = false;
+        ClearParkedNavigationModes();
+        ResetObstacleEscape();
+    }
+
     private sealed record NavigationModeState(long WaypointGeneration, int WaypointDestination, Vector3? CommittedWaypoint, int WaypointSourceTriangle, Vector3? FinalTarget, long ObstacleGeneration, Vector3? ObstacleTarget, int ObstacleSpeed, Vector3[] ObstacleHistory, EscapeStep[] ObstacleEscape, bool? RunMode, bool? ActionProgress, bool LineRejected, bool EscapeAction, string? ApproachGuideContext, (int From, int To)[] ApproachAdviceExclusions, PhysicalSearchCursor? ObstacleSearch, string? ObstacleSearchContext);
 
     private NavigationModeState CaptureNavigationMode()
@@ -97,6 +187,7 @@ public sealed partial class Ff7AutoplayDriver
         obstacleSearchContext = state.ObstacleSearchContext;
     }
     internal bool? PlannedActionAdvances => navigationActionProgress;
+    internal bool PreparingNavigationMode => preparingNavigationMode;
 
     internal Ff7AutoplayInput ChooseTargetInput(Ff7AutoPlayTarget target, IReadOnlyList<Ff7AutoPlayTarget> offeredTargets, Func<bool, Ff7AutoplayInput> choose, bool? requiredRun = null)
     {
@@ -110,40 +201,118 @@ public sealed partial class Ff7AutoplayDriver
         navigationLineTargets = offeredTargets.Where(candidate => candidate.Kind is >= Ff7AutoPlayTargetKind.LineTalk and <= Ff7AutoPlayTargetKind.LineLeave && (candidate.ChangesField || candidate.MayChangeNavigation) && candidate.Entity != selectedLine && !(target.Kind == Ff7AutoPlayTargetKind.Gateway && target.DestinationField == candidate.DestinationField)).ToArray();
         navigationLineSkips.Clear();
         admittedGateways = ReadTargetGatewayIndices(target, session.Field.Triggers.Gateways);
+        Ff7Actor? player = session.Host.Process.Actors.SingleOrDefault(actor => actor.PlayerControlled);
+        string intent = JsonSerializer.Serialize(new { session.FieldGeneration, target.Id, target.Entity, target.Script, target.Kind, target.EntryInputContract, target.DestinationField, target.GatewayIndex, RequiredRun = requiredRun });
+        string source = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new
+        {
+            Intent = intent,
+            Target = target,
+            Offered = offeredTargets,
+            Execution = ReadNavigationModeExecutionFence(session.Progress, session.Machine.Capture(), CanIgnoreNavigationModeElapsedClock(target, offeredTargets)),
+            Player = player is null ? null : new { player.Slot, player.Entity, player.Model, player.EntityBound, player.X4096, player.Y4096, player.Z4096, player.Triangle, player.Direction, player.MoveSpeed, player.MovementFacingDisabled, player.CollisionRadius },
+            RunSpeed = session.GetPlayerMovementSpeed(true),
+            WalkSpeed = session.GetPlayerMovementSpeed(false),
+            session.Host.Process.BlockedTriangles,
+            session.Host.Process.Lines,
+            Actors = session.Host.Process.Actors.Select(actor => new { actor.Slot, actor.Entity, actor.Model, actor.EntityBound, actor.PlayerControlled, actor.PartyCharacter, actor.X4096, actor.Y4096, actor.Z4096, actor.Triangle, actor.Direction, actor.CollisionEnabled, actor.CollisionRadius, actor.TalkEnabled, actor.TalkRadius, actor.AnimationStatus, actor.MovementFacingDisabled, actor.Ladder, actor.Jump }),
+            session.Host.Process.Motions,
+            session.Host.Process.NativeMusicTrack,
+            session.Host.Process.MusicTicks,
+            session.Host.Process.MusicLock,
+            session.Host.Process.PlayerLocked,
+            session.Host.Process.MenuDisabled,
+            session.Host.Process.Join,
+            session.Host.Process.LineBlocked,
+            session.Host.Process.MapJumpDisabled,
+            Boundaries = CaptureSpatialBoundaryTriangles()
+        })));
+        try
+        {
+            return ChooseNavigationModes(source, intent, session.Machine.Input, player, choose, AllowsBoundaryInput, requiredRun);
+        }
+        finally
+        {
+            navigationLineTargets = retainedTargets;
+            navigationLineInput = retainedInput;
+            navigationLineTalk = retainedTalk;
+            admittedGateways = retainedGateways;
+            navigationSelectedTarget = retainedSelectedTarget;
+        }
+    }
+
+    internal Ff7AutoplayInput ChooseNavigationModes(string source, string intent, FieldInputState previousInput, Ff7Actor? player, Func<bool, Ff7AutoplayInput> choose, Func<Ff7AutoplayInput, bool> allows, bool? requiredRun = null)
+    {
+        if (navigationModeIntent != intent)
+        {
+            ClearParkedNavigationModes();
+            ResetObstacleEscape();
+            navigationModeGoal = null;
+            navigationTalkContactSearchPhase = false;
+            navigationModeIntent = intent;
+        }
+        if (navigationModeSource != source)
+        {
+            ClearParkedNavigationModes(preserveSelection: true);
+            if (!obstacleEscape.TryPeek(out EscapeStep? next) || player is null || !MatchesEscapeSource(player, next))
+            {
+                obstacleEscape.Clear();
+                CancelObstacleSearch();
+            }
+            navigationModeSource = source;
+        }
+        NavigationModeState initialState = CaptureNavigationMode();
+        Ff7NativePlanningQuantum? previousQuantum = navigationModeQuantum;
+        navigationModeQuantum = new();
         Ff7AutoplayInput? idle = null;
         Ff7AutoplayInput? detour = null;
         NavigationModeState? detourState = null;
         Ff7AutoPlayNavigationUnavailableException? failure = null;
         bool rejected = false;
-        NavigationModeState initialState = CaptureNavigationMode();
+        bool pending = false;
+        bool firstRun = requiredRun ?? (parkedNavigationModes.Count > 0 ? nextPendingNavigationRun : selectedNavigationRun ?? navigationRunMode ?? true);
+        void Adopt(bool run, NavigationModeState? selected = null)
+        {
+            if (selected is not null)
+            {
+                RestoreNavigationMode(selected);
+            }
+            ClearParkedNavigationModes();
+            selectedNavigationRun = run;
+            PlanningPending = false;
+        }
         try
         {
-            // Resume a retained walk search in its own mode before trying speculative alternatives.
-            bool firstRun = obstacleSearch is null ? true : navigationRunMode ?? true;
             foreach (bool run in ReadNavigationRunModes(firstRun, requiredRun))
             {
-                RestoreNavigationMode(initialState);
-                if (navigationRunMode != run)
-                {
-                    waypointGeneration = -1;
-                    committedWaypoint = null;
-                    obstacleEscape.Clear();
-                    CancelObstacleSearch();
-                    navigationRunMode = run;
-                }
-                navigationLineInput = ProjectNavigationInput(new(Horizontal: 1, Run: run), session.Machine.Input);
-                navigationLineTalk = false;
-                navigationLineRejected = false;
-                navigationActionProgress = null;
-                navigationEscapeAction = false;
+                RestoreNavigationMode(parkedNavigationModes.TryGetValue(run, out NavigationModeState? parked) ? parked : initialState);
+                bool previousPreparing = preparingNavigationMode;
+                preparingNavigationMode = true;
                 try
                 {
+                    if (navigationRunMode != run)
+                    {
+                        waypointGeneration = -1;
+                        committedWaypoint = null;
+                        obstacleEscape.Clear();
+                        CancelObstacleSearch();
+                        navigationRunMode = run;
+                        approachGuideContext = null;
+                    }
+                    navigationLineInput = ProjectNavigationInput(new(Horizontal: 1, Run: run), previousInput);
+                    navigationLineTalk = false;
+                    navigationLineRejected = false;
+                    navigationActionProgress = null;
+                    navigationEscapeAction = false;
+                    PlanningPending = false;
                     Ff7AutoplayInput action = choose(run);
                     if (PlanningPending)
                     {
-                        return action;
+                        parkedNavigationModes[run] = CaptureNavigationMode();
+                        pending = true;
+                        continue;
                     }
-                    bool admitted = AllowsBoundaryInput(action);
+                    parkedNavigationModes.Remove(run);
+                    bool admitted = allows(action);
                     rejected |= navigationLineRejected || !admitted;
                     if (!admitted)
                     {
@@ -154,10 +323,7 @@ public sealed partial class Ff7AutoplayDriver
                         if (detour is Ff7AutoplayInput retained)
                         {
                             Ff7AutoplayInput selected = PreferAdvancingNavigationInput(retained, action, navigationActionProgress == true);
-                            if (selected == retained)
-                            {
-                                RestoreNavigationMode(detourState!);
-                            }
+                            Adopt(selected.Run, selected == retained ? detourState : null);
                             return selected;
                         }
                         if (ShouldTryWalkingAction(action, navigationLineRejected, navigationEscapeAction))
@@ -166,6 +332,7 @@ public sealed partial class Ff7AutoplayDriver
                             detourState = CaptureNavigationMode();
                             continue;
                         }
+                        Adopt(action.Run);
                         return action;
                     }
                     idle ??= action;
@@ -176,28 +343,36 @@ public sealed partial class Ff7AutoplayDriver
                     {
                         throw;
                     }
+                    parkedNavigationModes.Remove(run);
                     failure = blocked;
                     rejected = true;
+                }
+                finally
+                {
+                    preparingNavigationMode = previousPreparing;
                 }
             }
             if (detour is Ff7AutoplayInput retainedDetour)
             {
-                RestoreNavigationMode(detourState!);
+                Adopt(retainedDetour.Run, detourState);
                 return retainedDetour;
+            }
+            if (pending)
+            {
+                nextPendingNavigationRun = !firstRun;
+                DeferPlanning();
+                return default;
             }
             if (idle is Ff7AutoplayInput waiting && !rejected)
             {
+                PlanningPending = false;
                 return waiting;
             }
-            throw failure ?? new Ff7AutoPlayNavigationUnavailableException(target.Entity, "Neither native run nor walk admits the selected approach without executing an unselected line owner.");
+            throw failure ?? new Ff7AutoPlayNavigationUnavailableException(navigationSelectedTarget?.Entity ?? -1, "Neither native run nor walk admits the selected approach without executing an unselected line owner.");
         }
         finally
         {
-            navigationLineTargets = retainedTargets;
-            navigationLineInput = retainedInput;
-            navigationLineTalk = retainedTalk;
-            admittedGateways = retainedGateways;
-            navigationSelectedTarget = retainedSelectedTarget;
+            navigationModeQuantum = previousQuantum;
         }
     }
 

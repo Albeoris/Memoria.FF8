@@ -51,12 +51,7 @@ internal static class TalkConditionDomainTests
         string targetVisit = policy.State.Coverage.NavigationVisits.Single(visit => visit.Key == old.NavigationKey).VisitKey;
         int targetMap = int.Parse(targetVisit.Split(':')[1], System.Globalization.CultureInfo.InvariantCulture);
         var coverage = policy.State.Coverage.Visits.Single(visit => visit.Visit.Key == targetVisit).Events.Single(item => item.Event.Id == old.EventId);
-        FieldInfo planField = typeof(Ff7AutoPlayPolicy).GetField("talkContactPlan", BindingFlags.Instance | BindingFlags.NonPublic)!;
-        string? lastTrace = null;
-        int traceRows = 0;
-        object? failedPlan = null;
-        bool rotated = false;
-        object? ReadPoint(object? plan) => plan?.GetType().GetProperty("Point")?.GetValue(plan);
+        FieldInfo liveDriver = typeof(Ff7AutoPlayController).GetField("driver", BindingFlags.NonPublic | BindingFlags.Instance)!;
         HashSet<string> consumed = new(coverage.Conditions!.ConsumedEntries, StringComparer.Ordinal);
         bool oldConsumed = coverage.Conditions.HasExecutedEntry(old.Conditions!);
         string? admitted = null;
@@ -67,96 +62,34 @@ internal static class TalkConditionDomainTests
                 admitted = active.ConditionFingerprint;
             }
         };
-        Ff7AutoPlayController controller = new(session, policy.ChooseInput, chooseDialogueSelection: policy.ChooseDialogueSelection, readPlanningProgress: () => policy.WorkProgress, readFrontierProgress: () => policy.FrontierProgress);
+        Ff7AutoPlayController controller = new(session, policy.ChooseInput, advanceTick: () => session.AdvanceTick(advanceClock: false), chooseDialogueSelection: policy.ChooseDialogueSelection, readPlanningProgress: () => policy.WorkProgress, readFrontierProgress: () => policy.FrontierProgress);
         controller.Start();
         Stopwatch elapsed = Stopwatch.StartNew();
+        TimeSpan previousClock = TimeSpan.Zero;
         for (int slice = 0; slice < 10000 && controller.Running && admitted is null && controller.Steps < 600 && elapsed.Elapsed < TimeSpan.FromSeconds(20); slice++)
         {
-            object? beforePlan = planField.GetValue(policy);
+            TimeSpan currentClock = elapsed.Elapsed;
+            session.AdvanceClock(currentClock - previousClock);
+            previousClock = currentClock;
             controller.Advance(1);
-            if (policy.Status == "Trying another native talk contact after a movement cycle" && beforePlan is not null)
-            {
-                failedPlan = beforePlan;
-                if (Environment.GetEnvironmentVariable("MEMORIA_FF7_TALK_INGRESS_DIAGNOSTIC") == "1")
-                {
-                    ReadIngressDiagnostic(session, policy, old.EventId!, (Vector3)ReadPoint(beforePlan)!, (int)beforePlan.GetType().GetProperty("Triangle")!.GetValue(beforePlan)!);
-                    Check(bytes.AsSpan().SequenceEqual(File.ReadAllBytes(path)), "The ingress diagnostic changed its original source.");
-                    return;
-                }
-            }
-            object? nextPlan = planField.GetValue(policy);
-            string trace = $"map={session.MapId};active={policy.State.Active?.EventId};goal={policy.State.NavigationGoal?.EventId};point={ReadPoint(nextPlan)};triangle={nextPlan?.GetType().GetProperty("Triangle")?.GetValue(nextPlan)};status={policy.Status}";
-            if (trace != lastTrace && traceRows < 24)
-            {
-                Console.WriteLine($"TRACE callbacks={controller.Steps};{trace}");
-                traceRows++;
-                lastTrace = trace;
-            }
-            if (failedPlan is not null && nextPlan is not null && !Equals(ReadPoint(failedPlan), ReadPoint(nextPlan)))
-            {
-                rotated = true;
-            }
             if (session.Battle is not null || session.Host.HasUnfinishedBattle || session.MapId != initialMap && session.MapId != targetMap)
             {
                 break;
             }
         }
-        Check(controller.Error is null && admitted is not null && !consumed.Contains(admitted), $"The ordinary driver failed to admit a fresh contact condition: admitted={admitted}, callbacks={controller.Steps}, error={controller.Error}, status={policy.Status}.");
+        Ff7AutoplayDriver finalDriver = (Ff7AutoplayDriver)liveDriver.GetValue(controller)!;
+        object? finalMode = typeof(Ff7AutoplayDriver).GetField("navigationRunMode", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(finalDriver);
+        var parkedModes = (System.Collections.IDictionary)typeof(Ff7AutoplayDriver).GetField("parkedNavigationModes", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(finalDriver)!;
+        string modeWork = string.Join(';', parkedModes.Keys.Cast<bool>().Order().Select(run =>
+        {
+            object state = parkedModes[run]!;
+            var cursor = (Ff7AutoplayDriver.PhysicalSearchCursor?)state.GetType().GetProperty("ObstacleSearch")!.GetValue(state);
+            return $"{(run ? "run" : "walk")}:{cursor?.Expanded}";
+        }));
+        Check(controller.Error is null && admitted is not null && !consumed.Contains(admitted), $"The bounded original contact check ended before fresh admission: admitted={admitted}, callbacks={controller.Steps}, pending={finalDriver.PlanningPending}, physicalWork={finalDriver.PhysicalPlanningWork}, modeRun={finalMode}, parked={modeWork}, error={controller.Error}, status={policy.Status}.");
         Check(coverage.Conditions.HasExecutedEntry(old.Conditions!) == oldConsumed, "An aspirational historical condition acquired synthetic entry credit.");
         Check(bytes.AsSpan().SequenceEqual(File.ReadAllBytes(path)), "The native contact test changed its original source.");
-        Console.WriteLine($"PASS original condition-aware native talk admission; callbacks={controller.Steps}; rotated-real-cycle={rotated}; actualCF={admitted}; triangle={session.Host.Process.Actors.Single(actor => actor.PlayerControlled).Triangle}; elapsed={elapsed.Elapsed.TotalSeconds:F3}s; old goal credit/source unchanged");
-    }
-
-    private static void ReadIngressDiagnostic(Ff7Session session, Ff7AutoPlayPolicy policy, string eventId, Vector3 failedPoint, int destination)
-    {
-        Ff7AutoPlayObservation observation = new Ff7AutoPlayDiscovery(session).Observe();
-        Ff7AutoPlayTarget target = observation.Events.Single(item => item.Id == eventId);
-        Ff7Actor player = session.Host.Process.Actors.Single(actor => actor.PlayerControlled);
-        Ff7AutoplayDriver driver = new(session);
-        driver.ConfigureSpatialBoundaries(observation.Events, target);
-        var coverage = policy.State.Coverage.Visits.Single(visit => visit.Visit.Key == observation.VisitId).Events.Single(item => item.Event.Id == eventId);
-        var domain = policy.State.TalkConditionDomains[observation.NavigationKey + "|" + eventId];
-        var contacts = driver.DiscoverTalkContacts(session.Host.GetActor(target.Entity), player).Contacts;
-        Console.WriteLine($"INGRESS player={player.X4096},{player.Y4096},{player.Z4096}/tri{player.Triangle}/direction{player.Direction}; freshContactGroups=" + string.Join(';', contacts.Where(contact => domain.Conditions.TryGetValue(contact.Triangle, out string? condition) && !coverage.Conditions!.HasExecutedEntry(condition)).GroupBy(contact => contact.Triangle).Select(group => $"{group.Key}:{group.Count()}")));
-        var (previous, distance, _) = Ff7AutoplayDriver.ReadAdvisedApproachRoutes(session.Field.Walkmesh, session.Host.Process.BlockedTriangles, player.Triangle, destination, driver.CaptureSpatialBoundaryTriangles().ToHashSet(), null, new HashSet<(int, int)>(), new HashSet<(int, int)>());
-        var step = Ff7AutoplayDriver.ReadPortalApproachStep(session.Field.Walkmesh, player.Triangle, destination, previous, new(player.X4096 / 4096f, player.Y4096 / 4096f, player.Z4096 / 4096f), failedPoint, player.CollisionRadius);
-        Console.WriteLine($"PORTAL finalApproach={step.FinalApproach};waypoint={step.Waypoint};destination={destination};sourceDistance={distance[player.Triangle]};destinationDistance={distance[destination]}");
-        MethodInfo allows = typeof(Ff7AutoplayDriver).GetMethod("AllowsPlannedMove", BindingFlags.NonPublic | BindingFlags.Instance)!;
-        foreach (bool run in new[] { true, false })
-        {
-            driver.ChooseTargetInput(target, observation.Events, _ =>
-            {
-                Ff7AutoplayInput selectedInput = driver.Approach(failedPoint, destination, run);
-                Console.WriteLine($"APPROACH run={run};input={selectedInput};pending={driver.PlanningPending}");
-                Ff7Actor controlled = player with { MoveSpeed = checked((ushort)session.GetPlayerMovementSpeed(run)) };
-                for (int direction = 0; direction < 256; direction += 32)
-                {
-                    byte heading = (byte)((direction + session.Field.Triggers.ControlDirection) & 255);
-                    Ff7NativeMoveResult preview = session.Host.Movement!.StepDirection(controlled, heading, session.Host.Process.Actors, session.Host.Process.BlockedTriangles, playerLocked: false, lineBlocked: session.Host.Process.LineBlocked);
-                    bool admitted = (bool)allows.Invoke(driver, [controlled, preview])!;
-                    Console.WriteLine($"PREVIEW run={run};heading={heading};moved={preview.Moved};tri={preview.Actor.Triangle};pose={preview.Actor.X4096},{preview.Actor.Y4096},{preview.Actor.Z4096};talk={session.PreviewTalkTarget(preview.Actor)?.Entity};driverAllows={admitted}");
-                }
-                if (run)
-                {
-                    Ff7NativeMoveResult ingress = session.Host.Movement!.StepDirection(controlled, 64, session.Host.Process.Actors, session.Host.Process.BlockedTriangles, false, session.Host.Process.LineBlocked);
-                    Ff7Actor successor = ingress.Actor;
-                    var finalStep = Ff7AutoplayDriver.ReadPortalApproachStep(session.Field.Walkmesh, successor.Triangle, destination, previous, new(successor.X4096 / 4096f, successor.Y4096 / 4096f, successor.Z4096 / 4096f), failedPoint, successor.CollisionRadius);
-                    List<(int Heading, Ff7Actor Actor, int Remaining, float Distance)> legal = [];
-                    for (int direction = 0; direction < 256; direction += 32)
-                    {
-                        Ff7NativeMoveResult next = session.Host.Movement.StepDirection(successor, (byte)direction, session.Host.Process.Actors, session.Host.Process.BlockedTriangles, false, session.Host.Process.LineBlocked);
-                        if (next.Moved && (bool)allows.Invoke(driver, [successor, next])!)
-                        {
-                            legal.Add((direction, next.Actor, distance[next.Actor.Triangle], Vector2.DistanceSquared(new(next.Actor.X4096 / 4096f, next.Actor.Y4096 / 4096f), new(finalStep.Waypoint.X, finalStep.Waypoint.Y))));
-                        }
-                    }
-                    var oldRanking = legal.OrderBy(item => finalStep.FinalApproach ? 0 : item.Remaining).ThenBy(item => item.Distance).First();
-                    var requiredRanking = legal.OrderBy(item => item.Remaining).ThenBy(item => item.Distance).First();
-                    Console.WriteLine($"SUCCESSOR sourceTri={successor.Triangle};finalApproach={finalStep.FinalApproach};oldHeading={oldRanking.Heading}/tri{oldRanking.Actor.Triangle}/distance{oldRanking.Distance};requiredHeading={requiredRanking.Heading}/tri{requiredRanking.Actor.Triangle}/distance{requiredRanking.Distance}");
-                }
-                return default;
-            }, requiredRun: run);
-        }
+        Console.WriteLine($"PASS original condition-aware native talk admission; callbacks={controller.Steps}; actualCF={admitted}; triangle={session.Host.Process.Actors.Single(actor => actor.PlayerControlled).Triangle}; elapsed={elapsed.Elapsed.TotalSeconds:F3}s; App elapsed clock bridge active; old goal credit/source unchanged");
     }
 
     private static void Check(bool condition, string message)

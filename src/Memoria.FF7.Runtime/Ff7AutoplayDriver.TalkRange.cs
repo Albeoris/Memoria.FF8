@@ -8,18 +8,23 @@ namespace Memoria.FF7.Runtime;
 public sealed partial class Ff7AutoplayDriver
 {
     private string? navigationTalkContactContext;
+    private Func<Ff7Actor, bool>? navigationTalkContactGoal;
+    private bool navigationTalkContactSearchPhase;
 
-    internal Ff7AutoplayInput TalkToContact(int entity, Vector3 point, int triangle, bool run, string context)
+    internal Ff7AutoplayInput TalkToContact(int entity, Vector3 point, int triangle, bool run, string context, Func<Ff7Actor, bool> acceptsContact)
     {
         string? previous = navigationTalkContactContext;
+        Func<Ff7Actor, bool>? previousGoal = navigationTalkContactGoal;
         navigationTalkContactContext = context;
+        navigationTalkContactGoal = actor => session.PreviewTalkTarget(actor)?.Entity == entity && acceptsContact(actor);
         try
         {
-            return ChooseBoundaryInput(() => ChooseNativeTalkContactInput(session.Host.GetActor(entity), run, triangle) ?? Approach(point, triangle, run));
+            return ChooseBoundaryInput(() => ChooseNativeTalkContactInput(session.Host.GetActor(entity), run, acceptsContact) ?? Approach(point, triangle, run));
         }
         finally
         {
             navigationTalkContactContext = previous;
+            navigationTalkContactGoal = previousGoal;
         }
     }
 
@@ -29,14 +34,14 @@ public sealed partial class Ff7AutoplayDriver
         return ChooseNativeTalkContactInput(target, run) ?? Steer(contact, run);
     }
 
-    private Ff7AutoplayInput? ChooseNativeTalkContactInput(Ff7Actor target, bool run, int? contactTriangle = null)
+    private Ff7AutoplayInput? ChooseNativeTalkContactInput(Ff7Actor target, bool run, Func<Ff7Actor, bool>? acceptsContact = null)
     {
         if (!target.TalkEnabled)
         {
             return null;
         }
         Ff7Actor player = session.Host.Process.Actors.Single(actor => actor.PlayerControlled);
-        if (session.GetTalkTarget()?.Entity == target.Entity && (contactTriangle is null || player.Triangle == contactTriangle))
+        if (session.GetTalkTarget()?.Entity == target.Entity && (acceptsContact is null || acceptsContact(player)))
         {
             return new(Talk: true, Run: run);
         }
@@ -53,7 +58,7 @@ public sealed partial class Ff7AutoplayDriver
         foreach (var direction in Directions.OrderBy(direction => Math.Abs(((direction.Direction + session.Field.Triggers.ControlDirection - desired + 128) & 255) - 128)))
         {
             Ff7NativeMoveResult preview = movement.StepDirection(controlled, (byte)((direction.Direction + session.Field.Triggers.ControlDirection) & 255), session.Host.Process.Actors, session.Host.Process.BlockedTriangles, playerLocked: false, lineBlocked: session.Host.Process.LineBlocked);
-            if (AllowsPlannedMove(controlled, preview) && session.PreviewTalkTarget(preview.Actor)?.Entity == target.Entity && (contactTriangle is null || preview.Actor.Triangle == contactTriangle))
+            if (AllowsPlannedMove(controlled, preview) && session.PreviewTalkTarget(preview.Actor)?.Entity == target.Entity && (acceptsContact is null || acceptsContact(preview.Actor)))
             {
                 navigationActionProgress = true;
                 return new(direction.X, direction.Y, Run: run);

@@ -254,6 +254,7 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
         }
         IReadOnlyList<PcWalkmeshTriangle> mesh = session.Field.Walkmesh;
         int destination = targetTriangle ?? mesh.MinBy(triangle => Vector3.DistanceSquared((triangle.A + triangle.B + triangle.C) / 3, target))!.Index;
+        UpdateNavigationModeGoal($"{session.FieldGeneration}:{navigationSelectedTarget?.Id}:{navigationTalkContactContext ?? navigationSelectedTarget?.ConditionFingerprint}:{target}:{destination}");
         finalTarget = target;
         string guideContext = ReadApproachGuideContext(player, target, destination);
         UpdateApproachGuideContext(guideContext);
@@ -308,7 +309,10 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
                 {
                     blockedInputs.Add((new(direction.X, direction.Y), probe.PushEntities));
                 }
-                continue;
+                if (!HasNativePhysicalStateChange(controlled, probe.Actor))
+                {
+                    continue;
+                }
             }
             advancing |= LocalProgress(probe.Actor);
             Vector2 position = new(probe.Actor.X4096 / 4096f, probe.Actor.Y4096 / 4096f);

@@ -215,17 +215,36 @@ public sealed partial class Ff7AutoPlayPolicy
         {
             return driver.TalkTo(target.Entity, run);
         }
+        var currentCoverage = State.Coverage.Visits.Single(visit => visit.Visit.Key == observation.VisitId).Events.Single(item => item.Event.Id == target.Id);
+        if (session.GetTalkTarget()?.Entity == target.Entity && currentCoverage.Conditions?.HasExecutedEntry(target.ConditionFingerprint) != true)
+        {
+            return driver.TalkTo(target.Entity, run);
+        }
         if (ReadFreshTalkContact(driver, observation, target) is not { } contact)
         {
             driver.DeferPlanning();
             return default;
         }
+        FieldScriptEntryDependencies dependencies = discovery.ReadTalkContactDependencies(target)!;
+        string variables = session.Machine.ReadScriptAnalysisFingerprint(target.Entity, target.Script, dependencies.Reads);
+        var executed = State.Coverage.Visits.Single(visit => visit.Visit.Key == observation.VisitId).Events.Single(item => item.Event.Id == target.Id).Conditions!;
+        bool FreshContact(Ff7Actor projected)
+        {
+            Ff7FieldProcess process = session.Host.Process with { Actors = session.Host.Process.Actors.Select(item => item.Slot == projected.Slot ? projected : item).ToArray() };
+            Ff7AutoPlayHostConditions external = Ff7AutoPlayDiscovery.ReadHostConditions(dependencies.HostReads, session.Progress, process, session.Host.ReadNativeMusicPlaying);
+            string condition = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(variables + "|" + external.Fingerprint)));
+            return external.Complete && !executed.HasExecutedEntry(condition);
+        }
         try
         {
-            return driver.TalkToContact(target.Entity, contact.Point, contact.Triangle, run, contact.Context);
+            return driver.TalkToContact(target.Entity, contact.Point, contact.Triangle, run, contact.Context, FreshContact);
         }
         catch (Ff7AutoPlayNavigationUnavailableException)
         {
+            if (driver.PreparingNavigationMode)
+            {
+                throw;
+            }
             if (State.Active is { } active)
             {
                 RotateFailedTalkContact(active);

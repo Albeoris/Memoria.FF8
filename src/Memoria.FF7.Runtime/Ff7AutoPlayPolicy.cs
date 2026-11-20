@@ -469,8 +469,11 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         }
         catch (Ff7AutoPlayNavigationUnavailableException absence)
         {
-            RotateFailedTalkContact(current);
-            State.TravelCommitment = null;
+            bool retryTalkContact = RotateFailedTalkContact(current) && ReadFreshTalkContact(driver, observation, selectedTarget) is not null;
+            if (!retryTalkContact)
+            {
+                State.TravelCommitment = null;
+            }
             RecordOrdinaryGoalDeferral(observation, selectedTarget, driver);
             bool retainNativeAlternatives = nativePlanningForActive && nativePlanning is not null && CanResumeNativePlanning(validateIntent: true);
             string key = ReadMovementFailureGuardKey(observation.NavigationKey, current.EventId, "physical", absence.MovementFailure, absence.BlockingEntities);
@@ -480,6 +483,13 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             State.NavigationGuards[key] = CaptureMovementGuardObservation(State.NavigationGuards[key], fingerprint);
             planner.MarkUnavailable(current.VisitId, current.EventId, new(selectedTarget.ConditionFingerprint, current.VisitId, key, fingerprint, current.EventId));
             physicalGuards[key] = fingerprint;
+            if (retryTalkContact)
+            {
+                State.Status = "Trying another native talk contact after physical search exhaustion";
+                driver.DeferPlanning();
+                Publish();
+                return default;
+            }
             if (TryRetainFailedOrdinaryTarget(State, current, observation, selectedTarget, physicalGuards))
             {
                 if (!retainNativeAlternatives)

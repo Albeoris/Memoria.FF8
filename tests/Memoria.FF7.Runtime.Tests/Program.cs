@@ -199,6 +199,12 @@ if (args.Contains("--native-route-fair-original-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--navigation-mode-scheduling-only", StringComparer.Ordinal))
+{
+    NavigationModeSchedulingTests.Run();
+    return 0;
+}
+
 if (args.Contains("--physical-search-continuation-only", StringComparer.Ordinal))
 {
     PhysicalSearchContinuationTests.Run();

@@ -8,6 +8,8 @@ internal static class PhysicalSearchContinuationTests
 {
     internal static void Run()
     {
+        CheckActualContactGoal();
+        CheckZeroDisplacementNativeEdges();
         CheckLongReachableGraph();
         CheckHigherHopDetour();
         CheckFairGuideAlternatives();
@@ -16,6 +18,41 @@ internal static class PhysicalSearchContinuationTests
         CheckWorkAccounting();
         CheckControllerPending();
         Console.WriteLine("Physical search continuation checks passed.");
+    }
+
+    private static void CheckActualContactGoal()
+    {
+        Ff7NativeMoveResult Preview(Ff7Actor actor, Ff7AutoplayInput input)
+        {
+            return input == new Ff7AutoplayInput(0, 1) && actor.Y4096 < 24 ? new(actor with { Y4096 = actor.Y4096 + 8, Triangle = 1 }, false, true, []) : new(actor, false, false, []);
+        }
+        Ff7AutoplayDriver.PhysicalSearchCursor cursor = new(Source, Vector3.UnitY, triangle => triangle == 0 ? 1 : 0, Preview, (_, _) => true, actor => actor.Y4096 == 24);
+        Ff7AutoPlayPhysicalRoute result = cursor.Resume(new(16, TimeSpan.MaxValue));
+        Check(result.Status == Ff7AutoPlayPhysicalSearchStatus.Progress && result.Inputs.Length == 3, "A merely closer target-triangle state ended an actual native-contact search early.");
+        cursor = new(Source, Vector3.UnitY, triangle => triangle == 0 ? 1 : 0, Preview, (_, _) => true, _ => false);
+        Check(cursor.Resume(new(16, TimeSpan.MaxValue)).Status == Ff7AutoPlayPhysicalSearchStatus.Exhausted, "An unsatisfied actual contact goal acquired a progress receipt.");
+    }
+
+    private static void CheckZeroDisplacementNativeEdges()
+    {
+        Ff7Actor source = Source;
+        Ff7NativeMoveResult Preview(Ff7Actor actor, Ff7AutoplayInput input)
+        {
+            if (actor.Direction == 0 && input == new Ff7AutoplayInput(1, 0))
+            {
+                return new(actor with { Direction = 64 }, false, false, []);
+            }
+            if (actor.Direction == 64 && actor.Triangle == 0 && input == new Ff7AutoplayInput(0, 1))
+            {
+                return new(actor with { Triangle = 1 }, false, false, []);
+            }
+            return new(actor, false, false, []);
+        }
+        Ff7AutoplayDriver.PhysicalSearchCursor cursor = new(source, Vector3.Zero, triangle => triangle == 0 ? 1 : 0, Preview, (_, _) => true);
+        Ff7AutoPlayPhysicalRoute result = cursor.Resume(new(16, TimeSpan.MaxValue));
+        Check(result.Status == Ff7AutoPlayPhysicalSearchStatus.Progress && result.Inputs.SequenceEqual(new[] { new Ff7AutoplayInput(1, 0), new Ff7AutoplayInput(0, 1) }), "Real native heading and triangle changes with zero displacement were discarded or merged.");
+        cursor = new(source, Vector3.Zero, triangle => triangle == 0 ? 1 : 0, Preview, (_, next) => next.Actor.Triangle == 0);
+        Check(cursor.Resume(new(16, TimeSpan.MaxValue)).Status == Ff7AutoPlayPhysicalSearchStatus.Exhausted, "Zero-displacement edges bypassed admission or created an infinite native-state cycle.");
     }
 
     private static Ff7Actor Source => new() { Slot = 0, Entity = 0, Model = 0, Triangle = 0, MoveSpeed = 1 };
