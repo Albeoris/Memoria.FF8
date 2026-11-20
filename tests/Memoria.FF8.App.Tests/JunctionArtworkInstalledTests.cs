@@ -55,6 +55,53 @@ public sealed class JunctionArtworkInstalledTests
     }
 
     [Fact]
+    public async Task PortraitPackagePreviewUsesTheSameOriginalPortraitColorsAsTheMenu()
+    {
+        using Inputs input = new();
+        string game = TestResources.GameDirectory;
+        using GameResourceHost host = input.Host();
+        ModPackage package = input.Package(host, input.Archives["menu-portraits"]);
+        NativeMenuArtwork original = NativeMenuArtwork.Load(game);
+        CancellationToken token = TestContext.Current.CancellationToken;
+        ModPreviewDocument preview = await host.ModLibrary.OpenPreviewAsync(null, package, token);
+        ModPreviewEntry[] entries = preview.Entries.Where(entry => entry.Category == "Textures").DistinctBy(entry => entry.SourcePath ?? entry.Id).ToArray();
+        Assert.Equal(11, entries.Length);
+        Assert.Contains(entries, entry => entry.Name.Equals("face_b00_00", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(entries, entry => entry.Name.Equals("face_b01_00", StringComparison.OrdinalIgnoreCase));
+
+        foreach (ModPreviewEntry entry in entries)
+        {
+            ModPreviewComparison comparison = await preview.CompareAsync(entry, new(game), token);
+            PixelImage before = Assert.IsType<PixelImage>(comparison.Before.Image);
+            PixelImage after = Assert.IsType<PixelImage>(comparison.After.Image);
+            Assert.Contains(before.Pixels, IsVisibleColor);
+            Assert.Contains(after.Pixels, IsVisibleColor);
+            PixelImage? portrait = entry.Name.ToLowerInvariant() switch
+            {
+                "face_b00_00" => original.GetCharacterPortrait(0),
+                "face_b01_00" => original.AngeloPortrait,
+                _ => null
+            };
+            if (portrait is null)
+            {
+                continue;
+            }
+
+            Assert.Equal((256, 256), (before.Width, before.Height));
+            Assert.Equal((1024, 1024), (after.Width, after.Height));
+            Assert.Contains(portrait.Pixels, IsVisibleColor);
+            Assert.Contains(Enumerable.Range(0, 8), cell =>
+            {
+                int x = cell % 4 * portrait.Width;
+                int y = cell / 4 * portrait.Height;
+                return Enumerable.Range(0, portrait.Height).All(row => before.Pixels.AsSpan((y + row) * before.Width + x, portrait.Width).SequenceEqual(portrait.Pixels.AsSpan(row * portrait.Width, portrait.Width)));
+            });
+        }
+
+        static bool IsVisibleColor(Rgba32 pixel) => pixel.A != 0 && (pixel.R | pixel.G | pixel.B) != 0;
+    }
+
+    [Fact]
     public void ControllerGlyphsAndPrintedButtonImagesUseTheSparseReplacementPages()
     {
         using Inputs input = new();

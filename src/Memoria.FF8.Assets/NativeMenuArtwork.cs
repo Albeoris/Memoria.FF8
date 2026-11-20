@@ -241,16 +241,9 @@ public sealed class NativeMenuArtwork
 
     private static PixelImage ReadPortraitAtlas(IResourceSource provider, ResourceService resources, string name)
     {
-        byte[] bytes = resources.Read(new ResourceKey("menu/" + name));
-        NativeMenuArtworkDataReader.ValidateTexture(new ResourceKey("menu/" + name), bytes);
-        TexFile texture = TexFile.Read(bytes);
-        PixelImage image = new(texture.Header.Width, texture.Header.Height);
-        for (int index = 0; index < image.Pixels.Length; index++)
-        {
-            // The original opaque menu sprite uses PSX display colors: bit15 is STP, not an ordinary alpha channel.
-            image.Pixels[index] = Rgba32.FromPsxBgr555Display(BinaryPrimitives.ReadUInt16LittleEndian(texture.Pixels.AsSpan(index * 2)));
-        }
-        return NativeArtworkTexture.Resolve(provider, new ResourceKey("menu/" + name), image, resources: resources);
+        ResourceKey owner = new("menu/" + name);
+        PixelImage image = NativeMenuArtworkDataReader.DecodePortraitAtlas(TexFile.Read(resources.Read(owner)));
+        return NativeArtworkTexture.Resolve(provider, owner, image, resources: resources);
     }
 
     private static PixelImage Crop(PixelImage source, int x, int y, int width, int height)

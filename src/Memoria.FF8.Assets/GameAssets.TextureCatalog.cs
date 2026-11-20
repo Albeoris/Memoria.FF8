@@ -468,7 +468,10 @@ public sealed partial class GameAssets
     private IReadOnlyList<TextureBuildContext> ReadCatalogTex(ResourceKey owner)
     {
         TexFile tex = TexFile.Read(ReadTextureSource(owner));
-        return Enumerable.Range(0, Math.Max(1, tex.Palettes.Count)).Select(palette => new TextureBuildContext(new(owner, "atlas", palette), resources.Source, resources.Get(owner).Revision, "native-artwork", tex.Header.Width, tex.Header.Height, () => tex.Decode(palette), paletteImage: tex.Decode, paletteCount: Math.Max(1, tex.Palettes.Count), encodedSource: resources.Get(owner))).ToArray();
+        Func<int, PixelImage> decode = NativeMenuArtworkDataReader.IsPortraitAtlas(owner) ? _ => NativeMenuArtworkDataReader.DecodePortraitAtlas(tex) : tex.Decode;
+        int paletteCount = Math.Max(1, tex.Palettes.Count);
+        ResourceContent content = resources.Get(owner);
+        return Enumerable.Range(0, paletteCount).Select(palette => new TextureBuildContext(new(owner, "atlas", palette), resources.Source, content.Revision, "native-artwork", tex.Header.Width, tex.Header.Height, () => decode(palette), paletteImage: decode, paletteCount: paletteCount, encodedSource: content)).ToArray();
     }
 
     private IReadOnlyList<TextureBuildContext> ReadCatalogCardArtwork()

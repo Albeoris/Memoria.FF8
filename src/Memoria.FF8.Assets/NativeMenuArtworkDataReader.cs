@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using Albeoris.Games.FF8.Imaging;
 using Albeoris.Games.FF8.Imaging.Tex;
 using Albeoris.Games.FF8.NamedicBin;
 using Albeoris.Games.FF8.TextEncoding;
@@ -12,19 +13,17 @@ public static class NativeMenuArtworkDataReader
     public static void ValidateTexture(ResourceKey key, byte[] bytes)
     {
         TexFile texture = TexFile.Read(bytes);
+        if (IsPortraitAtlas(key))
+        {
+            ValidatePortraitAtlas(texture);
+            return;
+        }
         string name = Path.GetFileName(key.Path);
         if (name == "icon.tex")
         {
             if (texture.Header.Width != 256 || texture.Header.Height != 256 || texture.Header.BytesPerPixel != 1 || texture.Palettes.Count != 16)
             {
                 throw new InvalidDataException("Native menu icons require an indexed 256 by 256 texture with sixteen palettes.");
-            }
-        }
-        else if (name is "face_b00.tex" or "face_b01.tex" or "gf_big00.tex" or "gf_big01.tex")
-        {
-            if (texture.Header.Width != 256 || texture.Header.Height != 256 || texture.Palettes.Count != 0 || texture.Header.BytesPerPixel != 2 || texture.Header.RedMask != 0x1F || texture.Header.GreenMask != 0x3E0 || texture.Header.BlueMask != 0x7C00 || texture.Header.AlphaMask != 0x8000)
-            {
-                throw new InvalidDataException("Native PC portraits require a 256 by 256 PSX BGR555 direct-color texture.");
             }
         }
         else if (name == "magita.tex")
@@ -41,6 +40,28 @@ public static class NativeMenuArtworkDataReader
         for (int palette = 0; palette < Math.Max(1, texture.Palettes.Count); palette++)
         {
             _ = texture.Decode(palette);
+        }
+    }
+
+    internal static bool IsPortraitAtlas(ResourceKey key) => key.Path is "menu/face_b00.tex" or "menu/face_b01.tex" or "menu/gf_big00.tex" or "menu/gf_big01.tex";
+
+    internal static PixelImage DecodePortraitAtlas(TexFile texture)
+    {
+        ValidatePortraitAtlas(texture);
+        PixelImage image = new(texture.Header.Width, texture.Header.Height);
+        for (int index = 0; index < image.Pixels.Length; index++)
+        {
+            // The menu uses PSX display colors, where bit 15 is the semi-transparency flag.
+            image.Pixels[index] = Rgba32.FromPsxBgr555Display(BinaryPrimitives.ReadUInt16LittleEndian(texture.Pixels.AsSpan(index * 2)));
+        }
+        return image;
+    }
+
+    private static void ValidatePortraitAtlas(TexFile texture)
+    {
+        if (texture.Header.Width != 256 || texture.Header.Height != 256 || texture.Palettes.Count != 0 || texture.Header.BytesPerPixel != 2 || texture.Header.RedMask != 0x1F || texture.Header.GreenMask != 0x3E0 || texture.Header.BlueMask != 0x7C00 || texture.Header.AlphaMask != 0x8000)
+        {
+            throw new InvalidDataException("Native PC portraits require a 256 by 256 PSX BGR555 direct-color texture.");
         }
     }
 
