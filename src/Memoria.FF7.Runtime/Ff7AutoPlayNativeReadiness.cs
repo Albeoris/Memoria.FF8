@@ -13,6 +13,100 @@ internal sealed class Ff7AutoPlayNativeReadiness
     private int repeatedObservations;
     private int totalObservations;
 
+    public bool ShouldWaitForNavigationPreparation(long generation, string navigationKey, FieldVmSnapshot vm, Ff7FieldProcess process, ReadOnlySpan<byte> script, Func<int, int, FieldScriptAnalysis> analyze)
+    {
+        HashSet<int> work = [];
+        for (int entity = 0; entity < vm.Entities.Length; entity++)
+        {
+            FieldEntitySnapshot owner = vm.Entities[entity];
+            if (!HasAdmittedContinuation(owner, script))
+            {
+                continue;
+            }
+            FieldScriptAnalysis analysis = analyze(entity, owner.ProgramCounter);
+            if (IsAutonomousNavigationPreparation(analysis, vm.Entities.Length, process.BlockedTriangles, script))
+            {
+                work.Add(entity);
+                work.UnionWith(analysis.InstructionSites.Select(site => site.Entity));
+            }
+        }
+        if (work.Count == 0)
+        {
+            return false;
+        }
+        return ObserveWork(generation, navigationKey, vm, process, work, includeCamera: true);
+    }
+
+    internal static bool IsAutonomousNavigationPreparation(FieldScriptAnalysis analysis, int entityCount, byte[] blockedTriangles, ReadOnlySpan<byte> script)
+    {
+        if (!analysis.Complete || analysis.Reads.Length != 0 || analysis.HostReads.Length != 0 || !analysis.UnblockedTriangles.Any(triangle => triangle >= 0 && triangle / 8 < blockedTriangles.Length && (blockedTriangles[triangle / 8] & 1 << (triangle % 8)) != 0) || analysis.InstructionSites.Length == 0)
+        {
+            return false;
+        }
+        Dictionary<int, HashSet<int>> calls = [];
+        foreach (FieldScriptInstructionSite site in analysis.InstructionSites)
+        {
+            int pc = site.ProgramCounter;
+            if ((uint)site.Entity >= entityCount || (uint)pc >= script.Length)
+            {
+                return false;
+            }
+            switch (script[pc])
+            {
+                case 0x02:
+                case 0x03:
+                    if (pc + 2 >= script.Length || script[pc + 1] >= entityCount)
+                    {
+                        return false;
+                    }
+                    if (!calls.TryGetValue(site.Entity, out HashSet<int>? targets))
+                    {
+                        targets = [];
+                        calls.Add(site.Entity, targets);
+                    }
+                    targets.Add(script[pc + 1]);
+                    break;
+                case 0x00:
+                case 0x24:
+                case 0x5E:
+                case 0x66:
+                case 0x67:
+                case 0x68:
+                case 0x6D:
+                case 0x80:
+                case 0x81:
+                case 0xE0:
+                case 0xE1:
+                case 0xE4:
+                case 0xF2:
+                    break;
+                default:
+                    return false;
+            }
+        }
+        HashSet<int> completed = [];
+        HashSet<int> visiting = [];
+        bool IsAcyclic(int entity)
+        {
+            if (completed.Contains(entity))
+            {
+                return true;
+            }
+            if (!visiting.Add(entity))
+            {
+                return false;
+            }
+            if (calls.TryGetValue(entity, out HashSet<int>? targets) && targets.Any(target => !IsAcyclic(target)))
+            {
+                return false;
+            }
+            visiting.Remove(entity);
+            completed.Add(entity);
+            return true;
+        }
+        return calls.Keys.All(IsAcyclic);
+    }
+
     internal static bool HasPendingPlayerControlAcquisition(FieldVmSnapshot vm, Ff7FieldProcess process, ReadOnlySpan<byte> script)
     {
         Ff7Actor? player = process.Actors.SingleOrDefault(actor => actor.PlayerControlled);
@@ -92,12 +186,6 @@ internal sealed class Ff7AutoPlayNativeReadiness
 
     public bool ShouldWait(long generation, string navigationKey, FieldVmSnapshot vm, Ff7FieldProcess process, ReadOnlySpan<byte> script, IReadOnlyList<FieldScriptInputDemand> inputDemands)
     {
-        string nextContext = $"{generation}:{navigationKey}";
-        if (context != nextContext)
-        {
-            Reset();
-            context = nextContext;
-        }
         HashSet<int> work = [];
         List<(int Owner, int Target)> links = [];
         for (int targetId = 0; targetId < vm.Entities.Length; targetId++)
@@ -155,8 +243,20 @@ internal sealed class Ff7AutoPlayNativeReadiness
         {
             return false;
         }
+        return ObserveWork(generation, navigationKey, vm, process, work);
+    }
+
+    private bool ObserveWork(long generation, string navigationKey, FieldVmSnapshot vm, Ff7FieldProcess process, HashSet<int> work, bool includeCamera = false)
+    {
+        string nextContext = $"{generation}:{navigationKey}";
+        if (context != nextContext)
+        {
+            Reset();
+            context = nextContext;
+        }
         string fingerprint = JsonSerializer.Serialize(new
         {
+            Camera = includeCamera ? new { process.CameraScroll, process.CameraTracking, process.CameraX, process.CameraY } : null,
             Entities = work.Order().Select(entity => new { Entity = entity, State = vm.Entities[entity] }),
             Actors = process.Actors.Where(actor => work.Contains(actor.Entity)).Select(actor => new { actor.Entity, actor.X4096, actor.Y4096, actor.Z4096, actor.Triangle, actor.Direction, actor.Animation, actor.AnimationFrame16, actor.AnimationFinished, actor.TurnStep, actor.Offset, actor.Ladder, actor.Jump }),
             Motions = process.Motions.Where(motion => work.Contains(motion.Entity)).Select(motion => new { motion.Entity, motion.TargetX, motion.TargetY, motion.Completed }),

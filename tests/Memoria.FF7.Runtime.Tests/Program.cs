@@ -777,6 +777,12 @@ if (args.Contains("--chocobo-course-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--navigation-preparation-only", StringComparer.Ordinal))
+{
+    NativeNavigationPreparationTests.Run();
+    return 0;
+}
+
 if (args.Contains("--preempted-readiness-only", StringComparer.Ordinal))
 {
     NativePreemptedReadinessTests.Run();
