@@ -1,10 +1,13 @@
+using System.Collections.Immutable;
 using System.Runtime.InteropServices;
 using Albeoris.Games.FF8.Imaging;
 using Albeoris.Games.FF8.Imaging.Tex;
+using Albeoris.Games.FF8.Imaging.Tim;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Assets.Localization;
 using Memoria.FF8.Rendering;
 using Memoria.FF8.Resources;
+using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Mods.Tests;
 
@@ -102,6 +105,85 @@ public sealed class ModPreviewTextureAtlasTests
         PixelImage after = Assert.IsType<PixelImage>(result.After.Image);
         Assert.True(before.Pixels.Distinct().Count() > 2);
         Assert.False(before.Pixels.SequenceEqual(after.Pixels));
+    }
+
+    [Theory]
+    [InlineData(0, 1)]
+    [InlineData(2, 3)]
+    public async Task ComparesTheNamedCommonBattlePageAndPaletteFromTheInstalledClassicAtlas(int page, int palette)
+    {
+        string? game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
+        Assert.SkipUnless(Directory.Exists(game), "Configure optional installed Classic game resources.");
+
+        string path = $"mods/textures/battle/A8DEF{page}.TIM_{palette:00}.png";
+        await using PreviewFixture fixture = new();
+        PixelImage texture = new(512, 512);
+        Array.Fill(texture.Pixels, new Rgba32(42, 76, 150, 255));
+        texture[8, 16] = new(100, 160, 220, 255);
+        byte[] replacementBytes = LocalizationArtworkExporter.EncodePng(texture);
+        fixture.Write(path, replacementBytes);
+        ModPreviewDocument document = await fixture.Open();
+        ModPreviewEntry entry = Assert.Single(document.Entries);
+        Assert.Equal("Battle", entry.Group);
+
+        ModPreviewComparison comparison = await document.CompareAsync(entry, new(game!), TestContext.Current.CancellationToken);
+
+        using IResourceSource source = GameDataSourceFactory.Open(game!);
+        Assert.Equal(GameDataEdition.Classic, source.Descriptor.Edition);
+        ResourceService resources = new(source);
+        byte[] atlasBytes = resources.Read(new("battle/a8def.tim"));
+        TimImage tim = TimFile.Read(atlasBytes).Images.Single();
+        PixelImage atlas = GameAssets.DecodeEffectTexture(tim, palette);
+        PixelImage original = Assert.IsType<PixelImage>(comparison.Before.Image);
+        Assert.Equal((256, 256), (original.Width, original.Height));
+        for (int y = 0; y < original.Height; y++)
+        {
+            Assert.True(atlas.Pixels.AsSpan(y * atlas.Width + page * 256, 256).SequenceEqual(original.Pixels.AsSpan(y * 256, 256)));
+        }
+        PixelImage replacement = Assert.IsType<PixelImage>(comparison.After.Image);
+        Assert.Equal((512, 512), (replacement.Width, replacement.Height));
+        Assert.Equal(new Rgba32(42, 76, 150, 127), replacement[256, 256]);
+
+        ModFile file = new("fixture", ModFormat.Junction, path, 1, () => replacementBytes);
+        resources.Prepare(new FfnxTextureResolver(new(1, [], [file]))).Commit();
+        NativeBattleEffectHeapAllocation nativeAtlas = new(NativeBattleSharedEffectTexture.File.Name, atlasBytes.ToImmutableArray());
+        NativeBattleEffectTextureState state = NativeBattleEffectTextureState.FromColdProcess().EnqueueTim505E30(nativeAtlas, identity: NativeBattleSharedEffectTexture.File).State.Drain505D20().State;
+        ushort vramPage = checked((ushort)(tim.X / 64 + page + (tim.Y >= 256 ? 16 : 0)));
+        ushort clut = checked((ushort)(tim.Clut!.X / 16 + (tim.Clut.Y + palette) * 64));
+        using NativeBattleEffectTextureSource runtime = new(resources);
+        PixelImage applied = runtime.Apply(new(2, 2), state, vramPage, clut, 4, 8, 2, 2);
+        Assert.Equal((4, 4), (applied.Width, applied.Height));
+        Assert.Equal(new Rgba32(100, 160, 220, 127), applied[0, 0]);
+        Assert.Equal(replacement[9, 16], applied[1, 0]);
+    }
+
+    [Fact]
+    public void ComparesTheNamedMemberOfAnInstalledStandaloneBattleTim()
+    {
+        string? game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
+        Assert.SkipUnless(Directory.Exists(game), "Configure optional installed Classic game resources.");
+
+        using IResourceSource source = GameDataSourceFactory.Open(game!);
+        const string owner = "battle/ma8def_0.tim";
+        TimImage tim = TimFile.Read(new ResourceService(source).Read(new(owner))).Images[0];
+        PixelImage expected = GameAssets.DecodeEffectTexture(tim, 1);
+        byte[] replacementBytes = LocalizationArtworkExporter.EncodePng(new(expected.Width, expected.Height));
+        const string path = "mods/textures/battle/MA8DEF_0.TIM-0_01.png";
+        ModFile file = new("fixture", ModFormat.Junction, path, 1, () => replacementBytes);
+
+        ModPreviewComparison result = Assert.IsType<ModPreviewComparison>(ModPreviewResources.CompareTexture(game!, null, "en", new(1, [], [file]), path, TestContext.Current.CancellationToken));
+
+        Assert.True(expected.Pixels.SequenceEqual(Assert.IsType<PixelImage>(result.Before.Image).Pixels));
+        Assert.NotNull(result.After.Image);
+    }
+
+    [Fact]
+    public void CompositeBattleEffectDoesNotRequireTheClassicFieldCatalog()
+    {
+        const string path = "mods/textures/battle/MAG012_E.DAT-0_f2_1_320_224.png";
+        ModFile file = new("fixture", ModFormat.Junction, path, 1, () => throw new InvalidOperationException("The comparison should leave decoding to the package-image fallback."));
+
+        Assert.Null(ModPreviewResources.CompareTexture(Path.GetTempPath(), null, "en", new(1, [], [file]), path, TestContext.Current.CancellationToken));
     }
 
     [Fact]

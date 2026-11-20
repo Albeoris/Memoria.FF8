@@ -44,6 +44,10 @@ public static partial class ModPreviewResources
         }
         else if (file.Format == ModFormat.Junction && FindJunctionTextureTarget(file.RelativePath) is { } target)
         {
+            if (target is { Layout: "native-effect-texture", Effect: null })
+            {
+                return null;
+            }
             legacyTarget = target;
             replacement = new FfnxTextureResolver(package);
         }
@@ -65,6 +69,15 @@ public static partial class ModPreviewResources
         using IResourceSource source = GameDataSourceFactory.OpenTextureAuthoring(gameDirectory, modelSourceDirectory, language);
         ResourceService resources = new(source, language);
         resources.Prepare(replacement).Commit();
+        if (legacyTarget is { Layout: "native-effect-texture" })
+        {
+            if (legacyTarget.Effect is not TextureKey key || GameAssets.LoadDirectEffectTexture(resources, key) is not { } effect)
+            {
+                return null;
+            }
+            return CompareContext(effect, DescribeTextureContext(effect));
+        }
+
         using GameAssets assets = new(gameDirectory, resources: resources);
 
         if (junctionFieldMaterial is { } unqualified)
@@ -85,7 +98,7 @@ public static partial class ModPreviewResources
             if (assets.LoadAddressableCatalogTextureUnit(native.Target) is { } unit)
             {
                 TextureBuildContext? context = unit.FirstOrDefault(native.Target.Matches);
-                return context is null ? null : CompareContext(context, DescribeTextureContext(context));
+                return context is null ? null : CompareContext(context, DescribeTextureContext(context), assets);
             }
             TextureCatalogEntry? direct = assets.FindCatalogTextureTarget(native.Target, cancellationToken);
             if (direct is not null && CompareEntry(direct) is { } comparison)
@@ -109,7 +122,7 @@ public static partial class ModPreviewResources
                     cancellationToken.ThrowIfCancellationRequested();
                     if ((textureMember is null || context.Key.Subresource == textureMember) && legacyTarget.Matches(TextureTarget.FromContext(context), context.Layout)
                         && (legacyTarget.NativeMember is null || context.NativeAlias?.Subresource == legacyTarget.NativeMember)
-                        && CompareContext(context, textureMember is null ? DescribeTextureContext(context) : DescribeTextureAtlasMember(textureMember)) is { } comparison)
+                        && CompareContext(context, textureMember is null ? DescribeTextureContext(context) : DescribeTextureAtlasMember(textureMember), assets) is { } comparison)
                     {
                         return comparison;
                     }
@@ -156,7 +169,7 @@ public static partial class ModPreviewResources
         ModPreviewComparison? CompareEntry(TextureCatalogEntry entry)
         {
             TextureBuildContext context = assets.LoadCatalogTexture(entry);
-            ModPreviewComparison? comparison = CompareContext(context, entry.Name);
+            ModPreviewComparison? comparison = CompareContext(context, entry.Name, assets);
             if (comparison is null || entry.Model is not { } model)
             {
                 return comparison;
@@ -280,7 +293,7 @@ public static partial class ModPreviewResources
             return null;
         }
 
-        ModPreviewComparison? CompareContext(TextureBuildContext context, string name)
+        ModPreviewComparison? CompareContext(TextureBuildContext context, string name, GameAssets? fieldAssets = null)
         {
             cancellationToken.ThrowIfCancellationRequested();
             TextureValue after = resources.ResolveForExport(context);
@@ -288,7 +301,7 @@ public static partial class ModPreviewResources
             {
                 return null;
             }
-            if (renderField is not null && context.Layout == "classic-field-tile" && CompareField(context.Key.Owner.Path.Split('/')[1], renderField) is { } field)
+            if (fieldAssets is not null && renderField is not null && context.Layout == "classic-field-tile" && CompareField(fieldAssets, context.Key.Owner.Path.Split('/')[1], renderField) is { } field)
             {
                 return field;
             }
@@ -299,9 +312,9 @@ public static partial class ModPreviewResources
             return new(new($"{name} · {beforeImage.Width} × {beforeImage.Height}", beforeImage), new($"{name} · {afterImage.Width} × {afterImage.Height}", afterImage));
         }
 
-        ModPreviewComparison? CompareField(string name, Func<FieldAssets, PixelImage> render)
+        ModPreviewComparison? CompareField(GameAssets fieldAssets, string name, Func<FieldAssets, PixelImage> render)
         {
-            int fieldId = assets.FindCatalogFieldId(name);
+            int fieldId = fieldAssets.FindCatalogFieldId(name);
             if (fieldId < 0)
             {
                 return null;
@@ -313,7 +326,7 @@ public static partial class ModPreviewResources
                 using GameAssets originalAssets = new(gameDirectory, resources: new(originalSource, language));
                 PixelImage original = render(originalAssets.LoadField(fieldId));
                 cancellationToken.ThrowIfCancellationRequested();
-                PixelImage applied = render(assets.LoadField(fieldId));
+                PixelImage applied = render(fieldAssets.LoadField(fieldId));
                 return new(new(name, original), new(name, applied));
             }
             catch (Exception exception) when (exception is IOException or InvalidDataException or NotSupportedException or NotImplementedException or ArgumentException)
@@ -471,7 +484,7 @@ public static partial class ModPreviewResources
         return match.Success && int.TryParse(match.Groups[3].ValueSpan, NumberStyles.None, CultureInfo.InvariantCulture, out int slot) ? new(match.Groups[1].Value, match.Groups[2].Value, slot) : null;
     }
 
-    private sealed record LegacyTextureTarget(string Owner, string? Member = null, int? Palette = null, string? Field = null, string? Model = null, string? Layout = null, int? ModelPalette = null, IReadOnlyList<string>? Members = null, string? NativeMember = null)
+    private sealed record LegacyTextureTarget(string Owner, string? Member = null, int? Palette = null, string? Field = null, string? Model = null, string? Layout = null, int? ModelPalette = null, IReadOnlyList<string>? Members = null, string? NativeMember = null, TextureKey? Effect = null)
     {
         public TextureTarget? Address(string language)
         {
@@ -554,7 +567,7 @@ public static partial class ModPreviewResources
         }
         if (stem.StartsWith("magic/", StringComparison.Ordinal) || stem.StartsWith("battle/", StringComparison.Ordinal))
         {
-            return new("", Layout: "native-effect-texture");
+            return new("", Layout: "native-effect-texture", Effect: FfnxTextureResolver.TryDirectEffectTarget(stem, out TextureKey effect) ? effect : null);
         }
         return null;
 

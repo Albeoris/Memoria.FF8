@@ -17,7 +17,7 @@ public sealed partial class GameAssets
             IReadOnlyList<TextureBuildContext> contexts;
             try
             {
-                contexts = ReadCatalogCommonEffectPages(page);
+                contexts = ReadCatalogCommonEffectPages(resources, page);
             }
             catch (Exception exception) when (TextureCatalogError(exception))
             {
@@ -58,7 +58,7 @@ public sealed partial class GameAssets
                     IReadOnlyList<TextureBuildContext> contexts;
                     try
                     {
-                        contexts = ReadCatalogStandaloneTim(owner);
+                        contexts = ReadCatalogStandaloneTim(resources, owner);
                     }
                     catch (Exception exception) when (TextureCatalogError(exception))
                     {
@@ -129,9 +129,9 @@ public sealed partial class GameAssets
         TextureSourceAddress alias = context.NativeAlias ?? throw new NotSupportedException("The native texture crop has no persisted source identity.");
         IReadOnlyList<TextureBuildContext> sources;
         string filename = Path.GetFileName(alias.Owner.Path);
-        if (alias.Owner.Path.StartsWith("battle/a8def", StringComparison.Ordinal) && filename.Length == 10 && filename[5] is >= '0' and <= '2')
+        if (TryGetCommonEffectPage(alias.Owner, out int page))
         {
-            sources = ReadCatalogCommonEffectPages(filename[5] - '0');
+            sources = ReadCatalogCommonEffectPages(resources, page);
         }
         else if (filename.StartsWith("mag", StringComparison.Ordinal) && filename.Length >= 10 && int.TryParse(filename.AsSpan(3, 3), out int effectIndex) && (NativeBattleCinematicProfile.IsSupported(effectIndex + 1) || effectIndex == 221))
         {
@@ -139,7 +139,7 @@ public sealed partial class GameAssets
         }
         else
         {
-            sources = ReadCatalogStandaloneTim(alias.Owner);
+            sources = ReadCatalogStandaloneTim(resources, alias.Owner);
         }
         TextureBuildContext[] selected = sources.Where(source => source.Key.Owner == alias.Owner && source.Key.Subresource == alias.Subresource && source.Key.Palette == alias.Palette).ToArray();
         if (selected.Length == 0)
@@ -149,10 +149,61 @@ public sealed partial class GameAssets
         return selected;
     }
 
-    private IReadOnlyList<TextureBuildContext> ReadCatalogCommonEffectPages(int page)
+    /// <summary>Reads the persisted original behind a directly named native effect texture.</summary>
+    public static TextureBuildContext? LoadDirectEffectTexture(ResourceService resources, TextureKey key)
+    {
+        IReadOnlyList<TextureBuildContext> contexts;
+        try
+        {
+            if (key.Subresource == "image" && TryGetCommonEffectPage(key.Owner, out int page))
+            {
+                contexts = ReadCatalogCommonEffectPages(resources, page);
+            }
+            else if (key.Subresource.StartsWith("texture/", StringComparison.Ordinal)
+                && (key.Owner.Path.StartsWith("battle/", StringComparison.Ordinal) || key.Owner.Path.StartsWith("magic/", StringComparison.Ordinal))
+                && (key.Owner.Path.EndsWith(".tim", StringComparison.Ordinal) || key.Owner.Path.EndsWith(".dat", StringComparison.Ordinal)))
+            {
+                contexts = ReadCatalogStandaloneTim(resources, key.Owner, key.Subresource);
+            }
+            else
+            {
+                return null;
+            }
+        }
+        catch (Exception exception) when (exception is FileNotFoundException or DirectoryNotFoundException or NotSupportedException)
+        {
+            return null;
+        }
+
+        TextureBuildContext? source = contexts.FirstOrDefault(context => context.Key == key);
+        if (source is null)
+        {
+            return null;
+        }
+        int width = source.LogicalWidth;
+        int height = source.LogicalHeight;
+        return new(key, source.Source, source.Revision, "native-effect-texture", width, height, () => source.Original, source.Region, encodedSource: source.EncodedSource)
+        {
+            NativeAlias = new(key.Owner, key.Subresource, key.Palette, 0, 0, width, height, width, height)
+        };
+    }
+
+    private static bool TryGetCommonEffectPage(ResourceKey owner, out int page)
+    {
+        string path = owner.Path;
+        if (path.Length == 17 && path.StartsWith("battle/a8def", StringComparison.Ordinal) && path[12] is >= '0' and <= '2' && path.EndsWith(".tim", StringComparison.Ordinal))
+        {
+            page = path[12] - '0';
+            return true;
+        }
+        page = 0;
+        return false;
+    }
+
+    private static IReadOnlyList<TextureBuildContext> ReadCatalogCommonEffectPages(ResourceService resources, int page)
     {
         ResourceKey encodedOwner = new("battle/a8def.tim");
-        TimImage tim = WorldAssetReader.ReadTim(ReadTextureSource(encodedOwner), 0).Image;
+        TimImage tim = WorldAssetReader.ReadTim(resources.Read(encodedOwner), 0).Image;
         if (tim.PixelWidth != 768 || tim.Height != 256 || page is < 0 or > 2)
         {
             throw new InvalidDataException("The common battle texture requires its three native 256x256 pages.");
@@ -171,9 +222,9 @@ public sealed partial class GameAssets
         }, encodedSource: encoded)).ToArray();
     }
 
-    private IReadOnlyList<TextureBuildContext> ReadCatalogStandaloneTim(ResourceKey owner)
+    private static IReadOnlyList<TextureBuildContext> ReadCatalogStandaloneTim(ResourceService resources, ResourceKey owner, string? requestedMember = null)
     {
-        byte[] bytes = ReadTextureSource(owner);
+        byte[] bytes = resources.Read(owner);
         if (bytes.Length < 8 || BinaryPrimitives.ReadUInt32LittleEndian(bytes) != 16)
         {
             return [];
@@ -188,7 +239,15 @@ public sealed partial class GameAssets
             {
                 throw new InvalidDataException("Effect TIM sequence exceeds its supported source bounds.");
             }
-            result.AddRange(EffectTimContexts(owner, $"texture/{member}", tim));
+            string subresource = $"texture/{member}";
+            if (requestedMember is null || subresource == requestedMember)
+            {
+                result.AddRange(EffectTimContexts(resources, owner, subresource, tim));
+                if (requestedMember is not null)
+                {
+                    break;
+                }
+            }
             member++;
             offset = end;
         }
@@ -269,7 +328,7 @@ public sealed partial class GameAssets
                 TimImage tim = new(mode, pixels.X, pixels.Y, pixels.Width, pixels.Height, decodedWords, clut);
                 int effectIndex = NativeBattleEffectIdentity.IndexFromBindingEffect(effect);
                 ResourceKey owner = new($"magic/mag{effectIndex:000}_b.{pixelSource:00}");
-                result.AddRange(EffectTimContexts(owner, $"texture/{member}", tim));
+                result.AddRange(EffectTimContexts(resources, owner, $"texture/{member}", tim));
             }
             catch (Exception exception) when (TextureCatalogError(exception))
             {
@@ -291,13 +350,14 @@ public sealed partial class GameAssets
         return bytes.AsSpan(offset, length).ToArray();
     }
 
-    private IReadOnlyList<TextureBuildContext> EffectTimContexts(ResourceKey owner, string member, TimImage tim)
+    private static IReadOnlyList<TextureBuildContext> EffectTimContexts(ResourceService resources, ResourceKey owner, string member, TimImage tim)
     {
         if (tim.PixelMode is not (TimPixelMode.Indexed4 or TimPixelMode.Indexed8))
         {
             throw new NotSupportedException("Direct-color native effect artwork requires the runtime's selected 555/565 device format; an indexed CLUT source can be exported independently.");
         }
-        return Enumerable.Range(0, tim.Palettes.Count).Select(palette => new TextureBuildContext(new(owner, member, palette), resources.Source, resources.Get(owner).Revision, "native-effect-source", tim.PixelWidth, tim.Height, () => DecodeEffectTexture(tim, palette), new(tim.X, tim.Y, tim.PixelMode == TimPixelMode.Indexed4 ? 4 : 8), value => DecodeEffectTexture(tim, value), tim.Palettes.Count, resources.Get(owner))).ToArray();
+        ResourceContent encoded = resources.Get(owner);
+        return Enumerable.Range(0, tim.Palettes.Count).Select(palette => new TextureBuildContext(new(owner, member, palette), resources.Source, encoded.Revision, "native-effect-source", tim.PixelWidth, tim.Height, () => DecodeEffectTexture(tim, palette), new(tim.X, tim.Y, tim.PixelMode == TimPixelMode.Indexed4 ? 4 : 8), value => DecodeEffectTexture(tim, value), tim.Palettes.Count, encoded)).ToArray();
     }
 
     /// <summary>Expands an indexed effect with the native PC CLUT RGB contract and ordinary editor coverage alpha.</summary>

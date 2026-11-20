@@ -344,9 +344,9 @@ public sealed partial class GameAssets
             "world-section" => ReadCatalogWorldSection(entry.Section),
             "texl" => ReadCatalogTexl(entry.Index),
             "menu-slots" => ReadCatalogMenuSlots(),
-            "standalone-tim" => ReadCatalogStandaloneTim(owner),
+            "standalone-tim" => ReadCatalogStandaloneTim(resources, owner),
             "cinematic" => ReadCatalogCinematicTextures(entry.Section),
-            "common-page" => ReadCatalogCommonEffectPages(entry.Index),
+            "common-page" => ReadCatalogCommonEffectPages(resources, entry.Index),
             "cards" => ReadCatalogCardArtwork(),
             "startup" => [Context(new(owner, "atlas"), NativeStartupArtwork.Decode(ReadTextureSource(owner)), "native-artwork")],
             _ => throw new NotSupportedException($"Texture {entry.Name} has no source reader.")

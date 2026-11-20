@@ -11,6 +11,27 @@ public sealed partial class FfnxTextureResolver
     private const string EffectFilePattern = @"(?:a8def[0-2]\.tim|ma8def_[0-9]+\.tim|mag[0-9]{3}(?:-[0-9]{3})*(?:_[0-9]+)?\.tim|mag[0-9]{3}_[a-z]\.(?:dat|[0-9]+(?:t[0-9]+)?(?:-[0-9]+)?))";
     private const string EffectStemPattern = EffectFilePattern + @"(?:-[0-9]+)?";
 
+    private static readonly Regex DirectEffectPattern = new("^(?<owner>(?:magic|battle)/" + EffectFilePattern + @")(?:-(?<member>[0-9]+))?_(?<palette>[0-9]+)$", RegexOptions.CultureInvariant);
+
+    internal static bool TryDirectEffectTarget(string name, out TextureKey key)
+    {
+        key = default;
+        if (name.Length > 512)
+        {
+            return false;
+        }
+        Match match = DirectEffectPattern.Match(name);
+        if (!match.Success || !EffectTokensBounded(name) || !PaletteNumber(match.Groups["palette"].Value, out int palette))
+        {
+            return false;
+        }
+        string member = match.Groups["member"].Success
+            ? "texture/" + int.Parse(match.Groups["member"].ValueSpan, CultureInfo.InvariantCulture).ToString(CultureInfo.InvariantCulture)
+            : "image";
+        key = new(new(match.Groups["owner"].Value), member, palette);
+        return true;
+    }
+
     private TextureReplacement? ResolveEffect(TextureBuildContext context)
     {
         if (context.NativeAlias is not { } address || address.Palette is < 0 or > byte.MaxValue || !TryEffectStem(address, out string name))
@@ -121,8 +142,7 @@ public sealed partial class FfnxTextureResolver
         {
             return false;
         }
-        Match direct = Regex.Match(name, "^(?:magic|battle)/" + EffectStemPattern + @"_(?<palette>[0-9]+)$", RegexOptions.CultureInvariant);
-        if (direct.Success && EffectTokensBounded(direct.Value) && PaletteNumber(direct.Groups["palette"].Value, out _))
+        if (TryDirectEffectTarget(name, out _))
         {
             return true;
         }
