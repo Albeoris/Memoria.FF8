@@ -77,7 +77,7 @@ internal sealed class Ff7AutoPlayNativeReadiness
 
     internal bool ShouldWaitForCameraCompletion(long generation, string source, FieldVmSnapshot vm, Ff7FieldProcess process, ReadOnlySpan<byte> script)
     {
-        if (!HasFiniteCameraCompletion(process))
+        if (!HasFiniteCameraCompletion(process) && !HasReadyCameraCompletion(process))
         {
             return false;
         }
@@ -94,6 +94,11 @@ internal sealed class Ff7AutoPlayNativeReadiness
             }
         }
         return false;
+    }
+
+    internal static bool HasReadyCameraCompletion(Ff7FieldProcess process)
+    {
+        return process.GlobalCommand == Ff7GlobalCommand.None && process.Transition is null && process.Join is null && process.Movie is not { Playing: true } && process.CameraScroll is not { Completed: false } && process.CameraTracking is not { Completed: false };
     }
 
     public bool ShouldWaitForNavigationPreparation(long generation, string navigationKey, FieldVmSnapshot vm, Ff7FieldProcess process, ReadOnlySpan<byte> script, Func<int, int, FieldScriptAnalysis> analyze)

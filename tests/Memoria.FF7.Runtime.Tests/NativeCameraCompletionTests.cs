@@ -35,9 +35,7 @@ internal static class NativeCameraCompletionTests
         Check(!Wait(vm, process, [0, 0x66, 0, 0, 0]), "A non-wait opcode retained camera readiness.");
         foreach (Ff7FieldProcess bad in new[]
         {
-            process with { CameraScroll = null },
             process with { CameraScroll = process.CameraScroll! with { Mode = 1 } },
-            process with { CameraScroll = process.CameraScroll! with { Completed = true } },
             process with { CameraScroll = process.CameraScroll! with { Steps = 0 } },
             process with { CameraScroll = process.CameraScroll! with { Step = -1 } },
             process with { CameraScroll = process.CameraScroll! with { Step = 81 } },
@@ -49,6 +47,16 @@ internal static class NativeCameraCompletionTests
             Check(!Wait(vm, bad), "Unsupported or inactive camera work authenticated finite readiness.");
         }
         Check(Wait(vm, process with { CameraScroll = process.CameraScroll! with { Step = 80 } }), "The terminal interpolation callback was stranded before native completion.");
+        Ff7FieldProcess ready = process with { CameraScroll = process.CameraScroll! with { Step = 80, Completed = true } };
+        Check(Wait(vm, ready) && Wait(vm, process with { CameraScroll = null }), "An authenticated ready camera reply was stranded before its actual native return.");
+        Check(!Wait(vm with { PendingRequests = [] }, ready) && !Wait(vm with { Entities = [owner with { Priority = 7 }] }, ready) && !Wait(vm with { PendingRequests = [request with { ProgramCounter = 2 }] }, ready), "Completed camera presentation invented a waiter or its owner.");
+        Ff7AutoPlayNativeReadiness readyFrozen = new();
+        bool readyWaiting = true;
+        for (int i = 0; i <= Ff7AutoPlayNativeReadiness.RepeatedObservationLimit; i++)
+        {
+            readyWaiting = readyFrozen.ShouldWaitForCameraCompletion(1, "source", vm with { Tick = i }, ready, script);
+        }
+        Check(!readyWaiting, "A frozen ready camera reply retained planning indefinitely.");
         Ff7AutoPlayNativeReadiness frozen = new();
         bool waiting = true;
         for (int i = 0; i <= Ff7AutoPlayNativeReadiness.RepeatedObservationLimit; i++)
@@ -107,7 +115,7 @@ internal static class NativeCameraCompletionTests
         byte[] bytes = File.ReadAllBytes(path);
         using MemoryStream stream = new(bytes, false);
         using Ff7Session session = Ff7Session.Restore(Ff7Installation.Discover(game), CombinedSessionCodec.Read(stream).Ff7!);
-        Check(session.Host.Process.CameraScroll is { Completed: false }, "The fixture has no active camera scroll.");
+        Check(session.Host.Process.CameraScroll is not null, "The fixture has no camera scroll or completed reply.");
         Check(session.Host.Process.Movie is null, "The fixture already has a movie preparation.");
         using Ff7AutoPlayPolicy policy = new(session, (_, _) => throw new InvalidOperationException("Unexpected choice boundary."));
         Ff7AutoPlayController controller = new(session, policy.ChooseInput, advanceTick: () => session.AdvanceTick(advanceClock: false), chooseDialogueSelection: policy.ChooseDialogueSelection, readPlanningProgress: () => policy.WorkProgress, readFrontierProgress: () => policy.FrontierProgress);
@@ -115,7 +123,7 @@ internal static class NativeCameraCompletionTests
         Stopwatch elapsed = Stopwatch.StartNew();
         int polls = 0;
         bool prepared = false;
-        bool cameraCompleted = false;
+        bool cameraCompleted = session.Host.Process.CameraScroll?.Completed == true;
         while (controller.Running && polls < 64 && elapsed.Elapsed < TimeSpan.FromSeconds(5))
         {
             controller.Advance(1);
