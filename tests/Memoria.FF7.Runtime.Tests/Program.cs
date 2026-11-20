@@ -3,6 +3,12 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-route-cycle-original-only", StringComparer.Ordinal))
+{
+    NativeRouteCycleTests.RunOriginal();
+    return 0;
+}
+
 if (args.Contains("--navigation-mode-clock-original-only", StringComparer.Ordinal))
 {
     NavigationModeClockTests.RunOriginal();

@@ -59,6 +59,7 @@ public sealed partial class Ff7AutoPlayPolicy
         }
         string intent = ReadNativePlanningIntent();
         AutoPlayTravelGoal? expectedGoal = State.NavigationGoal;
+        bool committedGoal = CanContinueOwnedTravel(State, observation, IsPendingOwnedSourceGoal(expectedGoal, observation));
         if (ordinaryAlternativeSource != schedulingSource || ordinaryAlternativeIntent != intent || ordinaryAlternativeOwner != expected || ordinaryAlternativeGoal != expectedGoal)
         {
             ordinaryAlternativeSource = schedulingSource;
@@ -74,7 +75,7 @@ public sealed partial class Ff7AutoPlayPolicy
         bool equivalentTransportScope = expected.TravelRoute is not null && expectedGoal is not null && observation.Events.SingleOrDefault(item => item.Id == expected.EventId && item.ConditionFingerprint == expected.ConditionFingerprint)?.EffectFingerprint is string effect && Ff7AutoPlayDiscovery.TryReadDirectTransitionEffect(effect, out _);
         bool Adopt(Ff7AutoPlayTarget target, AutoPlayPlanStep plan, string[] preceding, Ff7AutoplayDriver candidate, Func<AutoPlayNavigationVisit, AutoPlayEvent, AutoPlayEventAvailability?> availability, bool ready)
         {
-            AutoPlayPlanStep? fresh = planner.PlanNavigation(observation.NavigationKey, needsRefresh: NeedsVisitRefresh, allowRemoteConditionRoutes: true, avoidFirstEvents: preceding.ToHashSet(StringComparer.Ordinal), preferredGoal: expectedGoal, readAvailability: availability);
+            AutoPlayPlanStep? fresh = planner.PlanNavigation(observation.NavigationKey, needsRefresh: NeedsVisitRefresh, allowRemoteConditionRoutes: true, avoidFirstEvents: preceding.ToHashSet(StringComparer.Ordinal), preferredGoal: expectedGoal, readAvailability: availability, strongPreferredGoal: committedGoal);
             AutoPlayNavigationVisit current = State.Coverage.NavigationVisits.Single(visit => visit.Key == observation.NavigationKey);
             AutoPlayEventAvailability selectedAvailability = availability(current, current.Events.Single(item => item.Id == target.Id)) ?? new(false, [], null);
             bool touching = target.Kind is Ff7AutoPlayTargetKind.LineLeave or Ff7AutoPlayTargetKind.LineEnter && session.Host.Process.Lines.Single(line => line.Entity == target.Entity).Touch;
@@ -109,14 +110,14 @@ public sealed partial class Ff7AutoPlayPolicy
             while (true)
             {
                 string[] preceding = avoid.ToArray();
-                AutoPlayPlanStep? plan = planner.PlanNavigation(observation.NavigationKey, needsRefresh: NeedsVisitRefresh, allowRemoteConditionRoutes: true, avoidFirstEvents: avoid, preferredGoal: expectedGoal, readAvailability: availability);
+                AutoPlayPlanStep? plan = planner.PlanNavigation(observation.NavigationKey, needsRefresh: NeedsVisitRefresh, allowRemoteConditionRoutes: true, avoidFirstEvents: avoid, preferredGoal: expectedGoal, readAvailability: availability, strongPreferredGoal: committedGoal);
                 if (plan is null || !avoid.Add(plan.Event.Id))
                 {
                     break;
                 }
                 Ff7AutoPlayTarget? target = observation.Events.SingleOrDefault(item => item.Id == plan.Event.Id && item.ConditionFingerprint == plan.Event.ConditionSignature && item.AnalysisComplete);
                 bool equivalentTransport = target is not null && IsCertifiedEquivalentTransport(State, expected, expectedGoal, observation, target, plan);
-                if (target is null || !IsDestinationPlan(State, plan, observation.NavigationKey) || local && plan.IsTravel && !equivalentTransport || ordinaryAlternativeFailures.Contains(target.Id))
+                if (target is null || committedGoal && !MatchesOwnedTravelPlan(expectedGoal!, plan, observation.NavigationKey) || !IsDestinationPlan(State, plan, observation.NavigationKey) || local && plan.IsTravel && !equivalentTransport || ordinaryAlternativeFailures.Contains(target.Id))
                 {
                     continue;
                 }

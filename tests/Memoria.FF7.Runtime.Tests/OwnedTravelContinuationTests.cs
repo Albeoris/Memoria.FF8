@@ -8,6 +8,7 @@ internal static class OwnedTravelContinuationTests
 {
     internal static void Run()
     {
+        CheckSourceOnlyContinuation();
         CheckActorRefresh();
         Ff7AutoPlayState state = new();
         AutoPlayEvent goalEvent = new("goal", AutoPlayEventKind.Interaction, ConditionSignature: "condition");
@@ -50,6 +51,50 @@ internal static class OwnedTravelContinuationTests
         Ff7AutoPlayState malformed = JsonSerializer.Deserialize<Ff7AutoPlayState>("{\"TravelCommitment\":{\"Goal\":null}}")!;
         Check(!Ff7AutoPlayPolicy.CanContinueOwnedTravel(malformed, observation), "An incomplete optional marker invented an owned goal.");
         Console.WriteLine("PASS scoped owned travel preference, native availability, source/goal release and old-save metadata compatibility");
+    }
+
+    private static void CheckSourceOnlyContinuation()
+    {
+        Ff7AutoPlayState state = new();
+        var planner = Ff7AutoPlayPolicy.CreatePlanner(state);
+        AutoPlayEvent arrival = new("arrive", AutoPlayEventKind.Interaction, ConditionSignature: "arrival");
+        AutoPlayEvent exit = new("exit", AutoPlayEventKind.Interaction, ConditionSignature: "exit");
+        AutoPlayEvent wrong = new("wrong", AutoPlayEventKind.Interaction, ConditionSignature: "wrong");
+        AutoPlayEvent fresh = new("fresh", AutoPlayEventKind.Interaction, ConditionSignature: "fresh");
+        planner.Observe(new("origin", "program"), [arrival]);
+        planner.Observe(new("middle", "program"), [exit, wrong]);
+        planner.Observe(new("world", "program"), []);
+        planner.Observe(new("competing", "program"), [fresh]);
+        planner.ObserveNavigation("origin", "origin-nav", [arrival]);
+        planner.ObserveNavigation("middle", "middle-nav", [exit, wrong]);
+        planner.ObserveNavigation("world", "world-nav", []);
+        planner.ObserveNavigation("competing", "competing-nav", [fresh]);
+        AutoPlayEventRoute Link(string source, string sourceNav, string destination, string destinationNav, AutoPlayEvent target)
+        {
+            planner.Completed(source, target.Id, destination, observedStoryChanged: false, entrySignature: target.ConditionSignature, entrySignatureAuthoritative: true, targetId: target.Id);
+            var route = state.Coverage.Visits.Single(visit => visit.Visit.Key == source).Events.Single(item => item.Event.Id == target.Id).Routes.Single();
+            planner.RecordNavigationRoute(sourceNav, destinationNav, target.Id, route);
+            return route;
+        }
+        var route = Link("origin", "origin-nav", "middle", "middle-nav", arrival);
+        Link("middle", "middle-nav", "world", "world-nav", exit);
+        Link("middle", "middle-nav", "competing", "competing-nav", wrong);
+        state.NavigationGoal = new("world-nav");
+        bool NeedsRefresh(AutoPlayVisit visit) => visit.Key == "world-nav";
+        AutoPlayPlanStep? Plan(bool strong, bool blocked = false) => planner.PlanNavigation("middle-nav", needsRefresh: NeedsRefresh, preferredGoal: state.NavigationGoal, strongPreferredGoal: strong, readAvailability: (_, target) => blocked && target.Id == exit.Id ? new(true, new HashSet<string> { exit.Id }, "blocked") : null);
+        Check(Plan(false)?.Goal?.EventId == fresh.Id, "An unowned source-only goal unexpectedly preempted a fresh frontier.");
+        Ff7AutoPlayActiveEvent active = new("origin", arrival.Id, arrival.ConditionSignature!, 1, 7, 4, Ff7AutoPlayTargetKind.LineTouch, null, 641, "before", Accepted: true, TransitionOwned: true, NavigationKey: "origin-nav", TravelRoute: route);
+        Ff7AutoPlayObservation observation = new("middle", "program", 2, [], true, true) { NavigationKey = "middle-nav" };
+        Check(!Ff7AutoPlayPolicy.IsOwnedTravelArrival(state, active, observation, true) && Ff7AutoPlayPolicy.IsOwnedTravelArrival(state, active, observation, true, sourceGoalPending: true), "A source-only commitment was invented without current pending proof or lost a real native arrival.");
+        Check(!Ff7AutoPlayPolicy.IsOwnedTravelArrival(state, active with { Accepted = false, TransitionOwned = false }, observation, true, sourceGoalPending: true), "An unaccepted leg acquired source-only owned priority.");
+        state.TravelCommitment = new(state.NavigationGoal, observation.NavigationKey, null);
+        Check(Ff7AutoPlayPolicy.CanContinueOwnedTravel(state, observation, sourceGoalPending: true) && !Ff7AutoPlayPolicy.CanContinueOwnedTravel(state, observation), "A completed/unknown source inherited an owned refresh continuation.");
+        AutoPlayPlanStep? continuation = Plan(true);
+        Check(continuation is { Event.Id: "exit", Goal.EventId: null, Goal.NavigationKey: "world-nav" } && Ff7AutoPlayPolicy.MatchesOwnedTravelPlan(state.NavigationGoal, continuation, observation.NavigationKey), "Fresh remote work preempted the authenticated pending source visit.");
+        Check(!Ff7AutoPlayPolicy.MatchesOwnedTravelPlan(state.NavigationGoal, Plan(true, blocked: true), observation.NavigationKey), "A physically unavailable source route bypassed ordinary eligibility.");
+        Check(!Ff7AutoPlayPolicy.CanContinueOwnedTravel(state, observation with { NavigationKey = "world-nav" }, sourceGoalPending: true), "Actual source arrival retained an already completed continuation.");
+        state.NavigationGoal = new("different");
+        Check(!Ff7AutoPlayPolicy.CanContinueOwnedTravel(state, observation, sourceGoalPending: true), "Changed user/goal intent retained an old source-only commitment.");
     }
 
     private static void CheckActorRefresh()

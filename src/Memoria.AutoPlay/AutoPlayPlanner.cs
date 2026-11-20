@@ -435,7 +435,7 @@ public sealed partial class AutoPlayPlanner<TDeferral> where TDeferral : class, 
                 return TravelToEvent(continuation) ?? new AutoPlayPlanStep(currentVisitKey, continuation.Coverage.Event, false);
             }
         }
-        else if (preferredGoal is { NavigationKey: string refreshGoal } && needsRefresh is not null && CanRefresh(refreshGoal) && (refreshVisitKey == refreshGoal || needsRefresh(visits[refreshGoal].Visit)) && !HasHigherPriorityProgression(0))
+        else if (preferredGoal is { NavigationKey: string refreshGoal } && needsRefresh is not null && CanRefresh(refreshGoal) && (refreshVisitKey == refreshGoal || needsRefresh(visits[refreshGoal].Visit)) && (strongPreferredGoal || !HasHigherPriorityProgression(0)))
         {
             return RefreshPlan(refreshGoal);
         }

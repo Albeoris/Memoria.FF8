@@ -615,7 +615,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
 
     private void CompleteActive(Ff7AutoPlayObservation observation, Ff7AutoPlayActiveEvent active, bool changedField, Ff7AutoplayDriver? driver = null, IReadOnlyDictionary<string, string>? physicalGuards = null)
     {
-        bool ownedTravelArrival = IsOwnedTravelArrival(State, active, observation, changedField);
+        bool ownedTravelArrival = IsOwnedTravelArrival(State, active, observation, changedField, IsPendingOwnedSourceGoal(State.NavigationGoal, observation));
         Ff7AutoPlayActiveEvent completed = RefreshCompletedGatewayTravel(observation, active);
         if (!ReferenceEquals(completed, active))
         {
@@ -664,7 +664,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             State.NavigationGoal = null;
         }
         RetireConsumedEffectAliasGoal();
-        State.TravelCommitment = ownedTravelArrival && State.NavigationGoal is { EventId: not null } retained ? new(retained, observation.NavigationKey, State.DestinationField) : null;
+        State.TravelCommitment = ownedTravelArrival && State.NavigationGoal is { } retained ? new(retained, observation.NavigationKey, State.DestinationField) : null;
         if (driver is not null && physicalGuards is not null)
         {
             RefreshOwnedTargetIntent(observation, driver, physicalGuards);
