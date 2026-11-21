@@ -3,13 +3,13 @@ using Memoria.FF7.Events;
 namespace Memoria.FF7.Runtime;
 
 public sealed record Ff7AutoPlayExecutionOwner(int Entity, int Priority, int Script, int Entry, int ParentEntity, int ParentPriority, int SourceProgramCounter, long DispatchTick, bool Queued);
-public sealed record Ff7AutoPlayExecutionProvenance(long Generation, string ProgramIdentity, int RootEntity, int RootScript, string Condition, Ff7AutoPlayExecutionOwner[] Owners, string VisitId, string EventId, Ff7AutoPlayTargetKind Kind, long LastActivityTick = -1, int ActivityCursor = 0, FieldHostRequest? AcceptedTransition = null, long AcceptedTransitionTick = -1, bool RootReturned = false);
+public sealed record Ff7AutoPlayExecutionProvenance(long Generation, string ProgramIdentity, int RootEntity, int RootScript, string Condition, Ff7AutoPlayExecutionOwner[] Owners, string VisitId, string EventId, Ff7AutoPlayTargetKind Kind, long LastActivityTick = -1, int ActivityCursor = 0, FieldHostRequest? AcceptedTransition = null, long AcceptedTransitionTick = -1, bool RootReturned = false, long RootDispatchTick = -1);
 
 internal static class Ff7AutoPlayExecutionOwners
 {
     internal static Ff7AutoPlayExecutionProvenance Begin(Ff7AutoPlayActiveEvent active, string programIdentity, int entry, long tick)
     {
-        return new(active.Generation, programIdentity, active.Entity, active.Script, active.ConditionFingerprint, [new(active.Entity, 1, active.Script, entry, -1, -1, entry, tick, false)], active.VisitId, active.EventId, active.Kind);
+        return new(active.Generation, programIdentity, active.Entity, active.Script, active.ConditionFingerprint, [new(active.Entity, 1, active.Script, entry, -1, -1, entry, tick, false)], active.VisitId, active.EventId, active.Kind, RootDispatchTick: tick);
     }
 
     internal static bool Matches(Ff7AutoPlayActiveEvent active, long generation, string programIdentity)

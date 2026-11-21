@@ -4,6 +4,15 @@ namespace Memoria.FF7.Runtime;
 
 public sealed partial class Ff7AutoPlayPolicy
 {
+    internal static Ff7AutoPlayActiveEvent RefreshCompletedChoiceFreeTravel(Ff7AutoPlayActiveEvent active, Ff7AutoPlayObservation observation, bool completeChoiceFreeClosure)
+    {
+        if (!completeChoiceFreeClosure || !active.Accepted || !active.Returned || active.Generation != observation.Generation || active.VisitId != observation.VisitId || active.Kind is Ff7AutoPlayTargetKind.Gateway or Ff7AutoPlayTargetKind.WorldMesh or Ff7AutoPlayTargetKind.WorldModel || active.TravelSelections is not { Count: 0 } || active.TravelRoute is not { Selections.Count: > 0 } route || route.ConditionSignature != active.ConditionFingerprint || route.TargetId != active.EventId || observation.Events.SingleOrDefault(target => target.Id == active.EventId)?.ConditionFingerprint != active.ConditionFingerprint)
+        {
+            return active;
+        }
+        return active with { TravelRoute = route with { Selections = [] }, TravelSelections = [] };
+    }
+
     private Ff7AutoPlayActiveEvent RefreshCompletedGatewayTravel(Ff7AutoPlayObservation observation, Ff7AutoPlayActiveEvent active)
     {
         if (active.TravelRoute is not { Selections: not null } route || active.TravelSelections is { } executed && route.Selections.SequenceEqual(executed))

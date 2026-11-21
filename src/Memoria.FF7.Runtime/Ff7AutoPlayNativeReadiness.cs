@@ -13,6 +13,51 @@ internal sealed class Ff7AutoPlayNativeReadiness
     private int repeatedObservations;
     private int totalObservations;
 
+    internal static bool HasLiveChoiceOwner(long generation, Ff7AutoPlayChoiceNativeOwner owner, FieldVmSnapshot vm)
+    {
+        if (owner.Generation != generation || owner.ProgramIdentity != vm.ProgramIdentity || (uint)owner.Entity >= vm.Entities.Length || owner.Priority is < 0 or >= 7)
+        {
+            return false;
+        }
+        FieldEntitySnapshot current = vm.Entities[owner.Entity];
+        return current.Priority == owner.Priority && current.SavedProgramCounters.SequenceEqual(owner.SavedProgramCounters) || current.Priority < owner.Priority && current.SavedProgramCounters.Length > owner.Priority && current.SavedProgramCounters[owner.Priority] != 0 && current.SavedProgramCounters.Skip(owner.Priority + 1).SequenceEqual(owner.SavedProgramCounters.Skip(owner.Priority + 1));
+    }
+
+    internal bool ShouldWaitForChoiceOwner(long generation, Ff7AutoPlayChoiceNativeOwner owner, FieldVmSnapshot vm, Ff7FieldProcess process, ReadOnlySpan<byte> script)
+    {
+        if (!HasLiveChoiceOwner(generation, owner, vm))
+        {
+            return false;
+        }
+        HashSet<int> work = [owner.Entity];
+        bool added;
+        do
+        {
+            added = false;
+            for (int entity = 0; entity < vm.Entities.Length; entity++)
+            {
+                FieldEntitySnapshot child = vm.Entities[entity];
+                int priority = child.Priority;
+                if (priority is < 0 or >= 7 || priority >= child.SyncStates.Length || priority >= child.SyncOwners.Length || child.SyncStates[priority] != FieldSyncState.Waiting || !work.Contains(child.SyncOwners[priority]))
+                {
+                    continue;
+                }
+                FieldEntitySnapshot parent = vm.Entities[child.SyncOwners[priority]];
+                int pc = parent.ProgramCounter;
+                if (pc >= 0 && pc + 2 < script.Length && script[pc] == 0x03 && script[pc + 1] == entity && script[pc + 2] >> 5 == priority)
+                {
+                    added |= work.Add(entity);
+                }
+            }
+        }
+        while (added);
+        if (!ObserveWork(generation, $"choice:{owner.ProgramIdentity}:{owner.RequestId}:{owner.Entity}:{owner.Priority}", vm, process, work))
+        {
+            throw new NotSupportedException("The admitted native choice continuation did not establish a control-return boundary within its progress bounds.");
+        }
+        return true;
+    }
+
     internal bool ShouldWaitForSynchronousTriangleSetup(long generation, string source, FieldVmSnapshot vm, Ff7FieldProcess process, ReadOnlySpan<byte> script, Func<int, int, int> readScriptEntry)
     {
         HashSet<int> work = [];

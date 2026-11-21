@@ -6,6 +6,44 @@ using Memoria.FF7.Runtime;
 
 internal static class NativePromptInputOriginalTests
 {
+    internal static void RunChoiceRouteContinuation()
+    {
+        string path = Environment.GetEnvironmentVariable("MEMORIA_FF7_NATIVE_PROMPT_INPUT_SAVE")!;
+        byte[] bytes = File.ReadAllBytes(path);
+        byte[] hash = SHA256.HashData(bytes);
+        using MemoryStream input = new(bytes, writable: false);
+        using var session = Ff7Session.Restore(Ff7Installation.Discover(Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR")!), CombinedSessionCodec.Read(input).Ff7!);
+        Dictionary<string, Ff7SessionSave> checkpoints = [];
+        using var policy = new Ff7AutoPlayPolicy(session, (key, save) =>
+        {
+            string name = "memory:" + key;
+            checkpoints.Add(name, save);
+            return name;
+        });
+        var controller = new Ff7AutoPlayController(session, policy.ChooseInput, advanceTick: () => session.AdvanceTick(advanceClock: false), chooseDialogueSelection: policy.ChooseDialogueSelection);
+        string choiceKey = policy.State.Choice!.Key;
+        int initialChoices = policy.State.Coverage.Choices.Single(choice => choice.Key == choiceKey).CompletedOptions.Count;
+        controller.Start();
+        Stopwatch timer = Stopwatch.StartNew();
+        for (int polls = 0; polls < 100000 && controller.Steps < 1024 && timer.Elapsed.TotalSeconds < 25 && controller.Error is null && policy.State.PendingRestore is null; polls++)
+        {
+            controller.Advance(1);
+            if (controller.Steps == 1)
+            {
+                var live = policy.State.Coverage.Choices.Single(choice => choice.Key == choiceKey);
+                if (live.CompletedOptions.Count != initialChoices || policy.State.Active?.CompletionRecorded == true)
+                {
+                    throw new InvalidOperationException("An unrelated returned source completed the still-running worker choice.");
+                }
+            }
+        }
+        Console.WriteLine($"Original choice route: callbacks={controller.Steps}, seconds={timer.Elapsed.TotalSeconds:F3}, tick={session.Host.Process.Tick}, nativeChoiceOwner={policy.State.Choice?.NativeOwner?.Entity}, ownerPriority={session.Machine.Capture().Entities[2].Priority}, completedOptions={policy.State.Coverage.Choices.Single(choice => choice.Key == choiceKey).CompletedOptions.Count}, pendingRestore={policy.State.PendingRestore?.Path}, active={policy.State.Active?.EventId}, memoryCheckpoints={checkpoints.Count}, status={policy.State.Status}, error={controller.Error}");
+        if (controller.Error is not null || policy.State.PendingRestore is null || !hash.AsSpan().SequenceEqual(SHA256.HashData(File.ReadAllBytes(path))))
+        {
+            throw new InvalidOperationException("The native worker choice did not reach its genuine completion and replay boundary.");
+        }
+    }
+
     internal static void Run()
     {
         string path = Environment.GetEnvironmentVariable("MEMORIA_FF7_NATIVE_PROMPT_INPUT_SAVE") ?? throw new InvalidOperationException("Select a native prompt input fixture.");

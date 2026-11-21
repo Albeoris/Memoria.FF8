@@ -5,7 +5,11 @@ using Memoria.FF7.Events;
 
 namespace Memoria.FF7.Runtime;
 
-public sealed record Ff7AutoPlayChoiceState(string Key, Ff7AutoPlayActiveEvent? BeforeActive, Ff7AutoPlayChoiceState? Parent = null, Ff7AutoPlayActiveEvent? ContinuationActive = null, string? OwnerIdentity = null, int? BeforeStory = null, [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] string[]? RetiredCandidatePaths = null);
+public sealed record Ff7AutoPlayChoiceState(string Key, Ff7AutoPlayActiveEvent? BeforeActive, Ff7AutoPlayChoiceState? Parent = null, Ff7AutoPlayActiveEvent? ContinuationActive = null, string? OwnerIdentity = null, int? BeforeStory = null, [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] string[]? RetiredCandidatePaths = null)
+{
+    public Ff7AutoPlayChoiceNativeOwner? NativeOwner { get; init; }
+    public bool? NativeSourceOwned { get; init; }
+}
 public sealed record Ff7AutoPlayRestoreRequest(string Path, string[]? RetiredPaths = null);
 
 /// <summary>Adapts shared choice coverage to exact native before-choice and primary-continuation saves.</summary>
@@ -86,7 +90,11 @@ public sealed partial class Ff7AutoPlayChoiceWorkflow
                 state.ChoiceContinuationDiagnostic = $"finished:{key}:option:{completedSelection}:gil:{before.Progress.Gil}:" + state.ChoiceContinuationDiagnostic?[..Math.Min(state.ChoiceContinuationDiagnostic.Length, 300)];
                 return completedSelection;
             }
-            current = new(key, state.Active, current, OwnerIdentity: owner, BeforeStory: ReadStory(before));
+            current = new(key, state.Active, current, OwnerIdentity: owner, BeforeStory: ReadStory(before))
+            {
+                NativeOwner = ReadNativeChoiceOwner(before, dialogue),
+                NativeSourceOwned = before.World is null ? state.Active is { } source && ReadOwnedServicePrompt(before, source, dialogue.RequestId) is not null : null
+            };
             state.Choice = current;
         }
         Ff7AutoPlayChoiceState selectedChoice = current ?? throw new InvalidDataException("The native choice has no exploration owner.");

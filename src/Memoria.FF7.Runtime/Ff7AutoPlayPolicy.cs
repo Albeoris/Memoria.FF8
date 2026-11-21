@@ -352,6 +352,13 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             item.AvailabilityFingerprint = availability.Fingerprint;
         }
         CompletePresentationActivation(observation);
+        if (choices.ShouldWaitForNativeContinuation(readinessVm, session.Host.Process, session.Field.Scripts.Data.Span))
+        {
+            driver.BeginPlanningStep();
+            State.Status = "Waiting for the actual native choice continuation to return";
+            Publish();
+            return default;
+        }
         if (State.Active is { } active && (active.Returned || active.Generation != observation.Generation))
         {
             bool changedField = active.Generation != observation.Generation;
@@ -670,6 +677,12 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             RecordNavigationPrerequisiteCompletion(State, active, prerequisiteActor);
         }
         Ff7AutoPlayActiveEvent completed = RefreshCompletedGatewayTravel(observation, active);
+        if (ReferenceEquals(completed, active) && active.TravelRoute is { Selections.Count: > 0 } && active.TravelSelections is { Count: 0 } && active.Accepted && active.Returned && !changedField && observation.Events.SingleOrDefault(target => target.Id == active.EventId)?.ConditionFingerprint == active.ConditionFingerprint)
+        {
+            FieldScriptAnalysis closure = session.Machine.AnalyzeScript(active.Entity, active.Script);
+            bool noChoices = closure.Complete && !closure.InstructionSites.Any(site => session.Field.Scripts.Data.Span[site.ProgramCounter] == 0x48);
+            completed = RefreshCompletedChoiceFreeTravel(active, observation, noChoices);
+        }
         if (!ReferenceEquals(completed, active))
         {
             active = completed;
@@ -691,10 +704,11 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             }
             bool navigationProbe = !changedField && observation.Events.SingleOrDefault(target => target.Id == active.EventId)?.MayChangeNavigation == true;
             bool navigationReceipt = changedField || changedComponent || navigationProbe;
-            RecordControlReturn(planner, active, observation, navigationReceipt, exit, progressChanged, active.TravelRoute is null ? choices.Selections : active.TravelSelections ?? []);
+            IReadOnlyList<AutoPlayChoiceSelection> sourceSelections = active.TravelRoute is null ? choices.ReadSourceSelections(active) : active.TravelSelections ?? [];
+            RecordControlReturn(planner, active, observation, navigationReceipt, exit, progressChanged, sourceSelections);
             if (navigationReceipt && active.NavigationKey is string sourceKey)
             {
-                planner.RecordNavigationRoute(sourceKey, observation.NavigationKey, active.EventId, new(observation.VisitId, active.ConditionFingerprint, progressChanged, active.TravelRoute is null ? choices.Selections : active.TravelSelections ?? [], active.EventId), new(sourceKey, active.EventId, active.ConditionFingerprint, active.EventId));
+                planner.RecordNavigationRoute(sourceKey, observation.NavigationKey, active.EventId, new(observation.VisitId, active.ConditionFingerprint, progressChanged, sourceSelections, active.EventId), new(sourceKey, active.EventId, active.ConditionFingerprint, active.EventId));
             }
             LearnTransportCompletion(active, observation, changedField);
             State.Active = active with { CompletionRecorded = true };

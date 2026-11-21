@@ -3,6 +3,18 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-choice-source-accounting-only", StringComparer.Ordinal))
+{
+    NativeChoiceSourceAccountingTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-choice-route-original-only", StringComparer.Ordinal))
+{
+    NativePromptInputOriginalTests.RunChoiceRouteContinuation();
+    return 0;
+}
+
 if (args.Contains("--native-ambient-message-input-only", StringComparer.Ordinal))
 {
     NativeAmbientMessageInputTests.Run();
