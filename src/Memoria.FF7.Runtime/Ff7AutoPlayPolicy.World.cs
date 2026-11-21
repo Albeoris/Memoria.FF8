@@ -129,6 +129,8 @@ public sealed partial class Ff7AutoPlayPolicy
                 State.Active = active with { Returned = true };
                 CompleteActive(observation, State.Active, changedField: false);
                 State.WorldDispatch = null;
+                driver.BeginPlanningStep();
+                return default;
             }
             else
             {
