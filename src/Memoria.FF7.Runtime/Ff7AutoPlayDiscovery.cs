@@ -125,7 +125,7 @@ public sealed partial class Ff7AutoPlayDiscovery(Ff7Session session)
 
     private static bool CanReadEffectFingerprint(int priority, FieldScriptAnalysis analysis, FieldScriptEntryDependencies dependencies, bool hostConditionsComplete, bool hasEntryInput)
     {
-        return priority == 1 && analysis.Complete && analysis.InputIndependent && analysis.StochasticPresentation is null && analysis.HostReads.Length == 0 && dependencies.Complete && dependencies.HostReads.Length == 0 && hostConditionsComplete && !hasEntryInput;
+        return priority == 1 && analysis.Complete && (analysis.InputIndependent || analysis.DeterministicTransfer) && analysis.StochasticPresentation is null && analysis.NativeRandomExecutionDomain is null && analysis.HostReads.Length == 0 && dependencies.Complete && dependencies.HostReads.Length == 0 && hostConditionsComplete && !hasEntryInput;
     }
 
     public Ff7AutoPlayTarget? FindTarget(string id) => Observe().Events.SingleOrDefault(target => target.Id == id);

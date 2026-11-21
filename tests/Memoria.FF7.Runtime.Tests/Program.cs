@@ -3,6 +3,18 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-transfer-effect-alias-only", StringComparer.Ordinal))
+{
+    NativeTransferEffectAliasTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-field-transfer-arrival-original-only", StringComparer.Ordinal))
+{
+    NativeFieldTransferArrivalOriginalTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-atomic-control-entry-only", StringComparer.Ordinal))
 {
     NativeAtomicControlEntryTests.Run();

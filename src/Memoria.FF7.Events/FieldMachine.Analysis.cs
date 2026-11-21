@@ -28,6 +28,7 @@ public sealed record FieldScriptAnalysis(bool Complete, string? Reason, string F
     public FieldHostRead[] HostReads { get; init; } = [];
     public bool MayChangeNavigation { get; init; }
     public bool InputIndependent { get; init; }
+    public bool DeterministicTransfer { get; init; }
     public FieldStochasticPresentation? StochasticPresentation { get; init; }
     public string? NativeRandomExecutionDomain { get; init; }
     public int[] ExitProgramCounters { get; init; } = [];
@@ -213,6 +214,7 @@ public sealed partial class FieldMachine
         HashSet<FieldFadeCommand> constantFades = [];
         HashSet<int> exits = [];
         bool inputIndependent = true;
+        bool deterministicTransfer = true;
         Dictionary<int, bool> physicalExits = [];
         HashSet<string> physicalPredicates = [];
         HashSet<FieldVariableRead> physicalBytes = [];
@@ -271,6 +273,7 @@ public sealed partial class FieldMachine
                 bool physicalValid = location.PhysicalValid;
                 byte opcode = program.Read(pc);
                 inputIndependent &= opcode is not (0x30 or 0x31 or 0x32);
+                deterministicTransfer &= owner == entity && (opcode is 0x00 or 0x10 or 0x11 or >= 0x14 and <= 0x19 or 0x24 or 0x25 or 0x33 or 0x4A or 0x60 or 0x6B or 0x6C);
                 if (owner == entity && physicalPredicates.Contains(PredicateIdentity(pc)))
                 {
                     bool returned = controls == 0 && physicalValid;
@@ -582,6 +585,6 @@ public sealed partial class FieldMachine
         }
         bool independentLoop = reason is null && independentActorMotion && visited.All(site => site.Entity == entity && independentActorInstructions.Contains(new(site.Entity, site.Pc)));
         FieldFadeCommand? repeatingFade = reason is null && constantFades.Count == 1 && visited.All(site => site.Entity == entity && constantFadeInstructions.Contains(new(site.Entity, site.Pc))) ? constantFades.Single() : null;
-        return new(reason is null, reason, fingerprint, changesStory, dependencies, visited.Select(value => value.Pc).Distinct().Order().ToArray(), destinations.Order().ToArray()) { HostReads = hostReads.OrderBy(read => read.Kind).ThenBy(read => read.Parameter).ThenBy(read => read.Selector).ToArray(), MayChangeNavigation = mayChangeNavigation, InputIndependent = reason is null && inputIndependent, ExitProgramCounters = exits.Order().ToArray(), UnblockedTriangles = unblockedTriangles.Order().ToArray(), LadderLandings = ladderLandings.ToArray(), TerminalJumpLandings = terminalJumpLandings.ToArray(), PossibleJumpLandings = possibleJumpLandings.ToArray(), IndependentActorMotionLoop = independentLoop, RepeatingConstantFade = repeatingFade, InstructionSites = visited.Select(value => new FieldScriptInstructionSite(value.Entity, value.Pc)).Distinct().ToArray() };
+        return new(reason is null, reason, fingerprint, changesStory, dependencies, visited.Select(value => value.Pc).Distinct().Order().ToArray(), destinations.Order().ToArray()) { HostReads = hostReads.OrderBy(read => read.Kind).ThenBy(read => read.Parameter).ThenBy(read => read.Selector).ToArray(), MayChangeNavigation = mayChangeNavigation, InputIndependent = reason is null && inputIndependent, DeterministicTransfer = reason is null && deterministicTransfer && destinations.Count == 1, ExitProgramCounters = exits.Order().ToArray(), UnblockedTriangles = unblockedTriangles.Order().ToArray(), LadderLandings = ladderLandings.ToArray(), TerminalJumpLandings = terminalJumpLandings.ToArray(), PossibleJumpLandings = possibleJumpLandings.ToArray(), IndependentActorMotionLoop = independentLoop, RepeatingConstantFade = repeatingFade, InstructionSites = visited.Select(value => new FieldScriptInstructionSite(value.Entity, value.Pc)).Distinct().ToArray() };
     }
 }
