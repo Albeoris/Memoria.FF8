@@ -334,7 +334,7 @@ public sealed partial class Ff7AutoplayDriver
         foreach (Ff7Line line in session.Host.Process.Lines.Where(line => line.Enabled == 1))
         {
             bool legacy = avoidedLineGeneration == session.FieldGeneration && avoidedLineEntities.Contains(line.Entity);
-            Ff7AutoPlayTarget[] native = navigationLineTargets?.Where(target => target.Entity == line.Entity && !CanSkipNavigationLine(target)).ToArray() ?? [];
+            Ff7AutoPlayTarget[] native = navigationLineTargets?.Where(target => target.Entity == line.Entity && !CanSkipNavigationLine(target) && (target.Kind != Ff7AutoPlayTargetKind.LineEnter || !AllowsLineEnterMove(line, from, move.Actor))).ToArray() ?? [];
             if (!legacy && native.Length == 0)
             {
                 continue;
@@ -365,6 +365,18 @@ public sealed partial class Ff7AutoplayDriver
             }
         }
         return true;
+    }
+
+    internal static bool AllowsLineEnterMove(Ff7Line line, Ff7Actor from, Ff7Actor to)
+    {
+        bool Touches(Ff7Actor actor)
+        {
+            Vector3 point = new(actor.X4096 >> 12, actor.Y4096 >> 12, actor.Z4096 >> 12);
+            int distance = Ff7Session.DistanceToSegment(new(line.X1, line.Y1, line.Z1), new(line.X2, line.Y2, line.Z2), point, out _);
+            return distance >= 0 && distance < unchecked(actor.CollisionRadius * actor.CollisionRadius);
+        }
+        bool before = Touches(from);
+        return !line.Enter && !(before && !line.Touch) && !(!before && Touches(to));
     }
 
     internal static bool AllowsGatewayMove(IReadOnlyList<PcFieldGateway> gateways, Ff7Actor from, Ff7Actor to, IReadOnlySet<int>? admitted)
