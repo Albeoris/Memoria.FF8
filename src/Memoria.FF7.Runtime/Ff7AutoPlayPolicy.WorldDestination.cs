@@ -84,11 +84,16 @@ public sealed partial class Ff7AutoPlayPolicy
         {
             targets.Add(mode.Key);
         }
-        if (targets.Count == 0)
+        RequireWorldDestinationTargets(targets, worldModeTopologyPending, incomplete, destination);
+        return (observation, targets);
+    }
+
+    internal static void RequireWorldDestinationTargets(IReadOnlyCollection<string> targets, bool topologyPending, string? incomplete, ushort destination)
+    {
+        if (targets.Count == 0 && !topologyPending)
         {
             throw new NotSupportedException(incomplete ?? $"The native field-entry sources for destination {destination} require a traversal mode whose admitted prerequisite is not established from the current world state.");
         }
-        return (observation, targets);
     }
 
     internal static HashSet<string> ResolveWorldDestinationGoal(Ff7AutoPlayState state, Ff7AutoPlayObservation observation, IReadOnlySet<string> candidates, Func<AutoPlayEvent, AutoPlayEventAvailability?> readAvailability)

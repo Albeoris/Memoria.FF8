@@ -168,6 +168,7 @@ internal sealed class Ff7WorldModeTopologyCursor(IEnumerator<Ff7AutoPlayWorldMod
 {
     private IEnumerator<Ff7AutoPlayWorldModeGuide?>? remaining = search;
     internal bool Completed { get; private set; }
+    internal bool HasPendingWork => !Completed && remaining is not null;
     internal long Operations { get; private set; }
     internal Ff7AutoPlayWorldModeGuide? Result { get; private set; }
 

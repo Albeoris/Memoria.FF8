@@ -143,6 +143,12 @@ public sealed partial class Ff7AutoPlayPolicy
         if (State.DestinationField is not null)
         {
             (observation, destinationTargets) = ObserveRequestedWorldDestination(world, observation);
+            if (destinationTargets.Count == 0 && worldModeTopologyPending)
+            {
+                driver.DeferPlanning();
+                State.Status = "Planning native vehicle/rider topology for the requested destination";
+                return default;
+            }
         }
         if (State.Active is null && State.Choice is not null && choices.CompleteAtControlReturn())
         {

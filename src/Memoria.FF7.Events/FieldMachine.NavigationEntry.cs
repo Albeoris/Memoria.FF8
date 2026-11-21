@@ -122,6 +122,7 @@ public sealed partial class FieldMachine
         return ProveNavigationEntry(entity, script, projectedInput, externalWrites, possibleExternalEntries, instructionBudget, null, false, true);
     }
 
+    /// <summary>Proves a finite pure return under current persistent bytes. Map, key and party outcomes remain unknown; field initialization, native ticks and host effects are not executed.</summary>
     public FieldNavigationEntryProof ProvePersistentNavigationEntryHasNoEffect(int entity, int script, int instructionBudget = 8192)
     {
         return ProveNavigationEntry(entity, script, new(), [], [], instructionBudget, null, true, false, persistentOnly: true);

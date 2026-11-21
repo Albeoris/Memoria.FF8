@@ -3,6 +3,30 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--remote-current-eligibility-only", StringComparer.Ordinal))
+{
+    RemoteCurrentEligibilityTests.Run();
+    return 0;
+}
+
+if (args.Contains("--remote-current-eligibility-original-only", StringComparer.Ordinal))
+{
+    RemoteCurrentEligibilityTests.RunOriginal();
+    return 0;
+}
+
+if (args.Contains("--world-destination-topology-pending-only", StringComparer.Ordinal))
+{
+    WorldDestinationTopologyPendingTests.Run();
+    return 0;
+}
+
+if (args.Contains("--world-destination-topology-original-only", StringComparer.Ordinal))
+{
+    WorldDestinationTopologyOriginalTests.RunOriginal();
+    return 0;
+}
+
 if (args.Contains("--native-destination-readiness-original-only", StringComparer.Ordinal))
 {
     NativeDestinationReadinessOriginalTests.RunOriginal();

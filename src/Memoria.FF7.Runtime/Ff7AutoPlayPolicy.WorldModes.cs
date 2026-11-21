@@ -284,7 +284,7 @@ public sealed partial class Ff7AutoPlayPolicy
             candidate.Guide = ReadWorldModeGuide(world, candidate);
             if (candidate.Guide is null)
             {
-                worldModeTopologyPending = true;
+                worldModeTopologyPending = HasPendingWorldModeTopology(candidate.Guide, candidate.Search);
             }
             else
             {
@@ -327,6 +327,11 @@ public sealed partial class Ff7AutoPlayPolicy
             known.Add(observed.Target.Id, observed);
             queue.Enqueue(observed);
         }
+    }
+
+    internal static bool HasPendingWorldModeTopology(Ff7AutoPlayWorldModeGuide? guide, Ff7WorldModeTopologyCursor? search)
+    {
+        return guide is null && search is { HasPendingWork: true };
     }
 
     internal static bool IsWorldModeActionable(AutoPlayEventCoverage<Ff7AutoPlayDeferral>? coverage, AutoPlayEvent current, IReadOnlyDictionary<string, string> facts)

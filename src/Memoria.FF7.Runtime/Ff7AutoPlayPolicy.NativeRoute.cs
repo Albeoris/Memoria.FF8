@@ -405,7 +405,7 @@ public sealed partial class Ff7AutoPlayPolicy
 
     private bool CanResumeNativePlanning(bool validateIntent = false)
     {
-        if (State.PendingRestore is not null || State.NativeRoute is not null || session.Battle is not null || session.World is not null || session.Highway is not null || !Ff7AutoplayDriver.HasNativeRouteClockContract(session))
+        if (State.PendingRestore is not null || State.NativeRoute is not null || session.Battle is not null || session.World is not null || session.Highway is not null || !Ff7AutoplayDriver.HasNativeRouteClockContract(session) || !HasCurrentPersistentNavigationGoal())
         {
             return false;
         }

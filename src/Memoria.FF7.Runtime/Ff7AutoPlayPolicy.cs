@@ -30,7 +30,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         State = session.AutoPlayState?.Clone() ?? new();
         State.Validate();
         RestoreUnscopedMovementFailures(State);
-        planner = CreatePlanner(State, (visit, target) => NativeDestinationPhase(State, nativeDestinationHints.TryGetValue((visit.Key, target.Id), out int destination) ? destination : null), (visit, target) => nativeDestinationHints.TryGetValue((visit.Key, target.Id), out int destination) && destination > 64 && destination != short.MaxValue && NativeDestinationPhase(State, destination) == 0, IsKeymanPreferredEntry);
+        planner = CreatePlanner(State, (visit, target) => NativeDestinationPhase(State, nativeDestinationHints.TryGetValue((visit.Key, target.Id), out int destination) ? destination : null), (visit, target) => nativeDestinationHints.TryGetValue((visit.Key, target.Id), out int destination) && destination > 64 && destination != short.MaxValue && NativeDestinationPhase(State, destination) == 0, IsKeymanPreferredEntry, IsCurrentPersistentGoalEligible);
         discovery = new(session);
         choices = new(session, planner, State, writeChoiceCheckpoint);
         scriptedInput = new(session);
@@ -53,7 +53,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
     public string WorkProgress => $"{State.FrontierProgressKey}:world-catalogs:{worldCatalogs.Count}:native-planning:{nativePlanningWork}";
     public string Status => State.Status ?? "Discovering native events";
 
-    internal static AutoPlayPlanner<Ff7AutoPlayDeferral> CreatePlanner(Ff7AutoPlayState state, Func<AutoPlayVisit, AutoPlayEvent, int>? phaseOrder = null, Func<AutoPlayVisit, AutoPlayEvent, bool>? unvisitedDestination = null, Func<AutoPlayVisit, AutoPlayEvent, bool>? preferredNativeEntry = null)
+    internal static AutoPlayPlanner<Ff7AutoPlayDeferral> CreatePlanner(Ff7AutoPlayState state, Func<AutoPlayVisit, AutoPlayEvent, int>? phaseOrder = null, Func<AutoPlayVisit, AutoPlayEvent, bool>? unvisitedDestination = null, Func<AutoPlayVisit, AutoPlayEvent, bool>? preferredNativeEntry = null, Func<AutoPlayVisit, AutoPlayEvent, bool>? currentGoalEligibility = null)
     {
         return new(state.Coverage, phaseOrder: phaseOrder, candidateProgressionOrder: (visit, target, candidate) =>
         {
@@ -77,7 +77,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         {
             AutoPlayEventCoverage<Ff7AutoPlayDeferral> coverage = state.Coverage.Visits.SingleOrDefault(entry => entry.Visit.Key == visit.Key)?.Events.SingleOrDefault(entry => entry.Event.Id == target.Id) ?? candidate;
             return coverage.Conditions?.ConsumedEntries.Count ?? (coverage.Completed ? 1 : 0);
-        }, intrinsicGoal: (visit, target) => state.DestinationField is not null || IsIntrinsicTransportGoal(state, visit.Key, target), reusableRoute: (visit, target, route) => IsReusableTransportRoute(state, visit.Key, target, route));
+        }, intrinsicGoal: (visit, target) => (state.DestinationField is not null || IsIntrinsicTransportGoal(state, visit.Key, target)) && currentGoalEligibility?.Invoke(visit, target) != false, reusableRoute: (visit, target, route) => IsReusableTransportRoute(state, visit.Key, target, route));
     }
 
     internal static int NativeDestinationPhase(Ff7AutoPlayState state, int? destination)
@@ -108,6 +108,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
 
     public Ff7AutoplayInput ChooseInput(Ff7AutoplayDriver driver)
     {
+        RetireCurrentPersistentNoEffectGoal();
         nativeInputReservation = null;
         unknownTalkContactSearchOwner = null;
         try
