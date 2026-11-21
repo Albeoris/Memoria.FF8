@@ -154,6 +154,11 @@ public sealed partial class Ff7AutoPlayScriptedInput(Ff7Session session)
             CurrentDemand = demands.FirstOrDefault(demand => demand.Entity == 3 && demand.Priority == 6 && demand.AwaitingInput);
             return escapeInput;
         }
+        if (ReadNativeCorelTrainInput(vm, session.Host.Process, session.Field.Scripts.Data.Span, session.Machine.Input) is Ff7AutoplayInput trainInput)
+        {
+            CurrentDemand = demands.FirstOrDefault(demand => demand.Entity == 11 && demand.Priority == 7 && demand.AwaitingInput);
+            return trainInput;
+        }
         CurrentDemand = demands.Where(demand => IsOwnedSpatialContinuationDemand(demand, vm, active, session.FieldGeneration, locked)).OrderBy(demand => demand.Priority).ThenBy(demand => demand.Entity).FirstOrDefault();
         if (CurrentDemand is not null)
         {

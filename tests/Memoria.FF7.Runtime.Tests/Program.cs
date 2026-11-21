@@ -3,6 +3,16 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-corel-train-only", StringComparer.Ordinal))
+{
+    NativeCorelTrainInputTests.Run();
+    return 0;
+}
+if (args.Contains("--native-corel-train-original-only", StringComparer.Ordinal))
+{
+    NativeCorelTrainOriginalTests.Run();
+    return 0;
+}
 if (args.Contains("--native-word-multiply-only", StringComparer.Ordinal))
 {
     NativeWordMultiplyTests.Run();
