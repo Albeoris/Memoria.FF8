@@ -3,6 +3,24 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-vines-choice-only", StringComparer.Ordinal))
+{
+    NativeVinesChoiceTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-local-component-route-only", StringComparer.Ordinal))
+{
+    NativeLocalComponentRouteTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-upper-destination-original-only", StringComparer.Ordinal))
+{
+    NativeUpperDestinationOriginalTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-jump-only", StringComparer.Ordinal))
 {
     NativeJumpTests.Run();

@@ -33,6 +33,7 @@ public sealed record FieldScriptAnalysis(bool Complete, string? Reason, string F
     public int[] UnblockedTriangles { get; init; } = [];
     public FieldActorLadderLanding[] LadderLandings { get; init; } = [];
     public FieldActorJumpLanding[] TerminalJumpLandings { get; init; } = [];
+    public FieldActorJumpLanding[] PossibleJumpLandings { get; init; } = [];
     public bool IndependentActorMotionLoop { get; init; }
     public FieldFadeCommand? RepeatingConstantFade { get; init; }
     public FieldScriptInstructionSite[] InstructionSites { get; init; } = [];
@@ -75,6 +76,16 @@ public sealed partial class FieldMachine
             else if (opcode == 0xA2 && pc + 2 < program.Length && program.Read(pc + 2) != 0)
             {
                 pc += 3;
+            }
+            else if (opcode is 0x10 or 0x11 && pc + (opcode == 0x11 ? 2 : 1) < program.Length)
+            {
+                int distance = opcode == 0x11 ? program.Read(pc + 1) | program.Read(pc + 2) << 8 : program.Read(pc + 1);
+                int next = unchecked((ushort)(pc + 1 + distance));
+                if (next <= pc)
+                {
+                    return false;
+                }
+                pc = next;
             }
             else
             {
@@ -182,6 +193,7 @@ public sealed partial class FieldMachine
         HashSet<int> unblockedTriangles = [];
         HashSet<FieldActorLadderLanding> ladderLandings = [];
         HashSet<FieldActorJumpLanding> terminalJumpLandings = [];
+        HashSet<FieldActorJumpLanding> possibleJumpLandings = [];
         HashSet<FieldScriptInstructionSite> independentActorInstructions = [];
         bool independentActorMotion = false;
         HashSet<FieldScriptInstructionSite> constantFadeInstructions = [];
@@ -483,9 +495,14 @@ public sealed partial class FieldMachine
                     {
                         ladderLandings.Add(new(owner, pc, ladder, opcode == 0xC2 && Byte(1) == 0 && Byte(2) == 0));
                     }
-                    if (command is FieldActorJump jump && HasTerminalJumpFooter(program, pc + 11))
+                    if (command is FieldActorJump jump)
                     {
-                        terminalJumpLandings.Add(new(owner, pc, jump, opcode == 0xC0 && Byte(1) == 0 && Byte(2) == 0));
+                        FieldActorJumpLanding landing = new(owner, pc, jump, opcode == 0xC0 && Byte(1) == 0 && Byte(2) == 0);
+                        possibleJumpLandings.Add(landing);
+                        if (HasTerminalJumpFooter(program, pc + 11))
+                        {
+                            terminalJumpLandings.Add(landing);
+                        }
                     }
                     if (command is FieldTriangleCommand { Blocked: false } triangle)
                     {
@@ -552,6 +569,6 @@ public sealed partial class FieldMachine
         }
         bool independentLoop = reason is null && independentActorMotion && visited.All(site => site.Entity == entity && independentActorInstructions.Contains(new(site.Entity, site.Pc)));
         FieldFadeCommand? repeatingFade = reason is null && constantFades.Count == 1 && visited.All(site => site.Entity == entity && constantFadeInstructions.Contains(new(site.Entity, site.Pc))) ? constantFades.Single() : null;
-        return new(reason is null, reason, fingerprint, changesStory, dependencies, visited.Select(value => value.Pc).Distinct().Order().ToArray(), destinations.Order().ToArray()) { HostReads = hostReads.OrderBy(read => read.Kind).ThenBy(read => read.Parameter).ThenBy(read => read.Selector).ToArray(), MayChangeNavigation = mayChangeNavigation, InputIndependent = reason is null && inputIndependent, ExitProgramCounters = exits.Order().ToArray(), UnblockedTriangles = unblockedTriangles.Order().ToArray(), LadderLandings = ladderLandings.ToArray(), TerminalJumpLandings = terminalJumpLandings.ToArray(), IndependentActorMotionLoop = independentLoop, RepeatingConstantFade = repeatingFade, InstructionSites = visited.Select(value => new FieldScriptInstructionSite(value.Entity, value.Pc)).Distinct().ToArray() };
+        return new(reason is null, reason, fingerprint, changesStory, dependencies, visited.Select(value => value.Pc).Distinct().Order().ToArray(), destinations.Order().ToArray()) { HostReads = hostReads.OrderBy(read => read.Kind).ThenBy(read => read.Parameter).ThenBy(read => read.Selector).ToArray(), MayChangeNavigation = mayChangeNavigation, InputIndependent = reason is null && inputIndependent, ExitProgramCounters = exits.Order().ToArray(), UnblockedTriangles = unblockedTriangles.Order().ToArray(), LadderLandings = ladderLandings.ToArray(), TerminalJumpLandings = terminalJumpLandings.ToArray(), PossibleJumpLandings = possibleJumpLandings.ToArray(), IndependentActorMotionLoop = independentLoop, RepeatingConstantFade = repeatingFade, InstructionSites = visited.Select(value => new FieldScriptInstructionSite(value.Entity, value.Pc)).Distinct().ToArray() };
     }
 }

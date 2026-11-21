@@ -31,6 +31,7 @@ public sealed partial class Ff7AutoPlayChoiceWorkflow
         {
             return Selections;
         }
+        IReadOnlyList<AutoPlayChoiceSelection> prefix = state.DestinationField == 629 && active.TravelRoute is null && Ff7AutoPlayExecutionOwners.Matches(active, active.Generation, VinesProgram) ? active.TravelSelections ?? [] : [];
         List<AutoPlayChoiceSelection> result = [];
         for (Ff7AutoPlayChoiceState? choice = state.Choice; choice is not null; choice = choice.Parent)
         {
@@ -40,7 +41,7 @@ public sealed partial class Ff7AutoPlayChoiceWorkflow
             }
         }
         result.Reverse();
-        return result;
+        return [.. prefix, .. result];
     }
 
     internal bool ShouldWaitForNativeContinuation(FieldVmSnapshot vm, Ff7FieldProcess process, ReadOnlySpan<byte> script)

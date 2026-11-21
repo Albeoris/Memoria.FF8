@@ -439,7 +439,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
                 Publish();
                 return default;
             }
-            string? destinationReason = ResolveFieldDestinationGoal(State, observation, session.ReadAutoPlayFieldConnections, CanSelectDestination, CanUnblockDestinationGateway, session.ReadAutoPlayWorldConnections, target => ReadKnownFieldDepartureSource(State, observation, target));
+            string? destinationReason = ResolveFieldDestinationGoal(State, observation, session.ReadAutoPlayFieldConnections, CanSelectDestination, (producer, gateway) => CanUnblockDestinationGateway(producer, gateway, observation.Events), session.ReadAutoPlayWorldConnections, target => ReadKnownFieldDepartureSource(State, observation, target));
             Ff7NativeSourceRevalidation[] revalidations = State.DestinationField is null ? ReadPendingSourceRevalidations(State, observation) : [];
             string? refreshSource = revalidations.FirstOrDefault()?.NavigationKey;
             bool continuingRefresh = State.NavigationGoal is { EventId: null } goal && revalidations.Any(item => item.NavigationKey == goal.NavigationKey);

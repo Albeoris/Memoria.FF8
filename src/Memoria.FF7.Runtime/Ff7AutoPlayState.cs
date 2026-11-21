@@ -36,6 +36,7 @@ public sealed class Ff7AutoPlayState
     public Dictionary<string, Ff7AutoPlayTalkConditionDomain> TalkConditionDomains { get; set; } = new(StringComparer.Ordinal);
     public Dictionary<string, Ff7AutoPlayTransportRegion> TransportRegions { get; set; } = new(StringComparer.Ordinal);
     public Dictionary<string, Ff7AutoPlayNavigationPrerequisiteCompletion> NavigationPrerequisiteCompletions { get; set; } = new(StringComparer.Ordinal);
+    public Dictionary<string, Ff7AutoPlayNavigationChoiceDeferral> NavigationChoiceDeferrals { get; set; } = new(StringComparer.Ordinal);
     public int Version { get; set; } = 1;
     public AutoPlayPlannerState<Ff7AutoPlayDeferral> Coverage { get; set; } = new();
     public ushort? DestinationField { get; set; }
@@ -79,6 +80,7 @@ public sealed class Ff7AutoPlayState
         }
         TransportRegions ??= new(StringComparer.Ordinal);
         NavigationPrerequisiteCompletions ??= new(StringComparer.Ordinal);
+        NavigationChoiceDeferrals ??= new(StringComparer.Ordinal);
         SourceRevalidationAttempts ??= new(StringComparer.Ordinal);
         if (NavigationGuards.Values.Any(guard => guard.PhysicalFailure is { } receipt && (receipt.Expanded < 0 || receipt.Contract is not { Length: 64 } || !receipt.Contract.All(Uri.IsHexDigit) || receipt.NativeSource is not { Length: 64 } || !receipt.NativeSource.All(Uri.IsHexDigit))))
         {

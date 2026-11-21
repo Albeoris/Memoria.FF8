@@ -68,8 +68,13 @@ public sealed partial class Ff7AutoPlayChoiceWorkflow
         }
         Ff7SessionSave before = capture();
         string owner = ReadOwnerIdentity(before, dialogue, first, last);
+        int? navigationPreference = ReadVinesChoicePreference(before, state, dialogue);
         Ff7AutoPlayChoiceState? current = state.Choice;
         string key = current?.OwnerIdentity == owner ? current.Key : before.World is { } world ? Hash(new { Owner = owner, before.Vm.PersistentVariables, Local = world.Vm.Local, Conditions = state.Active?.ConditionFingerprint, Parent = current?.Key, ParentSelections = Selections }) : "field-choice-v2:" + Hash(new { Owner = owner, Visit = state.Active?.VisitId ?? before.FieldName, Conditions = state.Active?.ConditionFingerprint, Parent = current?.Key, ParentSelections = Selections });
+        if (navigationPreference is int preferred && state.Active is { TravelRoute.Selections: { } recipe } proposed && recipe.Skip(proposed.TravelSelections?.Count ?? 0).FirstOrDefault() is { } next && next.Key == key && next.Selection != preferred)
+        {
+            state.Active = proposed with { TravelRoute = null };
+        }
         if (state.Active is { TravelRoute: { } route } travel)
         {
             IReadOnlyList<AutoPlayChoiceSelection> executed = travel.TravelSelections ?? [];
@@ -84,9 +89,14 @@ public sealed partial class Ff7AutoPlayChoiceWorkflow
         if (current?.OwnerIdentity != owner)
         {
             planner.ObserveChoice(key, checked(last - first + 1), first);
+            ApplyVinesChoicePreference(key, navigationPreference, before.Vm.ProgramIdentity);
             if (planner.PlanChoice(key).Kind == AutoPlayChoiceStepKind.Complete)
             {
-                int completedSelection = SelectCompletedNativeChoice(before, dialogue, Coverage(key), first);
+                int completedSelection = navigationPreference ?? SelectCompletedNativeChoice(before, dialogue, Coverage(key), first);
+                if (navigationPreference is not null && state.Active is { } completedSource)
+                {
+                    state.Active = completedSource with { TravelSelections = [.. completedSource.TravelSelections ?? [], new(key, completedSelection)] };
+                }
                 state.ChoiceContinuationDiagnostic = $"finished:{key}:option:{completedSelection}:gil:{before.Progress.Gil}:" + state.ChoiceContinuationDiagnostic?[..Math.Min(state.ChoiceContinuationDiagnostic.Length, 300)];
                 return completedSelection;
             }
@@ -181,7 +191,8 @@ public sealed partial class Ff7AutoPlayChoiceWorkflow
             choice = state.Choice ?? choice;
         }
         planner.CompleteChoiceAtControlReturn(choice.Key, continuation);
-        if (storyAdvanced)
+        bool navigationAdvanced = HasCompletedVinesChoiceNavigation(current, state, choice);
+        if (storyAdvanced || navigationAdvanced)
         {
             foreach (int option in Enumerable.Range(coverage.FirstOption, coverage.OptionCount).Where(option => !coverage.CompletedOptions.Contains(option)))
             {
@@ -189,7 +200,7 @@ public sealed partial class Ff7AutoPlayChoiceWorkflow
             }
             planner.FinishChoice(choice.Key);
             state.Choice = choice.Parent;
-            state.Status = "Optional choice alternatives were deferred after native story progress; continuing from the current native state.";
+            state.Status = navigationAdvanced ? "Optional choice alternatives were deferred after the owned native navigation returned control; continuing from the current native state." : "Optional choice alternatives were deferred after native story progress; continuing from the current native state.";
             return CompleteAtControlReturn();
         }
         AutoPlayChoiceStep next = planner.PlanChoice(choice.Key);
