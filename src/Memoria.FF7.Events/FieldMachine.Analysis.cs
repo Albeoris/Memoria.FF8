@@ -20,6 +20,7 @@ public enum FieldHostReadKind
 
 public sealed record FieldHostRead(FieldHostReadKind Kind, int Parameter = 0, int Selector = 0);
 public sealed record FieldScriptInstructionSite(int Entity, int ProgramCounter);
+public sealed record FieldActorLadderLanding(int Entity, int ProgramCounter, FieldActorLadder Command, bool Literal);
 public sealed record FieldScriptAnalysis(bool Complete, string? Reason, string Fingerprint, bool ChangesStory, FieldVariableRead[] Reads, int[] ProgramCounters, int[] DestinationFields)
 {
     public FieldHostRead[] HostReads { get; init; } = [];
@@ -28,6 +29,7 @@ public sealed record FieldScriptAnalysis(bool Complete, string? Reason, string F
     public FieldStochasticPresentation? StochasticPresentation { get; init; }
     public int[] ExitProgramCounters { get; init; } = [];
     public int[] UnblockedTriangles { get; init; } = [];
+    public FieldActorLadderLanding[] LadderLandings { get; init; } = [];
     public FieldScriptInstructionSite[] InstructionSites { get; init; } = [];
 }
 
@@ -148,6 +150,7 @@ public sealed partial class FieldMachine
         HashSet<FieldHostRead> hostReads = [];
         HashSet<int> destinations = [];
         HashSet<int> unblockedTriangles = [];
+        HashSet<FieldActorLadderLanding> ladderLandings = [];
         HashSet<int> exits = [];
         bool inputIndependent = true;
         Dictionary<int, bool> physicalExits = [];
@@ -423,6 +426,10 @@ public sealed partial class FieldMachine
                         controls = control.Value != 0 ? (byte)(controls | domain) : (byte)(controls & ~domain);
                     }
                     mayChangeNavigation |= command is FieldActorLadder or FieldActorJump or FieldActorPlacement or FieldActorMove or FieldTriangleCommand;
+                    if (command is FieldActorLadder ladder)
+                    {
+                        ladderLandings.Add(new(owner, pc, ladder, opcode == 0xC2 && Byte(1) == 0 && Byte(2) == 0));
+                    }
                     if (command is FieldTriangleCommand { Blocked: false } triangle)
                     {
                         unblockedTriangles.Add(triangle.Triangle);
@@ -485,6 +492,6 @@ public sealed partial class FieldMachine
             reason ??= error.Message;
             fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes($"{program.Identity}:{entity}:{script}:unsupported")));
         }
-        return new(reason is null, reason, fingerprint, changesStory, dependencies, visited.Select(value => value.Pc).Distinct().Order().ToArray(), destinations.Order().ToArray()) { HostReads = hostReads.OrderBy(read => read.Kind).ThenBy(read => read.Parameter).ThenBy(read => read.Selector).ToArray(), MayChangeNavigation = mayChangeNavigation, InputIndependent = reason is null && inputIndependent, ExitProgramCounters = exits.Order().ToArray(), UnblockedTriangles = unblockedTriangles.Order().ToArray(), InstructionSites = visited.Select(value => new FieldScriptInstructionSite(value.Entity, value.Pc)).Distinct().ToArray() };
+        return new(reason is null, reason, fingerprint, changesStory, dependencies, visited.Select(value => value.Pc).Distinct().Order().ToArray(), destinations.Order().ToArray()) { HostReads = hostReads.OrderBy(read => read.Kind).ThenBy(read => read.Parameter).ThenBy(read => read.Selector).ToArray(), MayChangeNavigation = mayChangeNavigation, InputIndependent = reason is null && inputIndependent, ExitProgramCounters = exits.Order().ToArray(), UnblockedTriangles = unblockedTriangles.Order().ToArray(), LadderLandings = ladderLandings.ToArray(), InstructionSites = visited.Select(value => new FieldScriptInstructionSite(value.Entity, value.Pc)).Distinct().ToArray() };
     }
 }
