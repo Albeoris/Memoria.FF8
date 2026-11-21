@@ -3,6 +3,16 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-gateway-crossing-contact-only", StringComparer.Ordinal))
+{
+    NativeGatewayCrossingContactTests.Run();
+    return 0;
+}
+if (args.Contains("--native-gateway-crossing-original-only", StringComparer.Ordinal))
+{
+    NativeGatewayCrossingOriginalTests.Run();
+    return 0;
+}
 if (args.Contains("--native-ahead-push-only", StringComparer.Ordinal))
 {
     NativeAheadPushPrerequisiteTests.Run();

@@ -160,6 +160,12 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
             navigationActionProgress = true;
             return crossing;
         }
+        var witnessedContacts = ReadGatewayCrossingContacts(session.Field.Walkmesh, session.Host.Process.BlockedTriangles, controlled, gateway, session.Field.Triggers.ControlDirection, session.Host.Movement!, session.Host.Process.Actors, session.Host.Process.LineBlocked, ProbePlannedMove);
+        if (witnessedContacts.Count != 0)
+        {
+            var witnessed = ChooseFloorContact(witnessedContacts, player);
+            return ApproachGatewayContact(gateway, witnessed.Point, witnessed.Triangle, run, requiresSearch: false);
+        }
         Vector3 position = Position3D(player);
         int distance = Ff7Session.DistanceToSegment(gateway.A, gateway.B, new(player.X4096 >> 12, player.Y4096 >> 12, player.Z4096 >> 12), out Vector3 nearest);
         if (distance >= 0 && distance < unchecked(player.CollisionRadius * player.CollisionRadius))
@@ -236,6 +242,35 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
             normal = -normal;
         }
         return nearest + new Vector3(normal * collisionRadius, 0);
+    }
+
+    internal static IReadOnlyList<(Vector3 Point, int Triangle)> ReadGatewayCrossingContacts(IReadOnlyList<PcWalkmeshTriangle> mesh, byte[] blocked, Ff7Actor player, PcFieldGateway gateway, byte controlDirection, Ff7NativeMovement movement, IReadOnlyList<Ff7Actor> actors, bool lineBlocked, Func<Ff7Actor, Ff7NativeMoveResult, bool> allows)
+    {
+        List<(Vector3 Point, int Triangle)> result = [];
+        foreach (var contact in DiscoverGatewayContacts(mesh, blocked, player, gateway))
+        {
+            Ff7Actor seed = player with { X4096 = (int)(contact.Point.X * 4096), Y4096 = (int)(contact.Point.Y * 4096), Z4096 = (int)(contact.Point.Z * 4096), Triangle = contact.Triangle };
+            foreach (var direction in Directions)
+            {
+                byte heading = unchecked((byte)(direction.Direction + controlDirection));
+                Ff7NativeMoveResult crossing = movement.StepDirection(seed, heading, actors, blocked, false, lineBlocked);
+                if (!crossing.Moved || !Ff7Session.CrossesGateway(gateway, seed, crossing.Actor) || !allows(seed, crossing))
+                {
+                    continue;
+                }
+                Ff7NativeMoveResult predecessor = movement.StepDirection(seed, unchecked((byte)(heading + 128)), actors, blocked, false, lineBlocked);
+                if (!predecessor.Moved || !allows(seed, predecessor))
+                {
+                    continue;
+                }
+                Ff7NativeMoveResult verified = movement.StepDirection(predecessor.Actor, heading, actors, blocked, false, lineBlocked);
+                if (verified.Moved && Ff7Session.CrossesGateway(gateway, predecessor.Actor, verified.Actor) && allows(predecessor.Actor, verified))
+                {
+                    result.Add((Position3D(predecessor.Actor), predecessor.Actor.Triangle));
+                }
+            }
+        }
+        return result.Distinct().ToArray();
     }
 
     internal static IReadOnlyList<(Vector3 Point, int Triangle)> DiscoverGatewayContacts(IReadOnlyList<PcWalkmeshTriangle> walkmesh, byte[] blockedTriangles, Ff7Actor player, PcFieldGateway gateway)
