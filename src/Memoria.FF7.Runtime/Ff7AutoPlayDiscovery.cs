@@ -28,6 +28,7 @@ public sealed record Ff7AutoPlayTarget(string Id, int Entity, int Script, Ff7Aut
     public int[]? SpatialDestinations { get; init; }
     /// <summary>Analyzed possible field destinations for planning; does not establish transition ownership or completion.</summary>
     public int[] PossibleDestinationFields { get; init; } = [];
+    public string? NativeRandomExecutionState { get; init; }
     public int[]? PlanningDestinationFields { get; init; }
     /// <summary>Possible native triangle-unblock effects for planning; execution and availability remain authoritative.</summary>
     public int[] UnblockedTriangles { get; init; } = [];
@@ -93,7 +94,7 @@ public sealed partial class Ff7AutoPlayDiscovery(Ff7Session session)
     }
     internal FieldScriptEntryDependencies? ReadTalkContactDependencies(Ff7AutoPlayTarget target)
     {
-        return target.AnalysisComplete && analyses.TryGetValue((target.Entity, target.Script), out FieldScriptAnalysis? analysis) && analysis.Complete && analysis.StochasticPresentation is null && !HasTalkContactInputReads(analysis, session.Field.Scripts.Data.Span) ? entryDependencies.Read(session.Machine, target.Entity, target.Script, analysis) : null;
+        return target.AnalysisComplete && analyses.TryGetValue((target.Entity, target.Script), out FieldScriptAnalysis? analysis) && analysis.Complete && analysis.StochasticPresentation is null && analysis.NativeRandomExecutionDomain is null && !HasTalkContactInputReads(analysis, session.Field.Scripts.Data.Span) ? entryDependencies.Read(session.Machine, target.Entity, target.Script, analysis) : null;
     }
 
     internal static bool HasTalkContactInputReads(FieldScriptAnalysis analysis, ReadOnlySpan<byte> code)
@@ -245,13 +246,17 @@ public sealed partial class Ff7AutoPlayDiscovery(Ff7Session session)
             {
                 return;
             }
-            if (!analyses.TryGetValue((entity, script), out FieldScriptAnalysis? analysis) || analysis.Fingerprint != session.Machine.ReadScriptAnalysisFingerprint(entity, script, analysis.Reads) || (analysis.StochasticPresentation is { } stochastic && stochastic.DomainFingerprint != session.ReadSpatialRandomDomain().Fingerprint))
+            if (!analyses.TryGetValue((entity, script), out FieldScriptAnalysis? analysis) || analysis.Fingerprint != session.Machine.ReadScriptAnalysisFingerprint(entity, script, analysis.Reads) || (analysis.StochasticPresentation is { } stochastic && stochastic.DomainFingerprint != session.ReadSpatialRandomDomain().Fingerprint) || analysis.NativeRandomExecutionDomain is { } nativeRandom && nativeRandom != session.ReadSpatialRandomDomain().Fingerprint)
             {
                 entryInputs.Remove((entity, script));
                 analysis = session.Machine.AnalyzeScript(entity, script);
                 if (!analysis.Complete && analysis.HostReads.Any(read => read.Kind == FieldHostReadKind.Random))
                 {
                     analysis = session.Machine.AnalyzeStochasticPresentation(entity, script, session.ReadSpatialRandomDomain());
+                    if (!analysis.Complete)
+                    {
+                        analysis = session.Machine.AnalyzeNativeRandomExecution(entity, script, session.ReadSpatialRandomDomain());
+                    }
                 }
                 if (analysis.Complete)
                 {
@@ -269,7 +274,7 @@ public sealed partial class Ff7AutoPlayDiscovery(Ff7Session session)
                 persistentReads.UnionWith(dependencies.Reads.Where(read => read.Bank is not (FieldBank.Immediate or FieldBank.MapByte or FieldBank.MapWord)));
                 globalHostReads.UnionWith(dependencies.HostReads.Where(read => read.Kind is FieldHostReadKind.Gil or FieldHostReadKind.ItemQuantity or FieldHostReadKind.PartyAvailable or FieldHostReadKind.MateriaCapacity or FieldHostReadKind.MainPartySlot));
             }
-            Ff7AutoPlayHostConditions external = ReadHostConditions(dependencies.HostReads, session.Progress, session.Host.Process, session.Host.ReadNativeMusicPlaying);
+            Ff7AutoPlayHostConditions external = ReadHostConditions(dependencies.HostReads, session.Progress, session.Host.Process, session.Host.ReadNativeMusicPlaying, analysis.NativeRandomExecutionDomain);
             fingerprint = CombineConditionFingerprints(fingerprint, external.Fingerprint);
             if (analysis.StochasticPresentation is { } presentation)
             {
@@ -286,7 +291,8 @@ public sealed partial class Ff7AutoPlayDiscovery(Ff7Session session)
                 entryContract = $"entry-admission:{EntryAdmissionRevision}:{entryInput.Identity}:{entryInput.Kind}:{entryInput.Mask}:{entryInput.Mapped}";
                 fingerprint = CombineConditionFingerprints(fingerprint, entryContract);
             }
-            int? destination = analysis.DestinationFields.Length == 1 ? analysis.DestinationFields[0] : null;
+            bool materialRandom = analysis.NativeRandomExecutionDomain is not null;
+            int? destination = !materialRandom && analysis.DestinationFields.Length == 1 ? analysis.DestinationFields[0] : null;
             string? effectFingerprint = null;
             if (CanReadEffectFingerprint(1, analysis, dependencies, external.Complete, entryInput is not null))
             {
@@ -306,12 +312,12 @@ public sealed partial class Ff7AutoPlayDiscovery(Ff7Session session)
                     effectFingerprint = $"effect-entry-input-dialogue:1:{identity}:{entity}:{entry}:1:{entryContract}";
                 }
             }
-            if (analysis.Complete && analysis.DestinationFields.Any(field => field > 64 && field < short.MaxValue))
+            if (!materialRandom && analysis.Complete && analysis.DestinationFields.Any(field => field > 64 && field < short.MaxValue))
             {
                 FieldNavigationEntryProof direct = session.ReadNavigationEntryProof(entity, script, session.Machine.Input, directTransition: true);
                 effectFingerprint = ReadDirectTransitionEffectFingerprint(direct) ?? effectFingerprint;
             }
-            events.Add(new(id, entity, script, kind, fingerprint, analysis.ChangesStory, position, triangle, DestinationField: destination, SegmentStart: start, SegmentEnd: end, AnalysisComplete: analysis.Complete && dependencies.Complete && external.Complete, SupportReason: analysis.Reason ?? dependencies.Reason ?? external.Reason, MayChangeNavigation: analysis.MayChangeNavigation, EntryInputContract: entryContract, ChangesField: analysis.DestinationFields.Length > 0) { EffectFingerprint = effectFingerprint, EntryInputDemand = entryInput, PossibleDestinationFields = analysis.DestinationFields.ToArray(), UnblockedTriangles = analysis.UnblockedTriangles.ToArray(), LadderLandings = analysis.LadderLandings, TerminalJumpLandings = analysis.TerminalJumpLandings, PossibleJumpLandings = analysis.PossibleJumpLandings });
+            events.Add(new(id, entity, script, kind, fingerprint, analysis.ChangesStory, position, triangle, DestinationField: destination, SegmentStart: start, SegmentEnd: end, AnalysisComplete: analysis.Complete && dependencies.Complete && external.Complete, SupportReason: analysis.Reason ?? dependencies.Reason ?? external.Reason, MayChangeNavigation: analysis.MayChangeNavigation, EntryInputContract: entryContract, ChangesField: analysis.DestinationFields.Length > 0) { EffectFingerprint = effectFingerprint, EntryInputDemand = entryInput, NativeRandomExecutionState = materialRandom ? CombineConditionFingerprints(analysis.NativeRandomExecutionDomain!, session.Progress.FieldRandomIndex.ToString(System.Globalization.CultureInfo.InvariantCulture)) : null, PossibleDestinationFields = materialRandom ? [] : analysis.DestinationFields.ToArray(), UnblockedTriangles = materialRandom ? [] : analysis.UnblockedTriangles.ToArray(), LadderLandings = materialRandom ? [] : analysis.LadderLandings, TerminalJumpLandings = materialRandom ? [] : analysis.TerminalJumpLandings, PossibleJumpLandings = materialRandom ? [] : analysis.PossibleJumpLandings });
         }
     }
 }

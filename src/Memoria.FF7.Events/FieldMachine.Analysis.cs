@@ -29,6 +29,7 @@ public sealed record FieldScriptAnalysis(bool Complete, string? Reason, string F
     public bool MayChangeNavigation { get; init; }
     public bool InputIndependent { get; init; }
     public FieldStochasticPresentation? StochasticPresentation { get; init; }
+    public string? NativeRandomExecutionDomain { get; init; }
     public int[] ExitProgramCounters { get; init; } = [];
     public int[] UnblockedTriangles { get; init; } = [];
     public FieldActorLadderLanding[] LadderLandings { get; init; } = [];
@@ -158,6 +159,18 @@ public sealed partial class FieldMachine
             throw new ArgumentOutOfRangeException(nameof(entity));
         }
         return AnalyzeScriptCore(entity, script, program.Entry(entity, script), instructionBudget, null, 0);
+    }
+
+    /// <summary>Inspects native execution with an explicit random-owner dependency, without certifying outcomes or presentation equivalence.</summary>
+    public FieldScriptAnalysis AnalyzeNativeRandomExecution(int entity, int script, FieldSpatialRandomDomain domain, int instructionBudget = 8192)
+    {
+        ArgumentNullException.ThrowIfNull(domain);
+        if ((uint)entity >= entities.Length || script is < 0 or > 31 || instructionBudget is < 1 or > 65536)
+        {
+            throw new ArgumentOutOfRangeException(nameof(entity));
+        }
+        FieldScriptAnalysis analysis = AnalyzeScriptCore(entity, script, program.Entry(entity, script), instructionBudget, null, 0, collectRandomReads: true);
+        return analysis.Complete && analysis.HostReads.Any(read => read.Kind == FieldHostReadKind.Random) ? analysis with { NativeRandomExecutionDomain = domain.Fingerprint } : analysis;
     }
 
     /// <summary>Inspects a native autonomous body from its observed entry, ending at represented source reentry boundaries or RET.</summary>

@@ -13,7 +13,7 @@ public sealed partial class Ff7AutoPlayDiscovery
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes($"{variables}|{external}")));
     }
 
-    internal static Ff7AutoPlayHostConditions ReadHostConditions(IReadOnlyList<FieldHostRead> reads, Ff7Progress progress, Ff7FieldProcess process, Func<bool>? readMusicPlaying = null)
+    internal static Ff7AutoPlayHostConditions ReadHostConditions(IReadOnlyList<FieldHostRead> reads, Ff7Progress progress, Ff7FieldProcess process, Func<bool>? readMusicPlaying = null, string? nativeRandomDomain = null)
     {
         StringBuilder signature = new();
         try
@@ -31,6 +31,7 @@ public sealed partial class Ff7AutoPlayDiscovery
                     FieldHostReadKind.BattleResult => process.BattleResult.ToString(System.Globalization.CultureInfo.InvariantCulture),
                     FieldHostReadKind.MateriaCapacity => (progress.Materia.Length == 200).ToString(),
                     FieldHostReadKind.MovieFrame => process.Movie?.Frame.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "unprepared",
+                    FieldHostReadKind.Random => nativeRandomDomain is not null ? "native-owned-execution" : throw new NotSupportedException("A native random dependency requires its execution coverage domain."),
                     FieldHostReadKind.MusicPlaying => (readMusicPlaying ?? throw new NotSupportedException("A native music-playing dependency requires its native timeline."))().ToString(),
                     _ => throw new NotSupportedException($"Native host dependency {read.Kind} has no read-only condition projection.")
                 };
