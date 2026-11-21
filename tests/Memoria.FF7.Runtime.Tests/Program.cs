@@ -3,6 +3,18 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-looping-animation-debt-only", StringComparer.Ordinal))
+{
+    NativeLoopingAnimationDebtTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-npc-animation-loop-original-only", StringComparer.Ordinal))
+{
+    NativeNpcAnimationLoopOriginalTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-guarded-animation-debt-only", StringComparer.Ordinal))
 {
     NativeGuardedAnimationDebtTests.Run();

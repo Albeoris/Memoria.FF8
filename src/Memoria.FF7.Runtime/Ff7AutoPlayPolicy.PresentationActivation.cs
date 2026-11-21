@@ -8,7 +8,71 @@ public sealed partial class Ff7AutoPlayPolicy
     private bool IsSettledPresentationChild(Ff7AutoPlayActiveEvent active, FieldVmSnapshot vm, Ff7AutoPlayExecutionOwner owner)
     {
         FieldScriptAnalysis? analysis = (uint)owner.Entity < vm.Entities.Length && vm.Entities[owner.Entity].Priority == owner.Priority ? session.Machine.AnalyzeScriptAtProgramCounter(owner.Entity, vm.Entities[owner.Entity].ProgramCounter) : null;
-        return CanSettlePresentationChild(active, session.FieldGeneration, vm, session.Host.Process, owner, analysis) || CanSettleSupersededPlayerAnimation(active, session.FieldGeneration, vm, session.Host.Process, owner, session.Field.Scripts.Data.Span) || CanSettleGuardedNpcAnimation(active, session.FieldGeneration, vm, session.Host.Process, owner, session.Field.Scripts.Data.Span);
+        return CanSettlePresentationChild(active, session.FieldGeneration, vm, session.Host.Process, owner, analysis) || CanSettleSupersededPlayerAnimation(active, session.FieldGeneration, vm, session.Host.Process, owner, session.Field.Scripts.Data.Span) || CanSettleGuardedNpcAnimation(active, session.FieldGeneration, vm, session.Host.Process, owner, session.Field.Scripts.Data.Span) || CanSettleLoopingNpcAnimations(active, session.FieldGeneration, vm, session.Host.Process, owner, session.Field.Scripts.Data.Span, analysis);
+    }
+
+    internal static bool CanSettleLoopingNpcAnimations(Ff7AutoPlayActiveEvent active, long generation, FieldVmSnapshot vm, Ff7FieldProcess process, Ff7AutoPlayExecutionOwner owner, ReadOnlySpan<byte> script, FieldScriptAnalysis? analysis)
+    {
+        if (!active.Returned || active.ExecutionProvenance?.RootReturned != true || !Ff7AutoPlayExecutionOwners.Matches(active, generation, vm.ProgramIdentity) || !active.ExecutionProvenance.Owners.Contains(owner) || owner.Queued || owner.ParentEntity < 0 || (uint)owner.ParentEntity >= vm.Entities.Length || (uint)owner.Entity >= vm.Entities.Length || owner.Priority is < 0 or >= 8 || owner.Script is < 0 or > 31 || owner.SourceProgramCounter < 0 || owner.SourceProgramCounter + 2 >= script.Length || script[owner.SourceProgramCounter] is not (0x01 or 0x02) || script[owner.SourceProgramCounter + 1] != owner.Entity || script[owner.SourceProgramCounter + 2] != ((owner.Priority << 5) | owner.Script))
+        {
+            return false;
+        }
+        return vm.Entities[owner.Entity].Priority == owner.Priority && vm.Entities[owner.Entity].ProgramCounter >= owner.Entry && HasIndependentNpcAnimationLoop(vm, process, owner.Entity, script, analysis);
+    }
+
+    internal static bool HasIndependentNpcAnimationLoop(FieldVmSnapshot vm, Ff7FieldProcess process, int entityId, ReadOnlySpan<byte> script, FieldScriptAnalysis? analysis)
+    {
+        if ((uint)entityId >= vm.Entities.Length || analysis is not { Complete: true, ChangesStory: false, MayChangeNavigation: false, Reads.Length: 0, HostReads.Length: 0, DestinationFields.Length: 0, ExitProgramCounters.Length: 0 } || analysis.InstructionSites.Length == 0 || analysis.InstructionSites.Any(site => site.Entity != entityId))
+        {
+            return false;
+        }
+        FieldEntitySnapshot entity = vm.Entities[entityId];
+        int pc = entity.ProgramCounter;
+        if (entity.Priority is < 0 or >= 8 || entity.SyncStates.Length <= entity.Priority || entity.SyncOwners.Length <= entity.Priority || entity.SyncStates[entity.Priority] != FieldSyncState.None || entity.SyncOwners[entity.Priority] != -1 || !IsClosedNpcAnimationCycle(script, pc) || process.PlayerLocked || process.MenuDisabled || process.GlobalCommand != Ff7GlobalCommand.None || process.Join is not null || process.Transition is not null || process.Movie is { Playing: true } || process.Menu is { Completed: false } || process.Dialogues.Any(dialogue => !dialogue.Completed))
+        {
+            return false;
+        }
+        FieldHostRequest[] requests = (vm.PendingRequests ?? []).Where(request => request.Entity == entityId && request.Priority == entity.Priority).ToArray();
+        if (requests.Length > 1 || requests.Length == 1 && (requests[0].ProgramCounter != pc || script[pc] != 0xA3 || requests[0].Command != new FieldAnimation(script[pc + 1], script[pc + 2], true, false) || !process.AnimationRequests.Any(item => item.RequestId == requests[0].Id && item.Entity == entityId)))
+        {
+            return false;
+        }
+        return process.Actors.Any(actor => actor.Entity == entityId && actor.EntityBound && !actor.PlayerControlled && actor.Jump is null && actor.Ladder is null) && !process.Motions.Any(motion => motion.Entity == entityId);
+    }
+
+    internal static bool IsClosedNpcAnimationCycle(ReadOnlySpan<byte> script, int start)
+    {
+        HashSet<int> visited = [];
+        bool animation = false;
+        bool wait = false;
+        int pc = start;
+        while (visited.Add(pc))
+        {
+            if ((uint)pc >= script.Length)
+            {
+                return false;
+            }
+            switch (script[pc])
+            {
+                case 0xA3 when pc + 2 < script.Length && script[pc + 2] != 0:
+                    animation = true;
+                    pc += 3;
+                    break;
+                case 0x24 when pc + 2 < script.Length && (script[pc + 1] | script[pc + 2] << 8) != 0:
+                    wait = true;
+                    pc += 3;
+                    break;
+                case 0x12 when pc + 1 < script.Length && script[pc + 1] > 0:
+                    pc -= script[pc + 1];
+                    break;
+                case 0x13 when pc + 2 < script.Length && (script[pc + 1] | script[pc + 2] << 8) != 0:
+                    pc -= script[pc + 1] | script[pc + 2] << 8;
+                    break;
+                default:
+                    return false;
+            }
+        }
+        return pc == start && animation && wait;
     }
 
     internal static bool CanSettleGuardedNpcAnimation(Ff7AutoPlayActiveEvent active, long generation, FieldVmSnapshot vm, Ff7FieldProcess process, Ff7AutoPlayExecutionOwner owner, ReadOnlySpan<byte> script)

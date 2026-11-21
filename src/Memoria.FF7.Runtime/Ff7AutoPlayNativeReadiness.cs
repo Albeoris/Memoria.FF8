@@ -409,7 +409,7 @@ internal sealed class Ff7AutoPlayNativeReadiness
             FieldEntitySnapshot target = vm.Entities[targetId];
             int currentPc = target.ProgramCounter;
             bool admitted = HasAdmittedContinuation(target, script);
-            if (admittedSetupOnly && admitted && analyzeContinuation is not null && target.SyncStates.Length > target.Priority && target.SyncOwners.Length > target.Priority && target.SyncStates[target.Priority] == FieldSyncState.None && target.SyncOwners[target.Priority] == -1 && analyzeContinuation(targetId, currentPc) is { Complete: true } continuation && (continuation.IndependentActorMotionLoop && process.Actors.Any(actor => actor.EntityBound && actor.Entity == targetId && !actor.PlayerControlled) && !process.Actors.Any(actor => actor.Entity == targetId && actor.PlayerControlled) || continuation.RepeatingConstantFade is { } fade && HasCompletedConstantFade(process, fade)))
+            if (admittedSetupOnly && admitted && analyzeContinuation is not null && target.SyncStates.Length > target.Priority && target.SyncOwners.Length > target.Priority && target.SyncStates[target.Priority] == FieldSyncState.None && target.SyncOwners[target.Priority] == -1 && analyzeContinuation(targetId, currentPc) is { Complete: true } continuation && (continuation.IndependentActorMotionLoop && process.Actors.Any(actor => actor.EntityBound && actor.Entity == targetId && !actor.PlayerControlled) && !process.Actors.Any(actor => actor.Entity == targetId && actor.PlayerControlled) || continuation.RepeatingConstantFade is { } fade && HasCompletedConstantFade(process, fade) || Ff7AutoPlayPolicy.HasIndependentNpcAnimationLoop(vm, process, targetId, script, continuation)))
             {
                 admitted = false;
             }
