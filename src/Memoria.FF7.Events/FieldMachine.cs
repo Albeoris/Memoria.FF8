@@ -305,6 +305,8 @@ public sealed partial class FieldMachine
                     int character = ReadParty()[slot];
                     int target = character == 255 ? -1 : Array.FindIndex(entities, actor => actor.PartyCharacter == character);
                     return Request(id, (byte)(opcode - 3), target < 0 ? byte.MaxValue : checked((byte)target), Byte(2));
+                case 0x07:
+                    return Transfer(id, Byte(1));
                 case 0x10:
                     entity.Pc = unchecked((ushort)(pc + 1 + Byte(1)));
                     return false;
@@ -435,6 +437,25 @@ public sealed partial class FieldMachine
         }
         caller.Pc = unchecked((ushort)(caller.Pc + 3));
         Observe(true, queued);
+        return false;
+    }
+
+    private bool Transfer(int id, byte packed)
+    {
+        Entity entity = entities[id];
+        int priority = packed >> 5;
+        int script = packed & 31;
+        while (entity.Priority < priority - 1 && entity.Priority < 7)
+        {
+            if (entity.Sync[entity.Priority] == FieldSyncState.Waiting)
+            {
+                entity.Sync[entity.Priority] = FieldSyncState.Done;
+            }
+            entity.Priority++;
+            entity.Saved[entity.Priority] = 0;
+        }
+        entity.Pc = program.Entry(id, script);
+        entity.Priority = priority;
         return false;
     }
 

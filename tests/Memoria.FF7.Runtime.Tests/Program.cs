@@ -3,6 +3,18 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-priority-transfer-only", StringComparer.Ordinal))
+{
+    NativePriorityTransferTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-priority-transfer-original-only", StringComparer.Ordinal))
+{
+    NativePriorityTransferOriginalTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-byte-decrement-only", StringComparer.Ordinal))
 {
     NativeSaturatingByteDecrementTests.Run();
