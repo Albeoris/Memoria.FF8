@@ -3,6 +3,18 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-entry-input-branch-only", StringComparer.Ordinal))
+{
+    NativeEntryInputBranchTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-stone-continuation-original-only", StringComparer.Ordinal))
+{
+    NativeStoneContinuationOriginalTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-constant-fade-completion-only", StringComparer.Ordinal))
 {
     NativeConstantFadeCompletionTests.Run();

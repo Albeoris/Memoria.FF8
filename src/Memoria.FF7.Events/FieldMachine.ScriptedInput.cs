@@ -26,7 +26,7 @@ public sealed partial class FieldMachine
     {
     }
 
-    /// <summary>Proves that projected input makes an entry return using only input gates and non-yielding jumps.</summary>
+    /// <summary>Proves that projected input makes every variable-dependent path return using only predicates and non-yielding jumps.</summary>
     public bool CanSkipScriptEntryForInput(int entity, int script, FieldInputState projectedInput, int instructionBudget = 64)
     {
         ArgumentNullException.ThrowIfNull(projectedInput);
@@ -44,40 +44,61 @@ public sealed partial class FieldMachine
         detached.entities[entity].Priority = 1;
         detached.entities[entity].Wait = 0;
         detached.Input = projectedInput;
-        HashSet<int> visited = [];
-        for (int step = 0; step < instructionBudget; step++)
+        Dictionary<int, bool?> visited = [];
+        int steps = 0;
+        bool Returns(int pc)
         {
-            int pc = detached.entities[entity].Pc;
-            if (!visited.Add(pc))
+            if (visited.TryGetValue(pc, out bool? proved))
+            {
+                return proved == true;
+            }
+            if (steps++ >= instructionBudget)
             {
                 return false;
             }
+            visited.Add(pc, null);
             try
             {
                 byte opcode = program.Read(pc);
                 if (opcode == 0)
                 {
+                    visited[pc] = true;
                     return true;
                 }
-                // Variable predicates can depend on physical-query aliases produced later in the native cycle.
-                if (opcode is not (0x10 or 0x11 or 0x30 or 0x31 or 0x32))
+                if (opcode is not (>= 0x10 and <= 0x1B or 0x30 or 0x31 or 0x32))
                 {
                     return false;
                 }
+                detached.entities[entity].Pc = pc;
                 if (detached.Execute(entity))
                 {
                     return false;
                 }
+                bool result;
+                if (opcode is >= 0x14 and <= 0x1B)
+                {
+                    // Mutable physical aliases are deliberately unknown: both native successors must return.
+                    int branch = opcode >= 0x16 ? 7 : 5;
+                    bool wide = (opcode & 1) != 0;
+                    int distance = wide ? unchecked((short)(program.Read(pc + branch) | program.Read(pc + branch + 1) << 8)) : program.Read(pc + branch);
+                    result = Returns(unchecked((ushort)(pc + branch + (wide ? 2 : 1)))) && Returns(unchecked((ushort)(pc + branch + distance)));
+                }
+                else
+                {
+                    result = Returns(detached.entities[entity].Pc);
+                }
+                visited[pc] = result;
+                return result;
             }
             catch (Exception error) when (error is InputInspectionBoundaryException or FieldExecutionException or InvalidDataException or NotSupportedException or ArgumentException or IndexOutOfRangeException)
             {
                 return false;
             }
         }
-        return false;
+        return Returns(program.Entry(entity, script));
     }
 
-    /// <summary>Reads the first input gate on the current variable-dependent entry path, without executing a live interaction.</summary>
+    /// <summary>Reads the first input gate whose matched current continuation is not a predicate-only return, without executing a live interaction.</summary>
     public FieldScriptInputDemand? ReadEntryInputDemand(int entity, int script, int instructionBudget = 64)
     {
         if ((uint)entity >= entities.Length || script is < 0 or > 31 || instructionBudget is < 1 or > 1024)
@@ -106,7 +127,13 @@ public sealed partial class FieldMachine
                 byte opcode = program.Read(owner.Pc);
                 if (opcode is >= 0x30 and <= 0x32)
                 {
-                    return detached.ReadInputDemand(entity, owner.Pc, opcode);
+                    FieldScriptInputDemand demand = detached.ReadInputDemand(entity, owner.Pc, opcode);
+                    if (!detached.EntryInputReturnsWithoutEffect(entity, demand, instructionBudget - step))
+                    {
+                        return demand;
+                    }
+                    owner.Pc = unchecked((ushort)(owner.Pc + 3 + program.Read(owner.Pc + 3)));
+                    continue;
                 }
                 if (IsInputInspectionBoundary(opcode))
                 {
@@ -120,6 +147,43 @@ public sealed partial class FieldMachine
             }
         }
         return null;
+    }
+
+    private bool EntryInputReturnsWithoutEffect(int entity, FieldScriptInputDemand demand, int instructionBudget)
+    {
+        FieldMachine detached = Restore(program, Capture() with { CycleCursor = null }, new InspectionHost());
+        detached.inspection = new() { StopAtHost = true };
+        ushort held = demand.Kind == FieldScriptInputKind.Released ? (ushort)0 : demand.Mask;
+        ushort pressed = demand.Kind == FieldScriptInputKind.Pressed ? demand.Mask : (ushort)0;
+        ushort released = demand.Kind == FieldScriptInputKind.Released ? demand.Mask : (ushort)0;
+        detached.Input = new(held, pressed, released, held, pressed, released);
+        detached.entities[entity].Pc = demand.ProgramCounter + 4;
+        HashSet<int> visited = [];
+        for (int step = 0; step < instructionBudget; step++)
+        {
+            int pc = detached.entities[entity].Pc;
+            if (!visited.Add(pc))
+            {
+                return false;
+            }
+            try
+            {
+                byte opcode = program.Read(pc);
+                if (opcode == 0)
+                {
+                    return true;
+                }
+                if (opcode is not (>= 0x10 and <= 0x1B or 0x30 or 0x31 or 0x32) || detached.Execute(entity))
+                {
+                    return false;
+                }
+            }
+            catch (Exception error) when (error is InputInspectionBoundaryException or FieldExecutionException or InvalidDataException or NotSupportedException or ArgumentException or IndexOutOfRangeException)
+            {
+                return false;
+            }
+        }
+        return false;
     }
 
     /// <summary>Finds current native button waits without dispatching hosts, requesting scripts or advancing the live VM.</summary>
