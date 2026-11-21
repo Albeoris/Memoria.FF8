@@ -30,9 +30,12 @@ public sealed record Ff7AutoPlayTransportEntry(string Region, uint Cost, uint Be
 public sealed record Ff7AutoPlayTransportRegion(string Condition, string Region, string? CompletedRegion = null, string? CompletedCondition = null, string? DestinationVisit = null, string? ChoiceKey = null);
 public sealed record Ff7AutoPlayChoicePreference(int Selection, string NativeContext, string GuestContext, Dictionary<string, string>? NativeComponents = null);
 public sealed record Ff7AutoPlayNavigationPrerequisiteCompletion(string Condition, string? GoalCondition, string ColliderState);
+public sealed record Ff7AutoPlaySummitRecovery(long Generation, string Program, string VisitId, string EventId, string Condition, long RootDispatchTick, FieldHostRequest Request, bool Completed = false);
 
 public sealed class Ff7AutoPlayState
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Ff7AutoPlaySummitRecovery? SummitRecovery { get; set; }
     public Dictionary<string, Ff7AutoPlayTalkConditionDomain> TalkConditionDomains { get; set; } = new(StringComparer.Ordinal);
     public Dictionary<string, Ff7AutoPlayTransportRegion> TransportRegions { get; set; } = new(StringComparer.Ordinal);
     public Dictionary<string, Ff7AutoPlayNavigationPrerequisiteCompletion> NavigationPrerequisiteCompletions { get; set; } = new(StringComparer.Ordinal);
@@ -70,6 +73,10 @@ public sealed class Ff7AutoPlayState
 
     public void Validate()
     {
+        if (SummitRecovery is { } recovery && (recovery.Generation < 0 || recovery.RootDispatchTick < 0 || string.IsNullOrEmpty(recovery.Program) || string.IsNullOrEmpty(recovery.VisitId) || string.IsNullOrEmpty(recovery.EventId) || string.IsNullOrEmpty(recovery.Condition) || recovery.Request is not { Id: > 0, Entity: >= 3 and <= 5, Priority: 1, Command: FieldPartyRecovery { AllCharacters: true } } request || request.ProgramCounter != 0x377 + (request.Entity - 3) * 0x32))
+        {
+            throw new InvalidDataException("The recorded summit recovery lost its native request or source lifetime.");
+        }
         if (Active?.ExecutionProvenance is { } scoped && (scoped.VisitId != Active.VisitId || scoped.EventId != Active.EventId || scoped.Kind != Active.Kind))
         {
             throw new InvalidDataException("The recorded native execution provenance belongs to a different source.");

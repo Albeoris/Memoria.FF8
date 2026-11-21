@@ -3,6 +3,18 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-gaea-summit-recovery-only", StringComparer.Ordinal))
+{
+    NativeGaeaSummitRecoveryTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-gaea-summit-recovery-original-only", StringComparer.Ordinal))
+{
+    NativeGaeaSummitRecoveryOriginalTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-gaea-third-warmth-original-only", StringComparer.Ordinal))
 {
     NativeGaeaWarmthOriginalTests.RunThirdCliff();

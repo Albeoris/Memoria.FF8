@@ -110,6 +110,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
 
     public Ff7AutoplayInput ChooseInput(Ff7AutoplayDriver driver)
     {
+        ObserveSummitRecoveryHost();
         RetireCurrentPersistentNoEffectGoal();
         nativeInputReservation = null;
         unknownTalkContactSearchOwner = null;
@@ -314,6 +315,11 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             CancelNativePlanning("native-icicle-prerequisite-priority");
             Publish();
         }
+        if (ReadNativeSummitRecovery(observation) is { } recovery && driver.HasNativeGeometricContact(recovery) && RetireUnacceptedSummitPlan(State, observation, session.Host.Process, session.Field.Walkmesh))
+        {
+            CancelNativePlanning("native-summit-recovery-priority");
+            Publish();
+        }
         bool resumeNative = nativePlanning is not null && !nativePlanningForActive;
         if (resumeNative)
         {
@@ -462,7 +468,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
                 Publish();
                 return default;
             }
-            string? destinationReason = ResolveFieldDestinationGoal(State, observation, session.ReadAutoPlayFieldConnections, CanSelectDestination, (producer, gateway) => CanUnblockDestinationGateway(producer, gateway, observation.Events), session.ReadAutoPlayWorldConnections, target => ReadKnownFieldDepartureSource(State, observation, target), field => session.IsKnownAutoPlayDestination(field) ? session.ReadAutoPlayFieldTopology(field) : null, session.Host.Process.Actors.Single(actor => actor.PlayerControlled), session.Host.Process.BlockedTriangles, ReadNativeRockPrerequisite(observation) ?? ReadNativeIciclePrerequisite(observation));
+            string? destinationReason = ResolveFieldDestinationGoal(State, observation, session.ReadAutoPlayFieldConnections, CanSelectDestination, (producer, gateway) => CanUnblockDestinationGateway(producer, gateway, observation.Events), session.ReadAutoPlayWorldConnections, target => ReadKnownFieldDepartureSource(State, observation, target), field => session.IsKnownAutoPlayDestination(field) ? session.ReadAutoPlayFieldTopology(field) : null, session.Host.Process.Actors.Single(actor => actor.PlayerControlled), session.Host.Process.BlockedTriangles, ReadNativeRockPrerequisite(observation) ?? ReadNativeIciclePrerequisite(observation) ?? ReadNativeSummitRecovery(observation));
             Ff7NativeSourceRevalidation[] revalidations = State.DestinationField is null ? ReadPendingSourceRevalidations(State, observation) : [];
             string? refreshSource = revalidations.FirstOrDefault()?.NavigationKey;
             bool continuingRefresh = State.NavigationGoal is { EventId: null } goal && revalidations.Any(item => item.NavigationKey == goal.NavigationKey);
@@ -709,6 +715,10 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
 
     private void CompleteActive(Ff7AutoPlayObservation observation, Ff7AutoPlayActiveEvent active, bool changedField, Ff7AutoplayDriver? driver = null, IReadOnlyDictionary<string, string>? physicalGuards = null)
     {
+        if (!changedField)
+        {
+            CompleteNativeSummitRecovery(State, observation, active, session.Host.Process);
+        }
         bool ownedTravelArrival = IsOwnedTravelArrival(State, active, observation, changedField, IsPendingOwnedSourceGoal(State.NavigationGoal, observation)) || !changedField && IsOwnedNavigationPrerequisiteCompletion(State, active, observation);
         if (!changedField && active.NavigationPrerequisiteGoal is not null && session.Host.Process.Actors.SingleOrDefault(actor => actor.EntityBound && actor.Entity == active.Entity) is { } prerequisiteActor)
         {
@@ -1079,6 +1089,10 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
 
     public void Dispose()
     {
+        if (summitRecoveryHost is not null)
+        {
+            summitRecoveryHost.NativeOperationExecuted -= ObserveSummitRecoveryOperation;
+        }
         CancelNativePlanning();
         CancelWorldBoardingPlanning();
         CancelWorldModePlanning();
