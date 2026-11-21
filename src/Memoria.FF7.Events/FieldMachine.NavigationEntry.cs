@@ -152,10 +152,11 @@ public sealed partial class FieldMachine
             detached.entities[entity].Wait = 0;
             detached.Input = projectedInput;
             bool publishesControls = false;
+            HashSet<int> certifiedControlPublications = [];
             FieldTransitionCommand? transition = null;
             List<object> transitionGuards = [];
             HashSet<FieldVariableRead> queryOutputs = [];
-            string? ProveReturn(int pc, int handlers, HashSet<int> ancestors, HashSet<FieldVariableRead> unknown)
+            string? ProveReturn(int pc, int handlers, HashSet<int> ancestors, HashSet<FieldVariableRead> unknown, bool playerLocked, bool menuDisabled)
             {
                 if (handlers >= 8 || persistentOnly && handlers >= instructionBudget)
                 {
@@ -187,7 +188,7 @@ public sealed partial class FieldMachine
                 }
                 if (opcode == 0)
                 {
-                    return null;
+                    return controls is not null && (playerLocked != controls.PlayerLocked || menuDisabled != controls.MenuDisabled) ? "The entry does not restore its captured native control authority." : null;
                 }
                 if (allInputs && opcode is >= 0x30 and <= 0x32)
                 {
@@ -195,8 +196,8 @@ public sealed partial class FieldMachine
                     _ = program.Read(pc + 1);
                     _ = program.Read(pc + 2);
                     int unmatched = pc + 3 + program.Read(pc + 3);
-                    string? matchedFailure = ProveReturn(pc + 4, handlers + 1, new(ancestors), new(unknown));
-                    return matchedFailure is not null ? matchedFailure : ProveReturn(unmatched, handlers + 1, new(ancestors), new(unknown));
+                    string? matchedFailure = ProveReturn(pc + 4, handlers + 1, new(ancestors), new(unknown), playerLocked, menuDisabled);
+                    return matchedFailure is not null ? matchedFailure : ProveReturn(unmatched, handlers + 1, new(ancestors), new(unknown), playerLocked, menuDisabled);
                 }
                 if (opcode == 0xCB)
                 {
@@ -208,8 +209,8 @@ public sealed partial class FieldMachine
                     detached.entities[entity].Pc = pc;
                     detached.Advance(entity, distance + 2);
                     int absent = detached.entities[entity].Pc;
-                    string? presentFailure = ProveReturn(present, handlers + 1, new(ancestors), new(unknown));
-                    return presentFailure is not null ? presentFailure : ProveReturn(absent, handlers + 1, new(ancestors), new(unknown));
+                    string? presentFailure = ProveReturn(present, handlers + 1, new(ancestors), new(unknown), playerLocked, menuDisabled);
+                    return presentFailure is not null ? presentFailure : ProveReturn(absent, handlers + 1, new(ancestors), new(unknown), playerLocked, menuDisabled);
                 }
                 if (opcode is 0x73 or 0xB7)
                 {
@@ -233,18 +234,19 @@ public sealed partial class FieldMachine
                     }
                     queryOutputs.UnionWith(written);
                     unknown.UnionWith(written);
-                    return ProveReturn(detached.entities[entity].Pc, handlers + 1, ancestors, unknown);
+                    return ProveReturn(detached.entities[entity].Pc, handlers + 1, ancestors, unknown, playerLocked, menuDisabled);
                 }
                 if (opcode is 0x33 or 0x4A)
                 {
                     bool value = program.Read(pc + 1) != 0;
-                    if (controls is null || (opcode == 0x33 ? value != controls.PlayerLocked || !value && controls.PlayerAnimationStatus != 0 : value != controls.MenuDisabled))
+                    if (controls is null || opcode == 0x33 && !value && controls.PlayerAnimationStatus != 0)
                     {
                         return "The entry changes a captured native control publication.";
                     }
                     publishesControls = true;
+                    certifiedControlPublications.Add(pc);
                     detached.Advance(entity, 2);
-                    return ProveReturn(detached.entities[entity].Pc, handlers + 1, ancestors, unknown);
+                    return ProveReturn(detached.entities[entity].Pc, handlers + 1, ancestors, unknown, opcode == 0x33 ? value : playerLocked, opcode == 0x4A ? value : menuDisabled);
                 }
                 if (opcode is >= 0x14 and <= 0x19)
                 {
@@ -262,8 +264,8 @@ public sealed partial class FieldMachine
                         int distance = wide ? unchecked((short)(program.Read(pc + branchOffset) | program.Read(pc + branchOffset + 1) << 8)) : program.Read(pc + branchOffset);
                         int matched = pc + branchOffset + (wide ? 2 : 1);
                         int unmatched = pc + branchOffset + distance;
-                        string? matchedFailure = ProveReturn(matched, handlers + 1, new(ancestors), new(unknown));
-                        return matchedFailure is not null ? matchedFailure : ProveReturn(unmatched, handlers + 1, new(ancestors), new(unknown));
+                        string? matchedFailure = ProveReturn(matched, handlers + 1, new(ancestors), new(unknown), playerLocked, menuDisabled);
+                        return matchedFailure is not null ? matchedFailure : ProveReturn(unmatched, handlers + 1, new(ancestors), new(unknown), playerLocked, menuDisabled);
                     }
                     if (condition.LeftSource.Bank != FieldBank.Immediate)
                     {
@@ -282,9 +284,9 @@ public sealed partial class FieldMachine
                 {
                     return "The entry yields before its read-only return.";
                 }
-                return ProveReturn(detached.entities[entity].Pc, handlers + 1, ancestors, unknown);
+                return ProveReturn(detached.entities[entity].Pc, handlers + 1, ancestors, unknown, playerLocked, menuDisabled);
             }
-            string? returnFailure = ProveReturn(program.Entry(entity, script), 0, [], []);
+            string? returnFailure = ProveReturn(program.Entry(entity, script), 0, [], [], controls?.PlayerLocked ?? false, controls?.MenuDisabled ?? false);
             if (returnFailure is not null)
             {
                 return Reject(returnFailure);
@@ -401,7 +403,7 @@ public sealed partial class FieldMachine
                     {
                         return Reject($"Native producer {publication.Entity}/{publication.Command.GetType().Name} has an opaque mode-return publication contract.");
                     }
-                    if (publication.Command is FieldControlCommand control && (control.Property == FieldControlKind.PlayerLocked && (control.Value != 0) != controls.PlayerLocked || control.Property == FieldControlKind.MenuDisabled && (control.Value != 0) != controls.MenuDisabled))
+                    if (publication.Command is FieldControlCommand control && (control.Property == FieldControlKind.PlayerLocked && (control.Value != 0) != controls.PlayerLocked || control.Property == FieldControlKind.MenuDisabled && (control.Value != 0) != controls.MenuDisabled) && !(publication.Entity == entity && certifiedControlPublications.Contains(publication.ProgramCounter)))
                     {
                         return Reject("A native producer can change an idempotent entry control.");
                     }

@@ -113,7 +113,7 @@ public sealed partial class FieldMachine
         public HashSet<FieldVariableRead> Writes { get; } = [];
         public HashSet<FieldVariableRead> AssumedReads { get; } = [];
         public Dictionary<FieldVariableRead, (int Entity, int ProgramCounter)> WriteOrigins { get; } = [];
-        public List<(int Entity, FieldCommand Command)> Commands { get; } = [];
+        public List<(int Entity, int ProgramCounter, FieldCommand Command)> Commands { get; } = [];
         public int Instructions { get; set; }
 
         public bool CoversAllocation(int owner, FieldCommand command)
@@ -493,7 +493,7 @@ public sealed partial class FieldMachine
                     {
                         navigationInvariant.MayChangePartyAllocation = true;
                     }
-                    navigationInvariant?.Commands.Add((owner, command));
+                    navigationInvariant?.Commands.Add((owner, pc, command));
                     if (navigationInvariant is not null && !navigationInvariant.CoversAllocation(owner, command))
                     {
                         throw new NotSupportedException($"A producer can change the external script-trigger allocation through {command.GetType().Name}.");
