@@ -3,6 +3,24 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-presentation-polling-input-only", StringComparer.Ordinal))
+{
+    NativePresentationPollingInputTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-altar-input-only", StringComparer.Ordinal))
+{
+    NativeAltarInputTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-altar-input-original-only", StringComparer.Ordinal))
+{
+    NativeAltarInputOriginalTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-line-crossing-only", StringComparer.Ordinal))
 {
     NativeAutoPlayPhysicalAvailabilityTests.CheckNativeLineCrossing();

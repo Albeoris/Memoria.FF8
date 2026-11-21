@@ -132,7 +132,7 @@ public sealed partial class Ff7AutoPlayScriptedInput(Ff7Session session)
         bool locked = session.Host.Process.PlayerLocked;
         if (!locked && (active is not { Accepted: true, Returned: false } || active.Generation != session.FieldGeneration))
         {
-            return ChooseAmbientPromptInput(active);
+            return ChooseAltarInput(active) ?? ChooseAmbientPromptInput(active);
         }
         FieldVmSnapshot vm = session.Machine.Capture();
         IReadOnlyList<FieldScriptInputDemand> demands = session.Machine.ReadCurrentInputDemands();
@@ -146,7 +146,7 @@ public sealed partial class Ff7AutoPlayScriptedInput(Ff7Session session)
         {
             return clockInput;
         }
-        CurrentDemand = SelectDemand(ownedDemands);
+        CurrentDemand = SelectAltarForwardInput(vm, session.Host.Process, ownedDemands) ?? SelectDemand(ownedDemands);
         return CurrentDemand is null ? null : SelectInput(CurrentDemand, session.Machine.Input);
     }
 

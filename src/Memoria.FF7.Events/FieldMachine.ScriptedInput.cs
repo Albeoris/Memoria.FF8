@@ -16,6 +16,7 @@ public enum FieldScriptInputContinuation
 
 public sealed record FieldScriptInputDemand(string Identity, string ProgramIdentity, int Entity, int Priority, int ProgramCounter, FieldScriptInputKind Kind, ushort Mask, bool Mapped, bool AwaitingInput)
 {
+    public bool PresentationPolling { get; init; }
     public int DelayTicks { get; init; }
     public FieldScriptInputContinuation MatchedContinuation { get; init; }
 }
@@ -206,6 +207,7 @@ public sealed partial class FieldMachine
             HashSet<(int Pc, int Priority)> visited = [];
             int delayTicks = 0;
             bool sawInput = false;
+            bool presentationPrefix = false;
             for (int step = 0; step < instructionBudget; step++)
             {
                 Entity owner = detached.entities[entity];
@@ -216,6 +218,11 @@ public sealed partial class FieldMachine
                 try
                 {
                     byte opcode = program.Read(owner.Pc);
+                    if (detached.SkipInputPresentationNoOp(entity, opcode))
+                    {
+                        presentationPrefix = true;
+                        continue;
+                    }
                     if (SkipInputPollingDelay(owner, opcode, out int delay))
                     {
                         if (!sawInput)
@@ -229,8 +236,9 @@ public sealed partial class FieldMachine
                         int pc = owner.Pc;
                         FieldScriptInputDemand demand = detached.ReadInputDemand(entity, pc, opcode);
                         int unmatched = unchecked((ushort)(pc + 3 + program.Read(pc + 3)));
-                        bool awaiting = demand.Mask != 0 && unmatched != unchecked((ushort)(pc + 4)) && LoopsBackToInput(detached, entity, unmatched, pc, instructionBudget);
-                        demands.Add(demand with { AwaitingInput = awaiting, DelayTicks = delayTicks });
+                        bool loopPresentation = false;
+                        bool awaiting = demand.Mask != 0 && unmatched != unchecked((ushort)(pc + 4)) && LoopsBackToInput(detached, entity, unmatched, pc, instructionBudget, out loopPresentation);
+                        demands.Add(demand with { AwaitingInput = awaiting, DelayTicks = delayTicks, PresentationPolling = presentationPrefix || loopPresentation });
                         sawInput = true;
                         if (!awaiting)
                         {
@@ -312,8 +320,9 @@ public sealed partial class FieldMachine
         return new(identity, program.Identity, entity, priority, pc, (FieldScriptInputKind)(opcode - 0x30), mask, mapped, false);
     }
 
-    private bool LoopsBackToInput(FieldMachine source, int entity, int unmatched, int target, int instructionBudget)
+    private bool LoopsBackToInput(FieldMachine source, int entity, int unmatched, int target, int instructionBudget, out bool presentation)
     {
+        presentation = false;
         FieldVmSnapshot original = source.Capture() with { CycleCursor = null };
         FieldMachine detached = Restore(program, original, new InspectionHost());
         detached.inspection = new() { StopAtHost = true };
@@ -333,6 +342,11 @@ public sealed partial class FieldMachine
             try
             {
                 byte opcode = program.Read(pc);
+                if (detached.SkipInputPresentationNoOp(entity, opcode))
+                {
+                    presentation = true;
+                    continue;
+                }
                 if (SkipInputPollingDelay(detached.entities[entity], opcode, out _))
                 {
                     continue;
@@ -354,6 +368,25 @@ public sealed partial class FieldMachine
             }
         }
         return false;
+    }
+
+    private bool SkipInputPresentationNoOp(int entity, byte opcode)
+    {
+        int pc = entities[entity].Pc;
+        if (opcode != 0xF2 || program.Read(pc + 1) != 0 || program.Read(pc + 2) != 0 || program.Read(pc + 3) != 0 || program.Read(pc + 4) is not (0xC8 or 0xC9 or 0xCA))
+        {
+            return false;
+        }
+        InstructionInspection? previous = inspection;
+        inspection = new();
+        try
+        {
+            return !Execute(entity) && inspection.Commands is [FieldAudioCommand { Operation: 0xC8 or 0xC9 or 0xCA }];
+        }
+        finally
+        {
+            inspection = previous;
+        }
     }
 
     private static bool IsInputInspectionBoundary(byte opcode)
