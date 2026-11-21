@@ -3,6 +3,12 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-airborne-source-original-only", StringComparer.Ordinal))
+{
+    NativeAirborneSourceOriginalTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-mounted-rider-control-only", StringComparer.Ordinal))
 {
     NativeMountedRiderControlTests.Run();

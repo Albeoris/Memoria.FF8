@@ -8,6 +8,10 @@ public sealed partial class Ff7WorldRuntime
 {
     internal bool? ReadAutoPlayCurrentModeTerrainEligibility(Ff7AutoPlayWorldScriptObservation target)
     {
+        if (Resources.World == 0 && target.Complete && entities.TryGetValue(controlledModel, out Ff7WorldEntity? aircraft) && IsAutoPlayAircraft(aircraft) && (aircraft.Flags & 128) != 0 && vehicle is not { DismountPhase: 2 })
+        {
+            return false;
+        }
         Ff7WorldBridgeState bridge = input.Bridge ?? initialBridge;
         if (Resources.World != 0 || !target.Complete || !entities.TryGetValue(controlledModel, out Ff7WorldEntity? player) || (player.Flags & 128) != 0 || player.AttachedModel is not null || vehicle is { FlightState: not 0 } or { DismountPhase: not 0 } || vehicle?.TinyBroncoFlightEnabled == true || !HasInactiveWorldBridgeTerrain(bridge, deformedCollisionMeshes.Count))
         {
