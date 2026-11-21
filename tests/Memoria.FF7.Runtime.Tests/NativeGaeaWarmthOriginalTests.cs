@@ -6,6 +6,53 @@ using Memoria.FF7.Runtime;
 
 internal static class NativeGaeaWarmthOriginalTests
 {
+    internal static void RunThirdCliff()
+    {
+        Ff7Installation installation = Ff7Installation.Discover(Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR")!);
+        string path = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAEA_WARMTH_SAVE") ?? throw new InvalidOperationException("Select a native third-cliff fixture.");
+        byte[] bytes = File.ReadAllBytes(path);
+        using MemoryStream input = new(bytes, writable: false);
+        using Ff7Session session = Ff7Session.Restore(installation, CombinedSessionCodec.Read(input).Ff7!);
+        using Ff7AutoPlayPolicy policy = new(session, (_, _) => throw new InvalidOperationException("The first third-cliff ascent must precede its choice."));
+        int pulses = 0;
+        bool reachedWarm = false;
+        bool landed = false;
+        session.Host.NativeOperationExecuted += (request, reply) =>
+        {
+            if (request.Command is FieldActorLadder { Triangle: 3 } && reply.Completed && session.Host.Process.Actors.Single(actor => actor.PlayerControlled).Triangle == 3)
+            {
+                landed = true;
+            }
+        };
+        Ff7AutoplayInput Choose(Ff7AutoplayDriver driver)
+        {
+            if (policy.State.DestinationField != 699 && policy.State.Active is not { Accepted: true } && policy.State.Choice is null && policy.State.PendingRestore is null)
+            {
+                policy.SetDestinationField(699);
+            }
+            Ff7AutoplayInput selected = policy.ChooseInput(driver);
+            if (session.MapId == 694)
+            {
+                reachedWarm |= session.Machine.Variables.ReadWord(FieldBank.MapWord, 8) == 38;
+                pulses += (selected.Held & 0x80) != 0 ? 1 : 0;
+            }
+            return selected;
+        }
+        Ff7AutoPlayController controller = new(session, Choose, advanceTick: () => session.AdvanceTick(advanceClock: false), chooseDialogueSelection: policy.ChooseDialogueSelection, readPlanningProgress: () => policy.WorkProgress, readFrontierProgress: () => policy.FrontierProgress);
+        controller.Start();
+        Stopwatch timer = Stopwatch.StartNew();
+        while (timer.Elapsed.TotalSeconds < 60 && controller.Running && controller.Error is null && !landed && session.Host.Process.GlobalCommand != Ff7GlobalCommand.Battle)
+        {
+            controller.Advance(1);
+        }
+        Console.WriteLine($"Native third-cliff warmth: callbacks={controller.Steps}, seconds={timer.Elapsed.TotalSeconds:F3}, field={session.MapId}, pulses={pulses}, reached38={reachedWarm}, firstLanding={landed}, temperature={session.Machine.Variables.ReadWord(FieldBank.MapWord, 8)}, status={policy.Status}, error={controller.Failure?.Message ?? controller.Error}");
+        bool battleBoundary = session.Host.Process.GlobalCommand == Ff7GlobalCommand.Battle && session.Host.Process.GlobalRequestId is not null;
+        if (!SHA256.HashData(bytes).AsSpan().SequenceEqual(SHA256.HashData(File.ReadAllBytes(path))) || session.MapId != 694 || controller.Error is not null || !reachedWarm || pulses < 12 || !landed && !battleBoundary)
+        {
+            throw new InvalidOperationException("The original third-cliff worker did not warm and reach its first native ascent or battle boundary.", controller.Failure);
+        }
+    }
+
     internal static void ReadProfiles()
     {
         Ff7Installation installation = Ff7Installation.Discover(Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR")!);

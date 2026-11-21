@@ -3,6 +3,12 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-gaea-third-warmth-original-only", StringComparer.Ordinal))
+{
+    NativeGaeaWarmthOriginalTests.RunThirdCliff();
+    return 0;
+}
+
 if (args.Contains("--native-line-enter-departure-only", StringComparer.Ordinal))
 {
     NativeLineEnterDepartureTests.Run();
