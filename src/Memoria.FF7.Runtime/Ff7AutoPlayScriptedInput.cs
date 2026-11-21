@@ -135,7 +135,7 @@ public sealed partial class Ff7AutoPlayScriptedInput(Ff7Session session)
             return ChooseAltarInput(active) ?? ChooseAmbientPromptInput(active);
         }
         FieldVmSnapshot vm = session.Machine.Capture();
-        IReadOnlyList<FieldScriptInputDemand> demands = session.Machine.ReadCurrentInputDemands();
+        IReadOnlyList<FieldScriptInputDemand> demands = session.Machine.ReadCurrentInputDemands().Where(demand => !Ff7AutoPlayPolicy.IsNativeGaeaWarmthDemand(demand)).ToArray();
         CurrentDemand = demands.Where(demand => IsOwnedSpatialContinuationDemand(demand, vm, active, session.FieldGeneration, locked)).OrderBy(demand => demand.Priority).ThenBy(demand => demand.Entity).FirstOrDefault();
         if (CurrentDemand is not null)
         {

@@ -3,6 +3,24 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-gaea-warmth-only", StringComparer.Ordinal))
+{
+    NativeGaeaWarmthInputTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-gaea-warmth-original-only", StringComparer.Ordinal))
+{
+    NativeGaeaWarmthOriginalTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-gaea-warmth-resources-original-only", StringComparer.Ordinal))
+{
+    NativeGaeaWarmthOriginalTests.ReadProfiles();
+    return 0;
+}
+
 if (args.Contains("--native-gateway-component-observation-only", StringComparer.Ordinal))
 {
     NativeGatewayComponentObservationTests.Run();

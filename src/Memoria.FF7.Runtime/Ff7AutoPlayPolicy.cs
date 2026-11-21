@@ -233,6 +233,13 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             Publish();
             return default;
         }
+        if (!session.HasPendingTick && IsNativeGaeaWarmthProgram(session.Machine.ProgramIdentity) && ReadNativeGaeaWarmthInput(session.Machine.Capture(), session.Host.Process, session.Machine.Variables, session.Machine.Input) is Ff7AutoplayInput warmth)
+        {
+            controllable = true;
+            driver.BeginPlanningStep();
+            State.Status = "Warming through the current native cliff input worker";
+            return warmth;
+        }
         if (State.NativeRoute is not null && resumedNativePlan is null)
         {
             controllable = true;
