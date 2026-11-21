@@ -423,7 +423,7 @@ public sealed partial class Ff7AutoplayDriver
         Vector3 waypoint = ReadPortalApproachStep(branch.Field.Walkmesh, player.Triangle, contact.Triangle, previous, Position3D(player), contact.Point, player.CollisionRadius).Waypoint;
         Ff7AutoplayDriver driver = new(branch);
         driver.ConfigureSpatialBoundaries(targets, goal);
-        HashSet<int> blocked = [];
+        HashSet<int> blocked = goal.Kind == Ff7AutoPlayTargetKind.Gateway ? ReadAheadNavigationLinePrerequisites(branch.Field.Walkmesh, branch.Host.Process.BlockedTriangles, player, contact.Point, contact.Triangle, targets, branch.Host.Process.Lines).ToHashSet() : [];
         try
         {
             driver.ChooseTargetInput(goal, targets, _ =>
