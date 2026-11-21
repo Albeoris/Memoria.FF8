@@ -265,6 +265,9 @@ public sealed partial class Ff7BattleSession
                     case 0x90:
                         ApplyActorPaletteColor(previous.Slot, instruction.Operands.Span);
                         break;
+                    case 0xD4:
+                        ScheduleActorVerticalMotion(previous.Slot, instruction.Operands.Span);
+                        break;
                     case 0xD8:
                         ScheduleActorAnimationSound(instruction.Operands.Span);
                         break;
@@ -534,6 +537,10 @@ public sealed partial class Ff7BattleSession
     {
         Ff7BattleActorModelState model = ActorModelState(write.Target);
         Ff7BattlePosition position = model.Position ?? Ff7BattlePosition.FromVector(VisualPlacement(write.Target).Position);
+        if (write.WorldY is short y)
+        {
+            position = position with { Y = y };
+        }
         if (write.WorldZ is short z)
         {
             position = position with { Z = z };

@@ -17,37 +17,51 @@ internal static class NativeBattleUvOriginalTests
         using LgpArchive models = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.BattleArchive).Path);
         using LgpArchive magic = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.MagicArchive).Path);
         Ff7BattleAnimationResources animations = new(models, Ff7PcExecutableData.LoadBattlePlacement(installation), magic, Ff7PcExecutableData.LoadBattleJumpDeltas(installation), Ff7PcExecutableData.LoadBattleHitmarks(installation), Ff7PcExecutableData.LoadBattleActorModelResources(installation));
-        foreach (int formationId in new[] { 716, 717, 718 })
+        foreach ((int formationId, bool reaction) in new[] { (716, true), (717, true), (718, true), (716, false), (717, false), (718, false) })
         {
             SceneFormation formation = formations.Single(formation => formation.FormationId == formationId);
             Ff7BattleSession battle = new(formation, source.Progress, kernel, materia, 1, animations: animations);
             int icicle = SceneBattleData.Read(formation).Enemies.Single(enemy => enemy.Placement.EnemyId == 217).FormationSlot + 4;
-            Ff7BattleSnapshot initialized = battle.Capture();
-            Ff7BattleActorModelState actor = initialized.ActorModels.Single(model => model.Slot == icicle);
-            initialized.ActorModels[Array.IndexOf(initialized.ActorModels, actor)] = actor with { Action = 5, Reaction = true, Ready = false, Pose = null, PendingSince = -1 };
-            battle = new(formation, source.Progress, kernel, materia, 1, snapshot: initialized, animations: animations);
+            if (reaction)
+            {
+                Ff7BattleSnapshot initialized = battle.Capture();
+                Ff7BattleActorModelState actor = initialized.ActorModels.Single(model => model.Slot == icicle);
+                initialized.ActorModels[Array.IndexOf(initialized.ActorModels, actor)] = actor with { Action = 5, Reaction = true, Ready = false, Pose = null, PendingSince = -1 };
+                battle = new(formation, source.Progress, kernel, materia, 1, snapshot: initialized, animations: animations);
+            }
             Ff7BattleSession? fork = null;
             bool wroteUv = false;
+            bool movedLinkedActor = false;
             int comparisons = 0;
             int elapsed = 0;
-            for (; elapsed < 120 && comparisons < 10; elapsed++)
+            for (; elapsed < (reaction ? 120 : 1600) && comparisons < 10; elapsed++)
             {
-                battle.Advance(waitForCommand: true);
+                if (!reaction && fork is null && battle.ReadyPlayer is int ready)
+                {
+                    Ff7BattleCommandOption? attack = battle.Commands(ready).FirstOrDefault(command => command.Command == Ff7BattleCommand.Attack && (command.ValidTargets & 1 << icicle) != 0);
+                    if (attack is not null)
+                    {
+                        Check(battle.Submit(ready, attack.Command, attack.Argument, (ushort)(1 << icicle)), "The original actor rejected its admitted physical attack.");
+                    }
+                }
+                battle.Advance(waitForCommand: reaction);
                 if (fork is not null)
                 {
-                    fork.Advance(waitForCommand: true);
+                    fork.Advance(waitForCommand: reaction);
                     Check(JsonSerializer.Serialize(battle.Capture()) == JsonSerializer.Serialize(fork.Capture()), "A private UV callback fork changed its next native update.");
                     comparisons++;
                 }
                 Ff7BattleSnapshot current = battle.Capture();
                 wroteUv |= current.ActorModels.Any(model => model.NativeUvOffset is not null);
+                movedLinkedActor |= current.ActorMotion?.ActorWrites.Any(write => write.Target is >= 4 and <= 7 && write.WorldY is not null) == true;
                 if (fork is null && current.SecondaryEffects?.Slots.Any(callback => callback is Ff7BattleActorUvAnimationCallback) == true && wroteUv)
                 {
                     fork = new(formation, source.Progress, kernel, materia, 1, snapshot: current, animations: animations);
                 }
             }
-            Console.WriteLine($"Original UV formation{formationId}: ticks={elapsed}, uv={wroteUv}, privateForkSteps={comparisons}, action={battle.Action?.Animation}, outcome={battle.Outcome}");
+            Console.WriteLine($"Original UV formation{formationId}: reaction={reaction}, ticks={elapsed}, uv={wroteUv}, privateForkSteps={comparisons}, action={battle.Action?.Animation}, outcome={battle.Outcome}");
             Check(wroteUv && comparisons == 10, "An original icicle formation did not run and retain its native actor UV callback.");
+            Check(reaction || movedLinkedActor, "The original icicle action did not run its linked bat's vertical motion callback.");
         }
     }
 

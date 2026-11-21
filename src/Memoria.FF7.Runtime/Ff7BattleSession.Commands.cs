@@ -559,6 +559,10 @@ public sealed partial class Ff7BattleSession
                 {
                     active = active with { Motion = BeginFixedActorMotion(command.ActorSlot, active.Motion, instruction.Operands.Span) };
                 }
+                else if (instruction.Opcode == 0xD4)
+                {
+                    ScheduleActorVerticalMotion(command.ActorSlot, instruction.Operands.Span);
+                }
                 else if (instruction.Opcode == 0xD1)
                 {
                     ReadOnlySpan<byte> operands = instruction.Operands.Span;
