@@ -16,7 +16,7 @@ public sealed partial class Ff7AutoPlayPolicy
         state.NavigationGoal = next.Goal ?? retained;
     }
 
-    internal static string? ResolveFieldDestinationGoal(Ff7AutoPlayState state, Ff7AutoPlayObservation observation, Func<ushort, int[]>? readConnections = null, Func<Ff7AutoPlayTarget, bool>? canSelect = null, Func<Ff7AutoPlayTarget, Ff7AutoPlayTarget, bool>? canUnblockGateway = null, Func<int, int[]>? readWorldConnections = null, Func<Ff7AutoPlayTarget, string?>? readDepartureSource = null)
+    internal static string? ResolveFieldDestinationGoal(Ff7AutoPlayState state, Ff7AutoPlayObservation observation, Func<ushort, int[]>? readConnections = null, Func<Ff7AutoPlayTarget, bool>? canSelect = null, Func<Ff7AutoPlayTarget, Ff7AutoPlayTarget, bool>? canUnblockGateway = null, Func<int, int[]>? readWorldConnections = null, Func<Ff7AutoPlayTarget, string?>? readDepartureSource = null, Func<ushort, Ff7AutoPlayFieldTopology?>? readTopology = null, Ff7Actor? player = null, byte[]? blocked = null)
     {
         if (state.DestinationField is not ushort destination)
         {
@@ -50,9 +50,19 @@ public sealed partial class Ff7AutoPlayPolicy
             {
                 selected = FindFieldDestinationPrerequisite(state, observation, destination, ReadConnections, canSelect, canUnblockGateway);
             }
+            if (selected is null && readTopology is not null && player is not null && blocked is not null)
+            {
+                Ff7AutoPlayFieldTopology? ReadTopology(ushort field)
+                {
+                    ReadConnections(field);
+                    return connections.ContainsKey(field) ? readTopology(field) : null;
+                }
+                (selected, limited) = FindFieldEntryDestinationAdvice(state, observation, destination, player, blocked, ReadTopology, canSelect);
+            }
             if (selected is null)
             {
-                (selected, limited) = FindFieldDestinationAdvice(state, observation, destination, ReadConnections, canSelect);
+                (selected, bool fallbackLimited) = FindFieldDestinationAdvice(state, observation, destination, ReadConnections, canSelect);
+                limited |= fallbackLimited;
             }
             limited |= resourceLimit;
         }

@@ -3,6 +3,24 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-field-entry-advice-only", StringComparer.Ordinal))
+{
+    NativeFieldEntryAdviceTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-gaea-cave-original-only", StringComparer.Ordinal))
+{
+    NativeGaeaCaveOriginalTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-gaea-cave-inspect-only", StringComparer.Ordinal))
+{
+    NativeGaeaCaveOriginalTests.Inspect();
+    return 0;
+}
+
 if (args.Contains("--native-interrupted-navigation-only", StringComparer.Ordinal))
 {
     NativeInterruptedNavigationTests.Run();
