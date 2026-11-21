@@ -368,9 +368,9 @@ public sealed partial class Ff7Session : IDisposable
 
     private Ff7SessionSave Capture(bool includeObservations)
     {
-        if (fieldLoadIncomplete || tickTailInProgress || Highway is not null)
+        if (fieldLoadIncomplete || tickTailInProgress || Highway is not null || Snowboard is not null)
         {
-            throw new InvalidOperationException("Snapshots require a completed field load outside an active highway chase and an atomic field-update tail.");
+            throw new InvalidOperationException("Snapshots require a completed field load outside an active highway or snowboard module and an atomic field-update tail.");
         }
         FieldVmSnapshot vm = Machine.Capture();
         if (World is not null)

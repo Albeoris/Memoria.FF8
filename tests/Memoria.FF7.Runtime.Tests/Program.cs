@@ -3,6 +3,90 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-snowboard-autoplay-only", StringComparer.Ordinal))
+{
+    NativeSnowboardAutoPlayTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-snowboard-module-original-only", StringComparer.Ordinal))
+{
+    NativeSnowboardModuleOriginalTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-snowboard-object-only", StringComparer.Ordinal))
+{
+    NativeSnowboardObjectTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-snowboard-simulation-original-only", StringComparer.Ordinal))
+{
+    NativeSnowboardSimulationOriginalTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-snowboard-camera-only", StringComparer.Ordinal))
+{
+    NativeSnowboardCameraTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-snowboard-surface-only", StringComparer.Ordinal))
+{
+    NativeSnowboardSurfaceTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-snowboard-pose-only", StringComparer.Ordinal))
+{
+    NativeSnowboardPoseTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-snowboard-action-script-only", StringComparer.Ordinal))
+{
+    NativeSnowboardActionScriptTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-snowboard-collision-only", StringComparer.Ordinal))
+{
+    NativeSnowboardCollisionResponseTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-snowboard-course-navigation-only", StringComparer.Ordinal))
+{
+    NativeSnowboardCourseNavigationTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-snowboard-rider-motion-only", StringComparer.Ordinal))
+{
+    NativeSnowboardRiderMotionTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-snowboard-terrain-only", StringComparer.Ordinal))
+{
+    NativeSnowboardTerrainTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-snowboard-resources-original-only", StringComparer.Ordinal))
+{
+    NativeSnowboardResourcesOriginalTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-snowboard-model-only", StringComparer.Ordinal))
+{
+    NativeSnowboardModelTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-physical-repair-progress-only", StringComparer.Ordinal))
 {
     NativePhysicalRepairProgressTests.Run();

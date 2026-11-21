@@ -146,7 +146,7 @@ public sealed class Ff7SnowboardPose
                 throw new InvalidDataException("Snowboard draw binding references an absent native joint.");
             }
             Matrix4x4 transform = halfTurn * rotations[binding.RotationJoint] * halfTurn * basis;
-            transform.Translation = origin + (binding.PositionJoint < 0 ? Vector3.Zero : Vector3.TransformNormal(endpoints[binding.PositionJoint], endpointBasis) * 0.0625f);
+            transform.Translation = origin + (binding.PositionJoint < 0 ? Vector3.Zero : Vector3.TransformNormal(endpoints[binding.PositionJoint], endpointBasis));
             instances.Add(new(binding.ModelIndex, transform) { NativePrimitiveKind = binding.NativePrimitiveKind });
         }
         return instances;

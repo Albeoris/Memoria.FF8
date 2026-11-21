@@ -36,6 +36,8 @@ internal sealed class Ff7SnowboardSimulation
     internal Vector3 PreviousPosition { get; private set; }
     internal int PreviousSegment { get; private set; }
     internal int PreviousTriangle { get; private set; }
+    internal Vector3 CameraPositionQ12 { get; private set; }
+    internal short CameraAirFrames { get; private set; }
     internal event Action<Ff7SnowboardCollisionSound>? Sound;
 
     internal IReadOnlyList<Ff7SnowboardActionEffect> AdvanceIntro(ushort held, ushort pressed, long tick)
@@ -98,6 +100,8 @@ internal sealed class Ff7SnowboardSimulation
         }
         Surface = Ff7SnowboardSurface.Sample(native, Navigation);
         hasNormalBasis = true;
+        CameraPositionQ12 = motion.Position;
+        CameraAirFrames = motion.AirFrames;
         motion.FloorHeight = ending && CourseEnded ? 2147483648f : Surface.FloorHeightQ12;
         if (Ff7SnowboardRiderMotion.AdvanceVertical(motion))
         {
@@ -116,6 +120,14 @@ internal sealed class Ff7SnowboardSimulation
         Rider.Motion.Position = PreviousPosition;
         Navigation.RestorePreviousSegment(PreviousSegment, PreviousTriangle);
         LogicalDistance = previousLogicalDistance;
+    }
+
+    internal void PreparePaused()
+    {
+        PreviousPosition = Rider.Motion.Position;
+        PreviousSegment = Navigation.CurrentSegment;
+        PreviousTriangle = Navigation.CurrentTriangle;
+        previousLogicalDistance = LogicalDistance;
     }
 
     private Ff7SnowboardCourseData Course => native.Courses[Navigation.CurrentCourse];

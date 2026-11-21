@@ -79,6 +79,36 @@ public sealed partial class Ff7AutoPlayController(Ff7Session session, Func<Ff7Au
                 {
                     return;
                 }
+                if (session.Snowboard is not null || session.Host.PendingMinigame?.Command is Memoria.FF7.Events.FieldMinigameCommand { Game: 2 })
+                {
+                    present?.Invoke();
+                    if (session.Snowboard is { } snowboard)
+                    {
+                        ObserveProgress("snowboard:" + snowboard.NativeProgress);
+                        session.SetSnowboardInput(Ff7SnowboardAutoPlay.ChooseInput(snowboard), 0);
+                    }
+                    else
+                    {
+                        lastSafe = session.Capture();
+                        ObserveProgress("snowboard:pending");
+                    }
+                    long generation = session.FieldGeneration;
+                    if (advanceTick is null)
+                    {
+                        session.AdvanceTick();
+                    }
+                    else
+                    {
+                        advanceTick();
+                    }
+                    Steps++;
+                    semanticWatchdog.NativeAdvanced();
+                    if (session.FieldGeneration != generation)
+                    {
+                        CaptureCheckpoint();
+                    }
+                    return;
+                }
                 if (session.ChocoboRace is not null || session.Host.PendingMinigame?.Command is Memoria.FF7.Events.FieldMinigameCommand { Game: 1 })
                 {
                     present?.Invoke();
@@ -225,7 +255,7 @@ public sealed partial class Ff7AutoPlayController(Ff7Session session, Func<Ff7Au
         Ff7SessionSave snapshot;
         try
         {
-            snapshot = session.Highway is null ? session.Capture() : lastSafe;
+            snapshot = session.Highway is null && session.Snowboard is null ? session.Capture() : lastSafe;
         }
         catch (Exception captureError)
         {

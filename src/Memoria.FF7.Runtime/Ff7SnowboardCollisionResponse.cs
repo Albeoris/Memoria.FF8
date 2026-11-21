@@ -3,7 +3,7 @@ using Memoria.FF7.Resources;
 
 namespace Memoria.FF7.Runtime;
 
-public sealed record Ff7SnowboardCollisionSound(int Channel, int Sound, int Pan);
+public sealed record Ff7SnowboardCollisionSound(int Channel, int Sound, int Volume);
 
 public sealed record Ff7SnowboardCollisionResult(Vector3 Velocity, short Action, int ReflectionAngle, Ff7SnowboardCollisionSound? Sound);
 

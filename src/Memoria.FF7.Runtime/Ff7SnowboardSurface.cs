@@ -3,7 +3,10 @@ using Memoria.FF7.Resources;
 
 namespace Memoria.FF7.Runtime;
 
-public sealed record Ff7SnowboardSurfaceSample(Vector3 Normal, float FloorHeightQ12, short CourseDirection);
+public sealed record Ff7SnowboardSurfaceSample(Vector3 Normal, float FloorHeightQ12, short CourseDirection)
+{
+    public short TurnAngle { get; init; }
+}
 
 public static class Ff7SnowboardSurface
 {
@@ -49,7 +52,7 @@ public static class Ff7SnowboardSurface
             offset = unchecked((short)Ff7SnowboardCollisionResponse.Direction(navigation.LocalZ, -curvature + Word(data, tile, 0x38) - navigation.LocalX));
         }
         short direction = (short)((course.Angles[segment] + offset) & 4095);
-        return new(normal, heightQ12, direction);
+        return new(normal, heightQ12, direction) { TurnAngle = offset };
     }
 
     public static Vector3 InitialPosition(Ff7SnowboardNativeData data, int course = 0, int segment = 0)

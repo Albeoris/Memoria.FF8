@@ -28,6 +28,11 @@ public sealed partial class Ff7Session
                 AdvanceChocobo(request, advanceClock);
                 return;
             }
+            if (command.Game == 2)
+            {
+                AdvanceSnowboard(request, advanceClock);
+                return;
+            }
             if (command.Game != 0)
             {
                 throw new NotSupportedException($"FFVII minigame {command.Game} requires its native gameplay module before returning to map {command.Return.Map}.");

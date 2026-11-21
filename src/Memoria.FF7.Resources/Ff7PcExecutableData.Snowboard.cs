@@ -14,6 +14,10 @@ public sealed record Ff7SnowboardNativeData(IReadOnlyList<Ff7SnowboardCourseData
     public IReadOnlyList<ushort> InputMasks { get; init; } = Array.Empty<ushort>();
     public IReadOnlyList<byte> CollisionActions { get; init; } = Array.Empty<byte>();
     public IReadOnlyList<int> ActionPoses { get; init; } = Array.Empty<int>();
+    public IReadOnlyList<byte> CameraActionClasses { get; init; } = Array.Empty<byte>();
+    public IReadOnlyList<short> InitialCameraParameters { get; init; } = Array.Empty<short>();
+    public IReadOnlyList<short> FinishVertices { get; init; } = Array.Empty<short>();
+    public IReadOnlyList<short> TerrainMarkers { get; init; } = Array.Empty<short>();
 }
 
 public sealed partial class Ff7PcExecutableData
@@ -59,7 +63,11 @@ public sealed partial class Ff7PcExecutableData
             ActionScripts = Array.AsReadOnly(ReadVirtual(stream, pe, 0x94A340, 0x4000)),
             InputMasks = Array.AsReadOnly(inputMasks),
             CollisionActions = Array.AsReadOnly(ReadVirtual(stream, pe, 0x9564D8, 32 * 9)),
-            ActionPoses = Array.AsReadOnly(ReadIntegers(ReadVirtual(stream, pe, 0x956344, 5 * 4)))
+            ActionPoses = Array.AsReadOnly(ReadIntegers(ReadVirtual(stream, pe, 0x956344, 5 * 4))),
+            CameraActionClasses = Array.AsReadOnly(ReadVirtual(stream, pe, 0x926448, 32)),
+            InitialCameraParameters = Array.AsReadOnly(ReadShorts(ReadVirtual(stream, pe, 0x9262D8, 16))),
+            FinishVertices = Array.AsReadOnly(ReadShorts(ReadVirtual(stream, pe, 0x926370, 12))),
+            TerrainMarkers = Array.AsReadOnly(ReadShorts(ReadVirtual(stream, pe, 0x9263D0, 12)))
         };
 
         static int[] ReadIntegers(ReadOnlySpan<byte> source)
