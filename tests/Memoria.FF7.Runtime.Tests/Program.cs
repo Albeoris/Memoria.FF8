@@ -3,6 +3,18 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-gaea-movie-prerequisite-only", StringComparer.Ordinal))
+{
+    NativeGaeaMoviePrerequisiteTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-gaea-movie-prerequisite-original-only", StringComparer.Ordinal))
+{
+    NativeGaeaMoviePrerequisiteOriginalTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-gaea-boss-prerequisite-only", StringComparer.Ordinal))
 {
     NativeGaeaBossPrerequisiteTests.Run();

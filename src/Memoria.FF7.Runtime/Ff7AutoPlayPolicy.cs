@@ -325,6 +325,11 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             CancelNativePlanning("native-gaea-boss-prerequisite-priority");
             Publish();
         }
+        if (ReadNativeGaeaMoviePrerequisite(observation) is { } movie && driver.HasNativeGeometricContact(movie) && RetireUnacceptedGaeaMoviePlan(State, observation, session.Host.Process, session.Machine.Variables, session.Field.Walkmesh))
+        {
+            CancelNativePlanning("native-gaea-movie-prerequisite-priority");
+            Publish();
+        }
         bool resumeNative = nativePlanning is not null && !nativePlanningForActive;
         if (resumeNative)
         {
@@ -473,7 +478,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
                 Publish();
                 return default;
             }
-            string? destinationReason = ResolveFieldDestinationGoal(State, observation, session.ReadAutoPlayFieldConnections, CanSelectDestination, (producer, gateway) => CanUnblockDestinationGateway(producer, gateway, observation.Events), session.ReadAutoPlayWorldConnections, target => ReadKnownFieldDepartureSource(State, observation, target), field => session.IsKnownAutoPlayDestination(field) ? session.ReadAutoPlayFieldTopology(field) : null, session.Host.Process.Actors.Single(actor => actor.PlayerControlled), session.Host.Process.BlockedTriangles, ReadNativeRockPrerequisite(observation) ?? ReadNativeIciclePrerequisite(observation) ?? ReadNativeSummitRecovery(observation) ?? ReadNativeGaeaBossPrerequisite(observation));
+            string? destinationReason = ResolveFieldDestinationGoal(State, observation, session.ReadAutoPlayFieldConnections, CanSelectDestination, (producer, gateway) => CanUnblockDestinationGateway(producer, gateway, observation.Events), session.ReadAutoPlayWorldConnections, target => ReadKnownFieldDepartureSource(State, observation, target), field => session.IsKnownAutoPlayDestination(field) ? session.ReadAutoPlayFieldTopology(field) : null, session.Host.Process.Actors.Single(actor => actor.PlayerControlled), session.Host.Process.BlockedTriangles, ReadNativeRockPrerequisite(observation) ?? ReadNativeIciclePrerequisite(observation) ?? ReadNativeSummitRecovery(observation) ?? ReadNativeGaeaBossPrerequisite(observation) ?? ReadNativeGaeaMoviePrerequisite(observation));
             Ff7NativeSourceRevalidation[] revalidations = State.DestinationField is null ? ReadPendingSourceRevalidations(State, observation) : [];
             string? refreshSource = revalidations.FirstOrDefault()?.NavigationKey;
             bool continuingRefresh = State.NavigationGoal is { EventId: null } goal && revalidations.Any(item => item.NavigationKey == goal.NavigationKey);

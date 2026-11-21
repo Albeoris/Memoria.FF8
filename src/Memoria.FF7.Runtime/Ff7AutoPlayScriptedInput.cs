@@ -9,6 +9,10 @@ public sealed partial class Ff7AutoPlayScriptedInput(Ff7Session session)
 
     public bool IsEntryInputSatisfied(int entity, int script)
     {
+        if (entity == 5 && script == 4 && session.Machine.ProgramIdentity == Ff7AutoPlayPolicy.GaeaMovieProgram && session.AutoPlayState is { } state && IsNativeGaeaMovieNeutralEntry(state, session.FieldGeneration, session.Machine.Capture(), session.Host.Process))
+        {
+            return true;
+        }
         FieldScriptInputDemand? demand = session.Machine.ReadEntryInputDemand(entity, script);
         return demand is null || IsInputSatisfied(demand, session.Machine.Input);
     }
@@ -32,6 +36,11 @@ public sealed partial class Ff7AutoPlayScriptedInput(Ff7Session session)
         if (session.World is not null || session.HasPendingTick || session.Host.Process.Transition is not null || session.Host.Process.Dialogues.Any(dialogue => !dialogue.Completed && session.Host.CanConfirmDialogue(dialogue.RequestId)))
         {
             return null;
+        }
+        if (entity == 5 && script == 4 && session.Machine.ProgramIdentity == Ff7AutoPlayPolicy.GaeaMovieProgram && session.AutoPlayState is { } state && IsNativeGaeaMovieNeutralEntry(state, session.FieldGeneration, session.Machine.Capture(), session.Host.Process))
+        {
+            CurrentDemand = null;
+            return new(Held: 0, Run: false);
         }
         CurrentDemand = session.Machine.ReadEntryInputDemand(entity, script);
         if (CurrentDemand is null || CurrentDemand.Mask == 0)
@@ -135,6 +144,10 @@ public sealed partial class Ff7AutoPlayScriptedInput(Ff7Session session)
             return ChooseAltarInput(active) ?? ChooseAmbientPromptInput(active);
         }
         FieldVmSnapshot vm = session.Machine.Capture();
+        if (session.AutoPlayState is { } state && IsNativeGaeaMovieNeutralReturn(state, session.FieldGeneration, vm, session.Host.Process))
+        {
+            return new(Held: 0, Run: false);
+        }
         IReadOnlyList<FieldScriptInputDemand> demands = session.Machine.ReadCurrentInputDemands().Where(demand => !Ff7AutoPlayPolicy.IsNativeGaeaWarmthDemand(demand)).ToArray();
         CurrentDemand = demands.Where(demand => IsOwnedSpatialContinuationDemand(demand, vm, active, session.FieldGeneration, locked)).OrderBy(demand => demand.Priority).ThenBy(demand => demand.Entity).FirstOrDefault();
         if (CurrentDemand is not null)
