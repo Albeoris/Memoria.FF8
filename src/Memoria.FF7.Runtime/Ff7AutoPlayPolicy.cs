@@ -385,7 +385,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         if (State.Active is { } active && (active.Returned || active.Generation != observation.Generation))
         {
             bool changedField = active.Generation != observation.Generation;
-            bool nativeCompletion = active.Accepted && active.Returned && !Ff7AutoPlayExecutionOwners.HasOutstandingChildren(readinessVm, active, observation.Generation, owner => IsSettledPresentationChild(active, readinessVm, owner)) || changedField && (active.TransitionOwned && active.Kind is not (Ff7AutoPlayTargetKind.WorldMesh or Ff7AutoPlayTargetKind.WorldModel) || active.Kind == Ff7AutoPlayTargetKind.Gateway && active.DestinationField == session.MapId || IsSpatialTransitionCompletion(active, session.MapId) || IsAcceptedWorldDeparture(active, State.WorldDispatch, observation.Generation, session.MapId));
+            bool nativeCompletion = !changedField && active.Accepted && active.Returned && CanCompleteReturnedSource(active, observation.Generation, Ff7AutoPlayExecutionOwners.HasOutstandingChildren(readinessVm, active, observation.Generation, owner => IsSettledPresentationChild(active, readinessVm, owner))) || changedField && (active.TransitionOwned && active.Kind is not (Ff7AutoPlayTargetKind.WorldMesh or Ff7AutoPlayTargetKind.WorldModel) || active.Kind == Ff7AutoPlayTargetKind.Gateway && active.DestinationField == session.MapId || IsSpatialTransitionCompletion(active, session.MapId) || IsAcceptedWorldDeparture(active, State.WorldDispatch, observation.Generation, session.MapId));
             if (nativeCompletion)
             {
                 CompleteActive(observation, active, changedField, driver, physicalGuards);
@@ -690,6 +690,11 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             Ff7AutoPlayTargetKind.LineLeave => line.Leave,
             _ => false
         };
+    }
+
+    internal static bool CanCompleteReturnedSource(Ff7AutoPlayActiveEvent active, long generation, bool outstandingChildren)
+    {
+        return active.Generation == generation && active.Accepted && active.Returned && !outstandingChildren;
     }
 
     private void CompleteActive(Ff7AutoPlayObservation observation, Ff7AutoPlayActiveEvent active, bool changedField, Ff7AutoplayDriver? driver = null, IReadOnlyDictionary<string, string>? physicalGuards = null)

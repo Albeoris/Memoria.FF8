@@ -113,7 +113,7 @@ public sealed partial class Ff7AutoPlayPolicy
         Ff7AutoPlayTarget[] producers = observation.Events.Where(target => target.AnalysisComplete && target.MayChangeNavigation && !target.ChangesField && (target.UnblockedTriangles.Length != 0 || target.LadderLandings.Length != 0 || target.TerminalJumpLandings.Length != 0 || target.PossibleJumpLandings.Length != 0) && canSelect?.Invoke(target) != false).Where(target =>
         {
             AutoPlayEventCoverage<Ff7AutoPlayDeferral>? coverage = state.Coverage.Visits.SingleOrDefault(visit => visit.Visit.Key == observation.VisitId)?.Events.SingleOrDefault(item => item.Event.Id == target.Id);
-            return coverage is null || !coverage.PolicyDeferred && coverage.BlockedReason is null && ((coverage.Conditions is { } conditions ? !conditions.HasExecutedEntry(target.ConditionFingerprint) : !coverage.Completed) || HasRecordedLocalNavigationStep(state, observation, target));
+            return coverage is null || !coverage.PolicyDeferred && coverage.BlockedReason is null && ((coverage.Conditions is { } conditions ? !conditions.HasExecutedEntry(target.ConditionFingerprint) : !coverage.Completed) || HasRecordedLocalNavigationStep(state, observation, target) || HasInterruptedLocalNavigationStep(state, observation, target));
         }).ToArray();
         Ff7AutoPlayTarget[] gateways = observation.Events.Where(target => target.AnalysisComplete && target.Kind == Ff7AutoPlayTargetKind.Gateway && canSelect?.Invoke(target) == false && producers.Any(producer => canUnblockGateway(producer, target))).ToArray();
         if (gateways.Length == 0)
@@ -127,6 +127,11 @@ public sealed partial class Ff7AutoPlayPolicy
     internal static bool HasRecordedLocalNavigationStep(Ff7AutoPlayState state, Ff7AutoPlayObservation observation, Ff7AutoPlayTarget target)
     {
         return state.DestinationField is not null && state.Coverage.NavigationRoutes.Any(route => route.SourceKey == observation.NavigationKey && route.DestinationKey != route.SourceKey && route.EventId == target.Id && route.Route.TargetId == target.Id && route.Route.ConditionSignature == target.ConditionFingerprint && route.Route.DestinationVisitKey == observation.VisitId && state.Coverage.NavigationVisits.Any(visit => visit.Key == route.DestinationKey && visit.VisitKey == observation.VisitId));
+    }
+
+    internal static bool HasInterruptedLocalNavigationStep(Ff7AutoPlayState state, Ff7AutoPlayObservation observation, Ff7AutoPlayTarget target)
+    {
+        return state.DestinationField is not null && state.Coverage.NavigationVisits.Any(visit => visit.Key == observation.NavigationKey && visit.VisitKey == observation.VisitId) && observation.Events.Contains(target) && target.AnalysisComplete && target.MayChangeNavigation && !target.ChangesField && !target.ChangesStory && target.Kind is >= Ff7AutoPlayTargetKind.LineTalk and <= Ff7AutoPlayTargetKind.LineLeave && (target.LadderLandings.Length != 0 || target.PossibleJumpLandings.Length != 0 || target.UnblockedTriangles.Length != 0) && state.Coverage.NavigationRoutes.Any(route => route.SourceKey == observation.NavigationKey && route.EventId == target.Id && route.Route.TargetId == target.Id && route.Route.ConditionSignature == target.ConditionFingerprint && route.Route.DestinationVisitKey != observation.VisitId && state.Coverage.NavigationVisits.Any(visit => visit.Key == route.DestinationKey && visit.VisitKey == route.Route.DestinationVisitKey));
     }
 
     private bool CanUnblockDestinationGateway(Ff7AutoPlayTarget producer, Ff7AutoPlayTarget gateway, IReadOnlyList<Ff7AutoPlayTarget> targets)
