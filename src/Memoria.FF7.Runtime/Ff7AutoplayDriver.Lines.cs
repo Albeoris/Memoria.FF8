@@ -53,9 +53,18 @@ public sealed partial class Ff7AutoplayDriver
         bool touching = distance >= 0 && distance < unchecked(player.CollisionRadius * player.CollisionRadius);
         if (touching && kind == Ff7AutoPlayTargetKind.LinePush)
         {
-            int desired = current.X == nearest.X && current.Y == nearest.Y ? player.Direction : session.Host.Movement!.Direction((int)(nearest.X - current.X), (int)(nearest.Y - current.Y));
-            var direction = Directions.MinBy(direction => Math.Abs(((direction.Direction + session.Field.Triggers.ControlDirection - desired + 128) & 255) - 128));
-            return new(direction.X, direction.Y, Run: run);
+            Ff7Actor controlled = player with { MoveSpeed = unchecked((ushort)session.GetPlayerMovementSpeed(run)) };
+            Ff7NativeMoveResult Preview(Ff7AutoplayInput action)
+            {
+                var direction = Directions.Single(direction => direction.X == action.Horizontal && direction.Y == action.Vertical);
+                return session.Host.Movement!.StepDirection(controlled, unchecked((byte)(direction.Direction + session.Field.Triggers.ControlDirection)), process.Actors, process.BlockedTriangles, false, process.LineBlocked);
+            }
+            if (ChooseNativeLinePushInput(controlled, line, session.Host.Movement!, Preview, (_, step) => AllowsPlannedMove(controlled, step)) is Ff7AutoplayInput pushing)
+            {
+                navigationActionProgress = true;
+                return pushing with { Run = run };
+            }
+            return ApproachLineContact(line, kind, nearest, player.Triangle, run, requiresSearch: true);
         }
         if (touching && kind == Ff7AutoPlayTargetKind.LineCross)
         {
@@ -91,14 +100,14 @@ public sealed partial class Ff7AutoplayDriver
 
     private Ff7AutoplayInput ApproachLineContact(Ff7Line line, Ff7AutoPlayTargetKind kind, Vector3 target, int triangle, bool run, bool requiresSearch)
     {
-        if (kind != Ff7AutoPlayTargetKind.LineCross)
+        if (kind is not (Ff7AutoPlayTargetKind.LineCross or Ff7AutoPlayTargetKind.LinePush))
         {
             return Approach(target, triangle, run);
         }
         string? previousContext = navigationTalkContactContext;
         Func<Ff7Actor, bool>? previousGoal = navigationTalkContactGoal;
         bool previousRequiresSearch = navigationTalkContactRequiresSearch;
-        navigationTalkContactContext = $"native-line-crossing:1:{session.FieldGeneration}:{line.Entity}:{line.X1}:{line.Y1}:{line.Z1}:{line.X2}:{line.Y2}:{line.Z2}";
+        navigationTalkContactContext = $"native-line-semantic:2:{kind}:{session.FieldGeneration}:{line.Entity}:{line.X1}:{line.Y1}:{line.Z1}:{line.X2}:{line.Y2}:{line.Z2}";
         navigationTalkContactGoal = actor =>
         {
             Ff7Actor controlled = actor with { MoveSpeed = unchecked((ushort)session.GetPlayerMovementSpeed(run)) };
@@ -107,7 +116,7 @@ public sealed partial class Ff7AutoplayDriver
                 var direction = Directions.Single(direction => direction.X == input.Horizontal && direction.Y == input.Vertical);
                 return session.Host.Movement!.StepDirection(controlled, unchecked((byte)(direction.Direction + session.Field.Triggers.ControlDirection)), session.Host.Process.Actors, session.Host.Process.BlockedTriangles, false, session.Host.Process.LineBlocked);
             }
-            return ChooseNativeLineCrossing(controlled, line, Preview, (_, step) => AllowsPlannedMove(controlled, step)) is not null;
+            return kind == Ff7AutoPlayTargetKind.LinePush ? ChooseNativeLinePushInput(controlled, line, session.Host.Movement!, Preview, (_, step) => AllowsPlannedMove(controlled, step)) is not null : ChooseNativeLineCrossing(controlled, line, Preview, (_, step) => AllowsPlannedMove(controlled, step)) is not null;
         };
         navigationTalkContactRequiresSearch = requiresSearch;
         try
@@ -120,6 +129,26 @@ public sealed partial class Ff7AutoplayDriver
             navigationTalkContactGoal = previousGoal;
             navigationTalkContactRequiresSearch = previousRequiresSearch;
         }
+    }
+
+    internal static Ff7AutoplayInput? ChooseNativeLinePushInput(Ff7Actor player, Ff7Line line, Ff7NativeMovement movement, Func<Ff7AutoplayInput, Ff7NativeMoveResult> preview, Func<Ff7AutoplayInput, Ff7NativeMoveResult, bool> allows)
+    {
+        Vector3 from = new(player.X4096 >> 12, player.Y4096 >> 12, player.Z4096 >> 12);
+        int distance = Ff7Session.DistanceToSegment(new(line.X1, line.Y1, line.Z1), new(line.X2, line.Y2, line.Z2), from, out Vector3 nearest);
+        if (line.Enabled != 1 || distance < 0 || distance >= unchecked(player.CollisionRadius * player.CollisionRadius))
+        {
+            return null;
+        }
+        foreach (var direction in Directions)
+        {
+            Ff7AutoplayInput input = new(direction.X, direction.Y);
+            Ff7NativeMoveResult step = preview(input);
+            if (Ff7FieldHost.ReadLinePush(line, from, nearest, (step.ProbeActor ?? step.Actor).Direction, movement).Push && allows(input, step))
+            {
+                return input;
+            }
+        }
+        return null;
     }
 
     internal static Ff7AutoplayInput? ChooseNativeLineTouchInput(Ff7Actor player, Ff7Line line, Func<Ff7AutoplayInput, Ff7NativeMoveResult> preview, Func<Ff7AutoplayInput, Ff7NativeMoveResult, bool> allows, bool run)

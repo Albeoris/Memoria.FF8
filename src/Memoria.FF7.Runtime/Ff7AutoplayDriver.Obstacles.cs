@@ -396,7 +396,7 @@ public sealed partial class Ff7AutoplayDriver
                     costs[key] = cost;
                     SearchNode next = new(actor, current, action, cost);
                     bool routePrefix = allowRouteProgress && goal is not null && remaining(source.Triangle) > 0 && step.Moved && (source.X4096 != actor.X4096 || source.Y4096 != actor.Y4096 || source.Z4096 != actor.Z4096) && HasPhysicalRouteProgress(source, actor, waypoint, remaining);
-                    if ((goal?.Invoke(actor) ?? HasPhysicalRouteProgress(source, actor, waypoint, remaining)) || routePrefix)
+                    if ((goal?.Invoke(actor) ?? (step.Moved && HasPhysicalRouteProgress(source, actor, waypoint, remaining))) || routePrefix)
                     {
                         Stack<Ff7AutoplayInput> path = new();
                         for (SearchNode? node = next; node?.Parent is not null; node = node.Parent)
@@ -424,6 +424,10 @@ public sealed partial class Ff7AutoplayDriver
 
     internal static bool HasPhysicalRouteProgress(Ff7Actor source, Ff7Actor actor, Vector3 waypoint, Func<int, int> remaining)
     {
+        if (source.X4096 == actor.X4096 && source.Y4096 == actor.Y4096 && source.Z4096 == actor.Z4096)
+        {
+            return false;
+        }
         int initial = remaining(source.Triangle);
         return initial > 0 ? remaining(actor.Triangle) < initial : remaining(actor.Triangle) == 0 && Vector3.DistanceSquared(Position3D(actor), waypoint) < Vector3.DistanceSquared(Position3D(source), waypoint);
     }

@@ -45,14 +45,19 @@ public sealed partial class Ff7FieldHost
             {
                 blocked |= line.SlipDisabled == 1;
                 bool across = Ff7Session.CrossesLine(line, fromActor, toActor);
-                bool exact = from.X == nearest.X && from.Y == nearest.Y;
-                byte angle = exact ? line.ProximityAngle : (Movement ?? throw new NotSupportedException("FFVII lines require native direction tables.")).Direction((int)(nearest.X - from.X), (int)(nearest.Y - from.Y));
-                bool push = exact || ((angle - toActor.Direction + 64) & 255) < 128;
+                var (push, angle) = ReadLinePush(line, from, nearest, toActor.Direction, Movement);
                 changed = changed with { Across = line.Across || across, Push = line.Push || push, OnLine = push, ProximityAngle = angle };
             }
             SetLine(changed);
         }
         Process = Process with { LineBlocked = moving && blocked };
+    }
+
+    internal static (bool Push, byte Angle) ReadLinePush(Ff7Line line, Vector3 from, Vector3 nearest, int direction, Ff7NativeMovement? movement)
+    {
+        bool exact = from.X == nearest.X && from.Y == nearest.Y;
+        byte angle = exact ? line.ProximityAngle : (movement ?? throw new NotSupportedException("FFVII lines require native direction tables.")).Direction((int)(nearest.X - from.X), (int)(nearest.Y - from.Y));
+        return (exact || ((angle - direction + 64) & 255) < 128, angle);
     }
 
     public bool RequestLineTalk(Ff7Actor actor)

@@ -359,7 +359,7 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
                     continue;
                 }
             }
-            advancing |= LocalProgress(probe.Actor);
+            advancing |= probe.Moved && LocalProgress(probe.Actor);
             Vector2 position = new(probe.Actor.X4096 / 4096f, probe.Actor.Y4096 / 4096f);
             float distance = Vector2.DistanceSquared(position, new(waypoint.X, waypoint.Y));
             int remaining = finalApproach && targetTriangle is null ? 0 : routeDistance[probe.Actor.Triangle];
@@ -368,7 +368,7 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
                 best = distance;
                 bestRouteDistance = remaining;
                 result = new(direction.X, direction.Y);
-                resultAdvances = LocalProgress(probe.Actor);
+                resultAdvances = probe.Moved && LocalProgress(probe.Actor);
             }
         }
         bool blockedForward = (blockedInputs.Count > 0 || admissionBlockedForward) && !advancing;

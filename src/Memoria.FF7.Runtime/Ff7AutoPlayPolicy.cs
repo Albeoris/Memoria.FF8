@@ -31,7 +31,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         State = session.AutoPlayState?.Clone() ?? new();
         State.Validate();
         RestoreUnscopedMovementFailures(State);
-        planner = CreatePlanner(State, (visit, target) => NativeDestinationPhase(State, nativeDestinationHints.TryGetValue((visit.Key, target.Id), out int destination) ? destination : null), (visit, target) => nativeDestinationHints.TryGetValue((visit.Key, target.Id), out int destination) && destination > 64 && destination != short.MaxValue && NativeDestinationPhase(State, destination) == 0, (visit, target) => IsKeymanPreferredEntry(visit, target) || IsExcavationPreferredEntry(visit, target), IsCurrentPersistentGoalEligible);
+        planner = CreatePlanner(State, (visit, target) => NativeDestinationPhase(State, nativeDestinationHints.TryGetValue((visit.Key, target.Id), out int destination) ? destination : null), (visit, target) => nativeDestinationHints.TryGetValue((visit.Key, target.Id), out int destination) && destination > 64 && destination != short.MaxValue && NativeDestinationPhase(State, destination) == 0, (visit, target) => IsKeymanPreferredEntry(visit, target) || IsExcavationPreferredEntry(visit, target) || IsSnowboardPreferredEntry(visit, target), IsCurrentPersistentGoalEligible);
         discovery = new(session);
         choices = new(session, planner, State, writeChoiceCheckpoint);
         choices.RecoverLostRestoredChoiceObservation();
@@ -291,6 +291,11 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             State.Status = "Waiting for an owned native setup completion";
             Publish();
             return default;
+        }
+        if (State.Active is { Accepted: false } optional && observation.Events.Any(target => target.Id != optional.EventId && IsNativeSnowboardDeparture(observation, target, session.Host.Process, session.Machine.Variables) && driver.HasNativeGeometricContact(target)) && RetireOptionalPlanForSnowboard(State, observation, session.Host.Process, session.Machine.Variables))
+        {
+            CancelNativePlanning("native-snowboard-departure-priority");
+            Publish();
         }
         bool resumeNative = nativePlanning is not null && !nativePlanningForActive;
         if (resumeNative)

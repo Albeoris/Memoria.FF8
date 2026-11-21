@@ -3,6 +3,30 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-physical-repair-progress-only", StringComparer.Ordinal))
+{
+    NativePhysicalRepairProgressTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-line-push-semantic-only", StringComparer.Ordinal))
+{
+    NativeLinePushSemanticTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-snowboard-departure-only", StringComparer.Ordinal))
+{
+    NativeSnowboardDeparturePreferenceTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-snowboard-departure-original-only", StringComparer.Ordinal))
+{
+    NativeSnowboardDepartureOriginalTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-glacier-map-choice-only", StringComparer.Ordinal))
 {
     NativeGlacierMapChoiceTests.Run();

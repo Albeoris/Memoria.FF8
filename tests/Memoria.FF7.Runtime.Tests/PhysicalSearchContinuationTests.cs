@@ -46,11 +46,15 @@ internal static class PhysicalSearchContinuationTests
             {
                 return new(actor with { Triangle = 1 }, false, false, []);
             }
+            if (actor.Direction == 64 && actor.Triangle == 1 && actor.Y4096 == 0 && input == new Ff7AutoplayInput(0, 1))
+            {
+                return new(actor with { Y4096 = 4096 }, false, true, []);
+            }
             return new(actor, false, false, []);
         }
         Ff7AutoplayDriver.PhysicalSearchCursor cursor = new(source, Vector3.Zero, triangle => triangle == 0 ? 1 : 0, Preview, (_, _) => true);
         Ff7AutoPlayPhysicalRoute result = cursor.Resume(new(16, TimeSpan.MaxValue));
-        Check(result.Status == Ff7AutoPlayPhysicalSearchStatus.Progress && result.Inputs.SequenceEqual(new[] { new Ff7AutoplayInput(1, 0), new Ff7AutoplayInput(0, 1) }), "Real native heading and triangle changes with zero displacement were discarded or merged.");
+        Check(result.Status == Ff7AutoPlayPhysicalSearchStatus.Progress && result.Inputs.SequenceEqual(new[] { new Ff7AutoplayInput(1, 0), new Ff7AutoplayInput(0, 1), new Ff7AutoplayInput(0, 1) }), "Native heading and triangle repairs were discarded before their actual moving successor, or incorrectly reported progress themselves.");
         cursor = new(source, Vector3.Zero, triangle => triangle == 0 ? 1 : 0, Preview, (_, next) => next.Actor.Triangle == 0);
         Check(cursor.Resume(new(16, TimeSpan.MaxValue)).Status == Ff7AutoPlayPhysicalSearchStatus.Exhausted, "Zero-displacement edges bypassed admission or created an infinite native-state cycle.");
     }
