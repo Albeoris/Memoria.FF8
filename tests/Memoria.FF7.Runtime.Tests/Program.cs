@@ -3,6 +3,18 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-guarded-animation-debt-only", StringComparer.Ordinal))
+{
+    NativeGuardedAnimationDebtTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-inn-animation-original-only", StringComparer.Ordinal))
+{
+    NativeInnAnimationOriginalTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-pending-restore-boundary-only", StringComparer.Ordinal))
 {
     NativePendingRestoreBoundaryTests.Run();
