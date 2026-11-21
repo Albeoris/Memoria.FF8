@@ -17,18 +17,56 @@ public sealed partial class Ff7AutoPlayPolicy
         {
             return false;
         }
-        FieldEntitySnapshot entity = vm.Entities[owner.Entity];
+        return vm.Entities[owner.Entity].Priority == owner.Priority && ReadPassiveNpcPoll(vm, process, owner.Entity, owner.Entry, script) is not null;
+    }
+
+    internal static bool HasIndependentNpcFacingPoll(FieldVmSnapshot vm, Ff7FieldProcess process, int entity, ReadOnlySpan<byte> script, FieldScriptAnalysis? analysis)
+    {
+        if (analysis is not { Complete: true, ChangesStory: false, MayChangeNavigation: false, DestinationFields.Length: 0 } || ReadPassiveNpcPoll(vm, process, entity, 0, script) is not { } poll || script[poll.Head + 6] != 0xB6)
+        {
+            return false;
+        }
+        int pc = poll.Exit;
+        if (pc + 3 < script.Length && script[pc] == 0xB3 && script[pc + 1] == 0)
+        {
+            pc += 3;
+        }
+        return (uint)pc < script.Length && script[pc] == 0;
+    }
+
+    private static (int Head, int Exit)? ReadPassiveNpcPoll(FieldVmSnapshot vm, Ff7FieldProcess process, int owner, int entry, ReadOnlySpan<byte> script)
+    {
+        if ((uint)owner >= vm.Entities.Length)
+        {
+            return null;
+        }
+        FieldEntitySnapshot entity = vm.Entities[owner];
+        int priority = entity.Priority;
         int pc = entity.ProgramCounter;
-        if (entity.Priority != owner.Priority || entity.SyncStates.Length <= owner.Priority || entity.SyncOwners.Length <= owner.Priority || entity.SyncStates[owner.Priority] != FieldSyncState.None || entity.SyncOwners[owner.Priority] != -1 || pc < owner.Entry || (uint)pc >= script.Length || process.PlayerLocked || process.MenuDisabled || process.GlobalCommand != Ff7GlobalCommand.None || process.Join is not null || process.Transition is not null || process.Movie is { Playing: true } || process.Menu is { Completed: false } || process.Dialogues.Any(dialogue => !dialogue.Completed) || (vm.PendingRequests ?? []).Any(request => request.Entity == owner.Entity && request.Priority == owner.Priority))
+        if (priority is < 0 or >= 7 || entity.SyncStates.Length <= priority || entity.SyncOwners.Length <= priority || entity.SyncStates[priority] != FieldSyncState.None || entity.SyncOwners[priority] != -1 || pc < entry || (uint)pc >= script.Length || process.PlayerLocked || process.MenuDisabled || process.GlobalCommand != Ff7GlobalCommand.None || process.Join is not null || process.Transition is not null || process.Movie is { Playing: true } || process.Menu is { Completed: false } || process.Dialogues.Any(dialogue => !dialogue.Completed) || (vm.PendingRequests ?? []).Any(request => request.Entity == owner && request.Priority == priority))
         {
-            return false;
+            return null;
         }
-        int head = script[pc] == 0x12 ? pc - 6 : pc;
-        if (head < owner.Entry || head < 0 || head + 7 >= script.Length || script[head] != 0x14 || script[head + 1] != 0x50 || script[head + 4] != 0 || script[head + 5] != 3 || script[head + 6] != 0x12 || script[head + 7] != 6 || vm.MapVariables.Length != 256 || vm.MapVariables[script[head + 2]] != script[head + 3])
+        int head = script[pc] == 0x12 && pc + 1 < script.Length ? pc - script[pc + 1] : pc;
+        if (head < entry || head < 0 || head + 7 >= script.Length || script[head] != 0x14 || script[head + 1] != 0x50 || script[head + 4] != 0 || vm.MapVariables.Length != 256 || vm.MapVariables[script[head + 2]] != script[head + 3])
         {
-            return false;
+            return null;
         }
-        return process.Actors.Any(actor => actor.EntityBound && actor.Entity == owner.Entity && !actor.PlayerControlled && actor.Jump is null && actor.Ladder is null) && !process.Actors.Any(actor => actor.Entity == owner.Entity && actor.PlayerControlled) && !process.Motions.Any(motion => motion.Entity == owner.Entity);
+        int loopEnd = head + 6;
+        if (script[head + 5] == 5 && head + 9 < script.Length && script[head + 6] == 0xB6)
+        {
+            int target = script[head + 7];
+            if ((uint)target >= vm.Entities.Length || !vm.Entities[target].ModelBound || !process.Actors.Any(actor => actor.EntityBound && actor.PlayerControlled && actor.Entity == target))
+            {
+                return null;
+            }
+            loopEnd += 2;
+        }
+        if (script[head + 5] != loopEnd - head - 3 || script[loopEnd] != 0x12 || script[loopEnd + 1] != loopEnd - head || pc != head && pc != loopEnd)
+        {
+            return null;
+        }
+        return process.Actors.Any(actor => actor.EntityBound && actor.Entity == owner && !actor.PlayerControlled && actor.Jump is null && actor.Ladder is null) && !process.Actors.Any(actor => actor.Entity == owner && actor.PlayerControlled) && !process.Motions.Any(motion => motion.Entity == owner) ? (head, loopEnd + 2) : null;
     }
 
     internal static bool CanSettleLoopingNpcAnimations(Ff7AutoPlayActiveEvent active, long generation, FieldVmSnapshot vm, Ff7FieldProcess process, Ff7AutoPlayExecutionOwner owner, ReadOnlySpan<byte> script, FieldScriptAnalysis? analysis)

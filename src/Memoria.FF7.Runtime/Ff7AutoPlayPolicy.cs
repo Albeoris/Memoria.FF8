@@ -199,6 +199,11 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         return default;
     }
 
+    internal static bool IsReturnedQueuedLineActivation(Ff7AutoPlayState state, Ff7AutoPlayObservation observation, Ff7AutoPlayTarget queued, FieldVmSnapshot vm)
+    {
+        return state.Active is { Accepted: true, Returned: true, CompletionRecorded: false } active && active.VisitId == observation.VisitId && active.NavigationKey == observation.NavigationKey && active.Generation == observation.Generation && active.EventId == queued.Id && active.Entity == queued.Entity && active.Script == queued.Script && active.Kind == queued.Kind && queued.AnalysisComplete && queued.Kind is >= Ff7AutoPlayTargetKind.LineTalk and <= Ff7AutoPlayTargetKind.LineLeave && Ff7AutoPlayExecutionOwners.Matches(active, observation.Generation, vm.ProgramIdentity) && active.ExecutionProvenance is { RootReturned: true, RootDispatchTick: >= 0 } provenance && provenance.RootDispatchTick <= vm.Tick && (uint)queued.Entity < vm.Entities.Length && vm.Entities[queued.Entity].Priority != 1 && !(vm.PendingRequests ?? []).Any(request => request.Entity == queued.Entity && request.Priority == 1);
+    }
+
     private Ff7AutoplayInput ChooseInput(Ff7AutoplayDriver driver, Ff7NativePlanningQuantum quantum, out bool controllable)
     {
         controllable = false;
@@ -277,7 +282,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         {
             return default;
         }
-        if (driver.ReadPendingNavigationLineRequest(observation.Events) is Ff7AutoPlayTarget queuedLine)
+        if (driver.ReadPendingNavigationLineRequest(observation.Events) is Ff7AutoPlayTarget queuedLine && !IsReturnedQueuedLineActivation(State, observation, queuedLine, session.Machine.Capture()))
         {
             driver.BeginPlanningStep();
             Ff7AutoplayInput waiting = WaitForQueuedNativeLine(State, queuedLine, () => CancelNativePlanning("queued-native-line"));
@@ -423,6 +428,11 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
                 CompleteActive(observation, active, changedField, driver, physicalGuards);
                 if (State.PendingRestore is not null)
                 {
+                    return default;
+                }
+                if (State.Active is null)
+                {
+                    driver.BeginPlanningStep();
                     return default;
                 }
             }

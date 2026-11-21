@@ -430,6 +430,10 @@ public sealed partial class Ff7AutoplayDriver
                 {
                     skip = session.HasCurrentPersistentNoEffectEntry($"ff7:{session.MapId}:{session.Machine.ProgramIdentity}", target.Id);
                 }
+                if (!skip)
+                {
+                    skip = session.HasCurrentNoEffectTouchCallback(target.Entity, target.Script, input, talk);
+                }
             }
             navigationLineSkips.Add(key, skip);
         }

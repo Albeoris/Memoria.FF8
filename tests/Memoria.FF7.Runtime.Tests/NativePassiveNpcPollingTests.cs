@@ -37,6 +37,7 @@ internal static class NativePassiveNpcPollingTests
         {
             Check(!Settles(invalid), "Unowned, queued, controlled, modal or outstanding native work was classified as passive polling.");
         }
+        int mutationIndex = 0;
         foreach (Action<Fixture> invalidate in new Action<Fixture>[]
         {
             value => value.Script[0] = 3,
@@ -49,6 +50,7 @@ internal static class NativePassiveNpcPollingTests
             value => value.Script[16] = 0x80,
             value => value.Script[17] = 5,
             value => value.Vm.Entities[1] = value.Vm.Entities[1] with { Priority = 7 },
+            value => value.Vm.Entities[1] = value.Vm.Entities[1] with { Priority = 5 },
             value => value.Vm.Entities[1] = value.Vm.Entities[1] with { ProgramCounter = 9 },
             value => value.Vm.Entities[1].SyncStates[6] = FieldSyncState.Waiting,
             value => value.Vm.Entities[1].SyncOwners[6] = 0
@@ -56,7 +58,8 @@ internal static class NativePassiveNpcPollingTests
         {
             Fixture invalid = Create();
             invalidate(invalid);
-            Check(!Settles(invalid), "Changed source dispatch, effectful/input guard, branch or synchronous ownership was ignored.");
+            Check(!Settles(invalid), $"Changed source dispatch, effectful/input guard, branch or synchronous ownership was ignored (mutation {mutationIndex}).");
+            mutationIndex++;
         }
         FieldVariables changed = new(source.Vm.PersistentVariables, source.Vm.MapVariables);
         changed.WriteByte(FieldBank.MapByte, 9, 1);
@@ -68,7 +71,56 @@ internal static class NativePassiveNpcPollingTests
         }
         Check(!Ff7AutoPlayPolicy.CanSettlePassiveNpcPolling(source.Active, 2, source.Vm, source.Process, source.Owner, source.Script), "Another generation borrowed passive polling ownership.");
         Check(before == JsonSerializer.Serialize(source) && source.Vm.Entities[1].Priority == 6 && source.Active.ExecutionProvenance!.Owners.Contains(source.Owner), "Classification changed the live NPC, provenance or native source state.");
+        CheckFacingPublication();
+        CheckIndependentFacingFooter();
         Console.WriteLine("Passive NPC polling activation classification preserves actual live native loops and exact asynchronous ownership.");
+    }
+
+    private static void CheckIndependentFacingFooter()
+    {
+        Fixture source = Create();
+        source = source with { Process = source.Process with { Actors = [source.Process.Actors.Single(), new() { Slot = 1, Entity = 2, Model = 1, PlayerControlled = true }] } };
+        FieldScriptAnalysis analysis = new(true, null, "proof", false, [], [], []);
+        foreach (byte[] footer in new byte[][] { [0], [0xB3, 0, 64, 0] })
+        {
+            byte[] script = new byte[20 + footer.Length];
+            source.Script.CopyTo(script, 0);
+            new byte[] { 0x14, 0x50, 9, 0, 0, 5, 0xB6, 2, 0x12, 8 }.CopyTo(script, 10);
+            footer.CopyTo(script, 20);
+            string before = JsonSerializer.Serialize(new { source, script, analysis });
+            bool Read(byte[] actual, FieldScriptAnalysis? proof) => Ff7AutoPlayPolicy.HasIndependentNpcFacingPoll(source.Vm, source.Process, 1, actual, proof);
+            Check(Read(script, analysis), "An independent facing loop with an effect-free native footer blocked destination setup.");
+            Check(!Read(script, analysis with { Complete = false }) && !Read(script, analysis with { ChangesStory = true }) && !Read(script, analysis with { MayChangeNavigation = true }) && !Read(script, analysis with { DestinationFields = [100] }) && !Read(script, null), "Incomplete or material continuation analysis authorized a destination-facing exemption.");
+            foreach (byte[] effect in new byte[][] { [0x80, 0x50, 10, 1, 0], [0xA8, 0, 1, 0, 1, 0, 0], [0x31, 0x20, 0, 1, 0] })
+            {
+                Check(!Read([.. script[..20], .. effect], analysis), "A future write, move or input gate was hidden behind an independent facing loop.");
+            }
+            Check(before == JsonSerializer.Serialize(new { source, script, analysis }), "Destination-facing qualification changed actual NPC execution or retained metadata.");
+        }
+        Check(!Ff7AutoPlayPolicy.HasIndependentNpcFacingPoll(source.Vm, source.Process, 1, source.Script, analysis), "A general map-wait loop acquired the narrower facing-only destination exemption.");
+    }
+
+    private static void CheckFacingPublication()
+    {
+        Fixture source = Create();
+        byte[] script = new byte[24];
+        source.Script.CopyTo(script, 0);
+        new byte[] { 0x14, 0x50, 9, 0, 0, 5, 0xB6, 2, 0x12, 8 }.CopyTo(script, 10);
+        source = source with { Script = script, Process = source.Process with { Actors = [source.Process.Actors.Single(), new() { Slot = 1, Entity = 2, Model = 1, PlayerControlled = true }] } };
+        string before = JsonSerializer.Serialize(source);
+        Check(Settles(source), "A passive owned NPC's exact face-controlled-actor publication loop was not classified.");
+        Check(Settles(source with { Vm = source.Vm with { Entities = [source.Vm.Entities[0], source.Vm.Entities[1] with { ProgramCounter = 18 }, source.Vm.Entities[2]] } }), "The facing loop's native backjump position lost classification.");
+        Check(!Settles(source with { Process = source.Process with { Actors = [source.Process.Actors[0], source.Process.Actors[1] with { PlayerControlled = false }] } }), "Facing an unrelated NPC was accepted as controlled-player publication.");
+        foreach ((int offset, byte replacement) in new[] { (16, (byte)0x80), (17, (byte)0), (18, (byte)0x30), (19, (byte)6) })
+        {
+            byte[] invalid = script.ToArray();
+            invalid[offset] = replacement;
+            Check(!Settles(source with { Script = invalid }), "A different publication, target, key input or backedge acquired passive facing-loop authority.");
+        }
+        FieldEntitySnapshot[] entities = source.Vm.Entities.ToArray();
+        entities[2] = entities[2] with { ModelBound = false };
+        Check(!Settles(source with { Vm = source.Vm with { Entities = entities } }), "An unbound controlled target acquired native FaceActor authority.");
+        Check(before == JsonSerializer.Serialize(source) && source.Vm.Entities[1].Priority == 6, "Facing-loop classification changed actual native execution or source state.");
     }
 
     private static Fixture Create()

@@ -3,6 +3,23 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-current-touch-original-only", StringComparer.Ordinal))
+{
+    NativeCurrentTouchOriginalTests.Run();
+    return 0;
+}
+if (args.Contains("--native-returned-line-only", StringComparer.Ordinal))
+{
+    NativeReturnedLineLifecycleTests.Run();
+    NativePassiveNpcPollingTests.Run();
+    NativeCurrentTouchCallbackTests.Run();
+    return 0;
+}
+if (args.Contains("--native-returned-line-original-only", StringComparer.Ordinal))
+{
+    NativeReturnedLineOriginalTests.Run();
+    return 0;
+}
 if (args.Contains("--native-corel-train-only", StringComparer.Ordinal))
 {
     NativeCorelTrainInputTests.Run();
