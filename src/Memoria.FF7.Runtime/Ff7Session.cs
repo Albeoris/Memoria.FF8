@@ -173,6 +173,10 @@ public sealed partial class Ff7Session : IDisposable
             session.tickContinuation = save.TickContinuation is null ? null : save.TickContinuation with { ScriptReturns = save.TickContinuation.ScriptReturns?.ToArray() };
             session.EventCoverage = save.EventCoverage is null ? null : new Memoria.AutoPlay.AutoPlayEventCoverageLedger(save.EventCoverage).Capture();
             session.AutoPlayState = save.AutoPlay?.Clone();
+            if (session.AutoPlayState?.Active is { } restoredSource)
+            {
+                session.AutoPlayState.Active = Ff7AutoPlayExecutionOwners.NormalizeRestoredObservationCursor(restoredSource, save.Vm, save.FieldGeneration);
+            }
             session.Progress = session.Progress with { Clock = session.Clock };
             if (save.World is Ff7WorldProcess world)
             {

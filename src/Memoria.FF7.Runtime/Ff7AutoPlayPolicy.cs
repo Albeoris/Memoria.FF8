@@ -34,6 +34,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         planner = CreatePlanner(State, (visit, target) => NativeDestinationPhase(State, nativeDestinationHints.TryGetValue((visit.Key, target.Id), out int destination) ? destination : null), (visit, target) => nativeDestinationHints.TryGetValue((visit.Key, target.Id), out int destination) && destination > 64 && destination != short.MaxValue && NativeDestinationPhase(State, destination) == 0, (visit, target) => IsKeymanPreferredEntry(visit, target) || IsExcavationPreferredEntry(visit, target), IsCurrentPersistentGoalEligible);
         discovery = new(session);
         choices = new(session, planner, State, writeChoiceCheckpoint);
+        choices.RecoverLostRestoredChoiceObservation();
         scriptedInput = new(session);
         session.NativeInteractionScriptRequested += ObserveEffectAliasAdmission;
         session.InteractionScriptRequested += ObserveInteraction;

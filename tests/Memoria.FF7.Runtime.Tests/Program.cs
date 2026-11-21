@@ -3,6 +3,18 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-choice-observation-restore-only", StringComparer.Ordinal))
+{
+    NativeChoiceObservationRestoreTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-instruction-input-original-only", StringComparer.Ordinal))
+{
+    NativeInstructionInputOriginalTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-tutorial-repeat-only", StringComparer.Ordinal))
 {
     NativeTutorialRepeatTests.Run();

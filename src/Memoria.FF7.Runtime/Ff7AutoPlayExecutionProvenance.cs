@@ -7,6 +7,15 @@ public sealed record Ff7AutoPlayExecutionProvenance(long Generation, string Prog
 
 internal static class Ff7AutoPlayExecutionOwners
 {
+    internal static Ff7AutoPlayActiveEvent NormalizeRestoredObservationCursor(Ff7AutoPlayActiveEvent active, FieldVmSnapshot vm, long generation)
+    {
+        if (!Matches(active, generation, vm.ProgramIdentity) || active is { Returned: true } or { TransitionOwned: true } or { CompletionRecorded: true } || active.ExecutionProvenance is not { RootReturned: false, RootDispatchTick: >= 0, AcceptedTransition: null } provenance || provenance.LastActivityTick <= vm.Tick || provenance.RootDispatchTick > vm.Tick || provenance.Owners.Any(owner => owner.DispatchTick > vm.Tick) || !ReadCurrentOwners(vm, active, generation).ContainsKey(active.Entity))
+        {
+            return active;
+        }
+        return active with { ExecutionProvenance = provenance with { LastActivityTick = vm.Tick - 1, ActivityCursor = 0 } };
+    }
+
     internal static Ff7AutoPlayExecutionProvenance Begin(Ff7AutoPlayActiveEvent active, string programIdentity, int entry, long tick)
     {
         return new(active.Generation, programIdentity, active.Entity, active.Script, active.ConditionFingerprint, [new(active.Entity, 1, active.Script, entry, -1, -1, entry, tick, false)], active.VisitId, active.EventId, active.Kind, RootDispatchTick: tick);
