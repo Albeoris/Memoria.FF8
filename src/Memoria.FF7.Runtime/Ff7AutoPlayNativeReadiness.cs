@@ -128,6 +128,47 @@ internal sealed class Ff7AutoPlayNativeReadiness
         return work.Count != 0 && ObserveWork(generation, $"{source}:synchronous-triangle-setup", vm, process, work);
     }
 
+    internal bool ShouldWaitForSynchronousHostCompletion(long generation, string navigationKey, FieldVmSnapshot vm, Ff7FieldProcess process, ReadOnlySpan<byte> script)
+    {
+        HashSet<int> work = [];
+        for (int childId = 0; childId < vm.Entities.Length; childId++)
+        {
+            FieldEntitySnapshot child = vm.Entities[childId];
+            int priority = child.Priority;
+            if (!HasAdmittedContinuation(child, script) || priority >= child.SyncStates.Length || priority >= child.SyncOwners.Length || child.SyncStates[priority] != FieldSyncState.Waiting || (uint)child.SyncOwners[priority] >= vm.Entities.Length)
+            {
+                continue;
+            }
+            int parentId = child.SyncOwners[priority];
+            FieldEntitySnapshot parent = vm.Entities[parentId];
+            int pc = parent.ProgramCounter;
+            if (!HasAdmittedContinuation(parent, script) || pc + 2 >= script.Length || script[pc] != 3 || script[pc + 1] != childId || script[pc + 2] >> 5 != priority)
+            {
+                continue;
+            }
+            int childPc = child.ProgramCounter;
+            bool finite = child.WaitCounter > 0 && childPc + 2 < script.Length && script[childPc] == 0x24;
+            FieldHostRequest? request = (vm.PendingRequests ?? []).FirstOrDefault(request => request.Entity == childId && request.Priority == priority && request.ProgramCounter == childPc);
+            if (request is not null && child.ModelBound && process.Actors.SingleOrDefault(actor => actor.EntityBound && actor.Entity == childId) is { } actor)
+            {
+                finite |= request.Command switch
+                {
+                    FieldActorTurn { Mode: 1 or 2, Steps: > 0 } turn => childPc + 5 < script.Length && script[childPc] is 0xB4 or 0xB5 && script[childPc + 4] == turn.Steps && script[childPc + 5] == turn.Mode && (script[childPc] == 0xB5) == turn.SignedTarget && turn.DirectionPolicy == (script[childPc] == 0xB5 ? 2 : script[childPc + 3]) && actor.TurnSteps == turn.Steps && actor.TurnStep >= 0 && actor.TurnStep <= actor.TurnSteps && (actor.TurnMode == 3 || actor.TurnMode == turn.Mode),
+                    FieldActorMove { TargetEntity: null } => script[childPc] is 0xA8 or 0xA9 or 0xAD && HasFiniteHostWork(vm, process, childId),
+                    FieldAnimation { Blocking: true } => script[childPc] is 0xA3 or 0xBA or 0xBB or 0xBC && HasFiniteHostWork(vm, process, childId),
+                    FieldActorJump => script[childPc] == 0xC0 && HasFiniteHostWork(vm, process, childId),
+                    _ => false
+                };
+            }
+            if (finite)
+            {
+                work.Add(parentId);
+                work.Add(childId);
+            }
+        }
+        return work.Count != 0 && ObserveWork(generation, $"{navigationKey}:synchronous-host", vm, process, work);
+    }
+
     internal static bool HasFiniteCameraCompletion(Ff7FieldProcess process)
     {
         if (process.GlobalCommand != Ff7GlobalCommand.None || process.Transition is not null || process.Join is not null || process.Movie is { Playing: true })

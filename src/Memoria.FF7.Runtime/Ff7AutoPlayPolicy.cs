@@ -18,6 +18,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
     private readonly Ff7AutoPlayNativeReadiness navigationPreparation = new();
     private readonly Ff7AutoPlayNativeReadiness cameraCompletion = new();
     private readonly Ff7AutoPlayNativeReadiness synchronousTriangleSetup = new();
+    private readonly Ff7AutoPlayNativeReadiness synchronousHostCompletion = new();
     private readonly Ff7AutoPlayNativeReadiness excavationContinuation = new();
     private string? movementEvent;
     private string? ordinaryLegIdentity;
@@ -292,7 +293,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             return default;
         }
         FieldVmSnapshot readinessVm = session.Machine.Capture();
-        if (Ff7AutoPlayNativeReadiness.HasReadyCameraCompletion(session.Host.Process) && cameraCompletion.ShouldWaitForCameraCompletion(session.FieldGeneration, session.Field.Name, readinessVm, session.Host.Process, session.Field.Scripts.Data.Span) || synchronousTriangleSetup.ShouldWaitForSynchronousTriangleSetup(session.FieldGeneration, session.Field.Name, readinessVm, session.Host.Process, session.Field.Scripts.Data.Span, (entity, script) => session.Field.Scripts.Entities[entity].ScriptOffsets[script]) || navigationPreparation.ShouldWaitForNavigationPreparation(session.FieldGeneration, observation.NavigationKey, readinessVm, session.Host.Process, session.Field.Scripts.Data.Span, (entity, pc) => session.Machine.AnalyzeScriptAtProgramCounter(entity, pc)) || Ff7AutoPlayNativeReadiness.HasCompletedSynchronousReturn(readinessVm, session.Field.Scripts.Data.Span) || Ff7AutoPlayNativeReadiness.HasReadyMoviePreparation(readinessVm, session.Host.Process, session.Field.Scripts.Data.Span) || Ff7AutoPlayNativeReadiness.HasPendingPlayerControlAcquisition(readinessVm, session.Host.Process, session.Field.Scripts.Data.Span))
+        if (synchronousHostCompletion.ShouldWaitForSynchronousHostCompletion(session.FieldGeneration, observation.NavigationKey, readinessVm, session.Host.Process, session.Field.Scripts.Data.Span) || Ff7AutoPlayNativeReadiness.HasReadyCameraCompletion(session.Host.Process) && cameraCompletion.ShouldWaitForCameraCompletion(session.FieldGeneration, session.Field.Name, readinessVm, session.Host.Process, session.Field.Scripts.Data.Span) || synchronousTriangleSetup.ShouldWaitForSynchronousTriangleSetup(session.FieldGeneration, session.Field.Name, readinessVm, session.Host.Process, session.Field.Scripts.Data.Span, (entity, script) => session.Field.Scripts.Entities[entity].ScriptOffsets[script]) || navigationPreparation.ShouldWaitForNavigationPreparation(session.FieldGeneration, observation.NavigationKey, readinessVm, session.Host.Process, session.Field.Scripts.Data.Span, (entity, pc) => session.Machine.AnalyzeScriptAtProgramCounter(entity, pc)) || Ff7AutoPlayNativeReadiness.HasCompletedSynchronousReturn(readinessVm, session.Field.Scripts.Data.Span) || Ff7AutoPlayNativeReadiness.HasReadyMoviePreparation(readinessVm, session.Host.Process, session.Field.Scripts.Data.Span) || Ff7AutoPlayNativeReadiness.HasPendingPlayerControlAcquisition(readinessVm, session.Host.Process, session.Field.Scripts.Data.Span))
         {
             CancelNativePlanning("native-synchronous-return");
             driver.BeginPlanningStep();

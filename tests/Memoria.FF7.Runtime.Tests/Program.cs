@@ -3,6 +3,18 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-synchronous-turn-readiness-only", StringComparer.Ordinal))
+{
+    NativeSynchronousTurnReadinessTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-synchronous-turn-original-only", StringComparer.Ordinal))
+{
+    NativeSynchronousTurnOriginalTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-priority-transfer-only", StringComparer.Ordinal))
 {
     NativePriorityTransferTests.Run();
