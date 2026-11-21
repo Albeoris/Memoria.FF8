@@ -126,6 +126,14 @@ internal static class ModConfiguration
         WriteAtomic(path, Encoding.UTF8.GetBytes(string.Join(newline, lines)));
     }
 
+    public static FileStream LockMemoriaSettings(string path)
+    {
+        string directory = Path.GetDirectoryName(path) ?? throw new ArgumentException("A configuration file must have a parent directory.", nameof(path));
+        ModPackageInstaller.EnsureNoLinks(directory);
+        Directory.CreateDirectory(directory);
+        return ModDirectoryResourceLease.AcquireExclusiveFile(path + ".lock");
+    }
+
     public static void WriteAtomic(string path, byte[] bytes)
     {
         string directory = Path.GetDirectoryName(path) ?? throw new ArgumentException("A configuration file must have a parent directory.", nameof(path));

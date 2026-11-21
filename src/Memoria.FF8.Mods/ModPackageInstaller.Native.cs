@@ -347,6 +347,7 @@ public sealed partial class ModPackageInstaller
         {
             ValidateJournal(journal, path);
             WriteAtomic(path, journal with { Enable = false });
+            using FileStream settingsLock = ModConfiguration.LockMemoriaSettings(CentralSettingsPath);
             var settings = ReadCentralSettings();
             settings["components"] ??= new System.Text.Json.Nodes.JsonObject();
             settings["components"]![component.SettingsKey] = false;
@@ -363,6 +364,12 @@ public sealed partial class ModPackageInstaller
 
     private void CommitEnable(Journal journal)
     {
+        if (!journal.Enable)
+        {
+            return;
+        }
+
+        using FileStream settingsLock = ModConfiguration.LockMemoriaSettings(CentralSettingsPath);
         if (!ShouldEnable(journal))
         {
             return;

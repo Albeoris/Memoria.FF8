@@ -21,7 +21,7 @@ public sealed class ModDirectoryResourceLease : IDisposable
 
     public static string StateDirectory(string modsRoot) => ModPackageInstaller.StateDirectoryFor(modsRoot);
 
-    public static ModDirectoryResourceLease Acquire(string modsRoot, bool requestWriter)
+    public static ModDirectoryResourceLease Acquire(string modsRoot, bool requestWriter, bool retainStartupForReader = false)
     {
         string state = StateDirectory(modsRoot);
         Directory.CreateDirectory(state);
@@ -29,7 +29,7 @@ public sealed class ModDirectoryResourceLease : IDisposable
         ModDirectoryResourceLease lease = new(state);
         try
         {
-            lease.startup = AcquireStartup(Path.Combine(state, "startup.lock"));
+            lease.startup = AcquireExclusiveFile(Path.Combine(state, "startup.lock"));
             RejectLinks(lease.runtimePath);
             if (!File.Exists(lease.runtimePath))
             {
@@ -50,8 +50,11 @@ public sealed class ModDirectoryResourceLease : IDisposable
                 }
             }
             lease.runtime = OpenReader(lease.runtimePath);
-            lease.startup.Dispose();
-            lease.startup = null;
+            if (!retainStartupForReader)
+            {
+                lease.startup.Dispose();
+                lease.startup = null;
+            }
             return lease;
         }
         catch
@@ -91,7 +94,7 @@ public sealed class ModDirectoryResourceLease : IDisposable
 
     private static FileStream OpenReader(string path) => new(path, FileMode.Open, FileAccess.Read, FileShare.Read);
 
-    private static FileStream AcquireStartup(string path)
+    internal static FileStream AcquireExclusiveFile(string path)
     {
         RejectLinks(path);
         Stopwatch elapsed = Stopwatch.StartNew();

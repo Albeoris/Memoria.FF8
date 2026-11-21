@@ -53,7 +53,7 @@ public sealed class ModLibraryService : IModLibraryService, IDisposable
     private IReadOnlyList<ModPackage>? reconciledPackages;
     private int disposed;
 
-    /// <param name="applyPendingChanges">Optional owner callback that applies staged files only while holding an exclusive resource-directory lease. Return false while readers prevent application; full runtime validation remains the game host's responsibility.</param>
+    /// <param name="applyPendingChanges">Optional owner callback that applies staged files under a resource-directory lease. New packages can be published alongside readers. Return true when installation status should be reconciled.</param>
     public ModLibraryService(string cacheDirectory, ModPackageInstaller installer, IModService mods, string targetProfile, bool targetSupported, HttpClient? client = null, string? unavailableReason = null, Action<Uri>? openDownloadPage = null, string? officialCacheDirectory = null, bool officialSupported = false, Func<CancellationToken, Task<bool>>? applyPendingChanges = null, IReadOnlyList<ModPackageInstaller>? previousInstallers = null, string? officialDownloadsDirectory = null, bool refreshCatalogOnStartup = false)
     {
         this.installer = installer;
@@ -718,7 +718,7 @@ public sealed class ModLibraryService : IModLibraryService, IDisposable
         string? details = job.Details ?? job.Message;
         if (state?.Plan is { } plan)
         {
-            details = $"Version {plan.Version} · {plan.PackageId}. Installation is applied when its resource directory is available. {(mods.AutoEnableNewMods ? "New installations will be enabled." : "New installations will remain disabled.")} Existing choices are preserved. Integrity: {(job.Entry.Official is null ? "local SHA-256" : "verified publisher SHA-256")}.";
+            details = $"Version {plan.Version} · {plan.PackageId}. New packages can be installed during play. Replacing an existing package waits until its directory is free. {(mods.AutoEnableNewMods ? "New installations will be enabled." : "New installations will remain disabled.")} Existing choices are preserved. Integrity: {(job.Entry.Official is null ? "local SHA-256" : "verified publisher SHA-256")}.";
         }
         if (installedCache)
         {
@@ -727,7 +727,7 @@ public sealed class ModLibraryService : IModLibraryService, IDisposable
         if (pendingInstall)
         {
             details = pendingInstallation!.NeedsFileApplication
-                ? "The checked installation is staged and waiting for its resource directory to become available. The launcher applies it while no game is using that directory. No network action is required."
+                ? "The checked package is staged. New packages can install during play. Updates and repairs that replace managed packages wait until no game is using the directory. No network action is required."
                 : "Start the game to validate the update and finish moving the mod to the selected directory.";
         }
         if (pendingRemoval)

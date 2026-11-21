@@ -206,6 +206,7 @@ public sealed partial class ModRuntime
     {
         try
         {
+            using FileStream settingsLock = ModConfiguration.LockMemoriaSettings(MemoriaSettingsPath);
             MemoriaSettings settings = ReadMemoriaSettings();
             IReadOnlyList<BehaviorModSetting> current = ReadMemoriaComponentSettings(groupId, settings, applyLocks: false);
             foreach (var change in changes)

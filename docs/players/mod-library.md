@@ -8,16 +8,16 @@ Set **Mods > Install mods in** in the launcher to choose the destination for new
 
 The Junction catalog is available for browsing independently of installed mods. Opening Catalog refreshes an old or missing saved catalog in the background. Refresh failures preserve the last good list. Installed mods work without a connection or catalog cache. Edition labels supplied by Junction describe its original client; Memoria checks packages for its own supported Classic English target.
 
-Select a catalog row to read its details, then choose **Download & check**. This downloads a pinned release and checks its identity, archive and supported layout. It does not install it. A successfully checked package offers **Install**, with the resulting plan and enablement consequence in Details. All installations and updates apply **on the next launch**, before resources are loaded. Until then Downloads says **Restart required**. Disk installation and activation in the running game are separate states.
+Select a catalog row to read its details, then choose **Download & check**. This downloads a pinned release and checks its identity, archive and supported layout. It does not install it. A successfully checked package offers **Install**, with the resulting plan and enablement consequence in Details. New packages can be installed during play. The game discovers them through the normal mod refresh and lists them in **Installed**, where you can enable or disable them. Updates and repairs of existing managed packages apply once the resource directory is free. Downloads shows **Waiting to apply** while checked files are staged. Activation follows the game's usual resource boundaries.
 
-New installations follow **Automatically enable new mods**. Updates preserve explicit enablement, priority and valid existing option overrides. The startup resource check either accepts the prepared package or restores the previous managed installation. A package that fails runtime preparation is not reported as active.
+New installations follow **Automatically enable new mods**. Updates preserve explicit enablement, priority and valid existing option overrides. The startup resource check can restore a previous managed installation after a rejected update. A package that fails runtime preparation is not reported as active.
 
 ## Transfers and recovery
 
 - Downloads continue when you close Mods. Pause keeps the partial file; Resume continues only when the server can prove that it is the same file. Servers without safe resume support restart that file from the beginning.
 - After exiting or a crash, recovered jobs wait for **Resume**. A complete saved download is validated locally before reuse. No network job resumes silently.
 - Downloads shows transfer, checking, inspection, ready-to-install and restart states separately. Unknown sizes show received bytes without an invented percentage. Details retains the useful failure explanation.
-- Cancel removes an uncommitted download and its owned cache files. A checked package can be removed before Install. A transaction already waiting for startup remains protected until application or recovery completes.
+- Cancel removes an uncommitted download and its owned cache files. A checked package can be removed before Install. An accepted transaction remains protected until application or recovery completes.
 - Installed jobs offer **Remove cached download** to reclaim compressed download space. This leaves the installed mod and its settings intact.
 - Provider quota or sign-in requirements offer **Open download page**. This opens a recognized web address only after your action. Browser credentials are not imported. You can also place a manually downloaded `.iroj` under the selected `Mods/Junction` directory; it will be discovered as a local mod.
 

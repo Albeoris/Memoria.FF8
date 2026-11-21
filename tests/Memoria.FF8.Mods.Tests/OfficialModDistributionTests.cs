@@ -68,6 +68,75 @@ public sealed class OfficialModDistributionTests : IDisposable
     }
 
     [Fact]
+    public async Task CatalogInstallsNewOfficialPackageWithAnActiveReaderAndRefreshesTheGame()
+    {
+        var (path, entry) = Package("1.0.0");
+        byte[] archive = File.ReadAllBytes(path);
+        byte[] catalog = Catalog(1, entry.Official!);
+        using HttpClient client = new(new Response(request => new(HttpStatusCode.OK)
+        {
+            Content = new ByteArrayContent(request.RequestUri == OfficialModCatalog.Feed ? catalog : archive)
+        }));
+        using ModDirectoryResourceLease game = ModDirectoryResourceLease.Acquire(Mods, requestWriter: false);
+        string preferences = Path.Combine(Mods, "Memoria", "memoria-settings.json");
+        Directory.CreateDirectory(Path.GetDirectoryName(preferences)!);
+        File.WriteAllText(preferences, """{"components":{"fixture":false,"other":false}}""");
+
+        ModPackageInstaller installer = Installer();
+        using ModRuntime launcher = new(root, watch: false, modsDirectory: Mods);
+        using ModLibraryService library = new(Path.Combine(root, "library"), installer, launcher, "Classic/fr/fixture", false, client, officialCacheDirectory: Path.Combine(root, "catalog"), officialSupported: true, applyPendingChanges: _ =>
+        {
+            using ModDirectoryResourceLease publisher = ModDirectoryResourceLease.Acquire(Mods, requestWriter: true, retainStartupForReader: true);
+            Assert.False(publisher.IsWriter);
+            return Task.FromResult(installer.ApplyNewInstallations());
+        });
+        await WaitFor(() => library.View.Catalog.Entries.Any(item => item.Id == entry.Id));
+        library.Queue(library.View.Catalog.Entries.Single(item => item.Id == entry.Id));
+        await WaitFor(() => library.View.Jobs.Any(job => job.CanInstall));
+        ModPackage package = await Task.Run(() =>
+        {
+            using ModRuntime runtime = new(root, modsDirectory: Mods);
+            runtime.PreparePending(force: true);
+            runtime.CommitPending();
+            Assert.Empty(runtime.InstalledPackages);
+            library.DownloadAndEnable(entry);
+            Assert.True(SpinWait.SpinUntil(() =>
+            {
+                runtime.PreparePending();
+                runtime.CommitPending();
+                return runtime.Catalog.Packages.Any(package => package.Id == entry.Official!.RuntimePackageId && package.Status == ModEffectiveStatus.Active);
+            }, TimeSpan.FromSeconds(5)), library.View.Error);
+
+            ModPackage installed = Assert.Single(runtime.InstalledPackages);
+            Assert.NotNull(installed.Official);
+            using JsonDocument settings = JsonDocument.Parse(File.ReadAllText(preferences));
+            Assert.False(settings.RootElement.GetProperty("components").GetProperty("other").GetBoolean());
+            Assert.True(runtime.SetEnabled(installed.Id, false).Success);
+            Assert.True(runtime.PreparePending(force: true));
+            Assert.True(runtime.CommitPending());
+            Assert.Equal(ModEffectiveStatus.Disabled, Assert.Single(runtime.InstalledPackages).Status);
+            Assert.True(runtime.SetEnabled(installed.Id, true).Success);
+            Assert.True(runtime.PreparePending(force: true));
+            Assert.True(runtime.CommitPending());
+            Assert.Equal(ModEffectiveStatus.Active, Assert.Single(runtime.InstalledPackages).Status);
+            return installed;
+        }, Token);
+        await WaitFor(() => library.View.Jobs.Single().Phase == "Installed");
+
+        var (upgradePath, upgrade) = Package("1.1.0");
+        ModPackageInstallPlan next = await installer.InspectAsync(upgradePath, upgrade, Token);
+        await installer.RequestInstallAsync(next, cancellationToken: Token);
+        using (ModDirectoryResourceLease publisher = ModDirectoryResourceLease.Acquire(Mods, requestWriter: true, retainStartupForReader: true))
+        {
+            Assert.False(publisher.IsWriter);
+            Assert.False(installer.ApplyNewInstallations());
+        }
+        Assert.True(installer.GetStatus(upgrade)!.RestartRequired);
+        Assert.Equal("fixture 1.0.0", File.ReadAllText(Path.Combine(package.RootDirectory, "asset.txt")));
+        await library.StopAsync();
+    }
+
+    [Fact]
     public async Task NativeUninstallRemovesOnlyManagedPayloadAndPreservesPreferences()
     {
         var (zip, entry) = Package("1.0.0");

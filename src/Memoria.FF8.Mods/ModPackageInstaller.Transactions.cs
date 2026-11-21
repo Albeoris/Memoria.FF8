@@ -19,6 +19,9 @@ public sealed partial class ModPackageInstaller
         public bool? PreviousPreference { get; init; }
         public string? RepairSourceHash { get; init; }
         public string? RelocateTo { get; init; }
+        public bool LiveAddition { get; init; }
+        [System.Text.Json.Serialization.JsonIgnore]
+        public bool IsAddition => Previous is null && MissingPrevious is null && RelocateTo is null && ExpectedSettingsHash == "missing";
         [System.Text.Json.Serialization.JsonIgnore]
         public string? PreviousPayloadHash => RepairSourceHash ?? Previous?.PayloadHash;
     }
@@ -114,9 +117,26 @@ public sealed partial class ModPackageInstaller
     }
 
     /// <summary>Call before constructing the runtime or allowing any discovery/resource generation.</summary>
-    public IReadOnlyList<ModPackageInstallResult> RecoverAndApply()
+    public IReadOnlyList<ModPackageInstallResult> RecoverAndApply() => RecoverAndApply(additionsOnly: false);
+
+    /// <summary>Publishes new packages while holding the startup lock. Existing readers may keep using their current files.</summary>
+    public bool ApplyNewInstallations()
     {
-        IReadOnlyList<ModPackageInstallResult> removals = RecoverRemovals();
+        IReadOnlyList<ModPackageInstallResult> results = RecoverAndApply(additionsOnly: true);
+        if (results.Any(result => result.Installed))
+        {
+            return true;
+        }
+        if (results.FirstOrDefault(result => result.Error is not null) is { Error: { } error })
+        {
+            throw new IOException(error);
+        }
+        return false;
+    }
+
+    private IReadOnlyList<ModPackageInstallResult> RecoverAndApply(bool additionsOnly)
+    {
+        IReadOnlyList<ModPackageInstallResult> removals = additionsOnly ? [] : RecoverRemovals();
         if (!Directory.Exists(StatePath("journals", "")))
         {
             return removals;
@@ -139,7 +159,7 @@ public sealed partial class ModPackageInstaller
                     EnsureNoLinks(path);
                     journal = Read<Journal>(path) ?? throw new InvalidDataException("Empty installation journal.");
                     ValidateJournal(journal, path);
-                    if (IsRelocationPhase(journal))
+                    if (IsRelocationPhase(journal) || additionsOnly && (!journal.IsAddition || !journal.LiveAddition && journal.Phase != "PendingRestart"))
                     {
                         continue;
                     }
@@ -149,7 +169,7 @@ public sealed partial class ModPackageInstaller
                         results.Add(Result(journal.Next, false, false, "Previous installation restored during recovery."));
                         continue;
                     }
-                    Apply(journal, path);
+                    Apply(journal, path, additionsOnly);
                     results.Add(Result(journal.Next, false, true));
                 }
                 catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or NotSupportedException or ArgumentException or JsonException)
@@ -246,7 +266,7 @@ public sealed partial class ModPackageInstaller
         return Result(receipt, false, true) with { CanUninstall = true };
     }
 
-    private void Apply(Journal journal, string journalPath)
+    private void Apply(Journal journal, string journalPath, bool additionsOnly)
     {
         Receipt next = journal.Next;
         string destination = Destination(next.SourceId, next.DestinationName);
@@ -287,7 +307,8 @@ public sealed partial class ModPackageInstaller
                 CheckOwnership(pinned, destination, journal.Previous ?? journal.MissingPrevious, allowMissing: journal.MissingPrevious is not null, journal.RepairSourceHash);
             }
         }
-        bool finalIsNew = journal.Phase != "PendingRestart" && Exists(destination) && Fingerprint(destination, false) == next.PayloadHash;
+        bool liveAddition = additionsOnly || journal.LiveAddition;
+        bool finalIsNew = journal.Phase != "PendingRestart" && Exists(destination) && (!liveAddition || !Exists(payload)) && Fingerprint(destination, false) == next.PayloadHash;
         if (!finalIsNew)
         {
             if (!Exists(payload) || Fingerprint(payload, false) != next.PayloadHash)
@@ -305,7 +326,8 @@ public sealed partial class ModPackageInstaller
             }
             if (journal.Previous is null)
             {
-                CheckOwnership(entry, destination, journal.MissingPrevious, allowMissing: journal.MissingPrevious is not null, journal.RepairSourceHash);
+                bool stagedSettings = journal.LiveAddition && !next.Folder && SettingsHash(settingsPath) == TextHash(journal.Settings);
+                CheckOwnership(entry, destination, journal.MissingPrevious, allowMissing: journal.MissingPrevious is not null, journal.RepairSourceHash, stagedSettings);
             }
             if (Exists(destination))
             {
@@ -329,9 +351,30 @@ public sealed partial class ModPackageInstaller
                 File.WriteAllText(Path.Combine(payload, "mod.ini"), journal.Settings);
             }
             Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
-            WriteAtomic(journalPath, journal with { Phase = "OldMoved" });
+            journal = journal with { Phase = "OldMoved", LiveAddition = liveAddition };
+            WriteAtomic(journalPath, journal);
+            if (liveAddition)
+            {
+                // Publish the metadata before making the complete package visible to a running discovery.
+                if (next.Official is not null)
+                {
+                    next = next with { InternalWriteTimes = CaptureWriteTimes(payload, next.Files!) };
+                    CommitEnable(journal);
+                }
+                if (!next.Folder)
+                {
+                    WriteTextAtomic(settingsPath, journal.Settings);
+                }
+                WriteAtomic(ReceiptPath(ManagedName(entry)), next);
+            }
             Move(payload, destination);
             WriteAtomic(journalPath, journal with { Phase = "NewMoved" });
+        }
+        if (liveAddition)
+        {
+            // The package was verified in staging. Runtime refresh still decides whether it can become active.
+            File.Delete(journalPath);
+            return;
         }
         if (!next.Folder)
         {
@@ -353,7 +396,7 @@ public sealed partial class ModPackageInstaller
         // Retain transaction backups for explicit recovery; cache eviction must never delete them.
     }
 
-    private void CheckOwnership(RemoteModEntry entry, string destination, Receipt? previous, bool allowMissing = false, string? repairSourceHash = null)
+    private void CheckOwnership(RemoteModEntry entry, string destination, Receipt? previous, bool allowMissing = false, string? repairSourceHash = null, bool stagedSettings = false)
     {
         EnsureNoLinks(modsRoot);
         EnsureNoLinks(destination);
@@ -381,7 +424,7 @@ public sealed partial class ModPackageInstaller
                 throw new InvalidDataException("This managed installation is missing or contains local changes.");
             }
         }
-        else if (Exists(destination) || File.Exists(destination + ".ini"))
+        else if (Exists(destination) || !stagedSettings && File.Exists(destination + ".ini"))
         {
             throw new InvalidDataException("The destination is not owned by the downloader. Manual installations cannot be overwritten.");
         }
@@ -450,6 +493,10 @@ public sealed partial class ModPackageInstaller
             {
                 throw new InvalidDataException("The update does not have a valid relocation destination or previous owner.");
             }
+        }
+        if (journal.LiveAddition && (!journal.IsAddition || journal.Phase is not ("OldMoved" or "NewMoved")))
+        {
+            throw new InvalidDataException("Invalid live installation journal.");
         }
         if (journal.Phase is not ("PendingRestart" or "OldMoved" or "NewMoved" or "Committed" or "AwaitingValidation" or "RollingBack") && (!IsRelocationPhase(journal) || journal.RelocateTo is null))
         {
@@ -541,12 +588,19 @@ public sealed partial class ModPackageInstaller
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         EnsureNoLinks(path);
         string temporary = path + ".writing-" + Guid.NewGuid().ToString("N");
-        using (FileStream stream = new(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+        try
         {
-            byte[] bytes = System.Text.Encoding.UTF8.GetBytes(value);
-            stream.Write(bytes);
-            stream.Flush(true);
+            using (FileStream stream = new(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            {
+                byte[] bytes = System.Text.Encoding.UTF8.GetBytes(value);
+                stream.Write(bytes);
+                stream.Flush(true);
+            }
+            File.Move(temporary, path, true);
         }
-        File.Move(temporary, path, true);
+        finally
+        {
+            File.Delete(temporary);
+        }
     }
 }

@@ -16,8 +16,18 @@ public sealed partial class ModRuntime
             return settings;
         }
 
+        bool hasLegacyFiles = IsLegacyStatusPreferenceDirectory(LegacyStatusDirectory);
         byte[]? central = File.Exists(MemoriaSettingsPath) ? File.ReadAllBytes(MemoriaSettingsPath) : null;
+        using JsonDocument? observed = central is not null ? JsonDocument.Parse(central) : null;
+        if (observed?.RootElement.TryGetProperty("statusSettings", out _) == true || central is null && !hasLegacyFiles)
+        {
+            return settings;
+        }
+
+        using FileStream settingsLock = ModConfiguration.LockMemoriaSettings(MemoriaSettingsPath);
+        central = File.Exists(MemoriaSettingsPath) ? File.ReadAllBytes(MemoriaSettingsPath) : null;
         using JsonDocument? previous = central is not null ? JsonDocument.Parse(central) : null;
+        settings = central is not null ? ParseMemoriaSettings(central) : new();
         if (previous?.RootElement.TryGetProperty("statusSettings", out _) == true)
         {
             return settings;
@@ -25,7 +35,6 @@ public sealed partial class ModRuntime
 
         string legacyIni = Path.Combine(LegacyStatusDirectory, "mod.ini");
         string legacyConfig = Path.Combine(LegacyStatusDirectory, "config.json");
-        bool hasLegacyFiles = IsLegacyStatusPreferenceDirectory(LegacyStatusDirectory);
         bool hadLegacyComponent = settings.Components.Remove(LegacyStatusComponent, out bool enabled);
         JsonElement centralStatus = default;
         bool hasCentralStatus = previous?.RootElement.TryGetProperty("meltdown", out centralStatus) == true;

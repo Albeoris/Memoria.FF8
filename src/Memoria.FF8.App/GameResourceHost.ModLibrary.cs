@@ -21,7 +21,7 @@ internal sealed partial class GameResourceHost
     internal IModLibraryService? ExistingModLibrary => modLibrary;
 
     // Creation starts only local worker initialization. Network access begins with a catalog command.
-    public IModLibraryService ModLibrary => modLibrary ??= new ModLibraryService(modLibraryCache!, modInstaller!, Mods, modLibraryTarget!, modLibrarySupported, unavailableReason: modLibraryUnavailableReason, openDownloadPage: OpenModDownloadPage, officialCacheDirectory: OfficialModCatalog.DefaultCacheDirectory, officialSupported: officialModLibrarySupported, previousInstallers: previousModInstallers, officialDownloadsDirectory: ModLibraryProfile.OfficialDownloadsDirectory(Mods.LegacyModsDirectory, ApplicationPaths.Current));
+    public IModLibraryService ModLibrary => modLibrary ??= new ModLibraryService(modLibraryCache!, modInstaller!, Mods, modLibraryTarget!, modLibrarySupported, unavailableReason: modLibraryUnavailableReason, openDownloadPage: OpenModDownloadPage, officialCacheDirectory: OfficialModCatalog.DefaultCacheDirectory, officialSupported: officialModLibrarySupported, applyPendingChanges: ApplyLiveModInstallationsAsync, previousInstallers: previousModInstallers, officialDownloadsDirectory: ModLibraryProfile.OfficialDownloadsDirectory(Mods.LegacyModsDirectory, ApplicationPaths.Current));
 
     private static void OpenModDownloadPage(Uri uri)
     {
@@ -88,10 +88,11 @@ internal sealed partial class GameResourceHost
                 modLibraryStartupDiagnostics.Add(new("library-resource-lease", "Managed packages in this directory cannot be read safely: " + exception.Message));
             }
         }
-        if (!modLibraryLeases.TryGetValue(root, out ModDirectoryResourceLease? primaryLease) || !primaryLease.IsWriter)
+        officialModLibrarySupported = modLibraryLeases.ContainsKey(root);
+        if (!officialModLibrarySupported)
         {
             modLibrarySupported = false;
-            modLibraryUnavailableReason = "Other game instances or directory permissions prevent installation. Pending changes wait until all readers exit; local mods remain available.";
+            modLibraryUnavailableReason = "Cannot access the managed mod directory. Check its permissions; other local mods remain available.";
             modLibraryStartupDiagnostics.Add(new("library-recovery", modLibraryUnavailableReason));
         }
         try
@@ -123,18 +124,38 @@ internal sealed partial class GameResourceHost
                         modLibraryStartupDiagnostics.Add(new("library-recovery", result.Error, result.PackageId));
                     }
                 }
-                officialModLibrarySupported |= ReferenceEquals(installer, modInstaller);
             }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or System.Text.Json.JsonException)
             {
                 if (ReferenceEquals(installer, modInstaller))
                 {
                     modLibrarySupported = false;
+                    officialModLibrarySupported = false;
                     modLibraryUnavailableReason = "Cannot manage this mod directory. Close other game instances and check its access permissions; installed mods remain available.";
                 }
                 modLibraryStartupDiagnostics.Add(new("library-recovery", "Mod library recovery is unavailable: " + exception.Message));
             }
         }
+    }
+
+    private Task<bool> ApplyLiveModInstallationsAsync(CancellationToken cancellationToken)
+    {
+        bool applied = false;
+        foreach (ModPackageInstaller installer in previousModInstallers.Prepend(modInstaller!))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!modLibraryLeases.ContainsKey(installer.ModsRoot) || unleasedModRoots.Contains(installer.ModsRoot))
+            {
+                continue;
+            }
+            using ModDirectoryResourceLease lease = ModDirectoryResourceLease.Acquire(installer.ModsRoot, requestWriter: false, retainStartupForReader: true);
+            if (installer.ApplyNewInstallations())
+            {
+                Mods.RequestRefresh();
+                applied = true;
+            }
+        }
+        return Task.FromResult(applied);
     }
 
     private void ValidateModLibraryStartup(CancellationToken cancellationToken)

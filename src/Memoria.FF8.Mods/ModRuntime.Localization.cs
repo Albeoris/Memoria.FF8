@@ -70,6 +70,7 @@ public sealed partial class ModRuntime
             string? previousPrimary = LocalizationPrimaryTarget;
             IReadOnlyList<ModPackage> previousPackages = installedPackages;
             List<(string Path, byte[]? Bytes)> originals = [];
+            FileStream? settingsLock = null;
             try
             {
                 MemoriaSettings? componentSettings = null;
@@ -79,6 +80,7 @@ public sealed partial class ModRuntime
                     bool enabled = lowToHigh.Contains(package.Id, StringComparer.OrdinalIgnoreCase);
                     if (package.Descriptor is { } descriptor)
                     {
+                        settingsLock ??= ModConfiguration.LockMemoriaSettings(MemoriaSettingsPath);
                         componentSettings ??= ReadMemoriaSettings();
                         componentSettings.Components[descriptor.Id] = enabled;
                         continue;
@@ -128,6 +130,10 @@ public sealed partial class ModRuntime
                     }
                 }
                 return OperationFailed(restoreErrors.Count == 0 ? exception : new IOException(exception.Message + " Restoring preferences also failed: " + string.Join("; ", restoreErrors), exception));
+            }
+            finally
+            {
+                settingsLock?.Dispose();
             }
         }
     }

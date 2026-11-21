@@ -363,7 +363,7 @@ internal sealed partial class LauncherWindow
                 .Where(directory => !ApplicationInstallation.ModPathComparer.Equals(directory, root) && Directory.Exists(ModPackageInstaller.StateDirectoryFor(directory)))
                 .Select(directory => ModLibraryProfile.CreateInstaller(directory, selected.Directory, edition.ToString(), language, junction, locations.Preferences)).ToArray();
             ModPackageInstaller[] installers = previousInstallers.Prepend(installer).OrderBy(item => item.ModsRoot, StringComparer.OrdinalIgnoreCase).ThenBy(item => item.ModsRoot, StringComparer.Ordinal).ToArray();
-            // Apply managed transactions only at the same exclusive boundary used by game startup.
+            // Recover transactions that have exclusive access before opening the library.
             await Task.Run(() => RecoverLauncherModInstallations(installers, root));
             if (initialization != launcherModInitialization || busy || runningGame is not null || !Equals(installations.SelectedItem, selected))
             {
@@ -386,9 +386,10 @@ internal sealed partial class LauncherWindow
         }
     }
 
-    private static bool RecoverLauncherModInstallations(IEnumerable<ModPackageInstaller> installers, string primaryRoot)
+    private static bool RecoverLauncherModInstallations(IEnumerable<ModPackageInstaller> installers, string primaryRoot, bool applyLiveAdditions = false)
     {
-        bool applied = true;
+        bool exclusivelyAvailable = true;
+        bool changed = false;
         List<ModDirectoryResourceLease> leases = [];
         List<ModPackageInstaller> writable = [];
         try
@@ -398,12 +399,12 @@ internal sealed partial class LauncherWindow
                 ModDirectoryResourceLease lease;
                 try
                 {
-                    lease = ModDirectoryResourceLease.Acquire(installer.ModsRoot, true);
+                    lease = ModDirectoryResourceLease.Acquire(installer.ModsRoot, requestWriter: true, retainStartupForReader: applyLiveAdditions);
                 }
                 catch (Exception exception) when (!ApplicationInstallation.ModPathComparer.Equals(installer.ModsRoot, primaryRoot)
                     && exception is (IOException or UnauthorizedAccessException or InvalidDataException))
                 {
-                    applied = false;
+                    exclusivelyAvailable = false;
                     continue;
                 }
                 leases.Add(lease);
@@ -413,15 +414,19 @@ internal sealed partial class LauncherWindow
                 }
                 else
                 {
-                    applied = false;
+                    exclusivelyAvailable = false;
+                    if (applyLiveAdditions)
+                    {
+                        changed |= installer.ApplyNewInstallations();
+                    }
                 }
             }
             foreach (ModPackageInstaller installer in writable)
             {
-                installer.RecoverRelocations(writable);
-                installer.RecoverAndApply();
+                changed |= installer.RecoverRelocations(writable).Any(result => result.Relocated);
+                changed |= installer.RecoverAndApply().Any(result => result.Error is null);
             }
-            return applied;
+            return exclusivelyAvailable || changed;
         }
         finally
         {
@@ -443,10 +448,12 @@ internal sealed partial class LauncherWindow
         return await Task.Run(() =>
         {
             cancellationToken.ThrowIfCancellationRequested();
-            bool applied = RecoverLauncherModInstallations(installers, mods.PrimaryModsDirectory);
-            mods.Refresh();
-            mods.PreparePending(true);
-            mods.CommitPending();
+            bool applied = RecoverLauncherModInstallations(installers, mods.PrimaryModsDirectory, applyLiveAdditions: true);
+            if (applied)
+            {
+                // The UI timer publishes the refreshed catalog on the runtime's owning thread.
+                mods.RequestRefresh();
+            }
             return applied;
         }, cancellationToken);
     }

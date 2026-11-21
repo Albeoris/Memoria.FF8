@@ -48,6 +48,75 @@ public sealed partial class ModPackageInstallerTests : IDisposable
         Assert.Empty(Installer().RecoverAndApply());
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task NewJunctionPackagePublishesItsSettingsWithThePayloadWhileReadersAreActive(bool archive)
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        ModPackageInstaller installer = Installer();
+        string source = archive ? Iroj() : Zip(("mod.xml", Manifest()), ("a.bin", "owned"));
+        ModPackageInstallPlan plan = await installer.InspectAsync(source, Entry(), cancellationToken);
+        using ModDirectoryResourceLease reader = ModDirectoryResourceLease.Acquire(Mods, requestWriter: false);
+        await installer.RequestInstallAsync(plan, autoEnableNewMods: false, cancellationToken);
+        using (ModDirectoryResourceLease publisher = ModDirectoryResourceLease.Acquire(Mods, requestWriter: true, retainStartupForReader: true))
+        {
+            Assert.False(publisher.IsWriter);
+            Assert.True(installer.ApplyNewInstallations());
+            Assert.False(installer.ApplyNewInstallations());
+        }
+
+        using ModRuntime runtime = new(root, watch: false, modsDirectory: Mods);
+        Assert.True(runtime.PreparePending(force: true));
+        Assert.True(runtime.CommitPending());
+        ModPackage package = Assert.Single(runtime.InstalledPackages);
+        Assert.Equal(ModEffectiveStatus.Disabled, package.Status);
+        Assert.True(installer.GetStatus(Entry())!.CanUninstall);
+        installer.RequestUninstall(Entry());
+        using (ModDirectoryResourceLease publisher = ModDirectoryResourceLease.Acquire(Mods, requestWriter: true, retainStartupForReader: true))
+        {
+            Assert.False(publisher.IsWriter);
+            Assert.False(installer.ApplyNewInstallations());
+        }
+        Assert.True(installer.GetStatus(Entry())!.PendingRemoval);
+        Assert.True(archive ? File.Exists(plan.Destination) : Directory.Exists(plan.Destination));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task LiveArchiveInstallationRecoversOnEitherSideOfPublication(bool moved)
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        ModPackageInstaller installer = Installer();
+        ModPackageInstallPlan plan = await installer.InspectAsync(Iroj(), Entry(), cancellationToken);
+        await installer.RequestInstallAsync(plan, autoEnableNewMods: false, cancellationToken);
+        string journalPath = Directory.GetFiles(Path.Combine(State, "journals")).Single();
+        JsonObject journal = JsonNode.Parse(File.ReadAllText(journalPath))!.AsObject();
+        string transaction = Path.Combine(State, "transactions", Guid.Parse(journal["TransactionId"]!.GetValue<string>()).ToString("N"));
+        journal["Phase"] = "OldMoved";
+        journal["LiveAddition"] = true;
+        File.WriteAllText(journalPath, journal.ToJsonString());
+        Directory.CreateDirectory(Path.GetDirectoryName(plan.Destination)!);
+        File.WriteAllText(plan.Destination + ".ini", journal["Settings"]!.GetValue<string>());
+        if (moved)
+        {
+            string receipts = Path.Combine(State, "receipts");
+            Directory.CreateDirectory(receipts);
+            File.WriteAllText(Path.Combine(receipts, Path.GetFileName(journalPath)), journal["Next"]!.ToJsonString());
+            File.Move(Path.Combine(transaction, "content.iroj"), plan.Destination);
+        }
+
+        using ModDirectoryResourceLease reader = ModDirectoryResourceLease.Acquire(Mods, requestWriter: false);
+        using ModDirectoryResourceLease publisher = ModDirectoryResourceLease.Acquire(Mods, requestWriter: true, retainStartupForReader: true);
+        Assert.False(publisher.IsWriter);
+        Assert.True(installer.ApplyNewInstallations());
+        Assert.False(installer.ApplyNewInstallations());
+        Assert.True(installer.GetStatus(Entry())!.Installed);
+        Assert.Contains("enabled=0", File.ReadAllText(plan.Destination + ".ini"));
+        Assert.False(File.Exists(journalPath));
+    }
+
     [Fact]
     public async Task UninstallWaitsForStartupAndAllowsReinstall()
     {

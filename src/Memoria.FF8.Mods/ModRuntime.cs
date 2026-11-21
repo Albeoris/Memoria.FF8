@@ -658,17 +658,6 @@ public sealed partial class ModRuntime : IModService, IDisposable
         identities.AddRange(memoriaSettings.StatusSettings.OrderBy(setting => setting.Key, StringComparer.Ordinal).Select(setting => $"status-setting\0{setting.Key}\0{setting.Value}"));
         HashSet<string> visitedFiles = new(StringComparer.Ordinal);
         Dictionary<string, IReadOnlyDictionary<string, ModPackageInstallResult>> managed = new(ApplicationInstallation.ModPathComparer);
-        foreach (string modRoot in ModsDirectories.Where(directory => Path.GetDirectoryName(directory) is not null && directory != bundledModsRoot))
-        {
-            try
-            {
-                managed.Add(modRoot, ModPackageInstaller.ReadOfficialInventory(modRoot));
-            }
-            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or System.Text.Json.JsonException)
-            {
-                notices.Add(new("native-receipt", exception.Message));
-            }
-        }
         foreach (ModFormat format in Enum.GetValues<ModFormat>())
         {
             if (format == ModFormat.Junction)
@@ -682,6 +671,18 @@ public sealed partial class ModRuntime : IModService, IDisposable
             HashSet<string> bundledDescriptors = new(StringComparer.Ordinal);
             if (format == ModFormat.Memoria)
             {
+                // Live installs publish the receipt before the package directory becomes visible.
+                foreach (string modRoot in ModsDirectories.Where(directory => Path.GetDirectoryName(directory) is not null && directory != bundledModsRoot))
+                {
+                    try
+                    {
+                        managed.Add(modRoot, ModPackageInstaller.ReadOfficialInventory(modRoot));
+                    }
+                    catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or System.Text.Json.JsonException)
+                    {
+                        notices.Add(new("native-receipt", exception.Message));
+                    }
+                }
                 foreach (string root in roots)
                 {
                     if (obsoleteBundledPackage?.Invoke(root) == true || !string.Equals(Path.GetDirectoryName(root), Path.Combine(bundledModsRoot, format.ToString()), StringComparison.OrdinalIgnoreCase) || (File.GetAttributes(root) & FileAttributes.ReparsePoint) != 0)
