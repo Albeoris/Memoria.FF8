@@ -423,7 +423,8 @@ public sealed partial class Ff7AutoplayDriver
         Vector3 waypoint = ReadPortalApproachStep(branch.Field.Walkmesh, player.Triangle, contact.Triangle, previous, Position3D(player), contact.Point, player.CollisionRadius).Waypoint;
         Ff7AutoplayDriver driver = new(branch);
         driver.ConfigureSpatialBoundaries(targets, goal);
-        HashSet<int> blocked = goal.Kind == Ff7AutoPlayTargetKind.Gateway ? ReadAheadNavigationLinePrerequisites(branch.Field.Walkmesh, branch.Host.Process.BlockedTriangles, player, contact.Point, contact.Triangle, targets, branch.Host.Process.Lines).ToHashSet() : [];
+        int[] ahead = goal.Kind == Ff7AutoPlayTargetKind.Gateway ? ReadAheadNavigationLinePrerequisites(branch.Field.Walkmesh, branch.Host.Process.BlockedTriangles, player, contact.Point, contact.Triangle, targets, branch.Host.Process.Lines) : [];
+        HashSet<int> blocked = [];
         try
         {
             driver.ChooseTargetInput(goal, targets, _ =>
@@ -462,10 +463,10 @@ public sealed partial class Ff7AutoplayDriver
                 return default;
             }, requiredRun: true);
         }
-        catch (Ff7AutoPlayNavigationUnavailableException) when (blocked.Count != 0)
+        catch (Ff7AutoPlayNavigationUnavailableException) when (blocked.Count != 0 || ahead.Length != 0)
         {
         }
-        return blocked.Order().ToArray();
+        return blocked.Order().Concat(ahead).Distinct().ToArray();
     }
 
     private static Ff7AutoplayInput ChooseNativeGraphInput(Ff7Session branch, Ff7AutoplayDriver driver, Ff7NativeGraphEdge edge, Ff7AutoPlayTarget goal, Ff7AutoPlayTarget[] events, NativeGraphOwnership ownership)

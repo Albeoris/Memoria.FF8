@@ -581,7 +581,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             return default;
         }
         driver.ConfigureSpatialBoundaries(observation.Events, selectedTarget);
-        if (TryBeginBlockingPushPrerequisite(observation, selectedTarget))
+        if (TryReorderUnacceptedNavigationPrerequisite(observation, selectedTarget) || TryBeginBlockingPushPrerequisite(observation, selectedTarget))
         {
             return default;
         }

@@ -49,8 +49,18 @@ internal static class NativeAheadPushPrerequisiteTests
         Check(Read(actualLine: line with { Entity = 5 }).Length == 0, "A different LINE owner acquired the target's forward jump.");
         Check(Read(actualLine: line with { Y2 = 10 }).Length == 0, "A reachable but unrelated short LINE segment was mistaken for an intersection with the selected route.");
         Check(Read(actualLine: line with { Z1 = 300, Z2 = 300 }).Length == 0, "A native height-incompatible LINE acquired horizon advice.");
+        Check(Read(actualLine: line with { Z1 = 200, Z2 = 200 }).Length == 0, "A different floor inside the broad native height band bypassed strict collision-radius contact.");
         Check(Read(mask: [16]).Length == 0 && Read(mask: [4]).Length == 0, "A blocked landing or directed route acquired horizon advice.");
         Check(Ff7AutoplayDriver.ReadAheadNavigationLinePrerequisites(mesh, blocked, player, goal, 4, [target], []).Length == 0, "A missing actual LINE object was invented by route advice.");
+        Ff7AutoPlayTarget later = target with { Id = "later", Entity = 9 };
+        Ff7AutoPlayTarget earlier = target with { Id = "earlier", Entity = 17 };
+        Ff7Line laterLine = line with { Entity = 9, X1 = 175, X2 = 175 };
+        Ff7Line earlierLine = line with { Entity = 17, X1 = 110, X2 = 110 };
+        string orderingBefore = JsonSerializer.Serialize(new { later, earlier, laterLine, earlierLine });
+        int[] ordered = Ff7AutoplayDriver.ReadAheadNavigationLinePrerequisites(mesh, blocked, player, goal, 4, [later, earlier], [laterLine, earlierLine]);
+        Check(ordered.SequenceEqual(new[] { 17, 9 }), "A later low-entity Push preempted the earlier protected crossing along the selected route.");
+        Check(Ff7AutoplayDriver.ReadAheadNavigationLinePrerequisites(mesh, blocked, player, goal, 4, [earlier, later], [earlierLine, laterLine]).SequenceEqual(ordered), "Crossing order depended on target or LINE enumeration instead of actual directed-route position.");
+        Check(orderingBefore == JsonSerializer.Serialize(new { later, earlier, laterLine, earlierLine }), "Crossing-order advice mutated native LINE geometry or target metadata.");
         Check(before == JsonSerializer.Serialize(new { mesh, blocked, player, goal, line, target }), "Horizon advice changed native geometry, actor pose, variables or target metadata.");
         Console.WriteLine("Ahead Push advice finds only reachable forward native jump sources that intersect the selected route.");
     }

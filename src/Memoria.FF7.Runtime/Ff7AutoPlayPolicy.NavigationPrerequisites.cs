@@ -6,6 +6,8 @@ namespace Memoria.FF7.Runtime;
 
 public sealed partial class Ff7AutoPlayPolicy
 {
+    private string? validatedNavigationPrerequisite;
+
     internal static bool IsKnownBlockingNavigationActor(Ff7AutoPlayState state, Ff7AutoPlayObservation observation, Ff7AutoPlayTarget goal, Ff7AutoPlayTarget candidate, Ff7Actor? actor, IReadOnlyCollection<int> pushedEntities)
     {
         if (state.Active is not { } active || !MatchesActiveNativeTarget(active, observation, goal) || !CanContinueOwnedTravel(state, observation) || state.NativeRoute is not null || candidate == goal || !observation.Events.Contains(candidate) || candidate.Kind != Ff7AutoPlayTargetKind.ActorTalk || !candidate.AnalysisComplete || !candidate.MayChangeNavigation || candidate.ChangesStory || candidate.ChangesField || actor is not { EntityBound: true, PlayerControlled: false, CollisionEnabled: true, TalkEnabled: true, CollisionRadius: > 0 } || actor.Entity != candidate.Entity || !pushedEntities.Contains(actor.Entity))
@@ -55,15 +57,20 @@ public sealed partial class Ff7AutoPlayPolicy
 
     private Ff7AutoPlayTarget[] ReadKnownNavigationPrerequisites(Ff7AutoPlayObservation observation, Ff7AutoPlayTarget goal)
     {
+        return ReadKnownNavigationPrerequisitesForState(observation, goal, State);
+    }
+
+    private Ff7AutoPlayTarget[] ReadKnownNavigationPrerequisitesForState(Ff7AutoPlayObservation observation, Ff7AutoPlayTarget goal, Ff7AutoPlayState qualification)
+    {
         int[] lines = Ff7AutoplayDriver.ReadNativeGoalLineBlockers(session, goal, observation.Events);
         bool provedIntermediateHop = false;
-        if (lines.Length != 0 && State.DestinationField is ushort destination && goal.Kind == Ff7AutoPlayTargetKind.Gateway && !TargetDestinations(goal).Contains(destination))
+        if (lines.Length != 0 && qualification.DestinationField is ushort destination && goal.Kind == Ff7AutoPlayTargetKind.Gateway && !TargetDestinations(goal).Contains(destination))
         {
             Ff7Actor player = session.Host.Process.Actors.Single(actor => actor.PlayerControlled);
-            var (hop, _) = FindFieldEntryDestinationAdvice(State, observation with { Events = [goal] }, destination, player, session.Host.Process.BlockedTriangles, field => session.IsKnownAutoPlayDestination(field) ? session.ReadAutoPlayFieldTopology(field) : null, candidate => candidate == goal);
+            var (hop, _) = FindFieldEntryDestinationAdvice(qualification, observation with { Events = [goal] }, destination, player, session.Host.Process.BlockedTriangles, field => session.IsKnownAutoPlayDestination(field) ? session.ReadAutoPlayFieldTopology(field) : null, candidate => candidate == goal);
             provedIntermediateHop = hop == goal;
         }
-        Ff7AutoPlayTarget[] linePrerequisites = observation.Events.Where(candidate => IsCurrentBlockingNavigationLine(State, observation, goal, candidate, lines, provedIntermediateHop)).ToArray();
+        Ff7AutoPlayTarget[] linePrerequisites = lines.SelectMany(entity => observation.Events.Where(candidate => candidate.Entity == entity && IsCurrentBlockingNavigationLine(qualification, observation, goal, candidate, lines, provedIntermediateHop))).ToArray();
         int[] blockers;
         try
         {
@@ -73,7 +80,7 @@ public sealed partial class Ff7AutoPlayPolicy
         {
             blockers = [];
         }
-        return observation.Events.Where(candidate => IsKnownBlockingNavigationActor(State, observation, goal, candidate, session.Host.Process.Actors.SingleOrDefault(actor => actor.EntityBound && actor.Entity == candidate.Entity), blockers) || linePrerequisites.Contains(candidate)).ToArray();
+        return observation.Events.Where(candidate => IsKnownBlockingNavigationActor(qualification, observation, goal, candidate, session.Host.Process.Actors.SingleOrDefault(actor => actor.EntityBound && actor.Entity == candidate.Entity), blockers)).Concat(linePrerequisites).Distinct().ToArray();
     }
 
     private bool TryBeginBlockingPushPrerequisite(Ff7AutoPlayObservation observation, Ff7AutoPlayTarget goal)
@@ -87,6 +94,40 @@ public sealed partial class Ff7AutoPlayPolicy
         {
             return false;
         }
+        SelectNavigationPrerequisite(observation, active, prerequisite);
+        return true;
+    }
+
+    private bool TryReorderUnacceptedNavigationPrerequisite(Ff7AutoPlayObservation observation, Ff7AutoPlayTarget current)
+    {
+        if (State.Active is not { Kind: Ff7AutoPlayTargetKind.LinePush, Accepted: false, ExecutionProvenance: null, NavigationPrerequisiteGoal: { } intent } active || State.NativeRoute is not null || State.Choice is not null || State.PendingRestore is not null || State.NavigationGoal != intent || !MatchesActiveNativeTarget(active, observation, current) || observation.Events.SingleOrDefault(target => target.Id == intent.EventId && target.ConditionFingerprint == intent.Conditions && target.Kind == Ff7AutoPlayTargetKind.Gateway) is not { } goal)
+        {
+            return false;
+        }
+        string context = $"{active.Generation}:{active.VisitId}:{active.EventId}:{active.ConditionFingerprint}:{intent}";
+        if (validatedNavigationPrerequisite == context)
+        {
+            return false;
+        }
+        validatedNavigationPrerequisite = context;
+        Ff7AutoPlayState qualification = new()
+        {
+            Active = new(active.VisitId, goal.Id, goal.ConditionFingerprint, active.Generation, goal.Entity, goal.Script, goal.Kind, goal.DestinationField, active.BeforeStory, active.BeforeWitness, NavigationKey: active.NavigationKey),
+            Coverage = State.Coverage,
+            DestinationField = State.DestinationField,
+            NavigationGoal = intent
+        };
+        Ff7AutoPlayTarget? first = ReadKnownNavigationPrerequisitesForState(observation, goal, qualification).FirstOrDefault(target => target.Kind == Ff7AutoPlayTargetKind.LinePush && target.EntryInputContract is null);
+        if (first is null || first == current)
+        {
+            return false;
+        }
+        SelectNavigationPrerequisite(observation, active, first);
+        return true;
+    }
+
+    private void SelectNavigationPrerequisite(Ff7AutoPlayObservation observation, Ff7AutoPlayActiveEvent active, Ff7AutoPlayTarget prerequisite)
+    {
         var visit = State.Coverage.Visits.Single(item => item.Visit.Key == active.VisitId);
         var previous = visit.Events.Single(item => item.Event.Id == active.EventId);
         if (previous.Conditions?.ActiveEntry == active.ConditionFingerprint)
@@ -100,7 +141,6 @@ public sealed partial class Ff7AutoPlayPolicy
         CancelNativePlanning("native-blocking-push-prerequisite");
         State.Status = "Preparing the proved native Push prerequisite for the current route hop";
         Publish();
-        return true;
     }
 
     private bool TryInstallNavigationPrerequisite(Ff7AutoPlayActiveEvent active, AutoPlayTravelGoal? goal, Ff7AutoPlayObservation observation, Ff7AutoPlayNativeRoute proof, string source)

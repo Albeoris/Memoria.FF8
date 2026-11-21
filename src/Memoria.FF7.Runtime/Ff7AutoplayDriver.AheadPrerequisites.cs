@@ -31,7 +31,7 @@ public sealed partial class Ff7AutoplayDriver
             route.Add((triangle.A + triangle.B + triangle.C) / 3);
         }
         route.Add(goal);
-        List<int> result = [];
+        List<(int Entity, int RouteIndex, float Fraction)> result = [];
         foreach (Ff7AutoPlayTarget target in targets.Where(target => target is { Kind: Ff7AutoPlayTargetKind.LinePush, AnalysisComplete: true, MayChangeNavigation: true, ChangesField: false, ChangesStory: false }))
         {
             Ff7Line? line = lines.LastOrDefault(line => line.Entity == target.Entity && line.Enabled == 1);
@@ -57,7 +57,8 @@ public sealed partial class Ff7AutoplayDriver
                 {
                     continue;
                 }
-                Vector3 crossing = Vector3.Lerp(start, end, before / (before - after));
+                float fraction = before / (before - after);
+                Vector3 crossing = Vector3.Lerp(start, end, fraction);
                 Vector2 segment = new(b.X - a.X, b.Y - a.Y);
                 float projection = Vector2.Dot(new(crossing.X - a.X, crossing.Y - a.Y), segment);
                 if (projection < 0 || projection > segment.LengthSquared())
@@ -65,13 +66,14 @@ public sealed partial class Ff7AutoplayDriver
                     continue;
                 }
                 Vector3 native = new((int)crossing.X, (int)crossing.Y, (int)crossing.Z);
-                if (Ff7Session.DistanceToSegment(a, b, native, out _) >= 0)
+                int nativeDistance = Ff7Session.DistanceToSegment(a, b, native, out _);
+                if (nativeDistance >= 0 && nativeDistance < unchecked(player.CollisionRadius * player.CollisionRadius))
                 {
-                    result.Add(target.Entity);
+                    result.Add((target.Entity, index, fraction));
                     break;
                 }
             }
         }
-        return result.Distinct().ToArray();
+        return result.OrderBy(item => item.RouteIndex).ThenBy(item => item.Fraction).Select(item => item.Entity).Distinct().ToArray();
     }
 }
