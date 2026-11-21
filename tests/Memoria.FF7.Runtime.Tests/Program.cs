@@ -3,6 +3,18 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-tutorial-repeat-only", StringComparer.Ordinal))
+{
+    NativeTutorialRepeatTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-repeat-tutorial-original-only", StringComparer.Ordinal))
+{
+    NativeTutorialOriginalTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-vines-choice-only", StringComparer.Ordinal))
 {
     NativeVinesChoiceTests.Run();

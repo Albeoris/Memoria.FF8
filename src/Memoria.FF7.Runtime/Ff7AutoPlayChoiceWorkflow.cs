@@ -69,8 +69,17 @@ public sealed partial class Ff7AutoPlayChoiceWorkflow
         Ff7SessionSave before = capture();
         string owner = ReadOwnerIdentity(before, dialogue, first, last);
         int? navigationPreference = ReadVinesChoicePreference(before, state, dialogue);
+        bool tutorialExit = IsNativeTutorialExitPrompt(before, state, dialogue);
+        int? currentPreference = navigationPreference ?? (tutorialExit ? 2 : null);
         Ff7AutoPlayChoiceState? current = state.Choice;
         string key = current?.OwnerIdentity == owner ? current.Key : before.World is { } world ? Hash(new { Owner = owner, before.Vm.PersistentVariables, Local = world.Vm.Local, Conditions = state.Active?.ConditionFingerprint, Parent = current?.Key, ParentSelections = Selections }) : "field-choice-v2:" + Hash(new { Owner = owner, Visit = state.Active?.VisitId ?? before.FieldName, Conditions = state.Active?.ConditionFingerprint, Parent = current?.Key, ParentSelections = Selections });
+        if (tutorialExit && current is not null && current.OwnerIdentity == owner && Coverage(current.Key).ActiveOption == 1 && CanAbandonNativeTutorialCycle(before, state, dialogue, current))
+        {
+            Coverage(current.Key).ActiveOption = null;
+            Coverage(current.Key).PolicyDeferredOptions.Add(1);
+            current = current with { NativeOwner = ReadNativeChoiceOwner(before, dialogue) };
+            state.Choice = current;
+        }
         if (navigationPreference is int preferred && state.Active is { TravelRoute.Selections: { } recipe } proposed && recipe.Skip(proposed.TravelSelections?.Count ?? 0).FirstOrDefault() is { } next && next.Key == key && next.Selection != preferred)
         {
             state.Active = proposed with { TravelRoute = null };
@@ -90,9 +99,13 @@ public sealed partial class Ff7AutoPlayChoiceWorkflow
         {
             planner.ObserveChoice(key, checked(last - first + 1), first);
             ApplyVinesChoicePreference(key, navigationPreference, before.Vm.ProgramIdentity);
+            if (tutorialExit)
+            {
+                Coverage(key).PolicyDeferredOptions.Add(1);
+            }
             if (planner.PlanChoice(key).Kind == AutoPlayChoiceStepKind.Complete)
             {
-                int completedSelection = navigationPreference ?? SelectCompletedNativeChoice(before, dialogue, Coverage(key), first);
+                int completedSelection = currentPreference ?? SelectCompletedNativeChoice(before, dialogue, Coverage(key), first);
                 if (navigationPreference is not null && state.Active is { } completedSource)
                 {
                     state.Active = completedSource with { TravelSelections = [.. completedSource.TravelSelections ?? [], new(key, completedSelection)] };
@@ -190,9 +203,10 @@ public sealed partial class Ff7AutoPlayChoiceWorkflow
             continuation = PreferActualContinuation(choice, coverage, current) ?? continuation;
             choice = state.Choice ?? choice;
         }
+        bool tutorialReturned = HasNativeTutorialControlReturn(current, state, choice, coverage.ActiveOption);
         planner.CompleteChoiceAtControlReturn(choice.Key, continuation);
         bool navigationAdvanced = HasCompletedVinesChoiceNavigation(current, state, choice);
-        if (storyAdvanced || navigationAdvanced)
+        if (storyAdvanced || navigationAdvanced || tutorialReturned)
         {
             foreach (int option in Enumerable.Range(coverage.FirstOption, coverage.OptionCount).Where(option => !coverage.CompletedOptions.Contains(option)))
             {
@@ -200,7 +214,7 @@ public sealed partial class Ff7AutoPlayChoiceWorkflow
             }
             planner.FinishChoice(choice.Key);
             state.Choice = choice.Parent;
-            state.Status = navigationAdvanced ? "Optional choice alternatives were deferred after the owned native navigation returned control; continuing from the current native state." : "Optional choice alternatives were deferred after native story progress; continuing from the current native state.";
+            state.Status = tutorialReturned ? "The native tutorial returned control; continuing from its actual selected exit." : navigationAdvanced ? "Optional choice alternatives were deferred after the owned native navigation returned control; continuing from the current native state." : "Optional choice alternatives were deferred after native story progress; continuing from the current native state.";
             return CompleteAtControlReturn();
         }
         AutoPlayChoiceStep next = planner.PlanChoice(choice.Key);
