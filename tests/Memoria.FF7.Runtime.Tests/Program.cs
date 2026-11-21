@@ -3,6 +3,12 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-gateway-route-original-only", StringComparer.Ordinal))
+{
+    NativeGatewayRouteOriginalTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-looping-animation-debt-only", StringComparer.Ordinal))
 {
     NativeLoopingAnimationDebtTests.Run();
