@@ -83,10 +83,43 @@ public sealed partial class Ff7AutoplayDriver
             {
                 throw new Ff7AutoPlayNavigationUnavailableException(entity, "FFVII LINE crossing has no reachable floor contact on the opposite segment side.");
             }
-            return Approach(opposite[0].Point, opposite[0].Triangle, run);
+            return ApproachLineContact(line, kind, opposite[0].Point, opposite[0].Triangle, run, requiresSearch: true);
         }
         var goal = ChooseFloorContact(contacts, player);
-        return Approach(goal.Point, goal.Triangle, run);
+        return ApproachLineContact(line, kind, goal.Point, goal.Triangle, run, requiresSearch: false);
+    }
+
+    private Ff7AutoplayInput ApproachLineContact(Ff7Line line, Ff7AutoPlayTargetKind kind, Vector3 target, int triangle, bool run, bool requiresSearch)
+    {
+        if (kind != Ff7AutoPlayTargetKind.LineCross)
+        {
+            return Approach(target, triangle, run);
+        }
+        string? previousContext = navigationTalkContactContext;
+        Func<Ff7Actor, bool>? previousGoal = navigationTalkContactGoal;
+        bool previousRequiresSearch = navigationTalkContactRequiresSearch;
+        navigationTalkContactContext = $"native-line-crossing:1:{session.FieldGeneration}:{line.Entity}:{line.X1}:{line.Y1}:{line.Z1}:{line.X2}:{line.Y2}:{line.Z2}";
+        navigationTalkContactGoal = actor =>
+        {
+            Ff7Actor controlled = actor with { MoveSpeed = unchecked((ushort)session.GetPlayerMovementSpeed(run)) };
+            Ff7NativeMoveResult Preview(Ff7AutoplayInput input)
+            {
+                var direction = Directions.Single(direction => direction.X == input.Horizontal && direction.Y == input.Vertical);
+                return session.Host.Movement!.StepDirection(controlled, unchecked((byte)(direction.Direction + session.Field.Triggers.ControlDirection)), session.Host.Process.Actors, session.Host.Process.BlockedTriangles, false, session.Host.Process.LineBlocked);
+            }
+            return ChooseNativeLineCrossing(controlled, line, Preview, (_, step) => AllowsPlannedMove(controlled, step)) is not null;
+        };
+        navigationTalkContactRequiresSearch = requiresSearch;
+        try
+        {
+            return Approach(target, triangle, run);
+        }
+        finally
+        {
+            navigationTalkContactContext = previousContext;
+            navigationTalkContactGoal = previousGoal;
+            navigationTalkContactRequiresSearch = previousRequiresSearch;
+        }
     }
 
     internal static Ff7AutoplayInput? ChooseNativeLineTouchInput(Ff7Actor player, Ff7Line line, Func<Ff7AutoplayInput, Ff7NativeMoveResult> preview, Func<Ff7AutoplayInput, Ff7NativeMoveResult, bool> allows, bool run)

@@ -155,7 +155,7 @@ internal static class NativeAutoPlayPhysicalAvailabilityTests
         Check(Ff7AutoplayDriver.ReadApproachRoutes(mesh, blocked, 0, 3).Previous[0] == 1 && blocked[0] == 0 && rejectedAdvice.SetEquals([(0, 1)]), "Transient advice changed native topology or leaked into a new guide context.");
     }
 
-    private static void CheckNativeLineCrossing()
+    internal static void CheckNativeLineCrossing()
     {
         Ff7Line line = new(0, 1, 0, -100, 0, 0, 100, 0);
         Ff7Actor source = new() { Slot = 0, Entity = 0, Model = 0, X4096 = -4096, CollisionRadius = 4, Triangle = 0 };
