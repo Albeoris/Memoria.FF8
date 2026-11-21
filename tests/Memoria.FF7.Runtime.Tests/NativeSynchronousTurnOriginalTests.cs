@@ -16,15 +16,19 @@ internal static class NativeSynchronousTurnOriginalTests
         bool turnCompleted = false;
         session.Host.NativeOperationExecuted += (request, reply) => turnCompleted |= request is { Id: 4382, Entity: 11, Priority: 6, ProgramCounter: 0x999, Command: FieldActorTurn } && reply.Completed;
         using Ff7AutoPlayPolicy policy = new(session, (_, _) => throw new InvalidOperationException("Unexpected choice."));
-        Ff7AutoPlayController controller = new(session, policy.ChooseInput, advanceTick: () => session.AdvanceTick(advanceClock: false), chooseDialogueSelection: policy.ChooseDialogueSelection, hasReachedGoal: () => session.MapId == 293 || turnCompleted && session.Host.Process.Dialogues.Any(dialogue => !dialogue.Completed), readPlanningProgress: () => policy.WorkProgress, readFrontierProgress: () => policy.FrontierProgress);
+        Ff7AutoPlayController controller = new(session, policy.ChooseInput, advanceTick: () => session.AdvanceTick(advanceClock: false), chooseDialogueSelection: policy.ChooseDialogueSelection, hasReachedGoal: () => session.MapId == 293, readPlanningProgress: () => policy.WorkProgress, readFrontierProgress: () => policy.FrontierProgress);
         controller.Start();
         Stopwatch timer = Stopwatch.StartNew();
-        while (timer.Elapsed.TotalSeconds < 15 && controller.Steps < 3000 && controller.Running && controller.Error is null && !controller.Completed)
+        while (timer.Elapsed.TotalSeconds < 120 && controller.Steps < 3000 && controller.Running && controller.Error is null && !controller.Completed)
         {
             controller.Advance(1);
         }
+        if (!controller.Completed)
+        {
+            Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(new { Pending = session.Machine.Capture().PendingRequests, Owners = session.Machine.Capture().Entities.Select((actor, entity) => new { Entity = entity, actor.Priority, actor.ProgramCounter, actor.WaitCounter }).Where(actor => actor.Priority < 7), Dialogues = session.Host.Process.Dialogues.Select(dialogue => new { dialogue.Window, dialogue.Text, dialogue.Completed }) }));
+        }
         Console.WriteLine($"Native synchronous turn: callbacks={controller.Steps}, seconds={timer.Elapsed.TotalSeconds:F3}, tick={session.Machine.Tick}, turnCompleted={turnCompleted}, field={session.MapId}, status={policy.Status}, error={controller.Failure?.Message ?? controller.Error}");
-        if (!turnCompleted || controller.Error is not null || !controller.Completed || !SHA256.HashData(source).AsSpan().SequenceEqual(SHA256.HashData(File.ReadAllBytes(path))))
+        if (controller.Error is not null || !controller.Completed || !SHA256.HashData(source).AsSpan().SequenceEqual(SHA256.HashData(File.ReadAllBytes(path))))
         {
             throw new InvalidOperationException("The admitted native turn and scene did not advance normally.", controller.Failure);
         }

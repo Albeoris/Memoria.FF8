@@ -12,6 +12,8 @@ internal sealed class Ff7AutoPlayNativeReadiness
     private readonly HashSet<string> observations = new(StringComparer.Ordinal);
     private int repeatedObservations;
     private int totalObservations;
+    private string? continuationProgram;
+    private readonly Dictionary<(int Entity, int Pc), bool> autonomousContinuations = [];
 
     internal static bool HasLiveChoiceOwner(long generation, Ff7AutoPlayChoiceNativeOwner owner, FieldVmSnapshot vm)
     {
@@ -128,7 +130,7 @@ internal sealed class Ff7AutoPlayNativeReadiness
         return work.Count != 0 && ObserveWork(generation, $"{source}:synchronous-triangle-setup", vm, process, work);
     }
 
-    internal bool ShouldWaitForSynchronousHostCompletion(long generation, string navigationKey, FieldVmSnapshot vm, Ff7FieldProcess process, ReadOnlySpan<byte> script)
+    internal bool ShouldWaitForSynchronousHostCompletion(long generation, string navigationKey, FieldVmSnapshot vm, Ff7FieldProcess process, ReadOnlySpan<byte> script, Func<int, int, FieldScriptAnalysis>? analyzeContinuation = null)
     {
         HashSet<int> work = [];
         for (int childId = 0; childId < vm.Entities.Length; childId++)
@@ -160,6 +162,23 @@ internal sealed class Ff7AutoPlayNativeReadiness
                     _ => false
                 };
             }
+            if (!finite && analyzeContinuation is not null)
+            {
+                if (continuationProgram != vm.ProgramIdentity)
+                {
+                    autonomousContinuations.Clear();
+                    continuationProgram = vm.ProgramIdentity;
+                }
+                var key = (childId, childPc);
+                if (!autonomousContinuations.TryGetValue(key, out finite))
+                {
+                    finite = IsAutonomousSynchronousContinuation(analyzeContinuation(childId, childPc), vm.Entities.Length, script, childId, childPc);
+                    if (finite)
+                    {
+                        autonomousContinuations.Add(key, true);
+                    }
+                }
+            }
             if (finite)
             {
                 work.Add(parentId);
@@ -167,6 +186,96 @@ internal sealed class Ff7AutoPlayNativeReadiness
             }
         }
         return work.Count != 0 && ObserveWork(generation, $"{navigationKey}:synchronous-host", vm, process, work);
+    }
+
+    internal static bool IsAutonomousSynchronousContinuation(FieldScriptAnalysis analysis, int entityCount, ReadOnlySpan<byte> script, int rootEntity, int entry)
+    {
+        if (!analysis.Complete || analysis.InstructionSites.Length == 0 || !analysis.InstructionSites.Contains(new(rootEntity, entry)))
+        {
+            return false;
+        }
+        Dictionary<int, HashSet<int>> calls = [];
+        foreach (FieldScriptInstructionSite site in analysis.InstructionSites)
+        {
+            int pc = site.ProgramCounter;
+            if ((uint)site.Entity >= entityCount || (uint)pc >= script.Length)
+            {
+                return false;
+            }
+            byte opcode = script[pc];
+            if (opcode is 0x07 or 0x0E or 0x12 or 0x13 or 0x20 or >= 0x30 and <= 0x32 or 0x48 or 0x49 or 0x70 or 0xC2 or 0xF9 || opcode is >= 1 and <= 6 and not 3)
+            {
+                return false;
+            }
+            if (opcode == 3)
+            {
+                if (pc + 2 >= script.Length || script[pc + 1] >= entityCount)
+                {
+                    return false;
+                }
+                int recipient = script[pc + 1];
+                if (!analysis.InstructionSites.Any(target => target.Entity == recipient))
+                {
+                    return false;
+                }
+                if (!calls.TryGetValue(site.Entity, out HashSet<int>? targets))
+                {
+                    targets = [];
+                    calls.Add(site.Entity, targets);
+                }
+                targets.Add(script[pc + 1]);
+            }
+            if (opcode is 0x10 or 0x11)
+            {
+                int width = opcode == 0x11 ? 2 : 1;
+                if (pc + width >= script.Length)
+                {
+                    return false;
+                }
+                int distance = width == 2 ? script[pc + 1] | script[pc + 2] << 8 : script[pc + 1];
+                int target = unchecked((ushort)(pc + 1 + distance));
+                if (target <= pc || target >= script.Length)
+                {
+                    return false;
+                }
+            }
+            if (opcode is >= 0x14 and <= 0x19)
+            {
+                int offset = opcode >= 0x16 ? 7 : 5;
+                bool wide = (opcode & 1) != 0;
+                if (pc + offset + (wide ? 1 : 0) >= script.Length)
+                {
+                    return false;
+                }
+                int distance = wide ? unchecked((short)(script[pc + offset] | script[pc + offset + 1] << 8)) : script[pc + offset];
+                int target = unchecked((ushort)(pc + offset + distance));
+                if (target <= pc || target >= script.Length)
+                {
+                    return false;
+                }
+            }
+        }
+        HashSet<int> visiting = [];
+        HashSet<int> visited = [];
+        bool Acyclic(int entity)
+        {
+            if (visiting.Contains(entity))
+            {
+                return false;
+            }
+            if (!visited.Add(entity))
+            {
+                return true;
+            }
+            visiting.Add(entity);
+            if (calls.TryGetValue(entity, out HashSet<int>? targets) && targets.Any(target => !Acyclic(target)))
+            {
+                return false;
+            }
+            visiting.Remove(entity);
+            return true;
+        }
+        return calls.Keys.All(Acyclic);
     }
 
     internal static bool HasFiniteCameraCompletion(Ff7FieldProcess process)

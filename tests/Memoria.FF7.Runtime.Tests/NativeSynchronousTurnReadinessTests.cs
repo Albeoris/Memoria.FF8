@@ -57,6 +57,31 @@ internal static class NativeSynchronousTurnReadinessTests
         FieldVmSnapshot waitVm = vm with { Entities = [parent, child with { WaitCounter = 20 }], PendingRequests = [] };
         Check(Wait(waitVm, code: waitScript) && !Wait(waitVm with { Entities = [parent, child] }, code: waitScript), "An authentic finite WAIT or its exhausted counter received incorrect synchronous readiness.");
         Check(before == JsonSerializer.Serialize(new { vm, process, script }), "Turn readiness changed native PCs, sync, variables or physical actor facts.");
+        byte[] unpublishedScript = [3, 1, 0xC1, 0, 0xC0, 0, 0, 20, 0, 30, 0, 0, 0, 17, 0, 0];
+        FieldScriptAnalysis continuation = new(true, null, "finite-jump", false, [], [4, 15], []) { InstructionSites = [new(1, 4), new(1, 15)] };
+        int[] jumpSaved = child.SavedProgramCounters.ToArray();
+        jumpSaved[7] = 15;
+        FieldVmSnapshot unpublished = vm with { Entities = [parent, child with { SavedProgramCounters = jumpSaved }], PendingRequests = [] };
+        string unpublishedBefore = JsonSerializer.Serialize(new { unpublished, process, unpublishedScript, continuation });
+        Check(Ff7AutoPlayNativeReadiness.IsAutonomousSynchronousContinuation(continuation, 2, unpublishedScript, 1, 4), "A complete literal native jump/RET continuation was not certified.");
+        Check(new Ff7AutoPlayNativeReadiness().ShouldWaitForSynchronousHostCompletion(1, "source", unpublished, process, unpublishedScript, (entity, pc) => entity == 1 && pc == 4 ? continuation : throw new InvalidOperationException("Unexpected analysis scope.")), "An actual admitted unpublished C0 was stranded before it could issue its native request.");
+        foreach (FieldScriptAnalysis invalid in new[] { continuation with { Complete = false }, continuation with { InstructionSites = [new(1, 15)] }, continuation with { InstructionSites = [new(1, 4), new(1, 99)] } })
+        {
+            Check(!Ff7AutoPlayNativeReadiness.IsAutonomousSynchronousContinuation(invalid, 2, unpublishedScript, 1, 4), "Incomplete, missing-entry or out-of-range continuation metadata authenticated native work.");
+        }
+        foreach (byte forbidden in new byte[] { 7, 0x12, 0x13, 0x30, 0x48, 0xC2, 0x70 })
+        {
+            byte[] invalid = unpublishedScript.ToArray();
+            invalid[4] = forbidden;
+            Check(!Ff7AutoPlayNativeReadiness.IsAutonomousSynchronousContinuation(continuation, 2, invalid, 1, 4), "A transfer, cycle, input, ladder or battle authenticated an autonomous continuation.");
+        }
+        Check(!Ff7AutoPlayNativeReadiness.IsAutonomousSynchronousContinuation(continuation, 2, unpublishedScript, 0, 4), "Another entity borrowed the certified continuation entry.");
+        byte[] recursive = unpublishedScript.ToArray();
+        recursive[4] = 3;
+        recursive[5] = 1;
+        recursive[6] = 0xC1;
+        Check(!Ff7AutoPlayNativeReadiness.IsAutonomousSynchronousContinuation(continuation, 2, recursive, 1, 4), "A recursive synchronous request cycle authenticated autonomous continuation.");
+        Check(unpublishedBefore == JsonSerializer.Serialize(new { unpublished, process, unpublishedScript, continuation }), "Continuation certification mutated native facts or analysis metadata.");
         Ff7AutoPlayNativeReadiness frozen = new();
         bool waiting = true;
         for (int tick = 0; tick <= Ff7AutoPlayNativeReadiness.RepeatedObservationLimit; tick++)
