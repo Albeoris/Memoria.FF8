@@ -126,26 +126,22 @@ public sealed partial class ModRuntime
             }
             if ((File.GetAttributes(path) & FileAttributes.ReparsePoint) == 0)
             {
-                string[] files;
+                string[]? files;
                 try
                 {
                     files = Directory.GetFiles(path);
                 }
                 catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
                 {
-                    files = [];
+                    files = null;
                 }
-                if (!files.Any(file => Path.GetFileName(file).Equals("mod.xml", StringComparison.OrdinalIgnoreCase)))
+                if (files is not null && !files.Any(file => Path.GetFileName(file).Equals("mod.xml", StringComparison.OrdinalIgnoreCase)))
                 {
-                    string[] archives = files.Where(file => file.EndsWith(".iroj", StringComparison.OrdinalIgnoreCase)).OrderBy(file => Path.GetFileName(file), PathOrder).ToArray();
-                    if (archives.Length > 0)
+                    foreach (string archive in files.Where(file => file.EndsWith(".iroj", StringComparison.OrdinalIgnoreCase)).OrderBy(file => Path.GetFileName(file), PathOrder))
                     {
-                        foreach (string archive in archives)
-                        {
-                            yield return archive;
-                        }
-                        continue;
+                        yield return archive;
                     }
+                    continue;
                 }
             }
             yield return path;

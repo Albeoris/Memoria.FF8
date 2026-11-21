@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using System.Reflection;
+using System.Text;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
@@ -14,6 +15,86 @@ namespace Memoria.Launcher.Tests;
 [Collection("Incident dialog UI")]
 public sealed class LauncherModPresentationTests(LauncherHeadlessFixture fixture)
 {
+    [Fact]
+    public async Task InstalledLocalJunctionArchiveOffersDeleteWithoutAnInstallerReceipt()
+    {
+        await fixture.Session.Dispatch(async () =>
+        {
+            string root = DistributionPaths.GetFullPath(Path.Combine(Path.GetTempPath(), "launcher-local-mod-" + Guid.NewGuid().ToString("N")));
+            string modsRoot = Path.Combine(root, "Mods");
+            string wrapper = Path.Combine(modsRoot, "Junction", "Download");
+            Directory.CreateDirectory(wrapper);
+            try
+            {
+                string archive = Path.Combine(wrapper, "Local.iroj");
+                RemoteModEntry entry = new("external", Guid.NewGuid(), "Local archive", "1");
+                using (BinaryWriter writer = new(File.Create(archive)))
+                {
+                    byte[] name = Encoding.Unicode.GetBytes("mod.xml");
+                    byte[] manifest = Encoding.UTF8.GetBytes($"<ModInfo><ID>{entry.Id}</ID><Name>{entry.Name}</Name><Version>1</Version></ModInfo>");
+                    writer.Write(0x534f5249);
+                    writer.Write(0x10002);
+                    writer.Write(0);
+                    writer.Write(16);
+                    writer.Write(1);
+                    writer.Write((ushort)(20 + name.Length));
+                    writer.Write((ushort)name.Length);
+                    writer.Write(name);
+                    writer.Write(0);
+                    writer.Write(40L + name.Length);
+                    writer.Write(manifest.Length);
+                    writer.Write(manifest);
+                }
+                string metadata = Path.Combine(wrapper, "download.json");
+                File.WriteAllText(metadata, "{}");
+                string settings = archive + ".ini";
+                File.WriteAllText(settings, "enabled = 0\n");
+                using ModRuntime mods = new(root, watch: false, modsDirectory: modsRoot);
+                ModPackageInstaller installer = new(ModPackageInstaller.StateDirectoryFor(modsRoot), modsRoot, "Classic/en/test");
+                using ModLibraryService library = new(Path.Combine(root, "cache"), installer, mods, "Classic/en/test", true);
+                await library.StopAsync();
+                mods.PreparePending(true);
+                mods.CommitPending();
+                ModPackage package = Assert.Single(mods.InstalledPackages);
+                Assert.Equal(entry.Id, package.JunctionMetadata?.Id);
+                ModLibrarySnapshot snapshot = new(1, new([entry], null, false, false, null), [], "Classic/en/test", true);
+                typeof(ModLibraryService).GetField("view", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(library, snapshot);
+                LauncherWindow window = new();
+                try
+                {
+                    Set(window, "launcherMods", mods);
+                    Set(window, "launcherModLibrary", library);
+                    Get<TabControl>(window, "launcherModTabs").SelectedIndex = 0;
+                    Render(window);
+                    StackPanel details = Get<StackPanel>(window, "launcherModDetails");
+                    string[] buttons = details.GetLogicalDescendants().OfType<Button>().Select(button => (string)button.Content!).ToArray();
+                    Assert.Contains("Delete", buttons);
+                    Assert.DoesNotContain("Uninstall", buttons);
+
+                    mods.DeleteLocalPackage(package);
+                    mods.Refresh();
+                    mods.PreparePending(true);
+                    mods.CommitPending();
+                    Render(window);
+
+                    Assert.False(File.Exists(archive));
+                    Assert.True(File.Exists(metadata));
+                    Assert.True(File.Exists(settings));
+                    Assert.Empty(Get<ListBox>(window, "launcherModRows").Items);
+                }
+                finally
+                {
+                    window.Close();
+                }
+            }
+            finally
+            {
+                Directory.Delete(root, true);
+            }
+            return true;
+        }, TestContext.Current.CancellationToken);
+    }
+
     [Fact]
     public async Task InstalledDemasterPackageGetsThePreviewAction()
     {

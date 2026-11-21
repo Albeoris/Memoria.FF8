@@ -1,3 +1,5 @@
+using Memoria.FF8.Platform;
+
 namespace Memoria.FF8.Mods;
 
 public sealed partial class ModPackageInstaller
@@ -33,6 +35,55 @@ public sealed partial class ModPackageInstaller
     }
 
     private string RemovalPath(string key) => StatePath("removals", key + ".json");
+
+    // The caller holds the exclusive resource lease and resolved the path from a discovered package.
+    internal void DeleteLocalPayload(ModPackage package)
+    {
+        using FileStream installLock = AcquireLock();
+        string path = package.RootDirectory;
+        EnsureNoLinks(path);
+        if (package.Format == ModFormat.Memoria)
+        {
+            string receipts = StatePath("receipts", "");
+            EnsureNoLinks(receipts);
+            if (Directory.Exists(receipts) && Directory.EnumerateFiles(receipts, "managed-*.json").Any(file =>
+                Read<Receipt>(file) is { SourceId: OfficialModCatalog.SourceId } receipt && receipt.DestinationName.Equals(Path.GetFileName(path), StringComparison.OrdinalIgnoreCase)))
+            {
+                throw new InvalidOperationException("This installation is owned by the mod manager.");
+            }
+        }
+
+        FileAttributes attributes = File.GetAttributes(path);
+        if ((attributes & FileAttributes.ReparsePoint) != 0)
+        {
+            throw new InvalidDataException("A linked mod cannot be deleted from the launcher.");
+        }
+        if ((attributes & FileAttributes.Directory) == 0)
+        {
+            if (package.Format != ModFormat.Junction || !path.EndsWith(".iroj", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidDataException("The selected mod changed on disk. Refresh the mod list and try again.");
+            }
+            File.Delete(path);
+            return;
+        }
+
+        if (!ApplicationInstallation.ModPathComparer.Equals(Path.GetDirectoryName(path), Path.Combine(modsRoot, package.Format.ToString())))
+        {
+            throw new InvalidDataException("The selected mod changed on disk. Refresh the mod list and try again.");
+        }
+        _ = SafeFiles(path).Count();
+        string removed = StatePath("", "local-removal-" + Guid.NewGuid().ToString("N"));
+        Directory.Move(path, removed);
+        try
+        {
+            Directory.Delete(removed, true);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            throw new IOException($"The mod was removed from the list. Cleanup failed. Remaining files: {removed}", exception);
+        }
+    }
 
     private void ValidateRemoval(Removal removal, string path)
     {

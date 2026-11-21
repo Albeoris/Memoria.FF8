@@ -969,6 +969,14 @@ internal sealed partial class LauncherWindow
         {
             AddAction("Uninstall", () => launcherModLibrary?.Uninstall(entry));
         }
+        else if (launcherModTabs.SelectedIndex == 0 && installed is not null && launcherMods is { } mods && mods.CanDeleteLocalPackage(installed.Package))
+        {
+            Button delete = LauncherModButton("Delete");
+            delete.IsEnabled = !busy;
+            delete.Margin = new Thickness(0, 0, 6, 4);
+            delete.Click += async (_, _) => await DeleteLauncherLocalModAsync(mods, installed.Package);
+            actions.Children.Add(delete);
+        }
         if (job is not null)
         {
             if (job.CanDeleteDownload)
@@ -1038,6 +1046,39 @@ internal sealed partial class LauncherWindow
             string text = heading is null ? content : heading + "\n" + content;
             body.Children.Add(LauncherDescription(text));
             details.Add(text);
+        }
+    }
+
+    private async Task DeleteLauncherLocalModAsync(ModRuntime mods, ModPackage package)
+    {
+        if (busy || !await LauncherDialogs.ConfirmAsync(this, "Delete installed mod?", $"Permanently delete {package.Name} from disk?\n\n{package.RootDirectory}"))
+        {
+            return;
+        }
+        if (busy || !ReferenceEquals(launcherMods, mods))
+        {
+            return;
+        }
+
+        SetBusy(true);
+        launcherModActionStatus.IsVisible = true;
+        try
+        {
+            await Task.Run(() => mods.DeleteLocalPackage(package));
+            launcherModActionStatus.Text = $"Deleted {package.Name}.";
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or InvalidOperationException or System.Text.Json.JsonException)
+        {
+            launcherModActionStatus.Text = $"Could not finish deleting {package.Name}. {exception.Message}";
+        }
+        finally
+        {
+            if (ReferenceEquals(launcherMods, mods))
+            {
+                mods.Refresh();
+                PollLauncherMods();
+            }
+            SetBusy(false);
         }
     }
 

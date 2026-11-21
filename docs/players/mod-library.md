@@ -33,13 +33,15 @@ The launcher refreshes the catalog at startup and before **Retry**. Retry checks
 
 A Junction package can require or exclude other active mods by GUID and constrain their options. These rules are checked when applying the active configuration. If a rule blocks an installed mod, the mod stays installed and **Installed** explains the conflict. After you resolve the conflict, the mod can activate using its existing enablement setting.
 
-Packages needing multiple component choices, catalog-level installation requirements, delta patching, unsupported extraction directives or a change between archive and directory installation shapes are blocked with an explanation. This release does not provide automatic adoption or uninstall of manual mods. Unsupported or ambiguous packages remain available for investigation without touching installed files.
+Packages needing multiple component choices, catalog-level installation requirements, delta patching, unsupported extraction directives or a change between archive and directory installation shapes are blocked with an explanation. The manager does not automatically adopt manual mods. Unsupported or ambiguous packages remain available for investigation without touching installed files.
 
 ## Removing downloaded mods
 
 Both the launcher and the in-game manager provide separate actions for downloaded archives and installed mods. **Delete downloaded archive** / **Delete download** reclaims cached download space while keeping the installed mod. **Uninstall** / **Uninstall on restart** schedules removal of a manager-owned installation before resources load on the next game start. Active resources remain available until that boundary.
 
-Only verified managed payloads are removed. Manual installations, migrated originals and locally modified payloads are preserved; a failed verification explains why removal could not proceed. Native component preferences stay in the central settings file. Deleting an archive and uninstalling a mod are independent operations.
+Managed uninstall verifies file ownership and preserves migrated originals and locally modified payloads. A failed verification explains why removal could not proceed. Native component preferences stay in the central settings file.
+
+For manually installed packages, **Mods > Installed > Delete** in the launcher permanently removes the selected package after confirmation. For a local IROJ, this removes the selected archive and preserves its sidecar settings and surrounding files. Close the game before deleting a local package. Bundled components and managed installations are protected from this action.
 
 ## Previewing changes
 
