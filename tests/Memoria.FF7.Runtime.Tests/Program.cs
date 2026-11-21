@@ -3,6 +3,18 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-intermediate-push-only", StringComparer.Ordinal))
+{
+    NativeIntermediatePushPrerequisiteTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-intermediate-push-original-only", StringComparer.Ordinal))
+{
+    NativeIntermediatePushOriginalTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-airborne-source-original-only", StringComparer.Ordinal))
 {
     NativeAirborneSourceOriginalTests.Run();

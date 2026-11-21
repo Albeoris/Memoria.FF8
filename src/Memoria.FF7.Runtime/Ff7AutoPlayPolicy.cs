@@ -571,6 +571,10 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             return default;
         }
         driver.ConfigureSpatialBoundaries(observation.Events, selectedTarget);
+        if (TryBeginBlockingPushPrerequisite(observation, selectedTarget))
+        {
+            return default;
+        }
         if (DetectMovementCycle(current))
         {
             bool retryTalkContact = RotateFailedTalkContact(current) && ReadFreshTalkContact(driver, observation, selectedTarget) is not null;

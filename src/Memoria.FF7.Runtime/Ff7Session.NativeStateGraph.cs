@@ -124,7 +124,7 @@ public sealed partial class Ff7AutoplayDriver
                         ownership.AdoptForcedRoot(goal);
                     }
                     bool owned = ownership.Requested(entity, script, accepted, admission.Started);
-                    prerequisiteAdmitted ??= probe.NavigationPrerequisites.FirstOrDefault(candidate => candidate.Kind == Ff7AutoPlayTargetKind.LineTouch && current.Events.Contains(candidate) && (edge.Kind == Ff7NativeGraphEdgeKind.OwnedEvent && edge.Event == candidate || source.Debt?.Roots.Contains(candidate) == true) && IsStartedNavigationLinePrerequisite(candidate, admission, owned && ownership.OwnsInput(entity, admission.Priority)));
+                    prerequisiteAdmitted ??= probe.NavigationPrerequisites.FirstOrDefault(candidate => (candidate.Kind is Ff7AutoPlayTargetKind.LineTouch or Ff7AutoPlayTargetKind.LinePush) && current.Events.Contains(candidate) && (edge.Kind == Ff7NativeGraphEdgeKind.OwnedEvent && edge.Event == candidate || source.Debt?.Roots.Contains(candidate) == true) && IsStartedNavigationLinePrerequisite(candidate, admission, owned && ownership.OwnsInput(entity, admission.Priority)));
                     if (goal.Kind != Ff7AutoPlayTargetKind.ActorTalk && accepted && entity == goal.Entity && script == goal.Script)
                     {
                         selected = true;
@@ -442,7 +442,7 @@ public sealed partial class Ff7AutoplayDriver
                         {
                             continue;
                         }
-                        foreach (int entity in protectedTargets.Where(target => target.Kind == Ff7AutoPlayTargetKind.LineTouch && target.AnalysisComplete).Select(target => target.Entity).Distinct())
+                        foreach (int entity in protectedTargets.Where(target => (target.Kind is Ff7AutoPlayTargetKind.LineTouch or Ff7AutoPlayTargetKind.LinePush) && target.AnalysisComplete).Select(target => target.Entity).Distinct())
                         {
                             try
                             {
@@ -559,7 +559,7 @@ public sealed partial class Ff7AutoplayDriver
 
     internal static bool IsStartedNavigationLinePrerequisite(Ff7AutoPlayTarget target, FieldExternalScriptAdmission admission, bool owned)
     {
-        return owned && target.Kind == Ff7AutoPlayTargetKind.LineTouch && admission is { Accepted: true, Started: true, Priority: 1 } && target.Entity == admission.Entity && target.Script == admission.Script;
+        return owned && (target.Kind is Ff7AutoPlayTargetKind.LineTouch or Ff7AutoPlayTargetKind.LinePush) && admission is { Accepted: true, Started: true, Priority: 1 } && target.Entity == admission.Entity && target.Script == admission.Script;
     }
 
     private static bool HasNativeGraphTerminalContract(Ff7Session branch, Ff7AutoPlayTarget target, bool selected, NativeGraphOwnership selectedOwner)
