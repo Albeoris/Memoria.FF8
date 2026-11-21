@@ -3,6 +3,24 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-synchronous-activation-only", StringComparer.Ordinal))
+{
+    NativeSynchronousActivationTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-navigation-prerequisite-only", StringComparer.Ordinal))
+{
+    NativeNavigationPrerequisiteTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-navigation-prerequisite-original-only", StringComparer.Ordinal))
+{
+    NativeNavigationPrerequisiteOriginalTests.RunOriginal();
+    return 0;
+}
+
 if (args.Contains("--owned-service-prompt-only", StringComparer.Ordinal))
 {
     NativeOwnedServicePromptTests.Run();

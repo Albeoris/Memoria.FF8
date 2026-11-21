@@ -98,6 +98,13 @@ internal static class NativeActorRouteTests
         Ff7FieldProcess process = host.Capture();
         Check(clock.Independent && process.Dialogues is [{ Completed: false }], "Native selected entry did not reach its real dialogue request.");
         Check(Ff7AutoplayDriver.HasNativeTalkTerminalContract(process, 0, vm.PendingRequests!, owner), "Selected native-owned dialogue was rejected as a terminal handoff.");
+        Check(Ff7AutoplayDriver.HasNativeNavigationPrerequisiteBoundary(process, 0, vm.PendingRequests!, owner), "A known navigation prerequisite could not hand off its actual owned plain message.");
+        Check(!Ff7AutoplayDriver.HasNativeNavigationPrerequisiteBoundary(process, 0, [], owner), "A prerequisite message without its actual pending request was accepted.");
+        Check(!Ff7AutoplayDriver.HasNativeNavigationPrerequisiteBoundary(process, 0, vm.PendingRequests!.Select(request => request with { Entity = 1 }).ToArray(), owner), "An unrelated message acquired prerequisite ownership.");
+        Check(!Ff7AutoplayDriver.HasNativeNavigationPrerequisiteBoundary(process with { Dialogues = process.Dialogues.Select(dialogue => dialogue with { FirstChoice = 1, LastChoice = 2 }).ToArray() }, 0, vm.PendingRequests!, owner), "A choice was silently accepted as a plain prerequisite message.");
+        Check(!Ff7AutoplayDriver.HasNativeNavigationPrerequisiteBoundary(process with { GlobalCommand = Ff7GlobalCommand.Movie }, 0, vm.PendingRequests!, owner), "A global host operation entered the prerequisite message boundary.");
+        Check(!Ff7AutoplayDriver.HasNativeNavigationPrerequisiteBoundary(process with { Movie = new(1, true, 0, false, 1) }, 0, vm.PendingRequests!, owner), "A playing movie entered the prerequisite message boundary.");
+        Check(!Ff7AutoplayDriver.HasNativeNavigationPrerequisiteBoundary(process, 1, vm.PendingRequests!, owner), "A prerequisite waived the actual countdown contract.");
         Check(!Ff7AutoplayDriver.HasNativeTalkTerminalContract(process, 1, vm.PendingRequests!, owner), "Selected dialogue waived the countdown clock contract.");
         Check(!Ff7AutoplayDriver.HasNativeTalkTerminalContract(process, 0, vm.PendingRequests!.Select(request => request with { Entity = 1 }).ToArray(), owner), "Unrelated dialogue owner acquired terminal permission.");
         Check(!Ff7AutoplayDriver.HasNativeTalkTerminalContract(process, 0, [], owner), "A dialogue without its actual pending request acquired terminal permission.");
@@ -111,6 +118,7 @@ internal static class NativeActorRouteTests
         Check(Ff7AutoplayDriver.ReadNativeRouteFingerprint(source with { Process = process with { PlayerLocked = true } }) != Ff7AutoplayDriver.ReadNativeRouteFingerprint(cold), "Terminal native divergence did not change the authenticated After state.");
         FieldHostRequest menu = vm.PendingRequests!.Single() with { Command = new FieldMenuCommand(0, 0) };
         Check(Ff7AutoplayDriver.HasNativeTalkTerminalContract(process with { Dialogues = [], Menu = new(menu.Id, 0, 0) }, 0, [menu], owner), "Owned native menu could not terminate talk admission.");
+        Check(!Ff7AutoplayDriver.HasNativeNavigationPrerequisiteBoundary(process with { Dialogues = [], Menu = new(menu.Id, 0, 0) }, 0, [menu], owner), "A prerequisite prefix silently accepted an owned menu.");
         Check(!Ff7AutoplayDriver.HasNativeTalkTerminalContract(process with { Dialogues = [], Menu = new(menu.Id, 0, 0) }, 0, vm.PendingRequests!, owner), "Dialogue request masqueraded as a menu request.");
     }
 

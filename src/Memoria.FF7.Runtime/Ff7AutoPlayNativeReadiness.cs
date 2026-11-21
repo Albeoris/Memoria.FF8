@@ -271,35 +271,44 @@ internal sealed class Ff7AutoPlayNativeReadiness
     {
         for (int ownerId = 0; ownerId < vm.Entities.Length; ownerId++)
         {
-            FieldEntitySnapshot owner = vm.Entities[ownerId];
-            int pc = owner.ProgramCounter;
-            if (owner.Priority is < 0 or > 7 || pc < 0 || pc + 2 >= script.Length || script[pc] is not (0x03 or 0x06))
-            {
-                continue;
-            }
-            int targetId = script[pc + 1];
-            if (script[pc] == 0x06)
-            {
-                if (targetId >= 3)
-                {
-                    continue;
-                }
-                FieldVariables variables = new(vm.PersistentVariables, vm.MapVariables);
-                int character = variables.ReadByte(FieldBank.Persistent1Byte, (byte)(9 + targetId));
-                targetId = character == 255 ? -1 : Array.FindIndex(vm.Entities, entity => entity.PartyCharacter == character);
-            }
-            if ((uint)targetId >= vm.Entities.Length)
-            {
-                continue;
-            }
-            int priority = script[pc + 2] >> 5;
-            FieldEntitySnapshot target = vm.Entities[targetId];
-            if (priority < target.SyncStates.Length && priority < target.SyncOwners.Length && target.SyncStates[priority] == FieldSyncState.Done && target.SyncOwners[priority] == ownerId)
+            if (ReadCompletedSynchronousReturn(vm, script, ownerId) is not null)
             {
                 return true;
             }
         }
         return false;
+    }
+
+    internal static (int Entity, int Priority, int Script)? ReadCompletedSynchronousReturn(FieldVmSnapshot vm, ReadOnlySpan<byte> script, int ownerId)
+    {
+        if ((uint)ownerId >= vm.Entities.Length)
+        {
+            return null;
+        }
+        FieldEntitySnapshot owner = vm.Entities[ownerId];
+        int pc = owner.ProgramCounter;
+        if (owner.Priority is < 0 or > 7 || pc < 0 || pc + 2 >= script.Length || script[pc] is not (0x03 or 0x06))
+        {
+            return null;
+        }
+        int targetId = script[pc + 1];
+        if (script[pc] == 0x06)
+        {
+            if (targetId >= 3)
+            {
+                return null;
+            }
+            FieldVariables variables = new(vm.PersistentVariables, vm.MapVariables);
+            int character = variables.ReadByte(FieldBank.Persistent1Byte, (byte)(9 + targetId));
+            targetId = character == 255 ? -1 : Array.FindIndex(vm.Entities, entity => entity.PartyCharacter == character);
+        }
+        if ((uint)targetId >= vm.Entities.Length)
+        {
+            return null;
+        }
+        int priority = script[pc + 2] >> 5;
+        FieldEntitySnapshot target = vm.Entities[targetId];
+        return priority < target.SyncStates.Length && priority < target.SyncOwners.Length && target.SyncStates[priority] == FieldSyncState.Done && target.SyncOwners[priority] == ownerId ? (targetId, priority, script[pc + 2] & 31) : null;
     }
 
     public void Reset()

@@ -15,7 +15,10 @@ public sealed record Ff7NativeGatewayDeparture(string Field, long Generation, lo
 
 public sealed record Ff7NativeTransitionOwnership(int RootEntity, int RootScript, int OwnerEntity, int OwnerPriority);
 
-public sealed record Ff7NativeTickObservation(string Field, long Generation, long Tick, FieldScriptReturn[] ScriptReturns, FieldTransitionCommand? Transition, string ProgressWitness, FieldHostRequest? TransitionOwner = null, Ff7NativeTransitionOwnership? TransitionOwnership = null, Ff7NativeScriptActivity[]? ScriptActivity = null);
+public sealed record Ff7NativeTickObservation(string Field, long Generation, long Tick, FieldScriptReturn[] ScriptReturns, FieldTransitionCommand? Transition, string ProgressWitness, FieldHostRequest? TransitionOwner = null, Ff7NativeTransitionOwnership? TransitionOwnership = null, Ff7NativeScriptActivity[]? ScriptActivity = null)
+{
+    public Ff7AutoPlayActiveEvent? CompletedSynchronousActivation { get; init; }
+}
 
 public sealed partial class Ff7Session
 {
@@ -169,7 +172,8 @@ public sealed partial class Ff7Session
         FieldHostRequest? transitionOwner = Host.Process.Transition is null ? null : Host.Capture().Receipts.FirstOrDefault(receipt => receipt.Request.Id == Host.Process.GlobalRequestId)?.Request;
         FieldScriptReturn[] returns = continuation.ScriptReturns?.ToArray() ?? [];
         Ff7NativeTransitionOwnership? ownership = ReadTransitionOwnership(sourceVm, transitionOwner, AutoPlayState?.Active, FieldGeneration, returns, continuation.ScriptActivity, (entity, script) => Field.Scripts.Entities[entity].ScriptOffsets[script]);
-        return new(Field.Name, FieldGeneration, Machine.Tick, returns, Host.Process.Transition, CaptureEventProgressWitness(), transitionOwner, ownership, continuation.ScriptActivity ?? []);
+        Ff7AutoPlayActiveEvent? completedActivation = AutoPlayState is { } autoplay ? Ff7AutoPlayPolicy.ReadCompletedSynchronousActivation(autoplay, sourceVm, Host.Process, Field.Scripts.Data.Span, continuation.ScriptActivity ?? [], (entity, script) => Field.Scripts.Entities[entity].ScriptOffsets[script], FieldGeneration) : null;
+        return new(Field.Name, FieldGeneration, Machine.Tick, returns, Host.Process.Transition, CaptureEventProgressWitness(), transitionOwner, ownership, continuation.ScriptActivity ?? []) { CompletedSynchronousActivation = completedActivation };
     }
 
     internal static Ff7NativeTransitionOwnership? ReadTransitionOwnership(FieldVmSnapshot sourceVm, FieldHostRequest? owner, Ff7AutoPlayActiveEvent? active, long generation, IReadOnlyList<FieldScriptReturn> returns, IReadOnlyList<Ff7NativeScriptActivity>? activities = null, Func<int, int, int>? readEntry = null)

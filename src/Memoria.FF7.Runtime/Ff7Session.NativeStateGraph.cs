@@ -44,7 +44,7 @@ public sealed partial class Ff7AutoplayDriver
                 using (Ff7Session inspect = session.RestoreAutoPlayNavigation(state.Native))
                 {
                     Ff7AutoPlayObservation current = new Ff7AutoPlayDiscovery(inspect).Observe();
-                    edges = ReadNativeGraphEdges(inspect, state.Debt, current, target).ToArray();
+                    edges = ReadNativeGraphEdges(inspect, state.Debt, current, target, probe.NavigationPrerequisites).ToArray();
                 }
                 foreach (Ff7NativeGraphEdge edge in edges)
                 {
@@ -100,6 +100,7 @@ public sealed partial class Ff7AutoplayDriver
                 bool selectedActorEligible = current.Events.Any(item => item.Id == goal.Id && item.Kind == goal.Kind && item.Entity == goal.Entity && item.Script == goal.Script && item.ConditionFingerprint == goal.ConditionFingerprint && item.AnalysisComplete);
                 NativeGraphOwnership selectedOwner = new(source.GoalAdmitted ? source.Debt : null, goal);
                 bool unexpected = false;
+                Ff7AutoPlayTarget? prerequisiteAdmitted = null;
                 HashSet<(int Entity, int Script)> startedRoots = [];
                 Ff7Actor startingPlayer = branch.Host.Process.Actors.Single(actor => actor.PlayerControlled);
                 bool forcedSettlement = edge.Kind == Ff7NativeGraphEdgeKind.OwnerSettlement && ownership.HasDebt && (branch.Host.Process.PlayerLocked || branch.Host.Process.Join is not null || startingPlayer.Ladder is not null || branch.Host.HasScriptedMotion(startingPlayer) || ownership.HasPendingRoot);
@@ -136,7 +137,12 @@ public sealed partial class Ff7AutoplayDriver
                 branch.NativeActorTalkRequested += admission =>
                 {
                     bool matches = selectedActorEligible && IsSelectedNativeActorAdmission(goal, admission);
-                    unexpected |= admission.Accepted && !matches;
+                    bool prerequisite = edge.Kind == Ff7NativeGraphEdgeKind.OwnedEvent && edge.Event is { } chosen && probe.NavigationPrerequisites.Contains(chosen) && current.Events.Contains(chosen) && admission.Started && IsSelectedNativeActorAdmission(chosen, admission) && ownership.OwnsInput(admission.Entity, admission.Priority);
+                    unexpected |= admission.Accepted && !matches && !prerequisite;
+                    if (prerequisite)
+                    {
+                        prerequisiteAdmitted = edge.Event;
+                    }
                     if (matches)
                     {
                         selected = true;
@@ -188,7 +194,8 @@ public sealed partial class Ff7AutoplayDriver
                     }
                 }
                 Ff7AutoPlayTarget? queued = driver.ReadPendingNavigationLineRequest(protectedEvents.Where(item => item.Id != goal.Id && !ownership.Allows(item.Entity, item.Script)).ToArray());
-                bool unsafeEdge = unexpected || ownership.Invalid || selectedOwner.Invalid || queued is not null || !clock.Independent || !HasNativeGraphTerminalContract(branch, goal, selected, selectedOwner);
+                bool prerequisiteBoundary = prerequisiteAdmitted is not null && HasNativeNavigationPrerequisiteBoundary(branch.Host.Process, branch.Clock.CountdownSeconds, branch.Machine.Capture().PendingRequests ?? [], ownership);
+                bool unsafeEdge = unexpected || ownership.Invalid || selectedOwner.Invalid || queued is not null || !clock.Independent || !prerequisiteBoundary && !HasNativeGraphTerminalContract(branch, goal, selected, selectedOwner);
                 Ff7Line? line = branch.Host.Process.Lines.LastOrDefault(item => item.Entity == goal.Entity);
                 Ff7AutoPlayNativeIdleFacts idle = new(branch.Host.Process.PlayerLocked, branch.Host.Process.Join is not null, after.Ladder is { Completed: false }, after.Ladder is { Completed: true }, goal.Kind is >= Ff7AutoPlayTargetKind.LineTalk and <= Ff7AutoPlayTargetKind.LineLeave && line?.Enabled != 1, input, line);
                 nativeCandidateSummaries.Set(id, new("NativeGraph", ownership.HasDebt || recovery is not null, goal.Id, checked((int)(parent.Cost + segment.Count)), branch.Host.Process.Tick, new(after.X4096, after.Y4096, after.Z4096, after.Triangle, after.Direction), after.X4096 != original.X4096 || after.Y4096 != original.Y4096 || after.Z4096 != original.Z4096 || after.Triangle != original.Triangle, pending, Vector3.Distance(new(after.X4096 / 4096f, after.Y4096 / 4096f, after.Z4096 / 4096f), goal.Position), idle));
@@ -199,6 +206,12 @@ public sealed partial class Ff7AutoplayDriver
                 if (unsafeEdge)
                 {
                     segment.RemoveAt(segment.Count - 1);
+                    yield break;
+                }
+                if (prerequisiteBoundary)
+                {
+                    SetNativeGraphProof(graph, parent, segment, branch, goal, probe);
+                    probe.Result = probe.Result! with { NavigationPrerequisite = prerequisiteAdmitted };
                     yield break;
                 }
                 ownership.ObserveQueued(branch.Host.Process.Lines);
@@ -272,7 +285,7 @@ public sealed partial class Ff7AutoplayDriver
         LastNativeRouteProbe = $"Authenticated native graph {target.Id}, callbacks {steps.Length}, battle:{battle}, gateway:{gateway?.GatewayIndex}, sourceReleased:{released}";
     }
 
-    private static IEnumerable<Ff7NativeGraphEdge> ReadNativeGraphEdges(Ff7Session branch, Ff7NativeGraphDebt? debt, Ff7AutoPlayObservation observation, Ff7AutoPlayTarget goal)
+    private static IEnumerable<Ff7NativeGraphEdge> ReadNativeGraphEdges(Ff7Session branch, Ff7NativeGraphDebt? debt, Ff7AutoPlayObservation observation, Ff7AutoPlayTarget goal, IReadOnlyList<Ff7AutoPlayTarget> prerequisites)
     {
         Ff7Actor player = branch.Host.Process.Actors.Single(actor => actor.PlayerControlled);
         Vector3 position = new(player.X4096 / 4096f, player.Y4096 / 4096f, player.Z4096 / 4096f);
@@ -309,7 +322,7 @@ public sealed partial class Ff7AutoplayDriver
                 yield return new(Ff7NativeGraphEdgeKind.Portal, (next.A + next.B + next.C) / 3, adjacent, Run: false);
             }
         }
-        foreach (Ff7AutoPlayTarget item in observation.Events.Where(item => item.Id != goal.Id && IsNativeGraphProtectedLine(item)))
+        foreach (Ff7AutoPlayTarget item in observation.Events.Where(item => item.Id != goal.Id && (IsNativeGraphProtectedLine(item) || prerequisites.Contains(item))))
         {
             foreach (Ff7AutoplayInput input in ReadNativeMovementInputs())
             {
@@ -358,6 +371,38 @@ public sealed partial class Ff7AutoplayDriver
         }
         var selected = SelectFloorContact(contacts, Position3D(player), null, player.Triangle);
         return new(kind, selected.Point, selected.Triangle, target);
+    }
+
+    internal static int[] ReadNativeGoalBlockers(Ff7Session branch, Ff7AutoPlayTarget goal, IReadOnlyList<Ff7AutoPlayTarget> targets)
+    {
+        Ff7Actor player = branch.Host.Process.Actors.Single(actor => actor.PlayerControlled);
+        if (ReadNativeEventGuide(branch, player, goal, Ff7NativeGraphEdgeKind.Goal) is not { } guide)
+        {
+            return [];
+        }
+        Ff7AutoplayDriver driver = new(branch);
+        driver.ConfigureSpatialBoundaries(targets, goal);
+        HashSet<int> blocked = [];
+        driver.ChooseTargetInput(goal, targets, _ =>
+        {
+            foreach (bool run in new[] { false, true })
+            {
+                Ff7AutoplayInput input = driver.Steer(guide.Point, run);
+                if (input.Horizontal == 0 && input.Vertical == 0)
+                {
+                    continue;
+                }
+                var direction = Directions.Single(item => item.X == input.Horizontal && item.Y == input.Vertical);
+                Ff7Actor controlled = player with { MoveSpeed = unchecked((ushort)branch.GetPlayerMovementSpeed(run)) };
+                Ff7NativeMoveResult move = branch.Host.Movement!.StepDirection(controlled, unchecked((byte)(direction.Direction + branch.Field.Triggers.ControlDirection)), branch.Host.Process.Actors, branch.Host.Process.BlockedTriangles, false, branch.Host.Process.LineBlocked);
+                if (!move.Moved && driver.AllowsPlannedMove(controlled, move))
+                {
+                    blocked.UnionWith(move.PushEntities);
+                }
+            }
+            return default;
+        }, requiredRun: true);
+        return blocked.Order().ToArray();
     }
 
     private static Ff7AutoplayInput ChooseNativeGraphInput(Ff7Session branch, Ff7AutoplayDriver driver, Ff7NativeGraphEdge edge, Ff7AutoPlayTarget goal, Ff7AutoPlayTarget[] events, NativeGraphOwnership ownership)
@@ -466,6 +511,11 @@ public sealed partial class Ff7AutoplayDriver
     {
         bool Owned(long id, bool dialogue) => requests.Any(request => request.Id == id && selectedOwner.OwnsInput(request.Entity, request.Priority) && (dialogue ? request.Command is FieldDialogueCommand : request.Command is FieldMenuCommand));
         return countdownSeconds == 0 && process.MusicVolumeFade is null && process.SoundChannelVolumeFades.All(fade => fade is null) && process.SoundChannelPanFades.All(fade => fade is null) && process.SoundChannelFrequencyFades.All(fade => fade is null) && !selectedOwner.Invalid && process.Dialogues.All(dialogue => dialogue.Completed || Owned(dialogue.RequestId, true)) && (process.Menu is not { Completed: false } menu || Owned(menu.RequestId, false));
+    }
+
+    internal static bool HasNativeNavigationPrerequisiteBoundary(Ff7FieldProcess process, uint countdownSeconds, IReadOnlyList<FieldHostRequest> requests, NativeGraphOwnership owner)
+    {
+        return process.GlobalCommand == Ff7GlobalCommand.None && process.Transition is null && process.Join is null && process.Movie is not { Playing: true } && process.Dialogues.All(dialogue => dialogue.Completed || dialogue.FirstChoice is null) && process.Menu is not { Completed: false } && HasNativeTalkTerminalContract(process, countdownSeconds, requests, owner);
     }
 
     internal static float ReadNativeRouteAdvisory(IReadOnlyList<PcWalkmeshTriangle> mesh, byte[] blocked, Ff7Actor player, Vector3 target, IReadOnlyList<(Vector3 Point, int Triangle)> contacts, int movementSpeed, IReadOnlySet<int>? boundaries = null, int? admittedTriangle = null, IReadOnlySet<(int From, int To)>? ownedPortals = null)

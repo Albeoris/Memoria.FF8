@@ -15,6 +15,8 @@ public sealed record Ff7AutoPlayActiveEvent(string VisitId, string EventId, stri
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Ff7AutoPlayExecutionProvenance? ExecutionProvenance { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public AutoPlayTravelGoal? NavigationPrerequisiteGoal { get; init; }
 }
 public sealed record Ff7AutoPlayMovementFailure(int MinX, int MaxX, int MinY, int MaxY, int? MinZ = null, int? MaxZ = null);
 public sealed record Ff7AutoPlayPhysicalFailureReceipt(int Revision, string Contract, string NativeSource, long Expanded);
@@ -27,11 +29,13 @@ public sealed record Ff7AutoPlayTravelCommitment(AutoPlayTravelGoal Goal, string
 public sealed record Ff7AutoPlayTransportEntry(string Region, uint Cost, uint BeforeGil, ushort? DestinationField = null, int? ChoiceProgramCounter = null);
 public sealed record Ff7AutoPlayTransportRegion(string Condition, string Region, string? CompletedRegion = null, string? CompletedCondition = null, string? DestinationVisit = null, string? ChoiceKey = null);
 public sealed record Ff7AutoPlayChoicePreference(int Selection, string NativeContext, string GuestContext, Dictionary<string, string>? NativeComponents = null);
+public sealed record Ff7AutoPlayNavigationPrerequisiteCompletion(string Condition, string? GoalCondition, string ColliderState);
 
 public sealed class Ff7AutoPlayState
 {
     public Dictionary<string, Ff7AutoPlayTalkConditionDomain> TalkConditionDomains { get; set; } = new(StringComparer.Ordinal);
     public Dictionary<string, Ff7AutoPlayTransportRegion> TransportRegions { get; set; } = new(StringComparer.Ordinal);
+    public Dictionary<string, Ff7AutoPlayNavigationPrerequisiteCompletion> NavigationPrerequisiteCompletions { get; set; } = new(StringComparer.Ordinal);
     public int Version { get; set; } = 1;
     public AutoPlayPlannerState<Ff7AutoPlayDeferral> Coverage { get; set; } = new();
     public ushort? DestinationField { get; set; }
@@ -74,6 +78,7 @@ public sealed class Ff7AutoPlayState
             throw new InvalidDataException("The recorded native execution provenance is corrupt.");
         }
         TransportRegions ??= new(StringComparer.Ordinal);
+        NavigationPrerequisiteCompletions ??= new(StringComparer.Ordinal);
         SourceRevalidationAttempts ??= new(StringComparer.Ordinal);
         if (NavigationGuards.Values.Any(guard => guard.PhysicalFailure is { } receipt && (receipt.Expanded < 0 || receipt.Contract is not { Length: 64 } || !receipt.Contract.All(Uri.IsHexDigit) || receipt.NativeSource is not { Length: 64 } || !receipt.NativeSource.All(Uri.IsHexDigit))))
         {

@@ -100,7 +100,7 @@ public sealed partial class Ff7AutoPlayPolicy
         bool installed = false;
         IEnumerable<int> Search(Ff7AutoPlayTarget candidate, Ff7NativeSiblingCandidate? sibling)
         {
-            Ff7NativeRouteProbe probe = new() { ExpectedNavigationKey = ReadExpectedNativeTransportNavigation(State, planner, observation, active, sibling), SourceRelease = (branch, actual) => CanReleaseNativeSource(State, observation, candidate, branch, actual) };
+            Ff7NativeRouteProbe probe = new() { ExpectedNavigationKey = ReadExpectedNativeTransportNavigation(State, planner, observation, active, sibling), SourceRelease = (branch, actual) => CanReleaseNativeSource(State, observation, candidate, branch, actual), NavigationPrerequisites = sibling is null ? ReadKnownNavigationPrerequisites(observation, candidate) : [] };
             foreach (int _ in Ff7AutoplayDriver.EnumerateFairNativeCandidates(driver.EnumerateNativeRouteModes(candidate, observation.Events, probe), () => probe.Result is not null))
             {
                 nativePlanningPhase = probe.Progress;
@@ -117,7 +117,7 @@ public sealed partial class Ff7AutoPlayPolicy
             }
             if (sibling is null)
             {
-                installed = TryInstallActiveNativeRoute(State, active, goal, observation, proof, source);
+                installed = proof.NavigationPrerequisite is null ? TryInstallActiveNativeRoute(State, active, goal, observation, proof, source) : TryInstallNavigationPrerequisite(active, goal, observation, proof, source);
             }
             else
             {

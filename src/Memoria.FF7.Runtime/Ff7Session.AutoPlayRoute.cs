@@ -6,7 +6,11 @@ using Memoria.FF7.Events;
 namespace Memoria.FF7.Runtime;
 
 public sealed record Ff7AutoPlayRouteStep(string Before, Ff7AutoplayInput Input);
-public sealed record Ff7AutoPlayNativeRoute(string EventId, string ConditionFingerprint, long Generation, Ff7AutoPlayRouteStep[] Steps, string After, bool BattleBoundary = false, int Cursor = 0, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Ff7NativeGatewayDeparture? GatewayDeparture = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool SourceReleased = false);
+public sealed record Ff7AutoPlayNativeRoute(string EventId, string ConditionFingerprint, long Generation, Ff7AutoPlayRouteStep[] Steps, string After, bool BattleBoundary = false, int Cursor = 0, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Ff7NativeGatewayDeparture? GatewayDeparture = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool SourceReleased = false)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Ff7AutoPlayTarget? NavigationPrerequisite { get; init; }
+}
 
 public sealed partial class Ff7Session
 {

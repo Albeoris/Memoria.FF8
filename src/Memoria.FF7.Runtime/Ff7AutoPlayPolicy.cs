@@ -663,7 +663,11 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
 
     private void CompleteActive(Ff7AutoPlayObservation observation, Ff7AutoPlayActiveEvent active, bool changedField, Ff7AutoplayDriver? driver = null, IReadOnlyDictionary<string, string>? physicalGuards = null)
     {
-        bool ownedTravelArrival = IsOwnedTravelArrival(State, active, observation, changedField, IsPendingOwnedSourceGoal(State.NavigationGoal, observation));
+        bool ownedTravelArrival = IsOwnedTravelArrival(State, active, observation, changedField, IsPendingOwnedSourceGoal(State.NavigationGoal, observation)) || !changedField && IsOwnedNavigationPrerequisiteCompletion(State, active, observation);
+        if (!changedField && active.NavigationPrerequisiteGoal is not null && session.Host.Process.Actors.SingleOrDefault(actor => actor.EntityBound && actor.Entity == active.Entity) is { } prerequisiteActor)
+        {
+            RecordNavigationPrerequisiteCompletion(State, active, prerequisiteActor);
+        }
         Ff7AutoPlayActiveEvent completed = RefreshCompletedGatewayTravel(observation, active);
         if (!ReferenceEquals(completed, active))
         {
@@ -858,6 +862,10 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
     {
         ObserveNativeRouteBoundary();
         ObserveFieldDestinationArrival();
+        if (ObserveCompletedSynchronousActivation(observation))
+        {
+            return;
+        }
         if (State.Active is not { } active || active.Generation != observation.Generation)
         {
             return;
