@@ -245,6 +245,7 @@ public sealed partial class FieldMachine
             case 0x87:
             case 0x88:
             case 0x89:
+            case 0x8A:
             case 0x8B:
             case 0x8D:
             case 0x8E:
@@ -262,7 +263,7 @@ public sealed partial class FieldMachine
                 {
                     0x85 or 0x86 => left + right,
                     0x87 or 0x88 => left - right,
-                    0x89 => left * right,
+                    0x89 or 0x8A => left * right,
                     0x8B => right == 0 ? throw new InvalidDataException("FFVII division divisor is zero.") : left / right,
                     0x8D or 0x8E => right == 0 ? throw new InvalidDataException("FFVII remainder divisor is zero.") : left % right,
                     0x8F or 0x90 => left & right,
