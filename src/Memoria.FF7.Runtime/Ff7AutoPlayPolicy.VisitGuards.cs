@@ -48,7 +48,7 @@ public sealed partial class Ff7AutoPlayPolicy
     internal static Ff7AutoPlayVisitGuard CaptureVisitGuard(IReadOnlyList<FieldVariableRead> reads, IReadOnlyList<FieldHostRead> hostReads, FieldVariables variables, Ff7Progress progress, Ff7FieldProcess process)
     {
         FieldVariableRead[] persistent = reads.Where(read => read.Bank is FieldBank.Persistent0Byte or FieldBank.Persistent0Word or FieldBank.Persistent1Byte or FieldBank.Persistent1Word or FieldBank.Persistent2Byte or FieldBank.Persistent2Word or FieldBank.Persistent3Byte or FieldBank.Persistent3Word or FieldBank.Persistent4Byte or FieldBank.Persistent4Word).Distinct().OrderBy(read => read.Bank).ThenBy(read => read.Operand).ThenBy(read => read.Word).ToArray();
-        FieldHostRead[] global = hostReads.Where(read => read.Kind is FieldHostReadKind.Gil or FieldHostReadKind.ItemQuantity or FieldHostReadKind.PartyAvailable or FieldHostReadKind.MateriaCapacity).Distinct().OrderBy(read => read.Kind).ThenBy(read => read.Parameter).ThenBy(read => read.Selector).ToArray();
+        FieldHostRead[] global = hostReads.Where(read => read.Kind is FieldHostReadKind.Gil or FieldHostReadKind.ItemQuantity or FieldHostReadKind.PartyAvailable or FieldHostReadKind.MateriaCapacity or FieldHostReadKind.MainPartySlot).Distinct().OrderBy(read => read.Kind).ThenBy(read => read.Parameter).ThenBy(read => read.Selector).ToArray();
         Ff7AutoPlayHostConditions external = Ff7AutoPlayDiscovery.ReadHostConditions(global, progress, process);
         if (!external.Complete)
         {

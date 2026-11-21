@@ -263,7 +263,7 @@ public sealed partial class Ff7AutoPlayDiscovery(Ff7Session session)
             if (analysis.Complete)
             {
                 persistentReads.UnionWith(dependencies.Reads.Where(read => read.Bank is not (FieldBank.Immediate or FieldBank.MapByte or FieldBank.MapWord)));
-                globalHostReads.UnionWith(dependencies.HostReads.Where(read => read.Kind is FieldHostReadKind.Gil or FieldHostReadKind.ItemQuantity or FieldHostReadKind.PartyAvailable or FieldHostReadKind.MateriaCapacity));
+                globalHostReads.UnionWith(dependencies.HostReads.Where(read => read.Kind is FieldHostReadKind.Gil or FieldHostReadKind.ItemQuantity or FieldHostReadKind.PartyAvailable or FieldHostReadKind.MateriaCapacity or FieldHostReadKind.MainPartySlot));
             }
             Ff7AutoPlayHostConditions external = ReadHostConditions(dependencies.HostReads, session.Progress, session.Host.Process, session.Host.ReadNativeMusicPlaying);
             fingerprint = CombineConditionFingerprints(fingerprint, external.Fingerprint);

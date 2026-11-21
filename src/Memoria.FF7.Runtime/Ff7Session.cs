@@ -577,6 +577,12 @@ public sealed partial class Ff7Session : IDisposable
                     break;
                 case FieldPartyOperation.Contains:
                     return new(true, members.Contains(party.Member0) ? 1 : 0);
+                case FieldPartyOperation.ReadSlot:
+                    if (party.Member0 is < 0 or >= 3 || members.Length != 3)
+                    {
+                        throw new InvalidDataException("FFVII main-party query requires a native three-slot party and a valid literal slot.");
+                    }
+                    return new(true, checked((byte)members[party.Member0]));
                 case FieldPartyOperation.Available:
                     return new(true, (Progress.AvailableCharacters & 1 << party.Member0) != 0 ? 1 : 0);
                 case FieldPartyOperation.SetAvailable:

@@ -221,6 +221,14 @@ public sealed partial class FieldMachine
                     return false;
                 }
                 return Host(id, new FieldActorQuery(FieldActorQueryKind.Direction, partyDirectionTarget), 4, result: value => Variables.WriteByte(Bank(id, 2), B(id, 3), unchecked((byte)value)));
+            case 0x74:
+                int mainPartySlot = B(id, 2);
+                if (mainPartySlot >= 3)
+                {
+                    Advance(id, 4);
+                    return false;
+                }
+                return Host(id, new FieldPartyCommand(FieldPartyOperation.ReadSlot, mainPartySlot), 4, result: value => Variables.WriteByte(Bank(id, 2), B(id, 3), checked((byte)value)));
             case 0x75:
                 int positionPartySlot = B(id, 3);
                 int positionCharacter = positionPartySlot < 3 ? ReadParty()[positionPartySlot] : 255;

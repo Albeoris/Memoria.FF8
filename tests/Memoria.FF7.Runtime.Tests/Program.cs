@@ -3,6 +3,18 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-main-party-read-only", StringComparer.Ordinal))
+{
+    NativeMainPartyReadTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-main-party-read-original-only", StringComparer.Ordinal))
+{
+    NativeMainPartyReadOriginalTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-presentation-polling-input-only", StringComparer.Ordinal))
 {
     NativePresentationPollingInputTests.Run();

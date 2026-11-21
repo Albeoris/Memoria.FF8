@@ -40,7 +40,7 @@ public sealed partial class Ff7AutoPlayDiscovery
             }
             var triangle = session.Field.Walkmesh[demand.SampleId];
             Ff7AutoPlayHostConditions external = ReadHostConditions(demand.HostReads, session.Progress, session.Host.Process, session.Host.ReadNativeMusicPlaying);
-            globalHostReads.UnionWith(demand.HostReads.Where(read => read.Kind is FieldHostReadKind.Gil or FieldHostReadKind.ItemQuantity or FieldHostReadKind.PartyAvailable or FieldHostReadKind.MateriaCapacity));
+            globalHostReads.UnionWith(demand.HostReads.Where(read => read.Kind is FieldHostReadKind.Gil or FieldHostReadKind.ItemQuantity or FieldHostReadKind.PartyAvailable or FieldHostReadKind.MateriaCapacity or FieldHostReadKind.MainPartySlot));
             int? destination = demand.DestinationFields.Length == 1 ? demand.DestinationFields[0] : null;
             string owner = demand.DirectEffectOwner is not null ? "effect:" : demand.TargetScript == -1 ? "direct:" : string.Empty;
             bool effectComplete = demand.DirectEffectOwner is not { ExitProgramCounters.Length: 0 };

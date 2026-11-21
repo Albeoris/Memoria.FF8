@@ -184,7 +184,8 @@ public enum FieldPartyOperation
     Contains,
     Available,
     SetAvailable,
-    SetLocked
+    SetLocked,
+    ReadSlot
 }
 public sealed record FieldPartyCommand(FieldPartyOperation Operation, int Member0, int Member1 = 255, int Member2 = 255) : FieldCommand;
 public sealed record FieldFadeCommand(int Type, int Red = 0, int Green = 0, int Blue = 0, int Speed = 0, int Adjustment = 0, bool NewFade = false, bool Wait = false) : FieldCommand;

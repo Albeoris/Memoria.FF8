@@ -25,6 +25,7 @@ public sealed partial class Ff7AutoPlayDiscovery
                     FieldHostReadKind.Gil => progress.Gil.ToString(System.Globalization.CultureInfo.InvariantCulture),
                     FieldHostReadKind.ItemQuantity => Ff7NativeInventory.Quantity(progress.Inventory, read.Parameter).ToString(System.Globalization.CultureInfo.InvariantCulture),
                     FieldHostReadKind.PartyAvailable => ((progress.AvailableCharacters & (1 << read.Parameter)) != 0).ToString(),
+                    FieldHostReadKind.MainPartySlot => read.Parameter is >= 0 and < 3 && progress.Party.Length == 3 ? progress.Party[read.Parameter].ToString(System.Globalization.CultureInfo.InvariantCulture) : throw new InvalidDataException("A main-party dependency requires a valid native slot."),
                     FieldHostReadKind.Actor => ReadActorCondition(process, read),
                     FieldHostReadKind.PreviousMap => (process.PreviousMap ?? throw new NotSupportedException("The native previous-map source fact is absent.")).ToString(System.Globalization.CultureInfo.InvariantCulture),
                     FieldHostReadKind.BattleResult => process.BattleResult.ToString(System.Globalization.CultureInfo.InvariantCulture),

@@ -15,7 +15,8 @@ public enum FieldHostReadKind
     MateriaCapacity,
     MovieFrame,
     MusicPlaying,
-    Random
+    Random,
+    MainPartySlot
 }
 
 public sealed record FieldHostRead(FieldHostReadKind Kind, int Parameter = 0, int Selector = 0);
@@ -468,6 +469,7 @@ public sealed partial class FieldMachine
                         FieldMateriaCommand => new(FieldHostReadKind.MateriaCapacity),
                         FieldMovieCommand { Operation: FieldMovieOperation.ReadFrame } => new(FieldHostReadKind.MovieFrame),
                         FieldMusicPlayingQuery => new(FieldHostReadKind.MusicPlaying),
+                        FieldPartyCommand { Operation: FieldPartyOperation.ReadSlot } party => new(FieldHostReadKind.MainPartySlot, party.Member0),
                         FieldRandomCommand => new(FieldHostReadKind.Random),
                         _ => null
                     };
