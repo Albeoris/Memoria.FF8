@@ -122,7 +122,12 @@ public sealed partial class FieldMachine
         return ProveNavigationEntry(entity, script, projectedInput, externalWrites, possibleExternalEntries, instructionBudget, null, false, true);
     }
 
-    private FieldNavigationEntryProof ProveNavigationEntry(int entity, int script, FieldInputState projectedInput, IReadOnlyList<FieldVariableRead> externalWrites, IReadOnlyList<FieldNavigationEntryPoint> possibleExternalEntries, int instructionBudget, FieldNavigationControlState? controls, bool allInputs, bool directTransition)
+    public FieldNavigationEntryProof ProvePersistentNavigationEntryHasNoEffect(int entity, int script, int instructionBudget = 8192)
+    {
+        return ProveNavigationEntry(entity, script, new(), [], [], instructionBudget, null, true, false, persistentOnly: true);
+    }
+
+    private FieldNavigationEntryProof ProveNavigationEntry(int entity, int script, FieldInputState projectedInput, IReadOnlyList<FieldVariableRead> externalWrites, IReadOnlyList<FieldNavigationEntryPoint> possibleExternalEntries, int instructionBudget, FieldNavigationControlState? controls, bool allInputs, bool directTransition, bool persistentOnly = false)
     {
         ArgumentNullException.ThrowIfNull(projectedInput);
         ArgumentNullException.ThrowIfNull(externalWrites);
@@ -133,13 +138,13 @@ public sealed partial class FieldMachine
         }
         HashSet<FieldVariableRead> reads = [];
         FieldNavigationEntryProof Reject(string reason) => new(false, false, reason, reads.OrderBy(read => read.Bank).ThenBy(read => read.Operand).ThenBy(read => read.Word).ToArray());
-        if (!Initialized || CycleCursor is not null)
+        if (!persistentOnly && (!Initialized || CycleCursor is not null))
         {
             return Reject("Navigation entry proof requires an initialized native cycle boundary.");
         }
         try
         {
-            FieldMachine detached = Restore(program, Capture(), new InspectionHost());
+            FieldMachine detached = persistentOnly ? new(program, new FieldVariables(Variables.CopyPersistent(), new byte[256]), host: new InspectionHost()) : Restore(program, Capture(), new InspectionHost());
             detached.inspection = new() { StopAtHost = true };
             detached.entities[entity].Pc = program.Entry(entity, script);
             detached.entities[entity].Priority = 1;
@@ -151,7 +156,7 @@ public sealed partial class FieldMachine
             HashSet<FieldVariableRead> queryOutputs = [];
             string? ProveReturn(int pc, int handlers, HashSet<int> ancestors, HashSet<FieldVariableRead> unknown)
             {
-                if (handlers >= 8)
+                if (handlers >= 8 || persistentOnly && handlers >= instructionBudget)
                 {
                     return "The entry return exceeds one native handler quantum.";
                 }
@@ -161,6 +166,10 @@ public sealed partial class FieldMachine
                 }
                 detached.entities[entity].Pc = pc;
                 byte opcode = program.Read(pc);
+                if (persistentOnly && opcode is not (0 or 0x10 or 0x11 or >= 0x14 and <= 0x19 or >= 0x30 and <= 0x32 or 0xCB))
+                {
+                    return "The persistent projection reaches an effect or a nonpersistent native contract.";
+                }
                 if (directTransition)
                 {
                     if (opcode == 0x60)
@@ -243,7 +252,7 @@ public sealed partial class FieldMachine
                     {
                         transitionGuards.Add(new { Opcode = opcode, condition.LeftSource, condition.RightSource, condition.Left, condition.Right, condition.Operation });
                     }
-                    bool IsUnknown(FieldVariableRead read) => detached.Variables.SpatialSourceBytes(read).Any(source => unknown.Contains(source) || queryOutputs.Contains(source));
+                    bool IsUnknown(FieldVariableRead read) => detached.Variables.SpatialSourceBytes(read).Any(source => unknown.Contains(source) || queryOutputs.Contains(source) || persistentOnly && source.Bank == FieldBank.MapByte);
                     if (IsUnknown(condition.LeftSource) || IsUnknown(condition.RightSource))
                     {
                         bool word = opcode >= 0x16;
@@ -278,6 +287,10 @@ public sealed partial class FieldMachine
             if (returnFailure is not null)
             {
                 return Reject(returnFailure);
+            }
+            if (persistentOnly)
+            {
+                return new(true, true, null, reads.OrderBy(read => read.Bank).ThenBy(read => read.Operand).ThenBy(read => read.Word).ToArray());
             }
             HashSet<FieldVariableRead> immutable = reads.SelectMany(Variables.SpatialSourceBytes).ToHashSet();
             if (externalWrites.SelectMany(Variables.SpatialSourceBytes).Any(immutable.Contains))

@@ -3,6 +3,24 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-destination-readiness-original-only", StringComparer.Ordinal))
+{
+    NativeDestinationReadinessOriginalTests.RunOriginal();
+    return 0;
+}
+
+if (args.Contains("--native-destination-readiness-only", StringComparer.Ordinal))
+{
+    NativeDestinationReadinessTests.Run();
+    return 0;
+}
+
+if (args.Contains("--remote-persistent-entry-only", StringComparer.Ordinal))
+{
+    RemotePersistentEntryTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-synchronous-activation-only", StringComparer.Ordinal))
 {
     NativeSynchronousActivationTests.Run();

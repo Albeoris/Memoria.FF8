@@ -321,17 +321,28 @@ internal sealed class Ff7AutoPlayNativeReadiness
 
     public bool ShouldWait(long generation, string navigationKey, FieldVmSnapshot vm, Ff7FieldProcess process, ReadOnlySpan<byte> script, IReadOnlyList<FieldScriptInputDemand> inputDemands)
     {
+        return ShouldWait(generation, navigationKey, vm, process, script, inputDemands, admittedSetupOnly: false);
+    }
+
+    internal bool ShouldWaitForDestinationSetup(long generation, string navigationKey, FieldVmSnapshot vm, Ff7FieldProcess process, ReadOnlySpan<byte> script, IReadOnlyList<FieldScriptInputDemand> inputDemands)
+    {
+        return ShouldWait(generation, navigationKey, vm, process, script, inputDemands, admittedSetupOnly: true);
+    }
+
+    private bool ShouldWait(long generation, string navigationKey, FieldVmSnapshot vm, Ff7FieldProcess process, ReadOnlySpan<byte> script, IReadOnlyList<FieldScriptInputDemand> inputDemands, bool admittedSetupOnly)
+    {
         HashSet<int> work = [];
         List<(int Owner, int Target)> links = [];
         for (int targetId = 0; targetId < vm.Entities.Length; targetId++)
         {
             FieldEntitySnapshot target = vm.Entities[targetId];
             int currentPc = target.ProgramCounter;
-            if (HasFiniteHostWork(vm, process, targetId) || HasAdmittedContinuation(target, script))
+            bool admitted = HasAdmittedContinuation(target, script);
+            if (admitted || !admittedSetupOnly && HasFiniteHostWork(vm, process, targetId))
             {
                 work.Add(targetId);
             }
-            if (target.WaitCounter > 0 && currentPc >= 0 && currentPc + 2 < script.Length && script[currentPc] == 0x24)
+            if ((!admittedSetupOnly || admitted) && target.WaitCounter > 0 && currentPc >= 0 && currentPc + 2 < script.Length && script[currentPc] == 0x24)
             {
                 // The executing WAIT owns a finite countdown, regardless of the following opcode.
                 work.Add(targetId);
@@ -346,6 +357,10 @@ internal sealed class Ff7AutoPlayNativeReadiness
                 FieldEntitySnapshot owner = vm.Entities[ownerId];
                 int pc = owner.ProgramCounter;
                 if (pc < 0 || pc + 2 >= script.Length || script[pc] != 0x03 || script[pc + 1] != targetId || script[pc + 2] >> 5 != priority)
+                {
+                    continue;
+                }
+                if (admittedSetupOnly && priority >= 7 && !HasAdmittedContinuation(owner, script))
                 {
                     continue;
                 }
