@@ -76,7 +76,7 @@ public sealed partial class Ff7WorldRuntime
 
     internal int? ReadAutoPlaySurfaceVehicleRider()
     {
-        if (Resources.World != 0 || ReadSurfaceVehicleLandingMask(controlledModel) == 0 || vehicle is { FlightState: not 0 } || !entities.TryGetValue(controlledModel, out Ff7WorldEntity? transport) || (transport.Flags & 128) != 0)
+        if (Resources.World != 0 || ReadSurfaceVehicleLandingMask(controlledModel) == 0 || vehicle is { FlightState: not 0 } || !entities.TryGetValue(controlledModel, out Ff7WorldEntity? transport))
         {
             return null;
         }

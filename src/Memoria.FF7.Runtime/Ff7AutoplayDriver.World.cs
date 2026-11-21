@@ -303,7 +303,7 @@ public sealed partial class Ff7AutoplayDriver
             this.reachedTarget = reachedTarget;
             this.avoidFirst = avoidFirst?.ToHashSet();
             this.success = success;
-            this.held = held;
+            this.held = Ff7WorldRuntime.IsAutoPlayAircraft(source.Player) ? (ushort)(held | 0x80) : held;
             this.source = RetainRandomTable(source);
             WorldPhysicalKey key = WorldPhysicalKey.Read(WorldMovementKey(source));
             WorldPhysicalKey searchKey = WorldPhysicalKey.Read(WorldSearchKey(source));
@@ -522,7 +522,7 @@ public sealed partial class Ff7AutoplayDriver
     {
         Ff7WorldEntity p = state.Player;
         Ff7WorldInputState i = state.Input;
-        bool facing = includePresentationFacing || state.WorldId == 3;
+        bool facing = includePresentationFacing || state.WorldId == 3 || Ff7WorldRuntime.IsAutoPlayAircraft(p);
         StringBuilder key = new($"model-contact-admission:{WorldModelContactAdmissionRevision}:{state.WorldId}:{state.WorldMapState}:{p.Model}:{p.X}:{p.Y}:{p.Z}:{p.Terrain}:{p.Flags}:{p.ContactModel}:{(facing ? p.Direction : 0)}:{p.TargetDirection}:{(facing ? p.TurnOffset : 0)}:{state.ViewMode}:{i.CameraHeadingTarget ?? state.Camera.Heading}:{i.FreeDirectionOffset}:{i.PreviousControlHeld}:{i.CollisionSide}:{Math.Min(i.CollisionAge, 8)}:{i.CollisionRecovery}:{i.BridgeCooldown}:{i.HeightSmoothVelocity}:{i.HeightSmoothRemaining}:{i.TerrainScript}:{i.GroundTriangle}:{i.Bridge}");
         foreach (Ff7WorldTerrainReference cached in i.TerrainCache ?? [])
         {
@@ -533,7 +533,13 @@ public sealed partial class Ff7AutoplayDriver
             Ff7WorldSnowState? snow = state.Snow;
             key.Append($"|snow:{state.Camera.Heading}:{p.ScriptDirection}:{state.RandomIndex}:{(state.Random is null ? "none" : Convert.ToHexString(SHA256.HashData(state.Random)))}:{snow?.PoleIndex}:{snow?.Countdown}:{snow?.WindLength}:{snow?.WindVelocity}:{snow?.CycleLength}:{snow?.LockedFacing}:{JsonSerializer.Serialize(state.SnowPoles)}:{JsonSerializer.Serialize(state.ScriptCamera)}");
         }
-        // Ordinary foot-control RNG draws have no physical return value. Snow wind consumes their values above.
+        if (Ff7WorldRuntime.IsAutoPlayAircraft(p))
+        {
+            Ff7WorldVehicleState? physicalVehicle = state.Vehicle is null ? null : state.Vehicle with { HighwindPropellerFrame = 0, HighwindPropellerPoseFrame = null, FlightBasePitch = null, FlightBaseDistance = null };
+            // Propeller frames and pitch/distance smoothing affect presentation; heading and the flight envelope drive motion.
+            key.Append($"|aircraft:{p.GroundHeight}:{p.TerrainResolved}:{JsonSerializer.Serialize(physicalVehicle)}:{state.Camera.Heading}:{JsonSerializer.Serialize(state.ScriptCamera)}");
+        }
+        // Ordinary foot and aircraft control RNG draws have no physical return value. Snow wind consumes their values above.
         return key.ToString();
     }
 

@@ -19,7 +19,7 @@ public sealed partial class Ff7WorldRuntime
         }
     }
 
-    private void AdvanceHighwindInput(Ff7WorldEntity aircraft)
+    private void AdvanceHighwindInput(Ff7WorldEntity aircraft, bool autoPlayPreview = false)
     {
         vehicle ??= new([]);
         ushort held = WorldControlHeld();
@@ -42,6 +42,7 @@ public sealed partial class Ff7WorldRuntime
         }
         if ((pressed & 0x10) != 0 && mainState == 1 && aircraft.Model == 3)
         {
+            RejectAutoPlayMovement(autoPlayPreview, "The aircraft system action requires native world VM execution.");
             Machine.StartSystem(6);
         }
         input = input with { CameraHeadingTarget = target, PreviousControlHeld = held };
@@ -85,7 +86,7 @@ public sealed partial class Ff7WorldRuntime
         camera = camera with { Roll = roll };
     }
 
-    private void ResolveHighwindTerrain(Ff7WorldEntity aircraft)
+    private void ResolveHighwindTerrain(Ff7WorldEntity aircraft, bool autoPlayPreview = false)
     {
         (int Height, int Terrain)? ground = QueryTerrain(aircraft.X, aircraft.Z, aircraft.Y, aircraft.Terrain, aircraft.Model);
         if (ground is { } resolved)
@@ -107,12 +108,17 @@ public sealed partial class Ff7WorldRuntime
                 int script = resolved.Terrain >> 5 & 7;
                 if (script >= 3 && input.TerrainScript != script)
                 {
+                    RejectAutoPlayMovement(autoPlayPreview, "The aircraft terrain callback requires native world VM execution.");
                     Machine.StartMesh(aircraft.X >> 13, aircraft.Z >> 13, script - 3);
                 }
                 input = input with { TerrainScript = script >= 3 ? script : 0 };
             }
         }
         UpdateEntity(aircraft);
+        if (autoPlayPreview)
+        {
+            return;
+        }
         AdvanceWorldModelPresentation();
         if (aircraft.Model == 3 && leaderAnimations.TryGetValue(3, out var resources))
         {

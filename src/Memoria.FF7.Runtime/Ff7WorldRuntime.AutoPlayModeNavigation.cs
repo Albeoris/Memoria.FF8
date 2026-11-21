@@ -32,7 +32,7 @@ public sealed partial class Ff7WorldRuntime
             Ff7AutoPlayWorldGuide empty = new([], expanded, limited, reason);
             return new(empty, rider, null, null, empty, [], expanded, limited, reason);
         }
-        if (Resources.World != 0 || ReadAutoPlaySurfaceVehicleRider() is null || rider == controlledModel || input.GroundTriangle is not { } start)
+        if (Resources.World != 0 || ReadAutoPlaySurfaceVehicleRider() is null || rider == controlledModel || ReadAutoPlayAdviceGround(CaptureAutoPlayMovementState()) is not { } start)
         {
             yield return Unavailable(0, false, "No native surface-vehicle rider route is available.");
             yield break;

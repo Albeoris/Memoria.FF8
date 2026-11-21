@@ -5,6 +5,7 @@ internal sealed record Ff7AutoPlayWorldMovementState(int WorldId, int WorldMapSt
     public Ff7WorldSnowState? Snow { get; init; }
     public Ff7WorldEntity[]? SnowPoles { get; init; }
     public Ff7WorldScriptCameraState? ScriptCamera { get; init; }
+    public Ff7WorldVehicleState? Vehicle { get; init; }
 }
 internal sealed record Ff7AutoPlayWorldTerrainBoundary(int ChunkX, int ChunkZ, int Script, bool RestoresPreviousPosition, bool Inert = false);
 internal sealed record Ff7AutoPlayWorldModelBoundary(int Model, int Event, bool Inert = false);
@@ -15,6 +16,13 @@ internal sealed record Ff7AutoPlayWorldMovementPreview(bool Supported, string? R
 
 public sealed partial class Ff7WorldRuntime
 {
+    internal static bool IsAutoPlayAircraft(Ff7WorldEntity player)
+    {
+        return player.Model == 3 || player.Model == 5 && (player.Flags & 128) != 0;
+    }
+
+    internal bool HasAutoPlayFlightTransition => vehicle is { FlightState: not 0 };
+
     private sealed class AutoPlayMovementUnsupportedException(string message) : Exception(message)
     {
     }
@@ -35,7 +43,8 @@ public sealed partial class Ff7WorldRuntime
         {
             Snow = CopySnowState(snow),
             SnowPoles = Resources.World == 3 ? entities.Values.Where(entity => entity.Model is >= 21 and <= 23 && Machine.IsModelAttached(entity.Model)).OrderBy(entity => entity.Model).Select(entity => entity with { TerrainCache = entity.TerrainCache?.ToArray() }).ToArray() : null,
-            ScriptCamera = Resources.World == 3 ? scriptCamera : null
+            ScriptCamera = Resources.World == 3 || IsAutoPlayAircraft(player) ? scriptCamera : null,
+            Vehicle = IsAutoPlayAircraft(player) ? CopyVehicleState(vehicle) : null
         };
     }
 
@@ -51,6 +60,11 @@ public sealed partial class Ff7WorldRuntime
         if (source.WorldId != Resources.World || source.WorldMapState != WorldMapState || source.Player.Model != controlledModel)
         {
             return new(false, "The projected world allocation differs from the current native allocation.");
+        }
+        bool aircraft = IsAutoPlayAircraft(source.Player);
+        if (aircraft && ((action.Held & 0x50) != 0 || source.Input is { Held: var priorHeld } && (priorHeld & 0x40) != 0 || source.Vehicle is { DismountPhase: not 0 } or { FlightState: < 0 }))
+        {
+            return new(false, "Aircraft system actions and landing require their native control owner.");
         }
         if (Resources.World == 3 && (source.SnowPoles is null || source.SnowPoles.Length > 3 || source.SnowPoles.Any(entity => entity.Model is < 21 or > 23) || !source.SnowPoles.Select(entity => entity.Model).Order().SequenceEqual(Enumerable.Range(21, 3).Where(Machine.IsModelAttached))))
         {
@@ -69,6 +83,7 @@ public sealed partial class Ff7WorldRuntime
         Ff7WorldEncounterRandom? retainedRandom = worldRandom;
         Ff7WorldSnowState? retainedSnow = snow;
         Ff7WorldScriptCameraState? retainedScriptCamera = scriptCamera;
+        Ff7WorldVehicleState? retainedVehicle = vehicle;
         var retainedEntities = entities.ToArray();
         var retainedMeshes = collisionMeshes.ToArray();
         var retainedDeformations = deformedCollisionMeshes.ToArray();
@@ -80,6 +95,11 @@ public sealed partial class Ff7WorldRuntime
             radarMode = source.RadarMode;
             worldRandom = source.Random is null ? null : new(source.Random, source.RandomIndex);
             snow = CopySnowState(source.Snow);
+            if (aircraft)
+            {
+                vehicle = CopyVehicleState(source.Vehicle);
+                scriptCamera = source.ScriptCamera;
+            }
             if (Resources.World == 3)
             {
                 scriptCamera = source.ScriptCamera;
@@ -96,12 +116,16 @@ public sealed partial class Ff7WorldRuntime
             Ff7AutoPlayWorldTerrainBoundary? boundary = null;
             AdvancePlayerInputCore(autoPlayPreview: true);
             AdvanceWorldCameraHeading();
-            if (Resources.World == 3)
+            if (Resources.World == 3 || aircraft)
             {
                 AdvanceScriptCamera();
             }
             AdvanceWorldScriptFacing();
             ResolvePlayerTerrain(autoPlayPreview: true, observeBoundary: value => boundary = value);
+            if (aircraft)
+            {
+                AdvanceHighwindFlightCamera();
+            }
             Ff7AutoPlayWorldMovementState result = CaptureAutoPlayMovementState();
             bool moved = result.Player.X != source.Player.X || result.Player.Y != source.Player.Y || result.Player.Z != source.Player.Z;
             Ff7AutoPlayWorldModelBoundary[] modelBoundaries = ReadAutoPlayModelContactSources().Where(entity => result.Player.ContactModel == entity.Model).Select(entity => new Ff7AutoPlayWorldModelBoundary(entity.Model, (input.Held & 32) != 0 ? 4 : 3, IsAutoPlayModelContactInert(entity.Model, (input.Held & 32) != 0 ? 4 : 3))).ToArray();
@@ -121,6 +145,7 @@ public sealed partial class Ff7WorldRuntime
             worldRandom = retainedRandom;
             snow = retainedSnow;
             scriptCamera = retainedScriptCamera;
+            vehicle = retainedVehicle;
             entities.Clear();
             foreach (var entry in retainedEntities)
             {

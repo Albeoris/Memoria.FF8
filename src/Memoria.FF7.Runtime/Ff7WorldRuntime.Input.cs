@@ -112,8 +112,7 @@ public sealed partial class Ff7WorldRuntime
         }
         if ((player.Model == 3 && viewMode == 3 || player.Model == 5 && (player.Flags & 128) != 0) && vehicle is not { DismountPhase: 2 })
         {
-            RejectAutoPlayMovement(autoPlayPreview, "Flight motion requires its own native preview contract.");
-            AdvanceHighwindInput(player);
+            AdvanceHighwindInput(player, autoPlayPreview);
             return;
         }
         int delta = (player.Model switch { 3 => 240, YellowChocoboModel or 19 or 41 or 42 or 5 => 120, 6 => 90, _ => 60 }) * movementSpeedPercent / 100;
@@ -254,8 +253,7 @@ public sealed partial class Ff7WorldRuntime
         }
         if ((player.Model == 3 || player.Model == 5 && (player.Flags & 128) != 0) && vehicle is not { DismountPhase: 2 })
         {
-            RejectAutoPlayMovement(autoPlayPreview, "Flight terrain requires its own native preview contract.");
-            ResolveHighwindTerrain(player);
+            ResolveHighwindTerrain(player, autoPlayPreview);
             return;
         }
         if (vehicle is { DismountPhase: 2 })

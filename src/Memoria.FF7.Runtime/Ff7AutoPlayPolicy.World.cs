@@ -107,6 +107,12 @@ public sealed partial class Ff7AutoPlayPolicy
         {
             return control.WorldModeGoal is not null && control.WorldControl is null ? AdvanceWorldModeApproach(driver, world, observation, control) : AdvanceWorldControl(world, observation, control);
         }
+        if (world.HasAutoPlayFlightTransition)
+        {
+            State.Status = "Waiting for the native aircraft flight transition";
+            Publish();
+            return default;
+        }
         if (worldModeTopologyPending)
         {
             driver.DeferPlanning();

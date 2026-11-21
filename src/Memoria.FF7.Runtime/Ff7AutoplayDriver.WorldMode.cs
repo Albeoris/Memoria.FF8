@@ -21,14 +21,15 @@ public sealed partial class Ff7AutoplayDriver
         PlanningPending = false;
         Ff7WorldRuntime world = session.World ?? throw new InvalidOperationException("Vehicle approach requires an allocated native world.");
         Ff7AutoPlayWorldMovementState source = world.CaptureAutoPlayMovementState();
-        int index = Array.FindIndex(guide.TransportGuide.Faces, face => face.Source == source.Input.GroundTriangle);
+        Ff7WorldTerrainReference? sourceGround = world.ReadAutoPlayAdviceGround(source);
+        int index = Array.FindIndex(guide.TransportGuide.Faces, face => face.Source == sourceGround);
         if (index < 0 || guide.LandingSource is null || guide.RiderReachableFaces.Length == 0)
         {
             worldRoute.Clear();
             return new(guide.Limited ? Ff7AutoPlayWorldNavigationStatus.SearchLimited : Ff7AutoPlayWorldNavigationStatus.Unsupported, default, 0, "The current native ground has no retained vehicle-to-rider approach advice.");
         }
         Ff7AutoPlayWorldGuideFace waypoint = guide.TransportGuide.Faces[Math.Min(index + 1, guide.TransportGuide.Faces.Length - 1)];
-        bool seekingLanding = source.Input.GroundTriangle == guide.LandingSource;
+        bool seekingLanding = sourceGround == guide.LandingSource;
         HashSet<Ff7WorldTerrainReference> riderComponent = guide.RiderReachableFaces.ToHashSet();
         bool HasLanding(Ff7AutoPlayWorldMovementState state)
         {
@@ -77,7 +78,7 @@ public sealed partial class Ff7AutoplayDriver
         }
         bool Reached(Ff7AutoPlayWorldMovementPreview step)
         {
-            return seekingLanding ? HasLanding(step.State!) : step.State!.Input.GroundTriangle == waypoint.Source;
+            return seekingLanding ? HasLanding(step.State!) : world.ReadAutoPlayAdviceGround(step.State!) == waypoint.Source;
         }
         Ff7AutoPlayWorldRoute Search(int budget, IReadOnlySet<Ff7AutoplayInput>? avoidFirst)
         {

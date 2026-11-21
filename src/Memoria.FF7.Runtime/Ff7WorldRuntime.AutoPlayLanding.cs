@@ -13,14 +13,15 @@ public sealed partial class Ff7WorldRuntime
     internal Ff7AutoPlayWorldLandingPreview PreviewAutoPlaySurfaceLandingAtFace(Ff7AutoPlayWorldGuideFace face, Ff7AutoPlayWorldGuideFace? predecessor)
     {
         Ff7AutoPlayWorldMovementState source = CaptureAutoPlayMovementState();
-        if (predecessor is null && source.Input.GroundTriangle == face.Source)
+        if (predecessor is null && ReadAutoPlayAdviceGround(source) == face.Source)
         {
             return PreviewAutoPlaySurfaceLanding(source);
         }
         System.Numerics.Vector3 center = face.Center;
         int direction = predecessor is null ? source.Player.Direction : inputMath.Direction(WrappedDifference((int)(center.X - predecessor.Center.X), 0x48000), WrappedDifference((int)(center.Z - predecessor.Center.Z), 0x38000));
-        Ff7WorldEntity transport = source.Player with { X = Wrap((int)center.X, 0x48000), Y = (int)center.Y + WorldGroundOffset(face.Terrain & 31, source.Player.Model), Z = Wrap((int)center.Z, 0x38000), Terrain = face.Terrain, GroundHeight = (int)center.Y, Direction = direction, TargetDirection = direction, TerrainCache = null };
-        return PreviewAutoPlaySurfaceLanding(source with { Player = transport, Input = source.Input with { GroundTriangle = face.Source, TerrainCache = null } });
+        bool aircraft = IsAutoPlayAircraft(source.Player);
+        Ff7WorldEntity transport = source.Player with { X = Wrap((int)center.X, 0x48000), Y = aircraft ? source.Player.Y : (int)center.Y + WorldGroundOffset(face.Terrain & 31, source.Player.Model), Z = Wrap((int)center.Z, 0x38000), Terrain = face.Terrain, GroundHeight = (int)center.Y, Direction = direction, TargetDirection = direction, TerrainCache = null };
+        return PreviewAutoPlaySurfaceLanding(source with { Player = transport, Input = source.Input with { GroundTriangle = aircraft ? null : face.Source, TerrainCache = null } });
     }
 
     /// <summary>Advises the native phase-two landing from a transport pose. Intervening VM work and the actual control transition remain execution boundaries.</summary>
@@ -32,7 +33,7 @@ public sealed partial class Ff7WorldRuntime
         {
             return new(false, "The advised transport pose belongs to another native allocation.");
         }
-        if (vehicle is { FlightState: not 0 } || (source.Player.Flags & 128) != 0)
+        if (source.Vehicle is { FlightState: not 0 } || source.Vehicle is null && vehicle is { FlightState: not 0 })
         {
             return new(false, "The current flight phase has no surface-landing advice contract.");
         }
@@ -49,6 +50,7 @@ public sealed partial class Ff7WorldRuntime
         int retainedRadar = radarMode;
         bool retainedConfirm = HeldConfirm;
         Ff7WorldEncounterRandom? retainedRandom = worldRandom;
+        Ff7WorldScriptCameraState? retainedScriptCamera = scriptCamera;
         var retainedEntities = entities.ToArray();
         var retainedMeshes = collisionMeshes.ToArray();
         var retainedDeformations = deformedCollisionMeshes.ToArray();
@@ -59,12 +61,18 @@ public sealed partial class Ff7WorldRuntime
             viewMode = source.ViewMode;
             radarMode = source.RadarMode;
             worldRandom = source.Random is null ? null : new(source.Random, source.RandomIndex);
+            vehicle = CopyVehicleState(source.Vehicle ?? retainedVehicle);
+            bool aircraft = IsAutoPlayAircraft(source.Player);
+            if (aircraft)
+            {
+                scriptCamera = source.ScriptCamera;
+            }
             UpdateEntity(source.Player with { TerrainCache = source.Player.TerrainCache?.ToArray() });
             vehicle ??= new([]);
-            HashSet<(int Phase, int Hold)> protocol = [];
+            HashSet<(int Phase, int Hold, int Flight, int Progress, int Velocity)> protocol = [];
             while (true)
             {
-                if (!protocol.Add((vehicle.DismountPhase, vehicle.CancelHeldTicks)))
+                if (!protocol.Add((vehicle.DismountPhase, vehicle.CancelHeldTicks, vehicle.FlightState, vehicle.FlightProgress, vehicle.FlightVelocity)))
                 {
                     return new(true, "The native exit protocol cannot progress from the advised source.");
                 }
@@ -73,6 +81,10 @@ public sealed partial class Ff7WorldRuntime
                 input = input with { Held = held, Pressed = (ushort)(held & ~input.Held), Horizontal = 0, Vertical = 0 };
                 AdvancePlayerInputCore(autoPlayPreview: true);
                 AdvanceWorldCameraHeading();
+                if (aircraft)
+                {
+                    AdvanceScriptCamera();
+                }
                 AdvanceWorldScriptFacing();
                 ResolvePlayerTerrain(autoPlayPreview: true, surfaceDismountPreview: true);
                 if (landingPhase)
@@ -87,7 +99,11 @@ public sealed partial class Ff7WorldRuntime
                     rider = rider with { X = transport.X, Y = transport.Y, Z = transport.Z, PreviousX = transport.X, PreviousY = transport.Y, PreviousZ = transport.Z, Flags = rider.Flags | 2, Terrain = transport.Terrain, TerrainResolved = transport.TerrainResolved, GroundHeight = transport.GroundHeight };
                     return new(true, null, rider, input.GroundTriangle);
                 }
-                AdvanceSurfaceVehicleTransport(autoPlayPreview: true);
+                AdvanceSurfaceVehicleTransport();
+                if (aircraft)
+                {
+                    AdvanceHighwindFlightCamera();
+                }
             }
         }
         catch (AutoPlayMovementUnsupportedException error)
@@ -105,6 +121,7 @@ public sealed partial class Ff7WorldRuntime
             radarMode = retainedRadar;
             HeldConfirm = retainedConfirm;
             worldRandom = retainedRandom;
+            scriptCamera = retainedScriptCamera;
             entities.Clear();
             foreach (var entry in retainedEntities)
             {

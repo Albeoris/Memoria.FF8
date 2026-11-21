@@ -37,13 +37,13 @@ public sealed partial class Ff7WorldRuntime
     }
 
     /// <summary>Samples the native terrain selector for the current controlled model without changing its execution cache. A point sample does not prove that a complete movement or collision footprint can reach it.</summary>
-    internal Ff7AutoPlayWorldTerrainPoint? ReadAutoPlayTerrain(int x, int z)
+    internal Ff7AutoPlayWorldTerrainPoint? ReadAutoPlayTerrain(int x, int z, Ff7WorldEntity? projectedPlayer = null)
     {
         if (controlledModel < 0)
         {
             return null;
         }
-        Ff7WorldEntity player = RequireEntity(controlledModel);
+        Ff7WorldEntity player = projectedPlayer ?? RequireEntity(controlledModel);
         bool dismount = IsWorldChocobo(player.Model) && chocobo is { DismountPhase: 2 };
         Ff7WorldInputState retainedInput = input;
         try
@@ -61,6 +61,24 @@ public sealed partial class Ff7WorldRuntime
             // QueryTerrain's overlap-selection cache affects later native collision decisions.
             // Keep that execution state exact; decoded and deformed resource mesh caches may warm.
             input = retainedInput;
+        }
+    }
+
+    internal Ff7WorldTerrainReference? ReadAutoPlayAdviceGround(Ff7AutoPlayWorldMovementState source)
+    {
+        if (!IsAutoPlayAircraft(source.Player))
+        {
+            return source.Input.GroundTriangle;
+        }
+        Ff7WorldInputState retained = input;
+        try
+        {
+            input = source.Input;
+            return ReadAutoPlayTerrain(source.Player.X, source.Player.Z, source.Player)?.Triangle;
+        }
+        finally
+        {
+            input = retained;
         }
     }
 

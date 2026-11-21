@@ -408,7 +408,7 @@ public sealed partial class Ff7AutoPlayPolicy
             throw new InvalidDataException("The selected native mode route has no observed target.");
         }
         Ff7AutoPlayWorldModeGuide? guide = candidate.Guide;
-        if (guide is null || !guide.TransportGuide.Faces.Any(face => face.Source == world.Process.Input?.GroundTriangle))
+        if (guide is null || !guide.TransportGuide.Faces.Any(face => face.Source == world.ReadAutoPlayAdviceGround(world.CaptureAutoPlayMovementState())))
         {
             guide = ReadWorldModeGuide(world, candidate);
             candidate.Guide = guide;

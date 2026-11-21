@@ -3,6 +3,18 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-aircraft-original-only", StringComparer.Ordinal))
+{
+    NativeAircraftOriginalTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-aircraft-preview-only", StringComparer.Ordinal))
+{
+    NativeAircraftPreviewTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-rearmed-story-priority-only", StringComparer.Ordinal))
 {
     NativeRearmedStoryPriorityTests.Run();

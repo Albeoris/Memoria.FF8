@@ -51,12 +51,12 @@ public sealed partial class Ff7WorldRuntime
 
     private Ff7AutoPlayWorldGuide ReadAutoPlayTerrainGuide(IReadOnlySet<Ff7WorldTerrainReference> goals, bool admitGoalTerrainScripts, int maximumNodes, int maximumChunks, IReadOnlySet<(Ff7WorldTerrainReference From, Ff7WorldTerrainReference To)>? unproductiveEdges)
     {
-        Ff7WorldTerrainReference? start = input.GroundTriangle;
+        Ff7WorldTerrainReference? start = ReadAutoPlayAdviceGround(CaptureAutoPlayMovementState());
+        Ff7WorldEntity player = RequireEntity(controlledModel);
         if (start is null)
         {
             return new([], 0, false, "Native ground identity is unavailable for terrain advice.");
         }
-        Ff7WorldEntity player = RequireEntity(controlledModel);
         AutoPlayTerrainGraph graph = CreateAutoPlayTerrainGraph(goals, admitGoalTerrainScripts, maximumChunks);
         graph.Read(start);
         IEnumerable<Ff7WorldTerrainReference> Adjacent(Ff7WorldTerrainReference reference)
@@ -139,7 +139,8 @@ public sealed partial class Ff7WorldRuntime
                 return known;
             }
             Ff7AutoPlayWorldGuideFace face = faces[reference];
-            bool allowed = face.Script < 3 || admitGoalTerrainScripts && goals.Contains(reference) || face.Script == input.TerrainScript;
+            bool airborne = model == controlledModel && entities.TryGetValue(model, out Ff7WorldEntity? aircraft) && IsAutoPlayAircraft(aircraft) && (aircraft.Flags & 128) != 0;
+            bool allowed = airborne || face.Script < 3 || admitGoalTerrainScripts && goals.Contains(reference) || face.Script == input.TerrainScript;
             if (!allowed && face.Script != 7)
             {
                 var source = (reference.ChunkX, reference.ChunkZ, face.Script, Model: model);
