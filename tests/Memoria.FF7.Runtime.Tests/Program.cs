@@ -3,6 +3,18 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-whirlwind-tutorial-only", StringComparer.Ordinal))
+{
+    NativeWhirlwindTutorialTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-whirlwind-approach-original-only", StringComparer.Ordinal))
+{
+    NativeWhirlwindApproachOriginalTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-crater-scene-admission-original-only", StringComparer.Ordinal))
 {
     NativeCraterBridgeOriginalTests.RunSceneAdmission();
