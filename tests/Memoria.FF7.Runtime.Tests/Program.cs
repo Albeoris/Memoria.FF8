@@ -3,6 +3,18 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-passive-poll-only", StringComparer.Ordinal))
+{
+    NativePassiveNpcPollingTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-passive-poll-original-only", StringComparer.Ordinal))
+{
+    NativePassiveNpcPollingOriginalTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-junon-escape-input-only", StringComparer.Ordinal))
 {
     NativeJunonEscapeInputTests.Run();

@@ -8,7 +8,27 @@ public sealed partial class Ff7AutoPlayPolicy
     private bool IsSettledPresentationChild(Ff7AutoPlayActiveEvent active, FieldVmSnapshot vm, Ff7AutoPlayExecutionOwner owner)
     {
         FieldScriptAnalysis? analysis = (uint)owner.Entity < vm.Entities.Length && vm.Entities[owner.Entity].Priority == owner.Priority ? session.Machine.AnalyzeScriptAtProgramCounter(owner.Entity, vm.Entities[owner.Entity].ProgramCounter) : null;
-        return CanSettlePresentationChild(active, session.FieldGeneration, vm, session.Host.Process, owner, analysis) || CanSettleSupersededPlayerAnimation(active, session.FieldGeneration, vm, session.Host.Process, owner, session.Field.Scripts.Data.Span) || CanSettleGuardedNpcAnimation(active, session.FieldGeneration, vm, session.Host.Process, owner, session.Field.Scripts.Data.Span) || CanSettleLoopingNpcAnimations(active, session.FieldGeneration, vm, session.Host.Process, owner, session.Field.Scripts.Data.Span, analysis);
+        return CanSettlePresentationChild(active, session.FieldGeneration, vm, session.Host.Process, owner, analysis) || CanSettleSupersededPlayerAnimation(active, session.FieldGeneration, vm, session.Host.Process, owner, session.Field.Scripts.Data.Span) || CanSettleGuardedNpcAnimation(active, session.FieldGeneration, vm, session.Host.Process, owner, session.Field.Scripts.Data.Span) || CanSettleLoopingNpcAnimations(active, session.FieldGeneration, vm, session.Host.Process, owner, session.Field.Scripts.Data.Span, analysis) || CanSettlePassiveNpcPolling(active, session.FieldGeneration, vm, session.Host.Process, owner, session.Field.Scripts.Data.Span);
+    }
+
+    internal static bool CanSettlePassiveNpcPolling(Ff7AutoPlayActiveEvent active, long generation, FieldVmSnapshot vm, Ff7FieldProcess process, Ff7AutoPlayExecutionOwner owner, ReadOnlySpan<byte> script)
+    {
+        if (active is not { Accepted: true, Returned: true, CompletionRecorded: false } || active.ExecutionProvenance?.RootReturned != true || !Ff7AutoPlayExecutionOwners.Matches(active, generation, vm.ProgramIdentity) || !active.ExecutionProvenance.Owners.Contains(owner) || owner.Queued || owner.ParentEntity < 0 || (uint)owner.ParentEntity >= vm.Entities.Length || owner.ParentPriority is < 0 or > 7 || (uint)owner.Entity >= vm.Entities.Length || owner.Priority is < 0 or >= 7 || owner.Script is < 0 or > 31 || owner.DispatchTick < active.ExecutionProvenance.RootDispatchTick || owner.DispatchTick > vm.Tick || owner.SourceProgramCounter < 0 || owner.SourceProgramCounter + 2 >= script.Length || script[owner.SourceProgramCounter] is not (0x01 or 0x02) || script[owner.SourceProgramCounter + 1] != owner.Entity || script[owner.SourceProgramCounter + 2] != ((owner.Priority << 5) | owner.Script))
+        {
+            return false;
+        }
+        FieldEntitySnapshot entity = vm.Entities[owner.Entity];
+        int pc = entity.ProgramCounter;
+        if (entity.Priority != owner.Priority || entity.SyncStates.Length <= owner.Priority || entity.SyncOwners.Length <= owner.Priority || entity.SyncStates[owner.Priority] != FieldSyncState.None || entity.SyncOwners[owner.Priority] != -1 || pc < owner.Entry || (uint)pc >= script.Length || process.PlayerLocked || process.MenuDisabled || process.GlobalCommand != Ff7GlobalCommand.None || process.Join is not null || process.Transition is not null || process.Movie is { Playing: true } || process.Menu is { Completed: false } || process.Dialogues.Any(dialogue => !dialogue.Completed) || (vm.PendingRequests ?? []).Any(request => request.Entity == owner.Entity && request.Priority == owner.Priority))
+        {
+            return false;
+        }
+        int head = script[pc] == 0x12 ? pc - 6 : pc;
+        if (head < owner.Entry || head < 0 || head + 7 >= script.Length || script[head] != 0x14 || script[head + 1] != 0x50 || script[head + 4] != 0 || script[head + 5] != 3 || script[head + 6] != 0x12 || script[head + 7] != 6 || vm.MapVariables.Length != 256 || vm.MapVariables[script[head + 2]] != script[head + 3])
+        {
+            return false;
+        }
+        return process.Actors.Any(actor => actor.EntityBound && actor.Entity == owner.Entity && !actor.PlayerControlled && actor.Jump is null && actor.Ladder is null) && !process.Actors.Any(actor => actor.Entity == owner.Entity && actor.PlayerControlled) && !process.Motions.Any(motion => motion.Entity == owner.Entity);
     }
 
     internal static bool CanSettleLoopingNpcAnimations(Ff7AutoPlayActiveEvent active, long generation, FieldVmSnapshot vm, Ff7FieldProcess process, Ff7AutoPlayExecutionOwner owner, ReadOnlySpan<byte> script, FieldScriptAnalysis? analysis)
