@@ -3,6 +3,18 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-background-destination-readiness-only", StringComparer.Ordinal))
+{
+    NativeBackgroundDestinationReadinessTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-background-destination-original-only", StringComparer.Ordinal))
+{
+    NativeDestinationReadinessOriginalTests.RunBackgroundContinuation();
+    return 0;
+}
+
 if (args.Contains("--native-field-ladder-destination-only", StringComparer.Ordinal))
 {
     NativeFieldLadderDestinationTests.Run();

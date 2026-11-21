@@ -390,12 +390,12 @@ internal sealed class Ff7AutoPlayNativeReadiness
         return ShouldWait(generation, navigationKey, vm, process, script, inputDemands, admittedSetupOnly: false);
     }
 
-    internal bool ShouldWaitForDestinationSetup(long generation, string navigationKey, FieldVmSnapshot vm, Ff7FieldProcess process, ReadOnlySpan<byte> script, IReadOnlyList<FieldScriptInputDemand> inputDemands)
+    internal bool ShouldWaitForDestinationSetup(long generation, string navigationKey, FieldVmSnapshot vm, Ff7FieldProcess process, ReadOnlySpan<byte> script, IReadOnlyList<FieldScriptInputDemand> inputDemands, Func<int, int, FieldScriptAnalysis>? analyzeContinuation = null)
     {
-        return ShouldWait(generation, navigationKey, vm, process, script, inputDemands, admittedSetupOnly: true);
+        return ShouldWait(generation, navigationKey, vm, process, script, inputDemands, admittedSetupOnly: true, analyzeContinuation);
     }
 
-    private bool ShouldWait(long generation, string navigationKey, FieldVmSnapshot vm, Ff7FieldProcess process, ReadOnlySpan<byte> script, IReadOnlyList<FieldScriptInputDemand> inputDemands, bool admittedSetupOnly)
+    private bool ShouldWait(long generation, string navigationKey, FieldVmSnapshot vm, Ff7FieldProcess process, ReadOnlySpan<byte> script, IReadOnlyList<FieldScriptInputDemand> inputDemands, bool admittedSetupOnly, Func<int, int, FieldScriptAnalysis>? analyzeContinuation = null)
     {
         HashSet<int> work = [];
         List<(int Owner, int Target)> links = [];
@@ -404,6 +404,10 @@ internal sealed class Ff7AutoPlayNativeReadiness
             FieldEntitySnapshot target = vm.Entities[targetId];
             int currentPc = target.ProgramCounter;
             bool admitted = HasAdmittedContinuation(target, script);
+            if (admittedSetupOnly && admitted && analyzeContinuation is not null && target.SyncStates.Length > target.Priority && target.SyncOwners.Length > target.Priority && target.SyncStates[target.Priority] == FieldSyncState.None && target.SyncOwners[target.Priority] == -1 && process.Actors.Any(actor => actor.EntityBound && actor.Entity == targetId && !actor.PlayerControlled) && !process.Actors.Any(actor => actor.Entity == targetId && actor.PlayerControlled) && analyzeContinuation(targetId, currentPc) is { Complete: true, IndependentActorMotionLoop: true })
+            {
+                admitted = false;
+            }
             if (admitted || !admittedSetupOnly && HasFiniteHostWork(vm, process, targetId))
             {
                 work.Add(targetId);

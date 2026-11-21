@@ -147,7 +147,7 @@ public sealed partial class Ff7AutoPlayPolicy
             return false;
         }
         System.Numerics.Vector3 point = new(ladder.X, ladder.Y, ladder.Z);
-        if (!Ff7AutoplayDriver.Contains(walkmesh[ladder.Triangle], point, out float height) || Math.Abs(height - ladder.Z) >= 256)
+        if (!Ff7AutoplayDriver.Contains(walkmesh[ladder.Triangle], point, out float height) || height < ladder.Z - 255 || height >= ladder.Z + 256)
         {
             return false;
         }
