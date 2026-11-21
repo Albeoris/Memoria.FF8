@@ -108,6 +108,10 @@ public sealed partial class Ff7AutoplayDriver
         }
         string context = $"{ReadPhysicalApproachContext(player, target, destination)}|source:{player.Slot}:{player.X4096}:{player.Y4096}:{player.Z4096}:{player.Triangle}:{player.Direction}:{player.MoveSpeed}:{player.PlayerControlled}:{player.MovementFacingDisabled}|waypoint:{waypoint}:{nextTriangle}|mode:{navigationRunMode}|control:{session.Field.Triggers.ControlDirection}|input:{navigationLineInput}|talk:{navigationLineTalk}|targets:{string.Join(';', navigationLineTargets?.Select(candidate => $"{candidate.Id}:{candidate.ConditionFingerprint}") ?? [])}";
         context = ReadPhysicalFailureGuideContext(context, routeDistance, approachAdviceExclusions, navigationTalkContactGoal is null ? "route-progress:1" : navigationSelectedTarget?.Kind == Ff7AutoPlayTargetKind.Gateway ? "native-gateway-crossing:1" : navigationSelectedTarget?.Kind == Ff7AutoPlayTargetKind.ActorContact ? "native-actor-push:2" : "native-fresh-contact:2");
+        if (navigationTalkContactGoal is not null)
+        {
+            context += "|local-portal-prefix:1";
+        }
         UpdatePhysicalApproachContext(context);
         if (TakeEscapeStep(player, movement, out input))
         {
@@ -144,7 +148,7 @@ public sealed partial class Ff7AutoplayDriver
             {
                 throw new Ff7AutoPlayNavigationUnavailableException(-1, "This exact native source and local guide already exhausted its represented physical search.", blockingEntities, target, destination, ReadApproachRegion(session.Field.Walkmesh, player, nextTriangle)) { PhysicalFailure = receipt };
             }
-            obstacleSearch = new(player, navigationTalkContactGoal is null ? waypoint : target, triangle => routeDistance[triangle], Preview, AllowsPlannedMove, navigationTalkContactGoal);
+            obstacleSearch = new(player, waypoint, triangle => routeDistance[triangle], Preview, AllowsPlannedMove, navigationTalkContactGoal, allowRouteProgress: navigationTalkContactGoal is not null);
             List<PhysicalSearchGuide> guides = [new(obstacleSearch, waypoint, nextTriangle, [])];
             if (nextTriangle >= 0 && nextTriangle != player.Triangle)
             {
@@ -163,7 +167,7 @@ public sealed partial class Ff7AutoplayDriver
                     }
                     var triangle = session.Field.Walkmesh[selected];
                     Vector3 alternativeWaypoint = (triangle.A + triangle.B + triangle.C) / 3;
-                    PhysicalSearchCursor cursor = new(player, navigationTalkContactGoal is null ? alternativeWaypoint : target, triangle => distance[triangle], Preview, AllowsPlannedMove, navigationTalkContactGoal);
+                    PhysicalSearchCursor cursor = new(player, alternativeWaypoint, triangle => distance[triangle], Preview, AllowsPlannedMove, navigationTalkContactGoal, allowRouteProgress: navigationTalkContactGoal is not null);
                     guides.Add(new(cursor, alternativeWaypoint, selected, selectedExclusions.ToArray()));
                 }
             }
@@ -260,6 +264,7 @@ public sealed partial class Ff7AutoplayDriver
         private readonly Func<Ff7Actor, Ff7AutoplayInput, Ff7NativeMoveResult> preview;
         private readonly Func<Ff7Actor, Ff7NativeMoveResult, bool> allows;
         private readonly Func<Ff7Actor, bool>? goal;
+        private readonly bool allowRouteProgress;
         private readonly float cell;
         private readonly Dictionary<(int X, int Y, int Z, int Triangle, int Direction), float> costs = new();
         private readonly PriorityQueue<SearchNode, (float Score, int Remaining)> pending = new();
@@ -329,9 +334,10 @@ public sealed partial class Ff7AutoplayDriver
             guideWorkset = new(guides.ToArray());
         }
 
-        internal PhysicalSearchCursor(Ff7Actor source, Vector3 waypoint, Func<int, int> remaining, Func<Ff7Actor, Ff7AutoplayInput, Ff7NativeMoveResult> preview, Func<Ff7Actor, Ff7NativeMoveResult, bool> allows, Func<Ff7Actor, bool>? goal = null)
+        internal PhysicalSearchCursor(Ff7Actor source, Vector3 waypoint, Func<int, int> remaining, Func<Ff7Actor, Ff7AutoplayInput, Ff7NativeMoveResult> preview, Func<Ff7Actor, Ff7NativeMoveResult, bool> allows, Func<Ff7Actor, bool>? goal = null, bool allowRouteProgress = false)
         {
             this.goal = goal;
+            this.allowRouteProgress = allowRouteProgress;
             this.source = source;
             this.waypoint = waypoint;
             this.remaining = remaining;
@@ -389,7 +395,8 @@ public sealed partial class Ff7AutoplayDriver
                     }
                     costs[key] = cost;
                     SearchNode next = new(actor, current, action, cost);
-                    if (goal?.Invoke(actor) ?? HasPhysicalRouteProgress(source, actor, waypoint, remaining))
+                    bool routePrefix = allowRouteProgress && goal is not null && remaining(source.Triangle) > 0 && step.Moved && (source.X4096 != actor.X4096 || source.Y4096 != actor.Y4096 || source.Z4096 != actor.Z4096) && HasPhysicalRouteProgress(source, actor, waypoint, remaining);
+                    if ((goal?.Invoke(actor) ?? HasPhysicalRouteProgress(source, actor, waypoint, remaining)) || routePrefix)
                     {
                         Stack<Ff7AutoplayInput> path = new();
                         for (SearchNode? node = next; node?.Parent is not null; node = node.Parent)

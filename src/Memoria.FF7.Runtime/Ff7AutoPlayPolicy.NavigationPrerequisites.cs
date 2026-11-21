@@ -35,13 +35,38 @@ public sealed partial class Ff7AutoPlayPolicy
 
     internal static bool IsOwnedNavigationPrerequisiteCompletion(Ff7AutoPlayState state, Ff7AutoPlayActiveEvent active, Ff7AutoPlayObservation observation)
     {
-        return active is { Accepted: true, Returned: true, NavigationPrerequisiteGoal: { } goal } && active.Kind == Ff7AutoPlayTargetKind.ActorTalk && active.Generation == observation.Generation && active.VisitId == observation.VisitId && state.NavigationGoal == goal && state.TravelCommitment is { } commitment && commitment.Goal == goal && commitment.NavigationKey == active.NavigationKey && CanContinueOwnedTravel(state, observation with { NavigationKey = commitment.NavigationKey });
+        return active is { Accepted: true, Returned: true, NavigationPrerequisiteGoal: { } goal } && active.Generation == observation.Generation && active.VisitId == observation.VisitId && state.NavigationGoal == goal && (active.Kind == Ff7AutoPlayTargetKind.LineTouch && IsCurrentDestinationPrerequisiteGoal(state, observation, goal) || active.Kind == Ff7AutoPlayTargetKind.ActorTalk && state.TravelCommitment is { } commitment && commitment.Goal == goal && commitment.NavigationKey == active.NavigationKey && CanContinueOwnedTravel(state, observation with { NavigationKey = commitment.NavigationKey }));
+    }
+
+    private static bool IsCurrentDestinationPrerequisiteGoal(Ff7AutoPlayState state, Ff7AutoPlayObservation observation, AutoPlayTravelGoal goal)
+    {
+        return state.DestinationField is ushort destination && goal.NavigationKey == observation.NavigationKey && observation.Events.Any(target => target.Id == goal.EventId && target.ConditionFingerprint == goal.Conditions && target.AnalysisComplete && TargetDestinations(target).Contains(destination));
+    }
+
+    internal static bool IsCurrentBlockingNavigationLine(Ff7AutoPlayState state, Ff7AutoPlayObservation observation, Ff7AutoPlayTarget goal, Ff7AutoPlayTarget candidate, IReadOnlyCollection<int> blockingLines)
+    {
+        if (state.Active is not { } active || !MatchesActiveNativeTarget(active, observation, goal) || state.NavigationGoal is not { } intent || !IsCurrentDestinationPrerequisiteGoal(state, observation, intent) || intent.EventId != goal.Id || intent.Conditions != goal.ConditionFingerprint || state.NativeRoute is not null || state.PendingRestore is not null || state.Choice is not null || candidate == goal || !observation.Events.Contains(candidate) || candidate is not { Kind: Ff7AutoPlayTargetKind.LineTouch, AnalysisComplete: true, MayChangeNavigation: true, ChangesStory: false, ChangesField: false } || !blockingLines.Contains(candidate.Entity))
+        {
+            return false;
+        }
+        var coverage = state.Coverage.Visits.SingleOrDefault(visit => visit.Visit.Key == observation.VisitId)?.Events.SingleOrDefault(item => item.Event.Id == candidate.Id);
+        return coverage is { Available: true, BlockedReason: null, PolicyDeferred: false } && coverage.Event.ConditionSignature == candidate.ConditionFingerprint && (coverage.Conditions is { } conditions ? !conditions.HasExecutedEntry(candidate.ConditionFingerprint) : !coverage.Completed);
     }
 
     private Ff7AutoPlayTarget[] ReadKnownNavigationPrerequisites(Ff7AutoPlayObservation observation, Ff7AutoPlayTarget goal)
     {
-        int[] blockers = Ff7AutoplayDriver.ReadNativeGoalBlockers(session, goal, observation.Events);
-        return observation.Events.Where(candidate => IsKnownBlockingNavigationActor(State, observation, goal, candidate, session.Host.Process.Actors.SingleOrDefault(actor => actor.EntityBound && actor.Entity == candidate.Entity), blockers)).ToArray();
+        int[] lines = Ff7AutoplayDriver.ReadNativeGoalLineBlockers(session, goal, observation.Events);
+        Ff7AutoPlayTarget[] linePrerequisites = observation.Events.Where(candidate => IsCurrentBlockingNavigationLine(State, observation, goal, candidate, lines)).ToArray();
+        int[] blockers;
+        try
+        {
+            blockers = Ff7AutoplayDriver.ReadNativeGoalBlockers(session, goal, observation.Events);
+        }
+        catch (Ff7AutoPlayNavigationUnavailableException) when (linePrerequisites.Length != 0)
+        {
+            blockers = [];
+        }
+        return observation.Events.Where(candidate => IsKnownBlockingNavigationActor(State, observation, goal, candidate, session.Host.Process.Actors.SingleOrDefault(actor => actor.EntityBound && actor.Entity == candidate.Entity), blockers) || linePrerequisites.Contains(candidate)).ToArray();
     }
 
     private bool TryInstallNavigationPrerequisite(Ff7AutoPlayActiveEvent active, AutoPlayTravelGoal? goal, Ff7AutoPlayObservation observation, Ff7AutoPlayNativeRoute proof, string source)

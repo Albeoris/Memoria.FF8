@@ -124,6 +124,7 @@ public sealed partial class Ff7AutoplayDriver
                         ownership.AdoptForcedRoot(goal);
                     }
                     bool owned = ownership.Requested(entity, script, accepted, admission.Started);
+                    prerequisiteAdmitted ??= probe.NavigationPrerequisites.FirstOrDefault(candidate => candidate.Kind == Ff7AutoPlayTargetKind.LineTouch && current.Events.Contains(candidate) && (edge.Kind == Ff7NativeGraphEdgeKind.OwnedEvent && edge.Event == candidate || source.Debt?.Roots.Contains(candidate) == true) && IsStartedNavigationLinePrerequisite(candidate, admission, owned && ownership.OwnsInput(entity, admission.Priority)));
                     if (goal.Kind != Ff7AutoPlayTargetKind.ActorTalk && accepted && entity == goal.Entity && script == goal.Script)
                     {
                         selected = true;
@@ -405,6 +406,68 @@ public sealed partial class Ff7AutoplayDriver
         return blocked.Order().ToArray();
     }
 
+    internal static int[] ReadNativeGoalLineBlockers(Ff7Session branch, Ff7AutoPlayTarget goal, IReadOnlyList<Ff7AutoPlayTarget> targets)
+    {
+        Ff7Actor player = branch.Host.Process.Actors.Single(actor => actor.PlayerControlled);
+        var contacts = ReadNativeTargetContacts(branch, player, goal);
+        if (contacts.Count == 0)
+        {
+            return [];
+        }
+        var contact = SelectFloorContact(contacts, Position3D(player), null, player.Triangle);
+        var (previous, distance) = ReadApproachRoutes(branch.Field.Walkmesh, branch.Host.Process.BlockedTriangles, player.Triangle, contact.Triangle);
+        if (previous[player.Triangle] < 0)
+        {
+            return [];
+        }
+        Vector3 waypoint = ReadPortalApproachStep(branch.Field.Walkmesh, player.Triangle, contact.Triangle, previous, Position3D(player), contact.Point, player.CollisionRadius).Waypoint;
+        Ff7AutoplayDriver driver = new(branch);
+        driver.ConfigureSpatialBoundaries(targets, goal);
+        HashSet<int> blocked = [];
+        try
+        {
+            driver.ChooseTargetInput(goal, targets, _ =>
+            {
+                Ff7AutoPlayTarget[] protectedTargets = driver.navigationLineTargets ?? [];
+                foreach (bool run in new[] { false, true })
+                {
+                    foreach (var direction in Directions)
+                    {
+                        Ff7AutoplayInput input = new(Horizontal: direction.X, Vertical: direction.Y, Run: run);
+                        driver.navigationLineInput = ProjectNavigationInput(input, branch.Machine.Input);
+                        driver.navigationLineTalk = false;
+                        Ff7Actor controlled = player with { MoveSpeed = unchecked((ushort)branch.GetPlayerMovementSpeed(run)) };
+                        Ff7NativeMoveResult move = branch.Host.Movement!.StepDirection(controlled, unchecked((byte)(direction.Direction + branch.Field.Triggers.ControlDirection)), branch.Host.Process.Actors, branch.Host.Process.BlockedTriangles, false, branch.Host.Process.LineBlocked);
+                        if (!move.Moved || distance[move.Actor.Triangle] > distance[player.Triangle] || distance[move.Actor.Triangle] == distance[player.Triangle] && Vector3.DistanceSquared(Position3D(move.Actor), waypoint) >= Vector3.DistanceSquared(Position3D(player), waypoint) || driver.AllowsPlannedMove(controlled, move))
+                        {
+                            continue;
+                        }
+                        foreach (int entity in protectedTargets.Where(target => target.Kind == Ff7AutoPlayTargetKind.LineTouch && target.AnalysisComplete).Select(target => target.Entity).Distinct())
+                        {
+                            try
+                            {
+                                driver.navigationLineTargets = protectedTargets.Where(target => target.Entity != entity).ToArray();
+                                if (driver.AllowsPlannedMove(controlled, move))
+                                {
+                                    blocked.Add(entity);
+                                }
+                            }
+                            finally
+                            {
+                                driver.navigationLineTargets = protectedTargets;
+                            }
+                        }
+                    }
+                }
+                return default;
+            }, requiredRun: true);
+        }
+        catch (Ff7AutoPlayNavigationUnavailableException) when (blocked.Count != 0)
+        {
+        }
+        return blocked.Order().ToArray();
+    }
+
     private static Ff7AutoplayInput ChooseNativeGraphInput(Ff7Session branch, Ff7AutoplayDriver driver, Ff7NativeGraphEdge edge, Ff7AutoPlayTarget goal, Ff7AutoPlayTarget[] events, NativeGraphOwnership ownership)
     {
         Ff7Actor actor = branch.Host.Process.Actors.Single(actor => actor.PlayerControlled);
@@ -492,6 +555,11 @@ public sealed partial class Ff7AutoplayDriver
     internal static bool IsSelectedNativeActorAdmission(Ff7AutoPlayTarget target, FieldExternalScriptAdmission admission)
     {
         return admission.Accepted && target.Kind == Ff7AutoPlayTargetKind.ActorTalk && target.Entity == admission.Entity && target.Script == admission.Script && admission.Priority == 1;
+    }
+
+    internal static bool IsStartedNavigationLinePrerequisite(Ff7AutoPlayTarget target, FieldExternalScriptAdmission admission, bool owned)
+    {
+        return owned && target.Kind == Ff7AutoPlayTargetKind.LineTouch && admission is { Accepted: true, Started: true, Priority: 1 } && target.Entity == admission.Entity && target.Script == admission.Script;
     }
 
     private static bool HasNativeGraphTerminalContract(Ff7Session branch, Ff7AutoPlayTarget target, bool selected, NativeGraphOwnership selectedOwner)

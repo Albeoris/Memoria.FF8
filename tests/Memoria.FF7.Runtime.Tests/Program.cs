@@ -3,6 +3,24 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-blocking-line-prerequisite-only", StringComparer.Ordinal))
+{
+    NativeBlockingLinePrerequisiteTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-physical-portal-prefix-only", StringComparer.Ordinal))
+{
+    NativePhysicalPortalPrefixTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-corridor-original-only", StringComparer.Ordinal))
+{
+    NativeCorridorOriginalTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-disc-change-only", StringComparer.Ordinal))
 {
     NativeDiscChangeTests.Run();
