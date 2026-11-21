@@ -3,6 +3,18 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-unlocked-animation-debt-only", StringComparer.Ordinal))
+{
+    NativeUnlockedAnimationDebtTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-partial-animation-original-only", StringComparer.Ordinal))
+{
+    NativePartialAnimationOriginalTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-choice-observation-restore-only", StringComparer.Ordinal))
 {
     NativeChoiceObservationRestoreTests.Run();

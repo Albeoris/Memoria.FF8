@@ -8,7 +8,28 @@ public sealed partial class Ff7AutoPlayPolicy
     private bool IsSettledPresentationChild(Ff7AutoPlayActiveEvent active, FieldVmSnapshot vm, Ff7AutoPlayExecutionOwner owner)
     {
         FieldScriptAnalysis? analysis = (uint)owner.Entity < vm.Entities.Length && vm.Entities[owner.Entity].Priority == owner.Priority ? session.Machine.AnalyzeScriptAtProgramCounter(owner.Entity, vm.Entities[owner.Entity].ProgramCounter) : null;
-        return CanSettlePresentationChild(active, session.FieldGeneration, vm, session.Host.Process, owner, analysis);
+        return CanSettlePresentationChild(active, session.FieldGeneration, vm, session.Host.Process, owner, analysis) || CanSettleSupersededPlayerAnimation(active, session.FieldGeneration, vm, session.Host.Process, owner, session.Field.Scripts.Data.Span);
+    }
+
+    internal static bool CanSettleSupersededPlayerAnimation(Ff7AutoPlayActiveEvent active, long generation, FieldVmSnapshot vm, Ff7FieldProcess process, Ff7AutoPlayExecutionOwner owner, ReadOnlySpan<byte> script)
+    {
+        if (!active.Returned || active.ExecutionProvenance?.RootReturned != true || !Ff7AutoPlayExecutionOwners.Matches(active, generation, vm.ProgramIdentity) || active.ExecutionProvenance.Owners.Contains(owner) != true || owner.Queued || owner.ParentEntity != active.Entity || owner.ParentPriority != 1 || (uint)owner.Entity >= vm.Entities.Length || owner.Priority is < 0 or >= 8 || owner.Script is < 0 or > 31 || owner.SourceProgramCounter < 0 || owner.SourceProgramCounter + 2 >= script.Length || script[owner.SourceProgramCounter] is not (0x01 or 0x02) || script[owner.SourceProgramCounter + 1] != owner.Entity || script[owner.SourceProgramCounter + 2] != ((owner.Priority << 5) | owner.Script))
+        {
+            return false;
+        }
+        FieldEntitySnapshot entity = vm.Entities[owner.Entity];
+        int pc = entity.ProgramCounter;
+        if (entity.Priority != owner.Priority || entity.SyncStates.Length <= owner.Priority || entity.SyncOwners.Length <= owner.Priority || entity.SyncStates[owner.Priority] != FieldSyncState.None || entity.SyncOwners[owner.Priority] != -1 || pc != owner.Entry || pc < 0 || pc + 5 >= script.Length || script[pc] != 0xBC || script[pc + 4] == 0 || script[pc + 5] != 0 || process.PlayerLocked || process.MenuDisabled || process.GlobalCommand != Ff7GlobalCommand.None || process.Join is not null || process.Transition is not null || process.Movie is { Playing: true } || process.Menu is { Completed: false } || process.Dialogues.Any(dialogue => !dialogue.Completed))
+        {
+            return false;
+        }
+        FieldHostRequest[] requests = (vm.PendingRequests ?? []).Where(request => request.Entity == owner.Entity && request.Priority == owner.Priority).ToArray();
+        if (requests is not [{ Command: FieldAnimation animation } request] || request.ProgramCounter != pc || animation != new FieldAnimation(script[pc + 1], script[pc + 4], true, true, FirstFrame: script[pc + 2], LastFrame: script[pc + 3]) || !process.AnimationRequests.Any(item => item.RequestId == request.Id && item.Entity == owner.Entity))
+        {
+            return false;
+        }
+        Ff7Actor? actor = process.Actors.SingleOrDefault(actor => actor.Entity == owner.Entity && actor.EntityBound && actor.PlayerControlled);
+        return actor is { AnimationStatus: 2, RequestedAnimation: null, Jump: null, Ladder: null } && actor.Animation != animation.Animation && !process.Motions.Any(motion => motion.Entity == owner.Entity);
     }
 
     internal static bool CanSettlePresentationChild(Ff7AutoPlayActiveEvent active, long generation, FieldVmSnapshot vm, Ff7FieldProcess process, Ff7AutoPlayExecutionOwner owner, FieldScriptAnalysis? analysis)
