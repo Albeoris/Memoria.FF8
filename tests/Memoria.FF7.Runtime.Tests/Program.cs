@@ -3,6 +3,18 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-excavation-dig-strategy-only", StringComparer.Ordinal))
+{
+    NativeExcavationDigStrategyTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-excavation-dig-original-only", StringComparer.Ordinal))
+{
+    NativePromptInputOriginalTests.RunDigReward();
+    return 0;
+}
+
 if (args.Contains("--native-excavation-continuation-only", StringComparer.Ordinal))
 {
     NativeExcavationContinuationTests.Run();

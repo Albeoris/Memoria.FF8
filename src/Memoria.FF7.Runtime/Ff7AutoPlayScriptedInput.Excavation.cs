@@ -11,6 +11,41 @@ public sealed partial class Ff7AutoPlayScriptedInput
         return programIdentity == ExcavationProgram;
     }
 
+    internal static int? ReadExcavationDigTriangle(FieldVmSnapshot vm, Ff7FieldProcess process)
+    {
+        if (!IsExcavationProgram(vm.ProgramIdentity) || vm.Entities.Length <= 2 || vm.MapVariables.Length <= 0x2B || vm.PersistentVariables.Length <= 0xEB || vm.MapVariables[0x0C] != 1 || vm.MapVariables[0x2B] != 0 || vm.PersistentVariables[0xEB] != 1 || vm.PersistentVariables[0xEA] != 0 || (vm.PersistentVariables[0xE7] & 8) != 0 || process.PlayerLocked || !process.MenuDisabled || process.GlobalCommand != Ff7GlobalCommand.None || process.Transition is not null || process.Join is not null || process.Movie is { Playing: true })
+        {
+            return null;
+        }
+        FieldEntitySnapshot director = vm.Entities[0];
+        FieldEntitySnapshot worker = vm.Entities[2];
+        if (director.Priority != 7 || director.ProgramCounter is not (0x06C3 or 0x06C9 or 0x06D0) || worker.Priority != 7 || worker.SyncStates.Length <= 6 || worker.SyncOwners.Length <= 6 || worker.SavedProgramCounters.Length <= 6 || worker.SyncStates[6] != FieldSyncState.None || worker.SyncOwners[6] != -1 || worker.SavedProgramCounters[6] != 0)
+        {
+            return null;
+        }
+        int triangle = vm.MapVariables[0x10] | vm.MapVariables[0x11] << 8;
+        Ff7Actor? player = process.Actors.SingleOrDefault(actor => actor.PlayerControlled);
+        int character = new FieldVariables(vm.PersistentVariables, vm.MapVariables).ReadByte(FieldBank.Persistent1Byte, 9);
+        int queried = character < 9 ? Array.FindIndex(vm.Entities, entity => entity.PartyCharacter == character) : -1;
+        if (player is not { EntityBound: true } || queried != player.Entity)
+        {
+            return null;
+        }
+        Ff7Actor[] markers = process.Actors.Where(actor => actor.EntityBound && actor.Entity == 6 && !actor.PlayerControlled).ToArray();
+        if (markers.Length != 1 || markers[0].Triangle != triangle || markers[0].CollisionEnabled)
+        {
+            return null;
+        }
+        for (int address = 0x12; address <= 0x1C; address += 2)
+        {
+            if ((vm.MapVariables[address] | vm.MapVariables[address + 1] << 8) == triangle)
+            {
+                return null;
+            }
+        }
+        return triangle;
+    }
+
     internal static bool IsExcavationBombContinuation(FieldVmSnapshot vm, Ff7FieldProcess process)
     {
         if (!IsExcavationProgram(vm.ProgramIdentity) || vm.Entities.Length <= 2 || vm.MapVariables.Length <= 0x2B || vm.PersistentVariables.Length <= 0xEB || vm.PersistentVariables[0xEB] != 1 || process.GlobalCommand != Ff7GlobalCommand.None || process.Transition is not null || process.Join is not null || process.Movie is { Playing: true })

@@ -6,6 +6,68 @@ using Memoria.FF7.Runtime;
 
 internal static class NativePromptInputOriginalTests
 {
+    internal static void RunDigReward()
+    {
+        string path = Environment.GetEnvironmentVariable("MEMORIA_FF7_NATIVE_PROMPT_INPUT_SAVE") ?? throw new InvalidOperationException("Select a native excavation reward fixture.");
+        byte[] bytes = File.ReadAllBytes(path);
+        byte[] hash = SHA256.HashData(bytes);
+        using MemoryStream input = new(bytes, writable: false);
+        using var session = Ff7Session.Restore(Ff7Installation.Discover(Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR")!), CombinedSessionCodec.Read(input).Ff7!);
+        using var policy = new Ff7AutoPlayPolicy(session, (_, _) => throw new InvalidOperationException("The selected dig reward must not require a choice checkpoint."));
+        bool digPressed = false;
+        bool wonOutcome = false;
+        bool arrived = false;
+        bool rewardStarted = false;
+        bool rewardReturned = false;
+        session.NativeInteractionScriptRequested += admission =>
+        {
+            if (session.MapId == 617 && admission is { Entity: 13, Script: 1, Priority: 1, Accepted: true, Started: true })
+            {
+                rewardStarted = true;
+                Console.WriteLine($"Native reward talk started at {session.Machine.Capture().Entities[13].ProgramCounter:X4}.");
+            }
+        };
+        session.NativeTickCompleted += observation => rewardReturned |= session.MapId == 617 && observation.ScriptReturns.Any(returned => returned.Entity == 13 && returned.Priority == 1);
+        var controller = new Ff7AutoPlayController(session, driver =>
+        {
+            var result = policy.ChooseInput(driver);
+            if (session.MapId == 772 && (result.Held & 0x80) != 0 && (session.Machine.Input.RawHeld & 0x80) == 0)
+            {
+                int target = session.Machine.Variables.ReadWord(FieldBank.MapWord, 0x10);
+                int actual = session.Host.Process.Actors.Single(actor => actor.PlayerControlled).Triangle;
+                if (actual != target)
+                {
+                    throw new InvalidOperationException("The native dig button was selected before its required ground triangle.");
+                }
+                digPressed = true;
+                Console.WriteLine($"Native dig admitted at triangle {actual}, tick {session.Host.Process.Tick}.");
+            }
+            return result;
+        }, advanceTick: () => session.AdvanceTick(advanceClock: false), chooseDialogueSelection: policy.ChooseDialogueSelection);
+        controller.Start();
+        Stopwatch timer = Stopwatch.StartNew();
+        bool reward = false;
+        for (int polls = 0; polls < 100000 && controller.Steps < 3000 && timer.Elapsed.TotalSeconds < 60 && controller.Error is null && !reward; polls++)
+        {
+            controller.Advance(1);
+            wonOutcome |= session.Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 0xEA) == 1;
+            if (!arrived && session.MapId == 617)
+            {
+                arrived = true;
+                Console.WriteLine($"Native excavation arrival: EA={session.Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 0xEA)}, callbacks={controller.Steps}, program={session.Machine.ProgramIdentity}, EB={session.Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 0xEB)}, rewardEntry={session.Field.Scripts.Entities[13].ScriptOffsets[1]:X4}, rewardGuard={Convert.ToHexString(session.Field.Scripts.Data.Span.Slice(0x0AA9, 7))}.");
+                var offered = new Ff7AutoPlayDiscovery(session).Observe().Events.SingleOrDefault(target => target.Id == "actor:13:script:1");
+                var box = session.Host.Process.Actors.SingleOrDefault(actor => actor.EntityBound && actor.Entity == 13);
+                Console.WriteLine($"Native reward offering: box={box?.Entity}/talk:{box?.TalkEnabled}/visible:{box?.Visible}/triangle:{box?.Triangle}, event={offered?.Id}, complete={offered?.AnalysisComplete}, reason={offered?.SupportReason}");
+            }
+            reward = session.MapId == 617 && (session.Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 0xE7) & 8) != 0 && !session.Host.Process.PlayerLocked && !session.Host.Process.MenuDisabled && session.Machine.Capture().Entities[13].Priority == 7;
+        }
+        Console.WriteLine($"Original dig reward: callbacks={controller.Steps}, seconds={timer.Elapsed.TotalSeconds:F3}, map={session.MapId}, tick={session.Host.Process.Tick}, triangle={session.Host.Process.Actors.Single(actor => actor.PlayerControlled).Triangle}, digPressed={digPressed}, outcomeEA1={wonOutcome}, reward={reward}, rewardStarted={rewardStarted}, rewardReturned={rewardReturned}, active={policy.State.Active?.EventId}, status={policy.State.Status}, error={controller.Error}");
+        if (!digPressed || !wonOutcome || !arrived || !reward || !rewardStarted || !rewardReturned || controller.Error is not null || !hash.AsSpan().SequenceEqual(SHA256.HashData(File.ReadAllBytes(path))))
+        {
+            throw new InvalidOperationException("The selected native excavation did not award its real key item and return usable control.");
+        }
+    }
+
     internal static void RunBombOwnedContinuation()
     {
         string path = Environment.GetEnvironmentVariable("MEMORIA_FF7_NATIVE_PROMPT_INPUT_SAVE") ?? throw new InvalidOperationException("Select a native admitted excavation continuation fixture.");

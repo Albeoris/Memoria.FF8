@@ -217,6 +217,7 @@ public sealed partial class Ff7AutoPlayDiscovery(Ff7Session session)
                 events.Add(new($"gateway:{index}", -1, -1, Ff7AutoPlayTargetKind.Gateway, $"{identity}:gateway:{index}:{gateway.DestinationField}:{gateway.DestinationTriangle}:native-transfer:1", false, (start + end) / 2, GatewayIndex: index, DestinationField: gateway.DestinationField, SegmentStart: start, SegmentEnd: end));
             }
         }
+        AddExcavationDigTarget(events, persistentReads);
         AddSpatialTargets(events, persistentReads, globalHostReads);
         bool complete = events.All(target => target.AnalysisComplete);
         return new(visit, identity, session.FieldGeneration, events.ToArray(), canAccept, complete, complete ? null : string.Join("; ", events.Where(target => !target.AnalysisComplete).Select(target => $"{target.Id}: {target.SupportReason}")))
@@ -228,6 +229,11 @@ public sealed partial class Ff7AutoPlayDiscovery(Ff7Session session)
 
         void AddScript(string id, int entity, int script, Ff7AutoPlayTargetKind kind, Vector3 position, int? triangle = null, Vector3? start = null, Vector3? end = null)
         {
+            if (ReadExcavationRewardTarget(id, entity, script, kind, position, triangle, persistentReads) is { } reward)
+            {
+                events.Add(reward);
+                return;
+            }
             int entry = session.Field.Scripts.Entities[entity].ScriptOffsets[script];
             if (session.Field.Scripts.Data.Span[entry] == 0)
             {
