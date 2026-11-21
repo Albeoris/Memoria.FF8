@@ -119,6 +119,8 @@ Inventory, refinement, reward UI and Triple Triad look up card names through the
 
 ## Movie lifetime and timing
 
+Native Memoria packages can supply [movie subtitles and AVI or MP4 replacements](movie-subtitles.md) using the same logical movie addresses.
+
 Flat native movie filenames at a package root can replace the corresponding requested movie. Exact directory-qualified addresses take precedence within a package; distinct source directories are not merged. A camera companion is selected only from the winning video package, otherwise the original timeline is retained.
 
 Uncompressed archive videos are read directly from their bounded byte range through FFmpeg's seekable `subfile` input, without extracting the movie or copying it into memory. Compressed entries, folder replacements and small CAM files are materialized only when selected. Playback pins its video and CAM together; package toggles apply to the next playback. Cached files remain available for the host's lifetime. Archive versions are checked before reopening a bound movie; changing its underlying archive requires preparing playback again.

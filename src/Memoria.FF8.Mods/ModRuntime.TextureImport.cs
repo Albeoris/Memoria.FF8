@@ -96,13 +96,15 @@ public sealed partial class ModRuntime
                 deferredDiscovery = null;
                 HashSet<string> replaced = transaction.FrozenFiles.Select(file => file.RelativePath).ToHashSet(StringComparer.OrdinalIgnoreCase);
                 IEnumerable<string> preservedPaths = catalog.Files.Concat(fileEntries.Values.Select(entry => entry.File)).Where(file => file.PackageId.Equals(candidatePackage.Id, StringComparison.OrdinalIgnoreCase) && !replaced.Contains(file.RelativePath)).Select(file => file.RelativePath);
-                bool textureContentOnly = TexturePackageCompatibility.IsTextureContentOnly(preservedPaths.Concat(transaction.FrozenFiles.Select(file => file.RelativePath)), candidatePackage.HasLocalization);
-                if (!isCompatible(ModFormat.Memoria) && !textureContentOnly && !candidatePackage.LocalizationOnly)
+                string[] contributions = preservedPaths.Concat(transaction.FrozenFiles.Select(file => file.RelativePath)).ToArray();
+                bool textureContentOnly = TexturePackageCompatibility.IsTextureContentOnly(contributions, candidatePackage.HasLocalization);
+                bool moviePresentationOnly = !textureContentOnly && TexturePackageCompatibility.IsMoviePresentationOnly(contributions, candidatePackage.HasLocalization);
+                if (!isCompatible(ModFormat.Memoria) && !textureContentOnly && !candidatePackage.LocalizationOnly && !moviePresentationOnly)
                 {
                     diagnostics = Array.AsReadOnly(new[] { new ModDiagnostic("texture-import-incompatible", "This package contains gameplay or unsupported contributions for the selected edition. Choose a separate texture-only native package.", candidatePackage.Id) });
                     return TextureImportApplyResult.Failed;
                 }
-                candidatePackage = candidatePackage with { TextureContentOnly = textureContentOnly };
+                candidatePackage = candidatePackage with { TextureContentOnly = textureContentOnly, MoviePresentationOnly = moviePresentationOnly };
                 List<ModPackage> packages = catalog.Packages.Where(package => !package.Id.Equals(candidatePackage.Id, StringComparison.OrdinalIgnoreCase)).Append(candidatePackage with { Status = ModEffectiveStatus.Active }).ToList();
                 Dictionary<string, ModPackage> byId = packages.ToDictionary(package => package.Id, StringComparer.OrdinalIgnoreCase);
                 List<ModFile> files = catalog.Files.Where(file => !file.PackageId.Equals(candidatePackage.Id, StringComparison.OrdinalIgnoreCase) || !replaced.Contains(file.RelativePath)).ToList();

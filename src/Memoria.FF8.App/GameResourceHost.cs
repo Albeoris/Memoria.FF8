@@ -84,7 +84,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
     public string ResolveGameFile(string dataRelativePath)
     {
         string relative = ModCatalogSnapshot.NormalizePath(dataRelativePath);
-        ModFile? replacement = FindJunctionFile(relative);
+        ModFile? replacement = FindFileReplacement(Mods.Catalog, relative);
         if (replacement is null)
         {
             if (Resources.GetSource<IGameFileSource>() is { } files)
@@ -105,7 +105,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
             }
             catch (Exception exception) when (exception is IOException or InvalidDataException or NotSupportedException or UnauthorizedAccessException)
             {
-                Mods.ReportFailure(new("junction-replacement-failed", exception.Message, replacement.PackageId, replacement.RelativePath));
+                ReportFileReplacementFailure(replacement, exception);
                 throw;
             }
         }
@@ -130,53 +130,15 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         catch (Exception exception) when (exception is IOException or InvalidDataException or NotSupportedException or UnauthorizedAccessException)
         {
             File.Delete(temporary);
-            Mods.ReportFailure(new("junction-replacement-failed", exception.Message, replacement.PackageId, replacement.RelativePath));
+            ReportFileReplacementFailure(replacement, exception);
             throw;
         }
     }
 
-    private ModFile? FindJunctionFile(string relative)
+    private void ReportFileReplacementFailure(ModFile replacement, Exception exception)
     {
-        ModCatalogSnapshot catalog = Mods.Catalog;
-        if (IsMovieDirectoryPath(relative) && relative.EndsWith(".cam", StringComparison.OrdinalIgnoreCase))
-        {
-            ModFile? video = FindJunctionFile(Path.ChangeExtension(relative, null) + "h.avi");
-            if (video is not null)
-            {
-                // A lower-priority video's CAM may have a different frame cadence.
-                // Video-only replacements retain the original native camera timeline.
-                ModFile[] companions = catalog.Files.Where(file => file.Format == ModFormat.Junction && file.PackageId.Equals(video.PackageId, StringComparison.OrdinalIgnoreCase)).ToArray();
-                return FindMoviePath(companions, relative);
-            }
-        }
-        if (!IsMovieDirectoryPath(relative) || !relative.EndsWith(".avi", StringComparison.OrdinalIgnoreCase))
-        {
-            ModFile[] candidates = catalog.Files.Where(file => file.Format == ModFormat.Junction).ToArray();
-            return IsMovieDirectoryPath(relative) && relative.EndsWith(".cam", StringComparison.OrdinalIgnoreCase) ? FindMoviePath(candidates, relative) : catalog.FindAll(ModFormat.Junction, relative).FirstOrDefault();
-        }
-        Dictionary<string, ModPackage> packages = catalog.Packages.Where(package => package.Format == ModFormat.Junction).ToDictionary(package => package.Id, StringComparer.OrdinalIgnoreCase);
-        foreach (IGrouping<string, ModFile> files in catalog.Files.Where(file => file.Format == ModFormat.Junction).GroupBy(file => file.PackageId, StringComparer.OrdinalIgnoreCase))
-        {
-            string extension = packages[files.Key].JunctionMetadata?.VideoExtension ?? "avi";
-            string candidate = Path.ChangeExtension(relative, extension);
-            ModFile? selected = FindMoviePath(files, candidate);
-            if (selected is not null)
-            {
-                return selected;
-            }
-        }
-        return null;
-    }
-
-    private static bool IsMovieDirectoryPath(string path)
-    {
-        return path.StartsWith("movies/", StringComparison.OrdinalIgnoreCase) || path.StartsWith("data/movies/", StringComparison.OrdinalIgnoreCase) || path.StartsWith("lang-", StringComparison.OrdinalIgnoreCase) && path.IndexOf("/movies/", StringComparison.OrdinalIgnoreCase) == 7;
-    }
-
-    private static ModFile? FindMoviePath(IEnumerable<ModFile> files, string relative)
-    {
-        ModFile[] candidates = files.ToArray();
-        return candidates.FirstOrDefault(file => file.RelativePath.Equals(relative, StringComparison.OrdinalIgnoreCase)) ?? candidates.FirstOrDefault(file => !file.RelativePath.Contains('/') && file.RelativePath.Equals(Path.GetFileName(relative), StringComparison.OrdinalIgnoreCase));
+        string code = replacement.Format == ModFormat.Memoria ? "Memoria.MovieReplacementFailed" : "junction-replacement-failed";
+        Mods.ReportFailure(new(code, exception.Message, replacement.PackageId, replacement.RelativePath));
     }
 
     public bool Pump(bool force = false)
@@ -249,6 +211,10 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         if (IsLocalizationOnlyChange(catalog) && GameplayPolicy.StatusStatModifiers.SequenceEqual(statusMods.Modifiers))
         {
             return PrepareLocalizationPublication(localization!);
+        }
+        if (!TryPrepareMovieSubtitles(catalog, out MovieSubtitlePublication subtitles, out IReadOnlyList<ModDiagnostic> subtitleDiagnostics))
+        {
+            return new ModPreparationResult(false, Diagnostics: subtitleDiagnostics);
         }
         ModPackage[] behaviorPackages = catalog.Packages.Where(package => package.Status == ModEffectiveStatus.Active && (package.JunctionMetadata?.Behaviors.Count > 0 || package.JunctionMetadata?.GameplayOverrides.Count > 0)).ToArray();
         if (behaviorPackages.Length > 0 && (source.Descriptor.Edition != GameDataEdition.Classic || !source.Descriptor.Language.Equals("en", StringComparison.OrdinalIgnoreCase)))
@@ -382,6 +348,8 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         }
         List<ITextureReplacementResolver> resolvers = [];
         List<string> usable = [];
+        usable.AddRange(subtitles.PackageIds);
+        usable.AddRange(catalog.Files.Where(file => file.Format == ModFormat.Memoria && (MoviePackagePaths.IsNativeMovieVideo(file.RelativePath) || MoviePackagePaths.IsNativeMovieCamera(file.RelativePath))).Select(file => file.PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
         NativeTextureMods nativeTextures = nativePreparation.Textures;
         IReadOnlyList<ModDiagnostic> nativeTextureDiagnostics = nativePreparation.Diagnostics;
         resolvers.Add(nativeTextures);
@@ -427,7 +395,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
             usable.AddRange(ffnx.UsablePackageIds);
         }
         TonberryTextureResolver? tonberry = TonberryTextureResolver.Create(source.Descriptor, catalog, out IReadOnlyList<ModDiagnostic> tonberryDiagnostics, recognition);
-        IReadOnlyList<ModDiagnostic> diagnostics = encodedDiagnostics.Concat(statusDiagnostics).Concat(modelDiagnostics).Concat(fieldResourceDiagnostics).Concat(staticFileDiagnostics).Concat(tonberryDiagnostics).Concat(demaster.Diagnostics).Concat(ffnx.Diagnostics).Concat(nativeTextureDiagnostics).Concat(guardianPublication.Diagnostics ?? []).Concat(encounterPublication.Diagnostics ?? []).ToArray();
+        IReadOnlyList<ModDiagnostic> diagnostics = encodedDiagnostics.Concat(statusDiagnostics).Concat(modelDiagnostics).Concat(fieldResourceDiagnostics).Concat(staticFileDiagnostics).Concat(tonberryDiagnostics).Concat(demaster.Diagnostics).Concat(ffnx.Diagnostics).Concat(nativeTextureDiagnostics).Concat(subtitleDiagnostics).Concat(guardianPublication.Diagnostics ?? []).Concat(encounterPublication.Diagnostics ?? []).ToArray();
         if (diagnostics.Any(diagnostic => diagnostic.Code == "Tonberry.MalformedRow" && Mods.Catalog.Files.Any(old => old.PackageId == diagnostic.PackageId && old.RelativePath == diagnostic.RelativePath)))
         {
             return new ModPreparationResult(false, Diagnostics: diagnostics);
@@ -509,6 +477,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
                 SceneMods = sceneMods;
                 ModelMods = modelMods;
                 nativeTextureMods = nativeTextures;
+                movieSubtitles = subtitles;
                 ItemOverrides = itemOverrides;
                 StartupPolicy = startupPolicy;
                 GameplayPolicy = gameplayPolicy;

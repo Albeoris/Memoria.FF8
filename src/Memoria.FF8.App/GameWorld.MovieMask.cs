@@ -13,6 +13,8 @@ internal sealed partial class GameWorld
     private FieldRenderer? movieRenderer;
     private FieldAssets? movieRendererField;
 
+    internal PixelBounds? MovieContentBounds => movieRenderer?.ContentBounds;
+
     private (NativeMovieSource Source, NativeMovieMaskPlayback Playback, NativeMovieCameraFlags Flags) RequireNativeMovieCameraPhase()
     {
         NativeMovieSource source = MovieClock.RequireSource(session.State);

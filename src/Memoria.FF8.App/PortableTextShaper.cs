@@ -18,13 +18,15 @@ internal class PortableTextShaper : IDisposable
     private readonly BidiLayout bidi = new();
     private readonly Dictionary<nint, FontRun> fonts = [];
     private readonly string family;
+    private readonly bool bold;
 
-    internal PortableTextShaper(float size, string? fontFamily)
+    internal PortableTextShaper(float size, string? fontFamily, bool bold = false)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(size);
         family = SystemFontCatalog.ResolveFamily(fontFamily);
+        this.bold = bold;
         rasterSize = size * RasterScale;
-        typeface = SKTypeface.FromFamilyName(family);
+        typeface = bold ? SKTypeface.FromFamilyName(family, SKFontStyle.Bold) : SKTypeface.FromFamilyName(family);
         FontRun primary = Font(typeface);
         SKFontMetrics metrics = primary.Font.Metrics;
         LineHeight = MathF.Ceiling(metrics.Descent - metrics.Ascent + metrics.Leading) / RasterScale;
@@ -76,7 +78,9 @@ internal class PortableTextShaper : IDisposable
                 {
                     continue;
                 }
-                SKTypeface? fallback = SKFontManager.Default.MatchCharacter(family, rune.Value);
+                SKTypeface? fallback = bold
+                    ? SKFontManager.Default.MatchCharacter(family, SKFontStyle.Bold, [], rune.Value)
+                    : SKFontManager.Default.MatchCharacter(family, rune.Value);
                 if (fallback is not null)
                 {
                     selected = Font(fallback);

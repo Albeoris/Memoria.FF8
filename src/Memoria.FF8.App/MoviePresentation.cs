@@ -18,11 +18,12 @@ internal sealed class MoviePresentation : IDisposable
     private bool soundAttached;
     private readonly MovieFrameTimeline? nativeTimeline;
     private readonly MovieInformation? nativeInformation;
+    private readonly MovieSubtitleRenderer? subtitleRenderer;
     private bool callbackActive = true;
     private byte[] decodedPixels = [];
     private int decodedMediaFrame = -1;
 
-    public MoviePresentation(GraphicsDevice device, PcmAudioOutput audioOutput, string toolsDirectory, string path, double startSeconds, MovieInformation? information = null, bool audioEnabled = true, MovieInformation? nativeInformation = null)
+    public MoviePresentation(GraphicsDevice device, PcmAudioOutput audioOutput, string toolsDirectory, string path, double startSeconds, MovieInformation? information = null, bool audioEnabled = true, MovieInformation? nativeInformation = null, MovieSubtitleTrack? subtitles = null)
     {
         this.audioOutput = audioOutput;
         this.audioEnabled = audioEnabled;
@@ -33,6 +34,10 @@ internal sealed class MoviePresentation : IDisposable
         if (this.nativeInformation is not null)
         {
             nativeTimeline = new MovieFrameTimeline(this.nativeInformation, MovieFrameTimeline.FrameAt(startSeconds, this.nativeInformation));
+        }
+        if (subtitles is not null)
+        {
+            subtitleRenderer = new MovieSubtitleRenderer(device, subtitles);
         }
     }
 
@@ -166,6 +171,30 @@ internal sealed class MoviePresentation : IDisposable
         PixelBounds fit = ViewportLayout.Fit(Texture.Width, Texture.Height, bounds.Width, bounds.Height);
         var target = new Rectangle(bounds.X + fit.X, bounds.Y + fit.Y, fit.Width, fit.Height);
         batch.Draw(Texture, target, Color.White);
+        DrawSubtitles(batch, target);
+    }
+
+    private void DrawSubtitles(SpriteBatch batch, Rectangle videoBounds)
+    {
+        if (subtitleRenderer is not null && decodedMediaFrame >= 0)
+        {
+            subtitleRenderer.Draw(batch, videoBounds, decodedMediaFrame / decoder.Information.FramesPerSecond);
+        }
+    }
+
+    public void DrawSubtitles(SpriteBatch batch, Rectangle target, PixelBounds content, Texture2D surface)
+    {
+        if (subtitleRenderer is null)
+        {
+            return;
+        }
+        double scaleX = (double)target.Width / surface.Width;
+        double scaleY = (double)target.Height / surface.Height;
+        int left = (int)Math.Round(content.X * scaleX);
+        int top = (int)Math.Round(content.Y * scaleY);
+        int right = (int)Math.Round((content.X + content.Width) * scaleX);
+        int bottom = (int)Math.Round((content.Y + content.Height) * scaleY);
+        DrawSubtitles(batch, new Rectangle(target.X + left, target.Y + top, right - left, bottom - top));
     }
 
     public void Dispose()
@@ -177,6 +206,7 @@ internal sealed class MoviePresentation : IDisposable
             soundAttached = false;
         }
         decoder.Dispose();
+        subtitleRenderer?.Dispose();
         Texture.Dispose();
     }
 }

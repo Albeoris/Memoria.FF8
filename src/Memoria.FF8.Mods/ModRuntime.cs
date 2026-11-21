@@ -259,7 +259,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
             {
                 return new(false, lockReason);
             }
-            if (!isCompatible(package.Format) && !package.LocalizationOnly && !package.TextureContentOnly || enabled && package.Status == ModEffectiveStatus.IncompatibleEdition)
+            if (!isCompatible(package.Format) && !package.LocalizationOnly && !package.TextureContentOnly && !package.MoviePresentationOnly || enabled && package.Status == ModEffectiveStatus.IncompatibleEdition)
             {
                 return new(false, $"{package.Name} is incompatible with the selected game-data edition.");
             }
@@ -848,7 +848,8 @@ public sealed partial class ModRuntime : IModService, IDisposable
                     packageFiles.AddRange(sourceFiles.OrderBy(item => item.Relative, PathOrder).Select(file => (packageRoot, file.Physical, file.Relative)));
                 }
                 bool textureContentOnly = format == ModFormat.Memoria && TexturePackageCompatibility.IsTextureContentOnly(packageFiles.Select(file => file.Relative), hasLocalization);
-                bool compatible = ((native?.Official is not null && nativeError is null) || isCompatible(format) || localizationOnly || textureContentOnly) && nativeError is null && descriptorFailure is null;
+                bool moviePresentationOnly = format == ModFormat.Memoria && !textureContentOnly && TexturePackageCompatibility.IsMoviePresentationOnly(packageFiles.Select(file => file.Relative), hasLocalization);
+                bool compatible = ((native?.Official is not null && nativeError is null) || isCompatible(format) || localizationOnly || textureContentOnly || moviePresentationOnly) && nativeError is null && descriptorFailure is null;
                 ModEffectiveStatus status = !compatible ? ModEffectiveStatus.IncompatibleEdition : !requested ? ModEffectiveStatus.Disabled : ModEffectiveStatus.Active;
                 identities.Add($"{id}\0{root}\0{explicitEnabled}\0{requested}\0{compatible}\0{priority}");
                 Dictionary<string, string> normalizedPaths = new(StringComparer.OrdinalIgnoreCase);
@@ -890,7 +891,8 @@ public sealed partial class ModRuntime : IModService, IDisposable
                     if (!fileEntries.TryGetValue(key, out FileEntry? previous) || previous.Stamp != stamp || previous.LocalizationEpoch != localizationEpoch || previous.TextureLayoutIdentity != textureLayouts.Identity || forceRevalidate)
                     {
                         long revision = ++fileRevision;
-                        previous = new(stamp, new ModFile(id, format, relative, revision, () => ReadVersion(packageRoot, physical, stamp)) { ContentStamp = localizationManifest ? (localizationEpoch, 0) : (stamp.Length, stamp.LastWriteTicks), TextureLayout = textureLayout, AbsolutePath = Path.GetFullPath(physical) }, localizationEpoch, textureLayouts.Identity);
+                        Action<Stream>? copyTo = format == ModFormat.Memoria && MoviePackagePaths.IsNativeMovieVideo(relative) ? destination => CopyFileVersion(packageRoot, physical, stamp, destination) : null;
+                        previous = new(stamp, new ModFile(id, format, relative, revision, () => ReadVersion(packageRoot, physical, stamp), copyTo) { ContentStamp = localizationManifest ? (localizationEpoch, 0) : (stamp.Length, stamp.LastWriteTicks), TextureLayout = textureLayout, AbsolutePath = Path.GetFullPath(physical) }, localizationEpoch, textureLayouts.Identity);
                         fileEntries[key] = previous;
                     }
                     identities.Add($"{key}\0{previous.File.Revision}");
@@ -903,7 +905,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 {
                     status = ModEffectiveStatus.NoUsableEntries;
                 }
-                packages.Add(new(id, descriptor?.Name ?? native?.Official?.Name ?? name, format, explicitEnabled, requested, status, root) { IsBundled = format == ModFormat.Memoria && (bundledRoot is not null || modRoot == bundledModsRoot), Official = native?.Official, Descriptor = descriptor, Priority = priority, HasLocalization = hasLocalization, HasLighting = hasLighting, LocalizationOnly = localizationOnly, TextureContentOnly = textureContentOnly });
+                packages.Add(new(id, descriptor?.Name ?? native?.Official?.Name ?? name, format, explicitEnabled, requested, status, root) { IsBundled = format == ModFormat.Memoria && (bundledRoot is not null || modRoot == bundledModsRoot), Official = native?.Official, Descriptor = descriptor, Priority = priority, HasLocalization = hasLocalization, HasLighting = hasLighting, LocalizationOnly = localizationOnly, TextureContentOnly = textureContentOnly, MoviePresentationOnly = moviePresentationOnly });
             }
         }
         foreach (string key in fileEntries.Keys.Where(key => !visitedFiles.Contains(key)).ToArray())
@@ -987,18 +989,28 @@ public sealed partial class ModRuntime : IModService, IDisposable
     private static byte[] ReadVersion(string packageRoot, string path, FileStamp expected)
     {
         ValidateContentPath(packageRoot, path);
-        FileInfo before = new(path);
-        if (!before.Exists || new FileStamp(before.Length, before.LastWriteTimeUtc.Ticks) != expected)
-        {
-            throw new IOException($"Mod content changed during preparation: {path}.");
-        }
+        ValidateFileVersion(path, expected);
         byte[] bytes = File.ReadAllBytes(path);
-        FileInfo after = new(path);
-        if (!after.Exists || new FileStamp(after.Length, after.LastWriteTimeUtc.Ticks) != expected)
+        ValidateFileVersion(path, expected);
+        return bytes;
+    }
+
+    private static void CopyFileVersion(string packageRoot, string path, FileStamp expected, Stream destination)
+    {
+        ValidateContentPath(packageRoot, path);
+        ValidateFileVersion(path, expected);
+        using FileStream input = new(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+        input.CopyTo(destination);
+        ValidateFileVersion(path, expected);
+    }
+
+    private static void ValidateFileVersion(string path, FileStamp expected)
+    {
+        FileInfo file = new(path);
+        if (!file.Exists || new FileStamp(file.Length, file.LastWriteTimeUtc.Ticks) != expected)
         {
             throw new IOException($"Mod content changed during preparation: {path}.");
         }
-        return bytes;
     }
 
     internal static void ValidateContentPath(string packageRoot, string path)

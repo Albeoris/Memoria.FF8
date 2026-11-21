@@ -636,7 +636,8 @@ internal sealed partial class RecreateGame : GamePresentationHost
                 // Resume from the actual last decoded frame. Wall-clock/audio position can be ahead
                 // when drawing falls behind and must not skip native callbacks on decoder restart.
                 double startSeconds = movieClock.State.FrameIndex / information.FramesPerSecond;
-                movie = new MoviePresentation(GraphicsDevice, audioOutput, directory, path, startSeconds, presentationInformation, options.AudioEnabled, information);
+                var subtitles = resourceHost?.ResolveMovieSubtitles(movieClock.SourceDiscIndex, session.State.MovieIndex);
+                movie = new MoviePresentation(GraphicsDevice, audioOutput, directory, path, startSeconds, presentationInformation, options.AudioEnabled, information, subtitles);
                 movieIndex = session.State.MovieIndex;
                 movieDiscIndex = movieClock.SourceDiscIndex;
                 error = null;
@@ -1760,8 +1761,14 @@ internal sealed partial class RecreateGame : GamePresentationHost
             {
                 if (world?.Field is not null)
                 {
-                    PixelBounds fit = ViewportLayout.Fit(PresentedFieldTexture.Width, PresentedFieldTexture.Height, bounds.Width, bounds.Height);
-                    batch.Draw(PresentedFieldTexture, new Rectangle(fit.X, fit.Y, fit.Width, fit.Height), Color.White);
+                    Texture2D surface = PresentedFieldTexture;
+                    PixelBounds fit = ViewportLayout.Fit(surface.Width, surface.Height, bounds.Width, bounds.Height);
+                    Rectangle target = new(bounds.X + fit.X, bounds.Y + fit.Y, fit.Width, fit.Height);
+                    batch.Draw(surface, target, Color.White);
+                    if (world.MovieContentBounds is { } content)
+                    {
+                        movie.DrawSubtitles(batch, target, content, surface);
+                    }
                 }
                 else
                 {

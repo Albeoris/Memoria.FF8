@@ -11,7 +11,7 @@ internal sealed partial class RecreateGame
 {
     private readonly StartupSequence startup;
     private MoviePresentation? startupMovie;
-    private Task<MovieInformation>? startupMovieInformation;
+    private Task<(string Path, MovieInformation Information, MovieSubtitleTrack? Subtitles)>? startupMovieSource;
     private Task<NativeStartupArtwork>? startupArtwork;
     private readonly Dictionary<int, Texture2D> startupTextures = [];
     private string? startupArtworkFingerprint;
@@ -59,14 +59,20 @@ internal sealed partial class RecreateGame
         {
             if (startup.Stage is StartupStage.SquareEnixMovie or StartupStage.PublisherMovie)
             {
-                string path = movieClock.ResolveMovieFile("movies/disc04_00h.avi");
-                startupMovieInformation ??= Task.Run(() => FfmpegMovieDecoder.ProbePresentation(movieClock.ToolsDirectory, path));
-                if (!startupMovieInformation.IsCompleted)
+                if (startupMovieSource is null)
+                {
+                    string path = movieClock.ResolveMovieFile("movies/disc04_00h.avi");
+                    MovieSubtitleTrack? subtitles = resourceHost?.ResolveMovieSubtitles(4, 0);
+                    string directory = movieClock.ToolsDirectory;
+                    startupMovieSource = Task.Run(() => (path, FfmpegMovieDecoder.ProbePresentation(directory, path), subtitles));
+                }
+                if (!startupMovieSource.IsCompleted)
                 {
                     return true;
                 }
                 double start = startup.Stage == StartupStage.PublisherMovie ? StartupSequence.PublisherStartSeconds : 0;
-                startupMovie ??= new MoviePresentation(GraphicsDevice, audioOutput, movieClock.ToolsDirectory, path, start, startupMovieInformation.GetAwaiter().GetResult(), options.AudioEnabled);
+                var source = startupMovieSource.GetAwaiter().GetResult();
+                startupMovie ??= new MoviePresentation(GraphicsDevice, audioOutput, movieClock.ToolsDirectory, source.Path, start, source.Information, options.AudioEnabled, subtitles: source.Subtitles);
                 startupMovie.Update();
                 if (startupMovie.Error is string movieError)
                 {
@@ -171,6 +177,7 @@ internal sealed partial class RecreateGame
     {
         startupMovie?.Dispose();
         startupMovie = null;
+        startupMovieSource = null;
         startupCreditFrame = null;
         startupFaulted = false;
         error = null;
@@ -193,6 +200,7 @@ internal sealed partial class RecreateGame
     {
         startupMovie?.Dispose();
         startupMovie = null;
+        startupMovieSource = null;
         if (startupMusicStarted)
         {
             fieldAudio?.StopAll();

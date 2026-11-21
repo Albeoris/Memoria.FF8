@@ -4,7 +4,18 @@ internal static class TexturePackageCompatibility
 {
     internal static bool IsTextureContentOnly(IEnumerable<string> contributions, bool hasLocalization)
     {
+        return IsPresentationContentOnly(contributions, hasLocalization, allowMovies: false);
+    }
+
+    internal static bool IsMoviePresentationOnly(IEnumerable<string> contributions, bool hasLocalization)
+    {
+        return IsPresentationContentOnly(contributions, hasLocalization, allowMovies: true);
+    }
+
+    private static bool IsPresentationContentOnly(IEnumerable<string> contributions, bool hasLocalization, bool allowMovies)
+    {
         bool hasTexture = false;
+        bool hasMovie = false;
         foreach (string source in contributions)
         {
             string path = ModCatalogSnapshot.NormalizePath(source);
@@ -28,6 +39,11 @@ internal static class TexturePackageCompatibility
             {
                 continue;
             }
+            if (allowMovies && (MoviePackagePaths.IsSubtitleDocument(path) || MoviePackagePaths.IsNativeMovieVideo(path) || MoviePackagePaths.IsNativeMovieCamera(path)))
+            {
+                hasMovie = true;
+                continue;
+            }
             string name = Path.GetFileName(path);
             string extension = Path.GetExtension(name);
             bool documentation = extension.Equals(".md", StringComparison.OrdinalIgnoreCase) || extension.Equals(".txt", StringComparison.OrdinalIgnoreCase) || extension.Length == 0;
@@ -37,6 +53,6 @@ internal static class TexturePackageCompatibility
             }
             return false;
         }
-        return hasTexture;
+        return allowMovies ? hasMovie : hasTexture;
     }
 }
