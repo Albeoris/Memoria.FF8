@@ -36,8 +36,8 @@ public sealed class Ff7SnowboardPresentationTests
         UInt(28, 52);
         UInt(32, 1);
         Vertex(40, -32, -32, firstZ);
-        Vertex(48, 32, -32, secondZ);
-        Vertex(56, -32, 32, thirdZ);
+        Vertex(48, -32, 32, secondZ);
+        Vertex(56, 32, -32, thirdZ);
         bytes[64] = 6;
         bytes[65] = 5;
         bytes[67] = 0x30;
