@@ -229,6 +229,12 @@ public sealed class ModelMods : IModelOverrideSource
         edited = AlignRetainedRig(original, edited);
         if (variant.GeometryOnly)
         {
+            // Older field geometry exports used native slot order without writing the material binding.
+            if (variant.ModelId.StartsWith("field/", StringComparison.OrdinalIgnoreCase) && edited.Meshes.All(mesh => mesh.NativeTexture < 0) &&
+                edited.Textures.Count == original.Textures.Count && Enumerable.Range(0, edited.Textures.Count).All(slot => ResourceTextureList.LogicalSize(edited.Textures, slot) == ResourceTextureList.LogicalSize(original.Textures, slot)))
+            {
+                edited = edited with { Meshes = edited.Meshes.Select(mesh => mesh with { NativeTexture = mesh.Texture }).ToArray() };
+            }
             return RetainParts(original, original with { Meshes = edited.Meshes, Textures = edited.Textures }, retainedParts);
         }
         int slot = variant.ClipSlot!.Value;

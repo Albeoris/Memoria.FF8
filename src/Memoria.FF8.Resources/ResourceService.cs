@@ -742,12 +742,13 @@ public sealed class ResourceService : IResourceChangeFeed, IResourceLanguageSour
     {
         context.ReadInstalledOriginal ??= () => ResolveOriginalForExport(context);
         context.ReadInstalledOriginalBase ??= () => ResolveOriginalBase(context);
-        TextureReplacement? replacement = (localization ?? published.Localization).ResolveArtwork(context) ?? replacementResolver?.Resolve(context) ?? (source as ITextureReplacementResolver)?.Resolve(context);
+        TextureReplacement? modReplacement = (localization ?? published.Localization).ResolveArtwork(context) ?? replacementResolver?.Resolve(context);
+        TextureReplacement? replacement = modReplacement ?? (source as ITextureReplacementResolver)?.Resolve(context);
         if (replacement is null)
         {
             return null;
         }
-        TextureValue value = new(replacement.Image, replacement.LogicalWidth, replacement.LogicalHeight, replacement.Provenance, replacement.MipLevels, replacement.Variants) { IsReplacement = true, Animation = replacement.Animation };
+        TextureValue value = new(replacement.Image, replacement.LogicalWidth, replacement.LogicalHeight, replacement.Provenance, replacement.MipLevels, replacement.Variants) { IsReplacement = true, IsModReplacement = modReplacement is not null, Animation = replacement.Animation };
         return context.RequestedVariant is { } variant && value.Variants is { } variants && variants.TryGetValue(variant, out var image) ? value with { Image = image, MipLevels = null, Animation = null } : value;
     }
 

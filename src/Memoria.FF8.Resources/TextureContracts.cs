@@ -113,6 +113,7 @@ public sealed record TextureReplacement(PixelImage Image, string Provenance, int
 public sealed record TextureValue(PixelImage Image, int LogicalWidth, int LogicalHeight, string Provenance, IReadOnlyList<PixelImage>? MipLevels = null, IReadOnlyDictionary<string, PixelImage>? Variants = null)
 {
     public bool IsReplacement { get; init; }
+    public bool IsModReplacement { get; init; }
     public TextureAnimation? Animation { get; init; }
 }
 

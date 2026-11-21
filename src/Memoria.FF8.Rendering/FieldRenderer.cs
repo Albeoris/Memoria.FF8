@@ -527,9 +527,7 @@ public sealed partial class FieldRenderer
             {
                 continue;
             }
-            IReadOnlyList<PixelImage> selectedTextures = model.EditableOverride is not null ? model.Textures : actor.RegisteredTextures ?? model.Textures;
-            PixelImage texture = selectedTextures[face.Texture];
-            Vector2 textureScale = ResourceTextureList.PhysicalScale(selectedTextures, face.Texture);
+            (PixelImage texture, Vector2 textureScale) = model.ResolveFaceTexture(face, actor.RegisteredTextures);
             bool transparent = face.SemiTransparent || actor.PrimitiveTransparencyEnabled;
             if (!transparent && effectiveLighting is not null && litActorPoses.TryGetValue(actor.ObjectId, out LitActorPose? lit))
             {

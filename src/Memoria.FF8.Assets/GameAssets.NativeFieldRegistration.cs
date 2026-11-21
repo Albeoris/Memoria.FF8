@@ -47,7 +47,7 @@ public sealed partial class GameAssets
             NativeFieldTexturePageIdentity pair = identities.GetValueOrDefault(page) ?? new(0, 0);
             identities[page] = (texture.Y & 255) == 0 ? pair with { First = identity } : pair with { Other = identity };
         }
-        FieldModel model = field.Models[modelId];
+        FieldModel model = field.Models[modelId].NativeTextureSource ?? field.Models[modelId];
         foreach (int ordinal in model.Faces.Select(face => face.Texture).Distinct())
         {
             NativeFieldRegisteredTexture texture = selected.Textures[ordinal];
@@ -109,11 +109,13 @@ public sealed partial class GameAssets
         FieldModel[] models = field.Models.ToArray();
         foreach (NativeFieldRegisteredResource resource in registration.Resources)
         {
-            if ((uint)resource.ModelId >= models.Length || (models[resource.ModelId].NativeRegistrationParts ?? models[resource.ModelId].NativeParts) is not { } parts || parts.SourceHash != resource.SourceHash || parts.SourceOffset != resource.SourceOffset || resource.Textures.Length != models[resource.ModelId].Textures.Count)
+            FieldModel owner = models[resource.ModelId];
+            FieldModel native = owner.NativeTextureSource ?? owner;
+            if ((native.NativeRegistrationParts ?? native.NativeParts) is not { } parts || parts.SourceHash != resource.SourceHash || parts.SourceOffset != resource.SourceOffset || resource.Textures.Length != native.Textures.Count)
             {
                 throw new InvalidDataException("Native registered texture bindings disagree with their original model source.");
             }
-            FieldModel model = models[resource.ModelId] with { Textures = resource.Textures.Select(Decode).ToArray() };
+            FieldModel model = native with { Textures = resource.Textures.Select(Decode).ToArray() };
             TextureSourcePageAddress[] pages = resource.Textures.Select(texture =>
             {
                 int page = texture.TexturePage & 31;
@@ -144,7 +146,8 @@ public sealed partial class GameAssets
                 bool installedPlane = resources.GetSource<ITextureVariantSource>()?.DescribeTextureVariants(probe).HasInstalledImage == true;
                 variants[0] = ReadClassicFieldModelVariant(model, resource, textures, distinguishOpen: !installedPlane);
             }
-            models[resource.ModelId] = RegisterFieldModelTextures(field.Name, resource.ModelId, model, revision, pages, variants);
+            FieldModel bound = RegisterFieldModelTextures(field.Name, resource.ModelId, model, revision, pages, variants);
+            models[resource.ModelId] = owner.NativeTextureSource is null ? bound : owner with { NativeTextureSource = bound };
         }
         NativeFieldTextureAnimations? updated = planes is null || ReferenceEquals(planes, animations!.Planes) ? animations : animations with { Planes = planes };
         return new(field with { Models = models }, updated);

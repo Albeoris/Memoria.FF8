@@ -267,16 +267,14 @@ public sealed partial class FieldRenderer
 
     private void AddShadowCasters(ActorVisual actor, FieldModel model, LitActorPose pose)
     {
-        IReadOnlyList<Albeoris.Games.FF8.Imaging.PixelImage> textures = model.EditableOverride is not null ? model.Textures : actor.RegisteredTextures ?? model.Textures;
         foreach (ModelFace face in model.Faces)
         {
             if (face.SemiTransparent || actor.PrimitiveTransparencyEnabled || face.Vertices.Any(vertex => actor.AdditionalControlDisabled && model.Vertices[vertex].Bone == model.ControlBones.Additional))
             {
                 continue;
             }
-            var texture = textures[face.Texture];
+            var (texture, textureScale) = model.ResolveFaceTexture(face, actor.RegisteredTextures);
             Vector2 size = new(texture.Width, texture.Height);
-            Vector2 textureScale = ResourceTextureList.PhysicalScale(textures, face.Texture);
             TriangleVertex Vertex(int corner) => new(Vector2.Zero, 0, 1, face.TextureCoordinates[corner] * textureScale / size, new Vector4(1, 1, 1, actor.GroundShadowLevel609!.Value / 255f)) { WorldPosition = pose.World[face.Vertices[corner]] };
             TriangleMaterial material = new(texture, Sampler: TriangleSampler.PointClamp);
             shadowCasters.Add(new(Vertex(0), Vertex(1), Vertex(2), material));

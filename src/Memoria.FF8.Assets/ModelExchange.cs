@@ -82,7 +82,7 @@ public static partial class ModelExchange
                 AddFace(vertices, indices, face.Vertices.Take(face.Quad ? 4 : 3).Select((index, corner) => Vertex(model.Vertices[index].Position, model.Vertices[index].Bone, face.TextureCoordinates[corner] / ResourceTextureList.LogicalSize(model.Textures, face.Texture), face.VertexColors?[corner] ?? Vector4.One, bind)).ToArray(), reverseWinding: true);
             }
             // Native opaque field polygons discard zero texels without enabling primitive transparency.
-            meshes.Add(new EditableMesh($"mesh_{meshes.Count}", vertices, indices, group.Key.Texture, Matrix4x4.Identity) { Skinned = bones.Length != 0, Transparent = group.Key.Transparent, AlphaCutoff = group.Key.Transparent ? null : 1f / 255 });
+            meshes.Add(new EditableMesh($"mesh_{meshes.Count}", vertices, indices, group.Key.Texture, Matrix4x4.Identity) { NativeTexture = group.Key.Texture, Skinned = bones.Length != 0, Transparent = group.Key.Transparent, AlphaCutoff = group.Key.Transparent ? null : 1f / 255 });
         }
         EditableAnimation[] animations = model.Animations.Select((animation, index) => Animation($"animation_{index}", bones, animation.Frames.Count, (bone, frame) =>
         {
@@ -147,21 +147,24 @@ public static partial class ModelExchange
 
     public static FieldModel ToField(EditableModel edited, FieldModel original)
     {
+        FieldModel native = original.NativeTextureSource ?? original;
+        int embeddedTextureCount = edited.Textures.Count;
         edited = WithFallbackTexture(edited);
         List<ModelVertex> vertices = [];
         List<ModelFace> faces = [];
         foreach (EditableMesh mesh in edited.Meshes)
         {
+            int nativeTexture = mesh.Texture < embeddedTextureCount ? mesh.NativeTexture : -1;
             int offset = vertices.Count;
             vertices.AddRange(mesh.Vertices.Select(vertex => new ModelVertex(Vector3.Transform(vertex.Position, GltfToNative), 0)));
             for (int index = 0; index < mesh.Indices.Count; index += 3)
             {
                 // Convert glTF's counterclockwise fronts to the native field renderer's clockwise faces.
                 int[] triangle = [mesh.Indices[index], mesh.Indices[index + 2], mesh.Indices[index + 1]];
-                faces.Add(new ModelFace(triangle.Select(value => value + offset).ToArray(), triangle.Select(value => mesh.Vertices[value].Uv * ResourceTextureList.LogicalSize(edited.Textures, mesh.Texture)).ToArray(), mesh.Texture, false) { SemiTransparent = mesh.Transparent, VertexColors = triangle.Select(value => mesh.Vertices[value].Color).ToArray() });
+                faces.Add(new ModelFace(triangle.Select(value => value + offset).ToArray(), triangle.Select(value => mesh.Vertices[value].Uv * ResourceTextureList.LogicalSize(edited.Textures, mesh.Texture)).ToArray(), mesh.Texture, false) { NativeTexture = nativeTexture, SemiTransparent = mesh.Transparent, VertexColors = triangle.Select(value => mesh.Vertices[value].Color).ToArray() });
             }
         }
-        return original with { Vertices = vertices, Faces = faces, Textures = edited.Textures, EditableOverride = edited };
+        return original with { Vertices = vertices, Faces = faces, Textures = edited.Textures, EditableOverride = edited, NativeTextureSource = native };
     }
 
     public static BattleModel ToBattle(EditableModel edited, BattleModel original)

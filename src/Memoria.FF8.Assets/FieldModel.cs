@@ -9,6 +9,7 @@ public readonly record struct ModelBone(int Parent, float Length);
 public readonly record struct ModelVertex(Vector3 Position, int Bone, int SkinBinding = -1);
 public sealed record ModelFace(int[] Vertices, Vector2[] TextureCoordinates, int Texture, bool Quad)
 {
+    public int NativeTexture { get; init; } = -1;
     public Vector4[]? VertexColors { get; init; }
     public bool SemiTransparent { get; init; }
 }
@@ -21,6 +22,8 @@ public sealed record FieldModel(string Name, IReadOnlyList<ModelBone> Bones, IRe
 {
     public ResourceSourceDescriptor? TextureSourceDescriptor { get; init; }
     public EditableModel? EditableOverride { get; init; }
+    internal FieldModel? NativeTextureSource { get; init; }
+    public IReadOnlyList<PixelImage> NativeTextures => NativeTextureSource?.Textures ?? Textures;
     public IReadOnlyList<TextureSourceRegion> TextureRegions { get; init; } = [];
     public string? TextureResourceName { get; init; }
     public bool MainCharacterTextures { get; init; }
@@ -31,6 +34,21 @@ public sealed record FieldModel(string Name, IReadOnlyList<ModelBone> Bones, IRe
     public NativeFieldEyeDefinition? NativeEyes { get; init; }
 
     public ModelControlBones ControlBones { get; init; } = new(-1, -1, -1, 0);
+
+    public (PixelImage Image, Vector2 Scale) ResolveFaceTexture(ModelFace face, IReadOnlyList<PixelImage>? registeredTextures = null)
+    {
+        if (NativeTextureSource is null)
+        {
+            IReadOnlyList<PixelImage> textures = registeredTextures ?? Textures;
+            return (textures[face.Texture], ResourceTextureList.PhysicalScale(textures, face.Texture));
+        }
+        // Imported UVs are relative to the embedded image canvas. Native replacements can have a different resolution.
+        if ((registeredTextures ?? NativeTextures) is ResourceTextureList native && (uint)face.NativeTexture < native.Count && native.GetTexture(face.NativeTexture) is { IsModReplacement: true } replacement)
+        {
+            return (replacement.Image, new Vector2(replacement.Image.Width, replacement.Image.Height) / ResourceTextureList.LogicalSize(Textures, face.Texture));
+        }
+        return (Textures[face.Texture], ResourceTextureList.PhysicalScale(Textures, face.Texture));
+    }
 
     public Vector3 ReadFirstControlRotation(int animationId, float frameNumber)
     {

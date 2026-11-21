@@ -1,6 +1,8 @@
 using System.Numerics;
 using System.Text.Json;
+using Albeoris.Games.FF8.Imaging;
 using Memoria.FF8.Assets;
+using Memoria.FF8.Resources;
 
 namespace Memoria.FF8.Mods.Tests;
 
@@ -53,6 +55,55 @@ public sealed class ModelModsTests
     {
         FieldModel original = new("original", [], [], [], [], []);
         Assert.Same(original, ModelMods.Empty.Apply("field/sample/0", original));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void FieldGeometryUsesPublishedNativeMaterialAndRetainsItsEmbeddedFallback(bool legacy)
+    {
+        const string id = "field/sample/0";
+        using InMemoryResourceSource source = new(new("test", GameDataEdition.Classic, ["test"]));
+        ResourceService resources = new(source);
+        PixelImage native = new(4, 4);
+        TextureKey slot0 = new(new("field/sample/chara.one"), "model/0/texture/0");
+        TextureKey slot1 = new(slot0.Owner, "model/0/texture/1");
+        AssetHandle<TextureValue> Register(TextureKey key) => resources.GetTexture(new(key, source.Descriptor, 1, "classic-field-model", 4, 4, () => native));
+        FieldModel original = new("original", [new(-1, 0)], [], [], new ResourceTextureList([Register(slot0), Register(slot1)]), []);
+        EditableModel editable = Model("edited", 2);
+        editable = editable with
+        {
+            ImportTarget = new(1, id, "geometry"),
+            Bones = ModelExchange.FromField(original).Bones,
+            Textures = [new(4, 4), new(4, 4)],
+            Meshes = [editable.Meshes[0] with { Texture = legacy ? 1 : 0, NativeTexture = legacy ? -1 : 1 }]
+        };
+        byte[] geometryBytes = ModelExchange.ExportGlb(editable);
+        ModFile geometry = new("Memoria/geometry", ModFormat.Memoria, "models/field/sample/0.geometry.glb", 1, () => geometryBytes);
+        Assert.True(ModelMods.TryPrepare(new(1, [], [geometry]), out ModelMods mods, out var diagnostics), string.Join(", ", diagnostics));
+        FieldModel edited = mods.Apply(id, original);
+        ModelFace face = Assert.Single(edited.Faces);
+        Assert.Equal(1, face.NativeTexture);
+        PixelImage embedded = edited.Textures[face.Texture];
+        Assert.Same(embedded, edited.ResolveFaceTexture(face).Image);
+
+        PixelImage hd = new(12, 8);
+        resources.Prepare(new FieldTextureReplacement(slot1, hd)).Commit();
+        Assert.Equal((hd, new Vector2(3, 2)), edited.ResolveFaceTexture(face));
+        PixelImage closed = new(8, 8);
+        ResourceTextureList registered = ResourceTextureList.FromResolvedTextures([new(native, 4, 4, "original"), new(closed, 4, 4, "eyes-closed") { IsReplacement = true, IsModReplacement = true }]);
+        Assert.Equal((closed, new Vector2(2, 2)), edited.ResolveFaceTexture(face, registered));
+        Assert.Same(embedded, edited.ResolveFaceTexture(face with { NativeTexture = -1 }, registered).Image);
+        ResourceTextureList installed = ResourceTextureList.FromResolvedTextures([new(native, 4, 4, "original"), new(closed, 4, 4, "installed") { IsReplacement = true }]);
+        Assert.Same(embedded, edited.ResolveFaceTexture(face, installed).Image);
+
+        resources.Prepare(null).Commit();
+        Assert.Same(embedded, edited.ResolveFaceTexture(face).Image);
+    }
+
+    private sealed class FieldTextureReplacement(TextureKey key, PixelImage image) : ITextureReplacementResolver
+    {
+        public TextureReplacement? Resolve(TextureBuildContext context) => context.Key == key ? new(image, "texture mod", 4, 4) : null;
     }
 
     private static ModFile File(string package, byte[] bytes) => new(package, ModFormat.Memoria, "models/field/sample/0.glb", 1, () => bytes);

@@ -48,10 +48,11 @@ internal sealed partial class GameWorld
             registeredTextureSource = source;
             registeredTextureAnimations = animations;
         }
-        if (nativePlanes && registeredTextureModels![modelId].Textures is ResourceTextureList selected)
+        IReadOnlyList<PixelImage> selected = registeredTextureModels![modelId].NativeTextures;
+        if (nativePlanes && selected is ResourceTextureList resources)
         {
-            return selected.Snapshot();
+            return resources.Snapshot();
         }
-        return registeredTextureModels![modelId].Textures;
+        return selected;
     }
 }
