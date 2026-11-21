@@ -3,6 +3,18 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-holzoff-repeat-only", StringComparer.Ordinal))
+{
+    NativeHolzoffRepeatChoiceTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-holzoff-repeat-original-only", StringComparer.Ordinal))
+{
+    NativeHolzoffRepeatOriginalTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-snowboard-autoplay-only", StringComparer.Ordinal))
 {
     NativeSnowboardAutoPlayTests.Run();

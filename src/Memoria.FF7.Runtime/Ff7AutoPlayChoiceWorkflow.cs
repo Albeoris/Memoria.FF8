@@ -70,11 +70,12 @@ public sealed partial class Ff7AutoPlayChoiceWorkflow
         string owner = ReadOwnerIdentity(before, dialogue, first, last);
         int? navigationPreference = ReadVinesChoicePreference(before, state, dialogue);
         bool tutorialExit = IsNativeTutorialExitPrompt(before, state, dialogue);
+        bool holzoffExit = IsNativeHolzoffExitPrompt(before, state, dialogue);
         bool glacierMap = IsNativeGlacierMapPrompt(before, state, dialogue);
-        int? currentPreference = navigationPreference ?? (tutorialExit ? 2 : glacierMap ? 1 : null);
+        int? currentPreference = navigationPreference ?? (tutorialExit || holzoffExit ? 2 : glacierMap ? 1 : null);
         Ff7AutoPlayChoiceState? current = state.Choice;
         string key = current?.OwnerIdentity == owner ? current.Key : before.World is { } world ? Hash(new { Owner = owner, before.Vm.PersistentVariables, Local = world.Vm.Local, Conditions = state.Active?.ConditionFingerprint, Parent = current?.Key, ParentSelections = Selections }) : "field-choice-v2:" + Hash(new { Owner = owner, Visit = state.Active?.VisitId ?? before.FieldName, Conditions = state.Active?.ConditionFingerprint, Parent = current?.Key, ParentSelections = Selections });
-        if (tutorialExit && current is not null && current.OwnerIdentity == owner && Coverage(current.Key).ActiveOption == 1 && CanAbandonNativeTutorialCycle(before, state, dialogue, current))
+        if (current is not null && current.OwnerIdentity == owner && Coverage(current.Key).ActiveOption == 1 && (tutorialExit && CanAbandonNativeTutorialCycle(before, state, dialogue, current) || holzoffExit && CanAbandonNativeHolzoffCycle(before, state, dialogue, current)))
         {
             Coverage(current.Key).ActiveOption = null;
             Coverage(current.Key).PolicyDeferredOptions.Add(1);
@@ -100,7 +101,7 @@ public sealed partial class Ff7AutoPlayChoiceWorkflow
         {
             planner.ObserveChoice(key, checked(last - first + 1), first);
             ApplyVinesChoicePreference(key, navigationPreference, before.Vm.ProgramIdentity);
-            if (tutorialExit)
+            if (tutorialExit || holzoffExit)
             {
                 Coverage(key).PolicyDeferredOptions.Add(1);
             }
@@ -210,9 +211,10 @@ public sealed partial class Ff7AutoPlayChoiceWorkflow
             choice = state.Choice ?? choice;
         }
         bool tutorialReturned = HasNativeTutorialControlReturn(current, state, choice, coverage.ActiveOption);
+        bool holzoffReturned = HasNativeHolzoffControlReturn(current, state, choice, coverage.ActiveOption);
         planner.CompleteChoiceAtControlReturn(choice.Key, continuation);
         bool navigationAdvanced = HasCompletedVinesChoiceNavigation(current, state, choice);
-        if (storyAdvanced || navigationAdvanced || tutorialReturned || glacierMapReturned)
+        if (storyAdvanced || navigationAdvanced || tutorialReturned || holzoffReturned || glacierMapReturned)
         {
             foreach (int option in Enumerable.Range(coverage.FirstOption, coverage.OptionCount).Where(option => !coverage.CompletedOptions.Contains(option)))
             {
@@ -220,7 +222,7 @@ public sealed partial class Ff7AutoPlayChoiceWorkflow
             }
             planner.FinishChoice(choice.Key);
             state.Choice = choice.Parent;
-            state.Status = glacierMapReturned ? "The native Glacier Map award returned control; preserving its actual acquired key item." : tutorialReturned ? "The native tutorial returned control; continuing from its actual selected exit." : navigationAdvanced ? "Optional choice alternatives were deferred after the owned native navigation returned control; continuing from the current native state." : "Optional choice alternatives were deferred after native story progress; continuing from the current native state.";
+            state.Status = glacierMapReturned ? "The native Glacier Map award returned control; preserving its actual acquired key item." : tutorialReturned || holzoffReturned ? "The native tutorial returned control; continuing from its actual selected exit." : navigationAdvanced ? "Optional choice alternatives were deferred after the owned native navigation returned control; continuing from the current native state." : "Optional choice alternatives were deferred after native story progress; continuing from the current native state.";
             return CompleteAtControlReturn();
         }
         AutoPlayChoiceStep next = planner.PlanChoice(choice.Key);
