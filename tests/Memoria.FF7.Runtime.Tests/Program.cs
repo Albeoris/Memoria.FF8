@@ -3,6 +3,18 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-section-relative-entry-only", StringComparer.Ordinal))
+{
+    NativeSectionRelativeEntryTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-section-entry-original-only", StringComparer.Ordinal))
+{
+    NativeSectionEntryOriginalTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-unlocked-animation-debt-only", StringComparer.Ordinal))
 {
     NativeUnlockedAnimationDebtTests.Run();

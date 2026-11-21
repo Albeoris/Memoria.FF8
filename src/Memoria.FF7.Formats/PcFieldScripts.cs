@@ -69,9 +69,10 @@ public sealed class PcFieldScripts
             for (int script = 0; script < entries.Length; script++)
             {
                 entries[script] = cursor.U16();
-                if (entries[script] < codeStart || entries[script] >= textOffset)
+                // Unused slots can alias the text region; retain the native section-relative address.
+                if (entries[script] < codeStart || entries[script] >= source.Length)
                 {
-                    throw new InvalidDataException($"FF7 entity {i} script {script} entry offset is outside the code region.");
+                    throw new InvalidDataException($"FF7 entity {i} script {script} entry offset is outside the section payload.");
                 }
             }
             entities[i] = new PcFieldEntity(names[i], Array.AsReadOnly(entries));
