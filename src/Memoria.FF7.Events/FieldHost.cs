@@ -19,6 +19,7 @@ public sealed record FieldActorPosition(short X, short Y, short Z, short Triangl
 
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "command")]
 [JsonDerivedType(typeof(FieldMovieCommand), "movie")]
+[JsonDerivedType(typeof(FieldDiscChangeCommand), "disc-change")]
 [JsonDerivedType(typeof(FieldActorBind), "bind")]
 [JsonDerivedType(typeof(FieldActorPlacement), "place")]
 [JsonDerivedType(typeof(FieldActorMove), "move")]
@@ -87,6 +88,7 @@ public sealed record FieldActorMove(short X, short Y, bool Turn = true, bool Ani
     public byte? TargetPartySlot { get; init; }
 }
 public sealed record FieldTimerCommand(uint Seconds) : FieldCommand;
+public sealed record FieldDiscChangeCommand(byte Disc) : FieldCommand;
 public sealed record FieldPartyRecovery(bool AllCharacters = false) : FieldCommand;
 public sealed record FieldGilCommand(uint Amount, bool Subtract = false) : FieldCommand;
 public sealed record FieldGilQuery : FieldCommand;

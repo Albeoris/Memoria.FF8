@@ -158,6 +158,7 @@ public enum Ff7MusicTransitionPhase
 }
 public sealed record Ff7MusicTransition(int Track, int Duration, Ff7MusicTransitionPhase Phase);
 public sealed record Ff7MusicVolumeFade(int Target, int RatePerSecond, int AccumulatedMilliseconds = 0, int SubmillisecondTicks = 0);
+public sealed record Ff7DiscChange(long RequestId, byte Disc, bool Completed = false);
 public enum Ff7GlobalCommand
 {
     None,
@@ -165,11 +166,14 @@ public enum Ff7GlobalCommand
     Battle,
     Transition,
     Menu,
-    Minigame
+    Minigame,
+    DiscChange
 }
 
 public sealed record Ff7FieldProcess
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Ff7DiscChange? DiscChange { get; init; }
     [JsonIgnore]
     public long CameraEpoch { get; init; }
     public byte BlinkRandomIndex { get; init; }
@@ -274,6 +278,10 @@ public sealed record Ff7FieldProcess
 
     public void Validate()
     {
+        if (DiscChange is { } disc && (disc.RequestId < 1 || GlobalCommand != Ff7GlobalCommand.DiscChange || GlobalRequestId != disc.RequestId) || GlobalCommand == Ff7GlobalCommand.DiscChange && DiscChange is null)
+        {
+            throw new InvalidDataException("The native disc-change process and global request owner disagree.");
+        }
         if (NativeWaterSplashCursor is < 0 or > 3 || NativeWaterSplashes is null || NativeWaterSplashes.Any(splash => splash is null || splash.ModelSlot < 0 || splash.BoneIndex < 0 || splash.TextureIndex is < 0 or > 3 || !float.IsFinite(splash.X) || !float.IsFinite(splash.Y) || !float.IsFinite(splash.Depth) || !float.IsFinite(splash.HalfSize) || splash.HalfSize <= 0))
         {
             throw new InvalidDataException("FFVII native water splash queues have invalid ownership, coordinates or texture selection.");

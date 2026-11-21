@@ -6,6 +6,15 @@ public sealed partial class FieldMachine
     {
         switch (opcode)
         {
+            case 0x0E:
+                byte disc = B(id, 1);
+                return Host(id, new FieldDiscChangeCommand(disc), 2, applyPendingResult: true, result: admitted =>
+                {
+                    if (admitted == 1 || inspection is not null)
+                    {
+                        Variables.WriteByte(FieldBank.Persistent3Byte, 0, disc);
+                    }
+                });
             case 0x08:
                 int[] joiningParty = ReadParty();
                 return Host(id, new FieldPartyJoin(B(id, 1), joiningParty[0], joiningParty[1], joiningParty[2]), 2);

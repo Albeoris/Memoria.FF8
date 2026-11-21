@@ -131,6 +131,8 @@ public sealed partial class Ff7FieldHost : IFieldHost
     {
         switch (request.Command)
         {
+            case FieldDiscChangeCommand disc:
+                return ChangeDisc(request.Id, disc);
             case FieldCameraShake shake:
                 Process = Process with
                 {

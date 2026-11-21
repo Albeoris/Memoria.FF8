@@ -3,6 +3,18 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-disc-change-only", StringComparer.Ordinal))
+{
+    NativeDiscChangeTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-disc-change-original-only", StringComparer.Ordinal))
+{
+    NativeDiscChangeOriginalTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-water-profile-original-only", StringComparer.Ordinal))
 {
     NativeWaterProfileOriginalTests.Run();

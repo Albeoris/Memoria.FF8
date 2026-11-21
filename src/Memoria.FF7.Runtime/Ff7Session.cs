@@ -299,6 +299,7 @@ public sealed partial class Ff7Session : IDisposable
         Host.PublishCurrentNativeMovieCameraFrame();
         AdvancePlayerInput();
         Host.AdvanceActors();
+        Host.AdvanceNativeDiscChange();
         Host.AdvanceNativeMenu();
         FieldVmSnapshot snapshot = Machine.Capture();
         Host.RetireCompletedRequests((snapshot.PendingRequests ?? []).Select(request => request.Id).ToHashSet());
@@ -414,6 +415,7 @@ public sealed partial class Ff7Session : IDisposable
             CameraShakeRandomTable = executable.NativeCameraShakeRandomTable,
             BeginBattleRequest = BeginFieldBattle,
             ReadInputHeld = () => Machine.Input.Held,
+            NativeDiscMediaAvailable = AcknowledgeDigitalDiscMedia,
             ReadFieldByte = operand => Machine.Variables.ReadByte(operand.Bank, operand.Value),
             ReadScriptParty = () => Enumerable.Range(9, 3).Select(address => (int)Machine.Variables.ReadByte(FieldBank.Persistent1Byte, (byte)address)).ToArray(),
             ReadScriptPartyByte = slot => Machine.Variables.ReadByte(FieldBank.Persistent1Byte, checked((byte)(9 + slot))),
