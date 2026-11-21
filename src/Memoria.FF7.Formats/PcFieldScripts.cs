@@ -58,7 +58,8 @@ public sealed class PcFieldScripts
             }
         }
         int codeStart = checked(cursor.Position + entityCount * 64);
-        if (textOffset < codeStart || textOffset > source.Length - 2)
+        bool textless = textOffset == source.Length;
+        if (textOffset < codeStart || textOffset > source.Length || !textless && textOffset > source.Length - 2)
         {
             throw new InvalidDataException("FF7 script text offset overlaps its directory or exceeds its section.");
         }
@@ -78,6 +79,11 @@ public sealed class PcFieldScripts
             entities[i] = new PcFieldEntity(names[i], Array.AsReadOnly(entries));
         }
         byte[] data = source.ToArray();
+        if (textless)
+        {
+            // The native loader retains this raw pointer without reading a text directory until a message is requested.
+            return new PcFieldScripts(data, models, scale, textOffset, creator, name, entities, akao, []);
+        }
         cursor.Seek(textOffset);
         ushort textCount = cursor.U16();
         if (textCount > cursor.Remaining / 2)
