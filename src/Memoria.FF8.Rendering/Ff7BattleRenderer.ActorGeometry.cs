@@ -72,7 +72,7 @@ public sealed partial class Ff7BattleRenderer
                     });
                 }
                 Vector3 Vertex(int local) => Vector3.Transform(model.Vertices[group.VertexStart + local], transform);
-                Vector2 Uv(int local) => image is null ? default : model.TextureCoordinates[group.TextureCoordinateStart + local];
+                Vector2 Uv(int local) => image is null ? default : ApplyActorUvOffset(model.TextureCoordinates[group.TextureCoordinateStart + local], actor.ModelModifiers?.NativeUvOffset);
                 Vector4 Color(int local)
                 {
                     int vertex = group.VertexStart + local;
