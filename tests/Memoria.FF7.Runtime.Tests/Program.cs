@@ -3,6 +3,18 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-rearmed-story-priority-only", StringComparer.Ordinal))
+{
+    NativeRearmedStoryPriorityTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-rearmed-story-original-only", StringComparer.Ordinal))
+{
+    NativeRearmedStoryOriginalTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-transfer-effect-alias-only", StringComparer.Ordinal))
 {
     NativeTransferEffectAliasTests.Run();
