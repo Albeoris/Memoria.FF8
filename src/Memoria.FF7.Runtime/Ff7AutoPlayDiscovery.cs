@@ -33,6 +33,8 @@ public sealed record Ff7AutoPlayTarget(string Id, int Entity, int Script, Ff7Aut
     public int[] UnblockedTriangles { get; init; } = [];
     /// <summary>Possible native ladder endpoints for planning; actual admission and completion remain authoritative.</summary>
     public FieldActorLadderLanding[] LadderLandings { get; init; } = [];
+    /// <summary>Possible literal jump endpoints followed only by idle animation, control release and return; native execution remains authoritative.</summary>
+    public FieldActorJumpLanding[] TerminalJumpLandings { get; init; } = [];
     public bool TriangleOnly { get; init; }
     public FieldScriptInputDemand? EntryInputDemand { get; init; }
     public FieldSpatialInputGuard[] SpatialInputGuards { get; init; } = [];
@@ -307,7 +309,7 @@ public sealed partial class Ff7AutoPlayDiscovery(Ff7Session session)
                 FieldNavigationEntryProof direct = session.ReadNavigationEntryProof(entity, script, session.Machine.Input, directTransition: true);
                 effectFingerprint = ReadDirectTransitionEffectFingerprint(direct) ?? effectFingerprint;
             }
-            events.Add(new(id, entity, script, kind, fingerprint, analysis.ChangesStory, position, triangle, DestinationField: destination, SegmentStart: start, SegmentEnd: end, AnalysisComplete: analysis.Complete && dependencies.Complete && external.Complete, SupportReason: analysis.Reason ?? dependencies.Reason ?? external.Reason, MayChangeNavigation: analysis.MayChangeNavigation, EntryInputContract: entryContract, ChangesField: analysis.DestinationFields.Length > 0) { EffectFingerprint = effectFingerprint, EntryInputDemand = entryInput, PossibleDestinationFields = analysis.DestinationFields.ToArray(), UnblockedTriangles = analysis.UnblockedTriangles.ToArray(), LadderLandings = analysis.LadderLandings });
+            events.Add(new(id, entity, script, kind, fingerprint, analysis.ChangesStory, position, triangle, DestinationField: destination, SegmentStart: start, SegmentEnd: end, AnalysisComplete: analysis.Complete && dependencies.Complete && external.Complete, SupportReason: analysis.Reason ?? dependencies.Reason ?? external.Reason, MayChangeNavigation: analysis.MayChangeNavigation, EntryInputContract: entryContract, ChangesField: analysis.DestinationFields.Length > 0) { EffectFingerprint = effectFingerprint, EntryInputDemand = entryInput, PossibleDestinationFields = analysis.DestinationFields.ToArray(), UnblockedTriangles = analysis.UnblockedTriangles.ToArray(), LadderLandings = analysis.LadderLandings, TerminalJumpLandings = analysis.TerminalJumpLandings });
         }
     }
 }

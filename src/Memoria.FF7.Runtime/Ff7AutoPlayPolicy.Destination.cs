@@ -110,7 +110,7 @@ public sealed partial class Ff7AutoPlayPolicy
 
     private static Ff7AutoPlayTarget? FindFieldDestinationPrerequisite(Ff7AutoPlayState state, Ff7AutoPlayObservation observation, ushort destination, Func<ushort, int[]> readConnections, Func<Ff7AutoPlayTarget, bool>? canSelect, Func<Ff7AutoPlayTarget, Ff7AutoPlayTarget, bool> canUnblockGateway)
     {
-        Ff7AutoPlayTarget[] producers = observation.Events.Where(target => target.AnalysisComplete && target.MayChangeNavigation && !target.ChangesField && (target.UnblockedTriangles.Length != 0 || target.LadderLandings.Length != 0) && canSelect?.Invoke(target) != false).Where(target =>
+        Ff7AutoPlayTarget[] producers = observation.Events.Where(target => target.AnalysisComplete && target.MayChangeNavigation && !target.ChangesField && (target.UnblockedTriangles.Length != 0 || target.LadderLandings.Length != 0 || target.TerminalJumpLandings.Length != 0) && canSelect?.Invoke(target) != false).Where(target =>
         {
             AutoPlayEventCoverage<Ff7AutoPlayDeferral>? coverage = state.Coverage.Visits.SingleOrDefault(visit => visit.Visit.Key == observation.VisitId)?.Events.SingleOrDefault(item => item.Event.Id == target.Id);
             return coverage is null || !coverage.PolicyDeferred && coverage.BlockedReason is null && (coverage.Conditions is { } conditions ? !conditions.HasExecutedEntry(target.ConditionFingerprint) : !coverage.Completed);
@@ -132,7 +132,27 @@ public sealed partial class Ff7AutoPlayPolicy
         }
         Ff7Actor player = session.Host.Process.Actors.Single(actor => actor.PlayerControlled);
         PcFieldGateway native = session.Field.Triggers.Gateways[index];
-        return CanUnblockFieldGateway(session.Field.Walkmesh, session.Host.Process.BlockedTriangles, player, native, producer.UnblockedTriangles) || CanEstablishFieldGatewayLanding(session.Field.Walkmesh, session.Host.Process.BlockedTriangles, player, native, producer.LadderLandings);
+        return CanUnblockFieldGateway(session.Field.Walkmesh, session.Host.Process.BlockedTriangles, player, native, producer.UnblockedTriangles) || CanEstablishFieldGatewayLanding(session.Field.Walkmesh, session.Host.Process.BlockedTriangles, player, native, producer.LadderLandings) || CanEstablishFieldGatewayJumpLanding(session.Field.Walkmesh, session.Host.Process.BlockedTriangles, player, native, producer.TerminalJumpLandings);
+    }
+
+    internal static bool CanEstablishFieldGatewayJumpLanding(IReadOnlyList<PcWalkmeshTriangle> walkmesh, byte[] blockedTriangles, Ff7Actor player, PcFieldGateway gateway, IReadOnlyList<Memoria.FF7.Events.FieldActorJumpLanding> landings)
+    {
+        if (Ff7AutoplayDriver.HasGatewayTopologyPath(walkmesh, blockedTriangles, player, gateway, out _))
+        {
+            return false;
+        }
+        var effects = landings.Where(landing => landing.Entity == player.Entity).Distinct().ToArray();
+        if (effects.Length != 1 || !effects[0].Literal || effects[0].Command is not { Duration: > 0 } jump || (uint)jump.Triangle >= walkmesh.Count || jump.Triangle >> 3 >= blockedTriangles.Length || (blockedTriangles[jump.Triangle >> 3] & 1 << (jump.Triangle & 7)) != 0)
+        {
+            return false;
+        }
+        System.Numerics.Vector3 point = new(jump.X, jump.Y, 0);
+        if (!Ff7AutoplayDriver.Contains(walkmesh[jump.Triangle], point, out float height))
+        {
+            return false;
+        }
+        Ff7Actor projected = player with { X4096 = jump.X << 12, Y4096 = jump.Y << 12, Z4096 = (int)(height * 4096), Triangle = jump.Triangle };
+        return Ff7AutoplayDriver.HasGatewayTopologyPath(walkmesh, blockedTriangles, projected, gateway, out _);
     }
 
     internal static bool CanEstablishFieldGatewayLanding(IReadOnlyList<PcWalkmeshTriangle> walkmesh, byte[] blockedTriangles, Ff7Actor player, PcFieldGateway gateway, IReadOnlyList<Memoria.FF7.Events.FieldActorLadderLanding> landings)

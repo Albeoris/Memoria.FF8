@@ -59,6 +59,15 @@ internal static class NativeJumpTests
         Equal(16, locked.GetActor(0).AnimationFrame16);
         Equal(1, locked.GetActor(0).LastAnimationFrame);
 
+        Ff7Line line = new(0, 2, 0, -20, 0, 0, 20, 0, Across: true, Push: true, Talk: true, Leave: true, OnLine: true);
+        Ff7FieldHost contact = Host(true, new() { Actors = [new() { Slot = 0, Entity = 0, Model = 0, PlayerControlled = true, Animation = 2, CollisionRadius = 34 }], Lines = [line] });
+        contact.Execute(request);
+        for (int tick = 0; tick < 6; tick++)
+        {
+            contact.AdvanceActors();
+            Equal(line with { OnLine = false }, contact.Process.Lines.Single());
+        }
+
         void AdvanceBoth()
         {
             host.AdvanceActors();

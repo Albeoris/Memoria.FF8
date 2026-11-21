@@ -3,6 +3,24 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-jump-only", StringComparer.Ordinal))
+{
+    NativeJumpTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-field-jump-destination-only", StringComparer.Ordinal))
+{
+    NativeFieldJumpDestinationTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-local-destination-original-only", StringComparer.Ordinal))
+{
+    NativeLocalDestinationOriginalTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-blocking-line-prerequisite-only", StringComparer.Ordinal))
 {
     NativeBlockingLinePrerequisiteTests.Run();

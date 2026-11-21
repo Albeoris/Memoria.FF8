@@ -73,7 +73,7 @@ public sealed partial class Ff7FieldHost
             SetActorSlot(actor.Slot, _ => updated);
             if (actor.PlayerControlled)
             {
-                UpdateLineContacts(updated, updated, moving: false);
+                ClearLineOnLine();
             }
         }
     }
