@@ -42,7 +42,7 @@ public sealed partial class Ff7WorldRuntime
     public bool HasAutoPlayControlCompleted(Ff7AutoPlayWorldControlObservation observation)
     {
         ArgumentNullException.ThrowIfNull(observation);
-        return controlledModel == observation.RiderModel;
+        return controlledModel == observation.RiderModel && (!observation.Id.StartsWith("control:chocobo:", StringComparison.Ordinal) || movementEnabled && mainState == 1 && dialogue is not { Completed: false } && fieldDeparture is null && mapTransfer is null && pendingWorldBattle is null);
     }
 
     /// <summary>Returns ordinary controls only; callers must advance the native input loop to perform the action.</summary>
@@ -52,6 +52,10 @@ public sealed partial class Ff7WorldRuntime
         if (HasAutoPlayControlCompleted(observation))
         {
             return default;
+        }
+        if (observation.Id.StartsWith("control:chocobo:", StringComparison.Ordinal))
+        {
+            return ChooseAutoPlayChocoboControlInput(observation);
         }
         if (controlledModel != observation.Model || ReadSurfaceVehicleRider() != observation.RiderModel || observation.Id != $"control:surface-vehicle:dismount:{controlledModel}:{observation.RiderModel}")
         {

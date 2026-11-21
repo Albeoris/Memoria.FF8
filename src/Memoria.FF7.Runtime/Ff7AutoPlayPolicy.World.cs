@@ -416,6 +416,7 @@ public sealed partial class Ff7AutoPlayPolicy
             events.Remove(id);
         }
         ObserveWorldModeGoals(world, worldVisit, events);
+        ObserveMountedRiderControl(world, events);
         foreach (Ff7AutoPlayWorldScriptObservation target in worldCatalogs.Values.SelectMany(catalog => catalog.Scripts))
         {
             if (!events.ContainsKey(target.Id) || State.Active is { Accepted: true } accepted && accepted.EventId == target.Id)

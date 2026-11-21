@@ -25,6 +25,12 @@ public sealed partial class Ff7AutoPlayPolicy
 
     private bool TryBeginWorldControl(AutoPlayPlanStep next, Ff7AutoPlayObservation observation)
     {
+        if (mountedRiderControl is { } mounted && next.Event.Id == mounted.Id && next.Event.ConditionSignature == mounted.ConditionFingerprint)
+        {
+            planner.BeginEvent(observation.VisitId, next.Event.Id);
+            State.Active = new(observation.VisitId, mounted.Id, mounted.ConditionFingerprint, session.FieldGeneration, mounted.Model, -1, Ff7AutoPlayTargetKind.WorldControl, null, Story(), session.CaptureEventProgressWitness(), NavigationKey: observation.NavigationKey, WorldControl: mounted);
+            return true;
+        }
         if (!worldModeCatalog.TryGetValue(next.Event.Id, out WorldModeCandidate? candidate))
         {
             return false;
@@ -78,7 +84,8 @@ public sealed partial class Ff7AutoPlayPolicy
             return default;
         }
         TrackFrontierProgress(State, Story());
-        if (active.WorldControlPhase >= 2 && world.Process.Vehicle is not { DismountPhase: > 0 })
+        bool pendingPlacement = control.Id.StartsWith("control:chocobo:", StringComparison.Ordinal) ? world.ControlledModel == control.RiderModel || world.Process.Chocobo is { DismountPhase: > 0 } : world.Process.Vehicle is { DismountPhase: > 0 };
+        if (active.WorldControlPhase >= 2 && !pendingPlacement)
         {
             Ff7AutoPlayWorldVisitState visited = State.WorldVisits[active.VisitId];
             string key = active.VisitId + ":" + active.EventId + ":physical";

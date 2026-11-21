@@ -84,6 +84,10 @@ public sealed partial class Ff7AutoPlayPolicy
         {
             targets.Add(mode.Key);
         }
+        if (mountedRiderControl is { } mounted)
+        {
+            targets.Add(mounted.Id);
+        }
         RequireWorldDestinationTargets(targets, worldModeTopologyPending, incomplete, destination);
         return (observation, targets);
     }
