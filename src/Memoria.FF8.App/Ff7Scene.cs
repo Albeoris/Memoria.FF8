@@ -253,6 +253,11 @@ internal sealed partial class Ff7Scene : IDisposable
                 UpdateChocobo(gameTime);
                 return;
             }
+            if (Session.Snowboard is not null)
+            {
+                UpdateSnowboard(gameTime);
+                return;
+            }
             if (TryAdvanceAutoPlayPartyMenu())
             {
                 return;
@@ -306,7 +311,7 @@ internal sealed partial class Ff7Scene : IDisposable
                 }
                 RememberReportCheckpoint();
                 UpdateAudio();
-                if (IsShopMenuPresentation || Session.Battle is not null || Session.Highway is not null || Session.ChocoboRace is not null)
+                if (IsShopMenuPresentation || Session.Battle is not null || Session.Highway is not null || Session.ChocoboRace is not null || Session.Snowboard is not null)
                 {
                     tickRemainder = 0;
                     return false;
@@ -356,6 +361,10 @@ internal sealed partial class Ff7Scene : IDisposable
                 {
                     RenderChocobo(race, renderBounds);
                 }
+                else if (Session.Snowboard is { } snowboard)
+                {
+                    RenderSnowboard(snowboard, renderBounds);
+                }
                 else
                 {
                     RenderField(renderBounds);
@@ -375,11 +384,11 @@ internal sealed partial class Ff7Scene : IDisposable
                 {
                     batch.Draw(pixel, windowBounds, Color.Black);
                 }
-                if (Session.World is null && Session.Battle is null && Session.Highway is null && Session.ChocoboRace is null)
+                if (Session.World is null && Session.Battle is null && Session.Highway is null && Session.ChocoboRace is null && Session.Snowboard is null)
                 {
                     DrawMovie(batch, bounds);
                 }
-                if (!bufferingMovie && (renderer is not null || Session.World is not null || Session.Battle is not null || Session.Highway is not null || Session.ChocoboRace is not null) && error is null)
+                if (!bufferingMovie && (renderer is not null || Session.World is not null || Session.Battle is not null || Session.Highway is not null || Session.ChocoboRace is not null || Session.Snowboard is not null) && error is null)
                 {
                     PixelBounds fieldFit = ViewportLayout.Fit(triangles.Target.Width, triangles.Target.Height, windowBounds.Width, windowBounds.Height);
                     sceneBounds = new(windowBounds.X + fieldFit.X, windowBounds.Y + fieldFit.Y, fieldFit.Width, fieldFit.Height);
@@ -395,7 +404,7 @@ internal sealed partial class Ff7Scene : IDisposable
                     {
                         DrawHighwayHud(batch, sceneBounds, highway);
                     }
-                    else if (Session.ChocoboRace is null)
+                    else if (Session.ChocoboRace is null && Session.Snowboard is null)
                     {
                         DrawDialogues(batch, bounds);
                     }

@@ -17,4 +17,7 @@ public sealed record Ff7SnowboardModelInstance(int ModelIndex, Matrix4x4 Transfo
     public int DrawArgument { get; init; }
 }
 
-public sealed record Ff7SnowboardFrame(long Tick, Ff7SnowboardPhase Phase, Vector3 RiderPositionQ12, Matrix4x4 View, Matrix4x4 Projection, IReadOnlyList<Ff7SnowboardModelInstance> Instances, byte FadeAlpha, int Course, int Segment, int Speed);
+public sealed record Ff7SnowboardFrame(long Tick, Ff7SnowboardPhase Phase, Vector3 RiderPositionQ12, Matrix4x4 View, Matrix4x4 Projection, IReadOnlyList<Ff7SnowboardModelInstance> Instances, byte FadeAlpha, int Course, int Segment, int Speed)
+{
+    public uint? OverlayArgb { get; init; }
+}
