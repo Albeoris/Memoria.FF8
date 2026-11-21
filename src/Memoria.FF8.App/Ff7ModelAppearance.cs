@@ -187,7 +187,7 @@ internal sealed partial class Ff7ModelAppearance : IFf7ActorAppearance
         bool[]? visibleBones = null;
         if (actor.ModelEffects is { } effects)
         {
-            if (effects.VertexColor is not null || effects.SuppressNativeLighting || retargeter is null)
+            if (effects.RequiresOriginalTopology && effects.VertexColor is not null || effects.SuppressNativeLighting || retargeter is null)
             {
                 throw new NotSupportedException("Mapped model effects require an admitted semantic part-visibility profile; source vertex colors and lighting mutations have no target binding.");
             }
