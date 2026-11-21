@@ -3,6 +3,18 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--world-physical-route-guide-identity-only", StringComparer.Ordinal))
+{
+    WorldPhysicalRouteGuideIdentityTests.Run();
+    return 0;
+}
+
+if (args.Contains("--world-mode-landing-continuation-original-only", StringComparer.Ordinal))
+{
+    WorldDestinationTopologyOriginalTests.RunLandingContinuation();
+    return 0;
+}
+
 if (args.Contains("--remote-current-eligibility-only", StringComparer.Ordinal))
 {
     RemoteCurrentEligibilityTests.Run();

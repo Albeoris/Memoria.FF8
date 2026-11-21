@@ -2,6 +2,18 @@ namespace Memoria.FF7.Runtime;
 
 public sealed partial class Ff7AutoplayDriver
 {
+    private Ff7AutoPlayWorldModeGuide? worldVehicleApproachGuide;
+
+    internal static string ReadWorldVehicleApproachIdentity(Ff7AutoPlayWorldMovementState source, Ff7AutoPlayWorldScriptObservation target, Ff7AutoPlayWorldModeGuide guide)
+    {
+        return $"{source.WorldId}:{source.WorldMapState}:{source.Player.Model}:{target.Id}:{target.GeometryFingerprint}:{target.PredicateFingerprint}:vehicle-approach:{guide.RiderModel}:{guide.LandingSource}";
+    }
+
+    internal static bool IsValidatedWorldVehicleRouteStep(Ff7AutoPlayWorldRouteStep retained, string sourceKey, Ff7AutoPlayWorldMovementPreview fresh)
+    {
+        return retained.SourceKey == sourceKey && fresh is { Supported: true, State: not null } && WorldMovementKey(fresh.State) == retained.DestinationKey && fresh.TerrainBoundary == retained.Boundary && (fresh.ModelBoundaries ?? []).SequenceEqual(retained.ModelBoundaries ?? []) && fresh.TerrainBoundary is not { Inert: false } && AdmitsUnselectedWorldModels(fresh.ModelBoundaries);
+    }
+
     internal Ff7AutoPlayWorldNavigationResult ChooseWorldVehicleApproachInput(Ff7AutoPlayWorldScriptObservation target, Ff7AutoPlayWorldModeGuide guide, int nodeBudget = 512)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(nodeBudget, 1);
@@ -30,7 +42,13 @@ public sealed partial class Ff7AutoplayDriver
         }
         string sourceKey = WorldMovementKey(source);
         string positionKey = WorldPositionKey(source);
-        string identity = $"{source.WorldId}:{source.WorldMapState}:{source.Player.Model}:{target.Id}:{target.GeometryFingerprint}:{target.PredicateFingerprint}:vehicle-approach:{guide.RiderModel}:{guide.LandingSource}:{waypoint.Source}:{seekingLanding}";
+        string identity = ReadWorldVehicleApproachIdentity(source, target, guide);
+        if (!ReferenceEquals(worldVehicleApproachGuide, guide))
+        {
+            worldRoute.Clear();
+            worldRepeatedInputs.Clear();
+            worldVehicleApproachGuide = guide;
+        }
         if (worldRepeatedTarget != identity)
         {
             worldRepeatedInputs.Clear();
@@ -49,7 +67,7 @@ public sealed partial class Ff7AutoplayDriver
         if (worldRoute.TryPeek(out Ff7AutoPlayWorldRouteStep? retained))
         {
             Ff7AutoPlayWorldMovementPreview fresh = world.PreviewAutoPlayInput(retained.Input, source);
-            if (retained.SourceKey == sourceKey && fresh is { Supported: true, State: not null } && WorldMovementKey(fresh.State) == retained.DestinationKey && fresh.TerrainBoundary == retained.Boundary && (fresh.ModelBoundaries ?? []).SequenceEqual(retained.ModelBoundaries ?? []) && Admit(fresh))
+            if (IsValidatedWorldVehicleRouteStep(retained, sourceKey, fresh))
             {
                 worldRoute.Dequeue();
                 RememberWorldInput(positionKey, retained.Input);
@@ -63,7 +81,7 @@ public sealed partial class Ff7AutoplayDriver
         }
         Ff7AutoPlayWorldRoute Search(int budget, IReadOnlySet<Ff7AutoplayInput>? avoidFirst)
         {
-            return SearchWorldPhysicalRoute(source, (input, state) => world.PreviewAutoPlayInput(input, state), state => WorldPointDistance(state.Player, waypoint.Center), Admit, Reached, budget, avoidFirst, resume: (create, quantum) => ResumeWorldPhysicalSearch(ReadWorldPhysicalSearchContext(world, source, identity), create, quantum, world));
+            return SearchWorldPhysicalRoute(source, (input, state) => world.PreviewAutoPlayInput(input, state), state => WorldPointDistance(state.Player, waypoint.Center), Admit, Reached, budget, avoidFirst, resume: (create, quantum) => ResumeWorldPhysicalSearch(ReadWorldPhysicalSearchContext(world, source, identity + ":" + waypoint.Source + ":" + seekingLanding), create, quantum, world));
         }
         worldRepeatedInputs.TryGetValue(positionKey, out HashSet<Ff7AutoplayInput>? repeated);
         Ff7AutoPlayWorldRoute route = Search(nodeBudget, repeated);
