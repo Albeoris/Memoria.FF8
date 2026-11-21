@@ -3,6 +3,18 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-pending-restore-boundary-only", StringComparer.Ordinal))
+{
+    NativePendingRestoreBoundaryTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-camera-original-only", StringComparer.Ordinal))
+{
+    NativeCameraOriginalTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-section-relative-entry-only", StringComparer.Ordinal))
 {
     NativeSectionRelativeEntryTests.Run();

@@ -150,6 +150,10 @@ public sealed partial class Ff7AutoPlayController(Ff7Session session, Func<Ff7Au
                 ObserveProgress(progress, observed);
                 driver.BeginPlanningStep();
                 Ff7AutoplayInput input = continuingTick ? default : chooseInput(driver);
+                if (session.AutoPlayState?.PendingRestore is not null)
+                {
+                    return;
+                }
                 if (driver.PlanningPending)
                 {
                     return;
