@@ -13,6 +13,7 @@ public sealed partial class FieldRenderer
     private readonly List<WalkmeshTriangle> nativeShadowReceiverDiagnostics = [];
     private readonly List<FieldShadowReceiverGeometry> authoredShadowReceivers = [];
     private readonly List<FieldShadowTriangle> shadowCasters = [];
+    private readonly List<Vector3> sunlightReceiverVertices = [];
     private FieldLightingScene? effectiveLighting;
 
     /// <summary>Native lighting remains active until this field has at least one authored source, including disabled sources.</summary>
@@ -87,6 +88,7 @@ public sealed partial class FieldRenderer
         nativeShadowReceiverDiagnostics.Clear();
         authoredShadowReceivers.Clear();
         shadowCasters.Clear();
+        sunlightReceiverVertices.Clear();
         IFieldLightingRenderer? backend = TriangleRenderer as IFieldLightingRenderer;
         if (backend?.FieldLightingSupported == true)
         {
@@ -98,12 +100,12 @@ public sealed partial class FieldRenderer
         }
         if (backend is null || !backend.FieldLightingSupported)
         {
-            LightingUnavailableReason = backend?.FieldLightingUnavailableReason ?? "This renderer does not support field spotlight shading.";
+            LightingUnavailableReason = backend?.FieldLightingUnavailableReason ?? "This renderer does not support authored field lighting.";
             return;
         }
         effectiveLighting = ActiveLighting;
         backend.SetFieldLighting(effectiveLighting);
-        FieldSpotLight? primary = effectiveLighting.Lights.FirstOrDefault(light => light.Id == effectiveLighting.PrimaryLightId);
+        FieldLight? primary = effectiveLighting.Lights.FirstOrDefault(light => light.Id == effectiveLighting.PrimaryLightId);
         if (primary is { Enabled: true, Intensity: > 0 } && primary.Color != Vector3.Zero)
         {
             foreach (FieldShadowReceiver receiver in effectiveLighting.ShadowReceivers.Where(receiver => receiver.Enabled))
@@ -165,12 +167,12 @@ public sealed partial class FieldRenderer
             {
                 AddShadowReceivers(support, primary!);
             }
-            else if (!authoredShadowReceivers.Any(receiver => receiver.CanReceiveShadow(primary!.Position, world)))
+            else if (!authoredShadowReceivers.Any(receiver => receiver.CanReceiveShadow(primary!, world)))
             {
                 lightingShadowStates[actor.ObjectId] = nativeState;
                 if (nativeState == FieldActorShadowState.NativeFallback)
                 {
-                    LightingShadowDiagnostic = "Some actors have no matching support walkmesh triangle; their native shadow is gated by the Primary lamp.";
+                    LightingShadowDiagnostic = "Some actors have no matching support walkmesh triangle; their native shadow is gated by the Primary light.";
                 }
                 continue;
             }
@@ -183,7 +185,26 @@ public sealed partial class FieldRenderer
             authoredShadowReceivers.Clear();
             return;
         }
-        if (!backend.PrepareFieldShadow(shadowCasters, out string? reason))
+        bool sunlight = primary?.IsSunlight == true;
+        if (sunlight)
+        {
+            foreach (int id in shadowReceiverIds)
+            {
+                WalkmeshTriangle triangle = field.Walkmesh.Triangles[id];
+                sunlightReceiverVertices.Add(triangle.A);
+                sunlightReceiverVertices.Add(triangle.B);
+                sunlightReceiverVertices.Add(triangle.C);
+            }
+            foreach (FieldShadowReceiverGeometry receiver in authoredShadowReceivers)
+            {
+                sunlightReceiverVertices.AddRange(receiver.Corners);
+            }
+            foreach (LitActorPose receiver in litActorPoses.Values)
+            {
+                sunlightReceiverVertices.AddRange(receiver.World);
+            }
+        }
+        if (!backend.PrepareFieldShadow(shadowCasters, out string? reason, sunlight ? sunlightReceiverVertices : null))
         {
             LightingShadowDiagnostic = reason;
             foreach (int actor in lightingShadowStates.Where(pair => pair.Value == FieldActorShadowState.Silhouette).Select(pair => pair.Key).ToArray())
@@ -199,7 +220,7 @@ public sealed partial class FieldRenderer
         }
     }
 
-    private static bool CanCastShadow(ActorVisual actor, FieldSpotLight? primary, Vector3[] world)
+    private static bool CanCastShadow(ActorVisual actor, FieldLight? primary, Vector3[] world)
     {
         if (actor.GroundShadowRadii601To608 is { } shape && (shape.Count != 8 || actor.GroundShadowRadius601To608 is not null))
         {
@@ -209,13 +230,14 @@ public sealed partial class FieldRenderer
         return actor.GroundShadowEnabled && !zeroRadius && actor.GroundShadowLevel609 is > 0 && primary is { Enabled: true, Intensity: > 0 } && primary.Color != Vector3.Zero && world.Any(point => FieldLightingMath.Influence(primary, point) > 0);
     }
 
-    private FieldActorShadowState SelectNativeReceiver(ActorVisual actor, FieldSpotLight primary, out int support)
+    private FieldActorShadowState SelectNativeReceiver(ActorVisual actor, FieldLight primary, out int support)
     {
         Vector3 center = actor.GroundShadowCentre ?? new Vector3(actor.X, actor.Y, actor.Z);
         if (!field.Walkmesh.TryPosition(center.X, center.Y, center.Z, 1, out _, out support))
         {
             // A valid native support point is necessary even for the explicitly diagnosed native fallback.
-            if (actor.GroundShadowCentre is null || primary.Position.Z <= center.Z)
+            bool facesLight = primary.IsSunlight ? primary.Direction.Z < 0 : primary.Position.Z > center.Z;
+            if (actor.GroundShadowCentre is null || !facesLight)
             {
                 return FieldActorShadowState.IntentionalNone;
             }
@@ -227,14 +249,15 @@ public sealed partial class FieldRenderer
         {
             normal = -normal;
         }
-        if (normal.LengthSquared() < 0.000001f || Vector3.Dot(primary.Position - ground.A, normal) <= 0)
+        Vector3 incoming = primary.IsSunlight ? -primary.Direction : primary.Position - ground.A;
+        if (normal.LengthSquared() < 0.000001f || Vector3.Dot(incoming, normal) <= 0)
         {
             return FieldActorShadowState.IntentionalNone;
         }
         return FieldActorShadowState.Silhouette;
     }
 
-    private void AddShadowReceivers(int support, FieldSpotLight light)
+    private void AddShadowReceivers(int support, FieldLight light)
     {
         Queue<int> pending = new();
         HashSet<int> visited = [];
@@ -251,11 +274,14 @@ public sealed partial class FieldRenderer
                 // Match the walkmesh support query's rejection of vertical or degenerate ground.
                 continue;
             }
-            Vector3 minimum = Vector3.Min(triangle.A, Vector3.Min(triangle.B, triangle.C));
-            Vector3 maximum = Vector3.Max(triangle.A, Vector3.Max(triangle.B, triangle.C));
-            if (Vector3.DistanceSquared(Vector3.Clamp(light.Position, minimum, maximum), light.Position) >= light.Range * light.Range)
+            if (!light.IsSunlight)
             {
-                continue;
+                Vector3 minimum = Vector3.Min(triangle.A, Vector3.Min(triangle.B, triangle.C));
+                Vector3 maximum = Vector3.Max(triangle.A, Vector3.Max(triangle.B, triangle.C));
+                if (Vector3.DistanceSquared(Vector3.Clamp(light.Position, minimum, maximum), light.Position) >= light.Range * light.Range)
+                {
+                    continue;
+                }
             }
             // Native adjacency is the authority for connected floors; no proximity weld can join stacked floors.
             shadowReceiverIds.Add(id);

@@ -374,6 +374,10 @@ public sealed partial class LightingEditorController
         {
             AddFillLight();
         }
+        else if (Hit(LightingEditorLayout.AddSunlight))
+        {
+            AddSunlight();
+        }
         else if (Hit(LightingEditorLayout.Delete))
         {
             DeleteSelected();
@@ -426,7 +430,7 @@ public sealed partial class LightingEditorController
         {
             foreach (LightingProperty property in Enum.GetValues<LightingProperty>())
             {
-                if (IsReceiverProperty(property) || Selected is null && property is not (LightingProperty.ShadowOpacity or LightingProperty.ShadowSoftness))
+                if (IsReceiverProperty(property) || !CanEditProperty(property))
                 {
                     continue;
                 }
@@ -450,11 +454,11 @@ public sealed partial class LightingEditorController
         {
             if (!PickingPivot)
             {
-                FieldSpotLight? nearest = null;
+                FieldLight? nearest = null;
                 float distanceSquared = 12 * 12;
-                foreach (FieldSpotLight light in Draft.Lights.Reverse())
+                foreach (FieldLight light in Draft.Lights.Reverse())
                 {
-                    if (project(light.Position) is not { } marker)
+                    if (light.IsSunlight || project(light.Position) is not { } marker)
                     {
                         continue;
                     }

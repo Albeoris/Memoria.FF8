@@ -44,17 +44,18 @@ public sealed partial class LightingEditorController
         Button(canvas, theme, LightingEditorLayout.Settings, "Shortcuts");
         Button(canvas, theme, LightingEditorLayout.Save, "Save field", true);
         Button(canvas, theme, LightingEditorLayout.Cancel, "Cancel / Close");
-        Button(canvas, theme, LightingEditorLayout.Move, "Move", ActiveTool == LightingTransformTool.Translate);
+        Button(canvas, theme, LightingEditorLayout.Move, "Move", ActiveTool == LightingTransformTool.Translate, SupportsTransform(LightingTransformTool.Translate));
         Button(canvas, theme, LightingEditorLayout.Rotate, "Aim", ActiveTool == LightingTransformTool.Rotate);
-        Button(canvas, theme, LightingEditorLayout.Orbit, "Rotate light around pivot", ActiveTool == LightingTransformTool.Orbit);
+        Button(canvas, theme, LightingEditorLayout.Orbit, "Rotate light around pivot", ActiveTool == LightingTransformTool.Orbit, SupportsTransform(LightingTransformTool.Orbit));
         Button(canvas, theme, LightingEditorLayout.Pivot, "Pick scene pivot", PickingPivot);
         Button(canvas, theme, LightingEditorLayout.ResetView, "Reset view");
         DrawReceiverTools(canvas, theme);
         DrawInspectionTools(canvas, theme);
         DrawSources(canvas, theme);
         DrawProperties(canvas, theme);
+        string moveHint = SupportsTransform(LightingTransformTool.Translate) ? "Drag marker / " + Shortcuts.Describe(LightingEditorCommand.Translate) + " move  ·  " : "";
         string hints = transform is null
-            ? "Drag marker / " + Shortcuts.Describe(LightingEditorCommand.Translate) + " move  ·  " + Shortcuts.Describe(LightingEditorCommand.Rotate) + " aim  ·  Wheel zoom  ·  Middle-drag pan  ·  " + Shortcuts.Describe(LightingEditorCommand.ToggleVisibility) + " hide UI"
+            ? moveHint + Shortcuts.Describe(LightingEditorCommand.Rotate) + " aim  ·  Wheel zoom  ·  Middle-drag pan  ·  " + Shortcuts.Describe(LightingEditorCommand.ToggleVisibility) + " hide UI"
             : Shortcuts.Describe(LightingEditorCommand.AxisX) + "/" + Shortcuts.Describe(LightingEditorCommand.AxisY) + "/" + Shortcuts.Describe(LightingEditorCommand.AxisZ) + " constrain  ·  " + Shortcuts.Describe(LightingEditorCommand.Confirm) + " confirm  ·  Right click cancel";
         Label(canvas, Message, 14, new(24, 656, 1232, 21), ErrorColor);
         Label(canvas, hints, 13, new(24, 682, 1232, 18), theme.Muted);
@@ -104,10 +105,11 @@ public sealed partial class LightingEditorController
         Label(canvas, "SCENE SOURCES", 16, new(24, 94, 216, 22), theme.Foreground);
         Button(canvas, theme, LightingEditorLayout.Add, "Add light");
         Button(canvas, theme, LightingEditorLayout.AddFill, "Add fill");
+        Button(canvas, theme, LightingEditorLayout.AddSunlight, "Add sunlight");
         Button(canvas, theme, LightingEditorLayout.Delete, "Delete", false, Selected is not null);
         for (int row = 0; row < LightingEditorLayout.VisibleLights && ListOffset + row < Draft.Lights.Count; row++)
         {
-            FieldSpotLight light = Draft.Lights[ListOffset + row];
+            FieldLight light = Draft.Lights[ListOffset + row];
             UiRect bounds = LightingEditorLayout.LightRow(row);
             canvas.Fill(bounds, light.Id == SelectedId ? new UiColor(39, 83, 108) : InputColor);
             canvas.Fill(new(bounds.X + 5, bounds.Y + 8, 10, 10), light.Enabled ? LightColor(light) : new UiColor(74, 74, 74));
@@ -119,7 +121,7 @@ public sealed partial class LightingEditorController
         }
         if (Draft.Lights.Count == 0)
         {
-            canvas.Text("No lamps in this field.\n\nPress " + Shortcuts.Describe(LightingEditorCommand.AddLight) + " or Add light to place a spotlight above the ground pivot.\n\nOnly placed, enabled lamps illuminate models.", 15, new(28, 178, 208, 200), theme.Muted);
+            canvas.Text("No lights in this field.\n\nAdd light places a spotlight above the ground pivot. Add sunlight lights the scene from a single direction.", 15, new(28, 202, 208, 200), theme.Muted);
         }
         Label(canvas, Draft.Lights.Count(light => light.Enabled) + " / 8 enabled  •  " + Draft.Lights.Count + " total", 13, new(24, 550, 218, 24), theme.Muted);
         Label(canvas, "P = Primary shadow source", 13, new(24, 575, 218, 23), theme.Muted);
@@ -128,7 +130,13 @@ public sealed partial class LightingEditorController
 
     private void DrawProperties(IUiCanvas canvas, UiTheme theme)
     {
-        Label(canvas, "SPOTLIGHT PROPERTIES", 16, new(972, 94, 282, 22), theme.Foreground);
+        string title = Selected switch
+        {
+            { IsSunlight: true } => "SUNLIGHT PROPERTIES",
+            not null => "SPOTLIGHT PROPERTIES",
+            _ => "LIGHT PROPERTIES"
+        };
+        Label(canvas, title, 16, new(972, 94, 282, 22), theme.Foreground);
         if (Selected is { } selected)
         {
             DrawNumeric(canvas, theme, LightingProperty.Name);
@@ -136,20 +144,25 @@ public sealed partial class LightingEditorController
             Label(canvas, "RGB", 12, LightingEditorLayout.ColorSwatch.Inset(6), selected.Color.LengthSquared() > 1 ? InputColor : theme.Foreground);
             Button(canvas, theme, LightingEditorLayout.Enabled, selected.Enabled ? "✓ Enabled" : "Disabled", selected.Enabled);
             Button(canvas, theme, LightingEditorLayout.Primary, Draft.PrimaryLightId == selected.Id ? "✓ Primary shadow" : "Primary shadow", Draft.PrimaryLightId == selected.Id);
-            Label(canvas, "Position: X / Y / Z (height)", 13, new(972, 188, 282, 20), theme.Muted);
-            Label(canvas, "Outward aim: X / Y / Z (normalized)", 13, new(972, 240, 282, 20), theme.Muted);
-            foreach (LightingProperty property in new[] { LightingProperty.PositionX, LightingProperty.PositionY, LightingProperty.PositionZ, LightingProperty.DirectionX, LightingProperty.DirectionY, LightingProperty.DirectionZ })
+            if (!selected.IsSunlight)
             {
-                DrawNumeric(canvas, theme, property);
+                Label(canvas, "Position: X / Y / Z (height)", 13, new(972, 188, 282, 20), theme.Muted);
+                DrawNumeric(canvas, theme, LightingProperty.PositionX);
+                DrawNumeric(canvas, theme, LightingProperty.PositionY);
+                DrawNumeric(canvas, theme, LightingProperty.PositionZ);
             }
-            foreach (LightingProperty property in Enum.GetValues<LightingProperty>().Where(property => property is >= LightingProperty.Red and <= LightingProperty.OuterCone))
+            Label(canvas, "Outward aim: X / Y / Z (normalized)", 13, new(972, 240, 282, 20), theme.Muted);
+            DrawNumeric(canvas, theme, LightingProperty.DirectionX);
+            DrawNumeric(canvas, theme, LightingProperty.DirectionY);
+            DrawNumeric(canvas, theme, LightingProperty.DirectionZ);
+            foreach (LightingProperty property in Enum.GetValues<LightingProperty>().Where(property => property is >= LightingProperty.Red and <= LightingProperty.OuterCone && CanEditProperty(property)))
             {
                 DrawSlider(canvas, theme, property);
             }
         }
         else
         {
-            canvas.Text("Click a light in the list or scene. Drag its marker to move it, or use the axis handles for a constrained move.\n\nXY is ground. Positive Z is height.", 15, new(977, 130, 272, 290), theme.Muted);
+            canvas.Text("Select a light in the list or click a spotlight marker.\n\nXY is ground. Positive Z is height.", 15, new(977, 130, 272, 290), theme.Muted);
         }
         Label(canvas, "GROUND SHADOW", 13, new(972, 501, 282, 20), AccentColor);
         DrawSlider(canvas, theme, LightingProperty.ShadowOpacity);
@@ -223,18 +236,26 @@ public sealed partial class LightingEditorController
             canvas.Line(pivotScreen.X, pivotScreen.Y - 11, pivotScreen.X, pivotScreen.Y + 11, AccentColor, 2);
             Label(canvas, "scene pivot", 13, new(pivotScreen.X + 13, pivotScreen.Y + 3, 110, 22), AccentColor);
         }
-        foreach (FieldSpotLight light in Draft.Lights)
+        foreach (FieldLight light in Draft.Lights)
         {
             bool selected = light.Id == SelectedId;
             if (IsDraggingLight && !selected)
             {
                 continue;
             }
+            UiColor color = light.Enabled ? LightColor(light) : new UiColor(120, 120, 120);
+            if (light.IsSunlight)
+            {
+                if (selected)
+                {
+                    DrawSunlightDirection(canvas, light.Direction, color);
+                }
+                continue;
+            }
             if (project(light.Position) is not { } marker)
             {
                 continue;
             }
-            UiColor color = light.Enabled ? LightColor(light) : new UiColor(120, 120, 120);
             float radius = selected ? 10 : 7;
             canvas.Line(marker.X, marker.Y - radius, marker.X + radius, marker.Y, color, selected ? 3 : 2);
             canvas.Line(marker.X + radius, marker.Y, marker.X, marker.Y + radius, color, selected ? 3 : 2);
@@ -260,7 +281,23 @@ public sealed partial class LightingEditorController
         }
     }
 
-    private void DrawBeam(IUiCanvas canvas, FieldSpotLight light, UiColor color)
+    private void DrawSunlightDirection(IUiCanvas canvas, Vector3 direction, UiColor color)
+    {
+        Vector3 offset = direction * actorScale;
+        if (project(Pivot - offset * 1.5f) is not { } start || project(Pivot + offset) is not { } end || Vector2.DistanceSquared(start, end) < 1)
+        {
+            return;
+        }
+        Vector2 backward = Vector2.Normalize(start - end) * 12;
+        Vector2 wing = new Vector2(-backward.Y, backward.X) * 0.45f;
+        Vector2 left = end + backward + wing;
+        Vector2 right = end + backward - wing;
+        canvas.Line(start.X, start.Y, end.X, end.Y, color, 2);
+        canvas.Line(left.X, left.Y, end.X, end.Y, color, 2);
+        canvas.Line(right.X, right.Y, end.X, end.Y, color, 2);
+    }
+
+    private void DrawBeam(IUiCanvas canvas, FieldLight light, UiColor color)
     {
         DrawWorldLine(canvas, light.Position, light.Position + light.Direction * light.Range, color, 1);
         foreach (float angle in new[] { light.InnerConeDegrees, light.OuterConeDegrees })
@@ -327,7 +364,7 @@ public sealed partial class LightingEditorController
     private void DrawColorPicker(IUiCanvas canvas, UiTheme theme)
     {
         Panel(canvas, new(600, 202, 330, 230));
-        Label(canvas, "SPOTLIGHT COLOR", 19, new(618, 218, 296, 28), theme.Foreground);
+        Label(canvas, "LIGHT COLOR", 19, new(618, 218, 296, 28), theme.Foreground);
         for (int index = 0; index < ColorPalette.Length; index++)
         {
             canvas.Fill(LightingEditorLayout.ColorChoice(index), ColorPalette[index]);
@@ -336,7 +373,7 @@ public sealed partial class LightingEditorController
         Button(canvas, theme, LightingEditorLayout.ColorClose, "Close picker");
     }
 
-    private static UiColor LightColor(FieldSpotLight light)
+    private static UiColor LightColor(FieldLight light)
     {
         return new((byte)Math.Clamp(light.Color.X * 255, 0, 255), (byte)Math.Clamp(light.Color.Y * 255, 0, 255), (byte)Math.Clamp(light.Color.Z * 255, 0, 255));
     }

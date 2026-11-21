@@ -176,7 +176,7 @@ public sealed class LightingFieldIntegrationTests(ITestOutputHelper output)
         FieldLightingScene scene = new()
         {
             FieldName = field.Name,
-            Lights = axes.Select((axis, index) => new FieldSpotLight
+            Lights = axes.Select((axis, index) => new FieldLight
             {
                 Id = "fixture-spot-" + index,
                 Name = "Fixture spotlight " + index,
@@ -268,7 +268,7 @@ public sealed class LightingFieldIntegrationTests(ITestOutputHelper output)
                 Assert.Equal(legacy, Render(null, "inspection-reset"));
             }
 
-            FieldSpotLight top = scene.Lights[4];
+            FieldLight top = scene.Lights[4];
             FieldLightingScene primaryScene = scene with { PrimaryLightId = top.Id };
             Color[] primary = Render(primaryScene, "primary-shadow");
             Dictionary<int, string> primaryStates = world.LightingShadowStates.ToDictionary(pair => pair.Key, pair => pair.Value.ToString());
@@ -283,7 +283,7 @@ public sealed class LightingFieldIntegrationTests(ITestOutputHelper output)
 
             Vector3 center = (scene.Lights[4].Position + scene.Lights[5].Position) / 2;
             Vector3 movedPosition = top.Position + new Vector3(top.Range / 8, top.Range / 16, 0);
-            FieldSpotLight moved = top with { Position = movedPosition, Direction = Vector3.Normalize(center - movedPosition) };
+            FieldLight moved = top with { Position = movedPosition, Direction = Vector3.Normalize(center - movedPosition) };
             FieldLightingScene movedScene = primaryScene with { Lights = scene.Lights.Select(light => light.Id == top.Id ? moved : light).ToArray() };
             Color[] movedUnshadowed = Render(movedScene with { PrimaryLightId = null }, "primary-moved-unshadowed");
             Color[] movedShadow = Render(movedScene, "primary-moved-shadow");
@@ -339,12 +339,12 @@ public sealed class LightingFieldIntegrationTests(ITestOutputHelper output)
     {
         const int warmupFrames = 10;
         const int measuredFrames = 60;
-        FieldSpotLight top = scene.Lights[4];
+        FieldLight top = scene.Lights[4];
         Vector3 center = (scene.Lights[4].Position + scene.Lights[5].Position) / 2;
         Vector3 diagonal = Vector3.Normalize(Vector3.One);
         float distance = Vector3.Distance(top.Position, center);
-        FieldSpotLight seventh = top with { Id = "perf-spot-6", Name = "Performance spotlight 6", Position = center + diagonal * distance, Direction = -diagonal };
-        FieldSpotLight eighth = top with { Id = "perf-spot-7", Name = "Performance spotlight 7", Position = center - diagonal * distance, Direction = diagonal };
+        FieldLight seventh = top with { Id = "perf-spot-6", Name = "Performance spotlight 6", Position = center + diagonal * distance, Direction = -diagonal };
+        FieldLight eighth = top with { Id = "perf-spot-7", Name = "Performance spotlight 7", Position = center - diagonal * distance, Direction = diagonal };
         FieldLightingScene one = scene with { Lights = [top], PrimaryLightId = top.Id };
         FieldLightingScene eight = scene with { Lights = [.. scene.Lights, seventh, eighth], PrimaryLightId = top.Id };
         FieldLightingSceneIO.Validate(one);

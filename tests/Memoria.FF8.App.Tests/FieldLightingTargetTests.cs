@@ -26,7 +26,7 @@ public sealed class FieldLightingTargetTests
         RequireDesktop();
         using RenderGame game = new(samples, gpu =>
         {
-            FieldSpotLight lamp = new() { Id = "lamp", Name = "Lamp", Position = new(0, 0, 10), Range = 30 };
+            FieldLight lamp = new() { Id = "lamp", Name = "Lamp", Position = new(0, 0, 10), Range = 30 };
             FieldLightingScene scene = new() { FieldName = "scene_a", Lights = [lamp], PrimaryLightId = lamp.Id };
             PixelImage white = new(1, 1, [new Rgba32(255, 255, 255, 255)]);
             TriangleVertex Vertex(float x, float y, float depth, Vector4 color) => new(new Vector2(x, y), depth, 1, Vector2.Zero, color) { WorldPosition = new((x - 64) / 4, (y - 32) / 4, 5), WorldNormal = Vector3.UnitZ };
@@ -34,7 +34,8 @@ public sealed class FieldLightingTargetTests
             for (int frame = 0; frame < 3; frame++)
             {
                 gpu.Begin(128, 64, new Vector4(0.25f, 0.5f, 0.75f, 1));
-                gpu.SetFieldLighting(scene);
+                FieldLightingScene lights = frame == 1 ? scene with { Lights = [lamp with { Type = FieldLight.SunlightType }] } : scene;
+                gpu.SetFieldLighting(lights);
                 TriangleMaterial front = new(null) { DepthWrite = true, DepthComparison = TriangleDepthComparison.Less };
                 gpu.Draw(Vertex(32, 8, 0.25f, new(1, 0, 0, 1)), Vertex(96, 8, 0.25f, new(1, 0, 0, 1)), Vertex(32, 56, 0.25f, new(1, 0, 0, 1)), front);
                 Assert.True(gpu.PrepareFieldShadow([caster], out string? reason), reason);

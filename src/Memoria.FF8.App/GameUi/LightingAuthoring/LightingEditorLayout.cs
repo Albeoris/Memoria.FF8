@@ -4,13 +4,14 @@ namespace Memoria.FF8.GameUi;
 
 internal static class LightingEditorLayout
 {
-    internal const int VisibleLights = 12;
+    internal const int VisibleLights = 11;
     internal static UiRect Header => new(12, 12, 1256, 58);
     internal static UiRect Sources => new(12, 82, 242, 556);
     internal static UiRect Properties => new(960, 82, 308, 556);
     internal static UiRect Footer => new(12, 648, 1256, 60);
     internal static UiRect Add => new(24, 122, 72, 28);
     internal static UiRect AddFill => new(102, 122, 76, 28);
+    internal static UiRect AddSunlight => new(24, 156, 106, 28);
     internal static UiRect Delete => new(184, 122, 58, 28);
     internal static UiRect Move => new(268, 84, 110, 28);
     internal static UiRect Rotate => new(386, 84, 110, 28);
@@ -39,7 +40,7 @@ internal static class LightingEditorLayout
 
     internal static UiRect LightRow(int visibleIndex)
     {
-        return new UiRect(24, 164 + visibleIndex * 31, 218, 28);
+        return new UiRect(24, 195 + visibleIndex * 31, 218, 28);
     }
 
     internal static UiRect Numeric(LightingProperty property)

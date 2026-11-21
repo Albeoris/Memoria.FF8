@@ -46,12 +46,7 @@ public sealed partial class LightingEditorController
 
     public void BeginPropertyEdit(LightingProperty property)
     {
-        if (!CommitPendingEdit())
-        {
-            return;
-        }
-        bool hasTarget = IsReceiverProperty(property) ? SelectedReceiver is not null : Selected is not null || property is LightingProperty.ShadowOpacity or LightingProperty.ShadowSoftness;
-        if (!hasTarget)
+        if (!CommitPendingEdit() || !CanEditProperty(property))
         {
             return;
         }
@@ -155,7 +150,7 @@ public sealed partial class LightingEditorController
 
     internal float PropertyValue(LightingProperty property)
     {
-        FieldSpotLight? light = Selected;
+        FieldLight? light = Selected;
         return property switch
         {
             LightingProperty.PositionX => light?.Position.X ?? 0,
@@ -222,8 +217,8 @@ public sealed partial class LightingEditorController
         {
             return scene with { GroundShadow = scene.GroundShadow with { Softness = value } };
         }
-        FieldSpotLight light = scene.Lights.First(item => item.Id == SelectedId);
-        FieldSpotLight edited = property switch
+        FieldLight light = scene.Lights.First(item => item.Id == SelectedId);
+        FieldLight edited = property switch
         {
             LightingProperty.PositionX => light with { Position = light.Position with { X = value } },
             LightingProperty.PositionY => light with { Position = light.Position with { Y = value } },
@@ -248,6 +243,17 @@ public sealed partial class LightingEditorController
         return property is >= LightingProperty.ReceiverX and <= LightingProperty.ReceiverHeading;
     }
 
+    private bool CanEditProperty(LightingProperty property)
+    {
+        return property switch
+        {
+            >= LightingProperty.ReceiverX and <= LightingProperty.ReceiverHeading => SelectedReceiver is not null,
+            LightingProperty.ShadowOpacity or LightingProperty.ShadowSoftness => true,
+            >= LightingProperty.PositionX and <= LightingProperty.PositionZ or >= LightingProperty.Range and <= LightingProperty.OuterCone => Selected is { IsSunlight: false },
+            _ => Selected is not null
+        };
+    }
+
     private static Vector3 NormalizeDirection(Vector3 direction)
     {
         if (direction.LengthSquared() < 0.000001f)
@@ -269,7 +275,7 @@ public sealed partial class LightingEditorController
 
     private void BeginSlider(LightingProperty property, float x, float span)
     {
-        if (!CommitPendingEdit())
+        if (!CommitPendingEdit() || !CanEditProperty(property))
         {
             return;
         }

@@ -24,9 +24,14 @@ internal sealed class FieldShadowReceiverGeometry
         Corners = receiver.Corners();
     }
 
-    internal bool IsWithinReach(FieldSpotLight lamp, bool wall)
+    internal bool IsWithinReach(FieldLight light, bool wall)
     {
-        Vector3 fromCenter = lamp.Position - center;
+        if (light.IsSunlight)
+        {
+            float facing = Vector3.Dot(-light.Direction, normal);
+            return (wall ? MathF.Abs(facing) : facing) > 0.000001f;
+        }
+        Vector3 fromCenter = light.Position - center;
         float planeDistance = Vector3.Dot(fromCenter, normal);
         if (wall ? MathF.Abs(planeDistance) <= PlaneTolerance : planeDistance <= PlaneTolerance)
         {
@@ -34,22 +39,24 @@ internal sealed class FieldShadowReceiverGeometry
         }
         float closestU = Math.Clamp(Vector3.Dot(fromCenter, u), -halfWidth, halfWidth);
         float closestV = Math.Clamp(Vector3.Dot(fromCenter, v), -halfExtent, halfExtent);
-        return (fromCenter - u * closestU - v * closestV).Length() < lamp.Range;
+        return (fromCenter - u * closestU - v * closestV).Length() < light.Range;
     }
 
-    internal bool CanReceiveShadow(Vector3 lamp, Vector3[] caster)
+    internal bool CanReceiveShadow(FieldLight light, Vector3[] caster)
     {
-        float side = MathF.Sign(Vector3.Dot(lamp - center, normal));
+        Vector3 incoming = light.IsSunlight ? -light.Direction : light.Position - center;
+        float side = MathF.Sign(Vector3.Dot(incoming, normal));
         if (caster.All(point => Vector3.Dot(point - center, normal) * side < 0))
         {
             return false;
         }
         for (int index = 0; index < Corners.Length; index++)
         {
-            Vector3 a = Corners[index] - lamp;
-            Vector3 b = Corners[(index + 1) % Corners.Length] - lamp;
-            Vector3 inward = Vector3.Cross(a, b) * -side;
-            if (caster.All(point => Vector3.Dot(point - lamp, inward) < 0))
+            Vector3 a = Corners[index];
+            Vector3 b = Corners[(index + 1) % Corners.Length];
+            Vector3 edgeOrigin = light.IsSunlight ? a : light.Position;
+            Vector3 inward = light.IsSunlight ? Vector3.Cross(b - a, light.Direction) * side : Vector3.Cross(a - edgeOrigin, b - edgeOrigin) * -side;
+            if (caster.All(point => Vector3.Dot(point - edgeOrigin, inward) < 0))
             {
                 return false;
             }

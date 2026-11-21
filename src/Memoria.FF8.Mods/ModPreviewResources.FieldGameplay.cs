@@ -26,10 +26,13 @@ public static partial class ModPreviewResources
         string field = Path.GetFileNameWithoutExtension(file.RelativePath);
         FieldLightingScene scene = lighting.ResolveScene(field) ?? throw new InvalidDataException("The field lighting document has no active component.");
         List<string> after = [field];
-        foreach (FieldSpotLight light in scene.Lights)
+        foreach (FieldLight light in scene.Lights)
         {
             string enabled = light.Enabled ? "enabled" : "disabled";
-            after.Add($"{light.Name} · {enabled}\nPosition {light.Position} · Direction {light.Direction}\nColor {light.Color} · Intensity {light.Intensity:g} · Range {light.Range:g}\nBeam {light.InnerConeDegrees:g}°–{light.OuterConeDegrees:g}°");
+            string properties = $"Direction {light.Direction}\nColor {light.Color} · Intensity {light.Intensity:g}";
+            after.Add(light.IsSunlight
+                ? $"{light.Name} · Sunlight · {enabled}\n{properties}"
+                : $"{light.Name} · Spotlight · {enabled}\n{properties}\nPosition {light.Position} · Range {light.Range:g}\nBeam {light.InnerConeDegrees:g}°–{light.OuterConeDegrees:g}°");
         }
         if (scene.PrimaryLightId is { } primary)
         {

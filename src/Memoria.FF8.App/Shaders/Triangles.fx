@@ -265,7 +265,7 @@ int FieldPrimaryIndex;
 float4 FieldLightPositionRange[8];
 float4 FieldLightDirectionIntensity[8];
 float4 FieldLightColor[8];
-float4 FieldLightCone[8];
+float4 FieldLightCone[8]; // inner cosine, outer cosine, sunlight enabled, unused
 // TODO(TD-032): Keep this uniform name short until the pinned DX12 compiler accepts adjacent reflection separators.
 float4x4 FieldShadowMatrix;
 float4 FieldShadowParameters; // available, ground opacity, PCF radius in UV units, texel size
@@ -288,14 +288,20 @@ float3 FieldSrgb(float3 color)
 }
 float FieldInfluence(int index, float3 world, out float3 incoming)
 {
-    float3 delta = FieldLightPositionRange[index].xyz - world;
-    float distance = length(delta);
-    incoming = distance > 0.00001 ? delta / distance : -FieldLightDirectionIntensity[index].xyz;
-    float cosine = distance > 0.00001 ? dot(-incoming, FieldLightDirectionIntensity[index].xyz) : 1;
-    float cone = saturate((cosine - FieldLightCone[index].y) / (FieldLightCone[index].x - FieldLightCone[index].y));
-    cone = cone * cone * (3 - 2 * cone);
-    float attenuation = saturate(1 - distance / FieldLightPositionRange[index].w);
-    return FieldLightDirectionIntensity[index].w * attenuation * attenuation * cone;
+    float influence = FieldLightDirectionIntensity[index].w;
+    incoming = -FieldLightDirectionIntensity[index].xyz;
+    if (FieldLightCone[index].z == 0)
+    {
+        float3 delta = FieldLightPositionRange[index].xyz - world;
+        float distance = length(delta);
+        incoming = distance > 0.00001 ? delta / distance : incoming;
+        float cosine = distance > 0.00001 ? dot(-incoming, FieldLightDirectionIntensity[index].xyz) : 1;
+        float cone = saturate((cosine - FieldLightCone[index].y) / (FieldLightCone[index].x - FieldLightCone[index].y));
+        cone = cone * cone * (3 - 2 * cone);
+        float attenuation = saturate(1 - distance / FieldLightPositionRange[index].w);
+        influence = influence * attenuation * attenuation * cone;
+    }
+    return influence;
 }
 float2 FieldShadowCoverage(float3 world)
 {
@@ -310,9 +316,10 @@ float2 FieldShadowCoverage(float3 world)
     }
     float3 projectedPoint = projection.xyz / projection.w;
     float2 uv = float2(projectedPoint.x * 0.5 + 0.5, 0.5 - projectedPoint.y * 0.5);
-    // Reciprocal light depth is affine over a projected plane. Compare each tap at its actual texel centre,
-    // rather than comparing neighboring plane depths to one centre depth and shadowing the plane itself.
-    float receiverDepth = FieldLightPositionRange[FieldPrimaryIndex].w / dot(world - FieldLightPositionRange[FieldPrimaryIndex].xyz, FieldLightDirectionIntensity[FieldPrimaryIndex].xyz);
+    // Orthographic depth and reciprocal perspective depth are affine over a projected plane.
+    // Evaluate the receiver depth at each tap's texel centre to account for receiver slope.
+    bool sunlight = FieldLightCone[FieldPrimaryIndex].z > 0;
+    float receiverDepth = sunlight ? 1 - projectedPoint.z : FieldLightPositionRange[FieldPrimaryIndex].w / dot(world - FieldLightPositionRange[FieldPrimaryIndex].xyz, FieldLightDirectionIntensity[FieldPrimaryIndex].xyz);
     float3 gradientX = ddx(float3(uv, receiverDepth));
     float3 gradientY = ddy(float3(uv, receiverDepth));
     float determinant = gradientX.x * gradientY.y - gradientX.y * gradientY.x;
@@ -330,8 +337,8 @@ float2 FieldShadowCoverage(float3 world)
             float2 stored = SAMPLE_TEXTURE(FieldShadowTexture, FieldShadowSampler, sampleUv).rg;
             float2 texelCentre = (floor(sampleUv / FieldShadowParameters.w) + 0.5) * FieldShadowParameters.w;
             float comparisonDepth = receiverDepth + dot(depthGradient, texelCentre - uv);
-            // Sixteen float ULPs at unit scale cover arithmetic roundoff without a world-space shadow offset.
-            float roundoff = abs(comparisonDepth) * 0.0000019073486328125;
+            // The orthographic encoding subtracts from one, so its roundoff allowance uses unit scale.
+            float roundoff = (sunlight ? 1 : abs(comparisonDepth)) * 0.0000019073486328125;
             float covered = comparisonDepth + roundoff < stored.x && all(sampleUv >= 0) && all(sampleUv <= 1) ? 1 : 0;
             result += float2(covered, covered * stored.y);
         }
@@ -395,14 +402,15 @@ FieldShadowOutput FieldShadowVertex(FieldShadowInput input)
     output.Position = mul(float4(input.WorldPosition, 1), FieldShadowMatrix);
     output.Uv = input.Uv.xy;
     output.Level = input.Color.a;
-    output.Depth = dot(input.WorldPosition - FieldLightPositionRange[FieldPrimaryIndex].xyz, FieldLightDirectionIntensity[FieldPrimaryIndex].xyz) / FieldLightPositionRange[FieldPrimaryIndex].w;
+    output.Depth = FieldLightCone[FieldPrimaryIndex].z > 0 ? output.Position.z : dot(input.WorldPosition - FieldLightPositionRange[FieldPrimaryIndex].xyz, FieldLightDirectionIntensity[FieldPrimaryIndex].xyz) / FieldLightPositionRange[FieldPrimaryIndex].w;
     return output;
 }
 float4 FieldShadowPixel(FieldShadowOutput input) : SV_TARGET0
 {
     float4 texel = SampleSourceTexture(input.TextureSlot, input.Uv);
     clip(texel.a - AlphaParameters.x);
-    return float4(1 / input.Depth, input.Level, 0, 1);
+    float depth = FieldLightCone[FieldPrimaryIndex].z > 0 ? 1 - input.Depth : 1 / input.Depth;
+    return float4(depth, input.Level, 0, 1);
 }
 
 struct PSOutput { float4 Color : SV_TARGET0; float Depth : SV_DEPTH; };

@@ -1,16 +1,22 @@
 using System.Numerics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 
 namespace Memoria.FF8.Mods;
 
-/// <summary>An authored positional beam. RGB channels are sRGB values in 0..1; intensity is relative, not calibrated lumens.</summary>
-public sealed record FieldSpotLight
+/// <summary>An authored field light. RGB channels are sRGB values in 0..1 and intensity is relative.</summary>
+public sealed record FieldLight
 {
+    public const string SpotType = "spot";
+    public const string SunlightType = "sunlight";
+
     public required string Id { get; init; }
     public required string Name { get; init; }
     public bool Enabled { get; init; } = true;
-    public string Type { get; init; } = "spot";
+    public string Type { get; init; } = SpotType;
+    [JsonIgnore]
+    public bool IsSunlight => Type == SunlightType;
     public Vector3 Position { get; init; }
     public Vector3 Direction { get; init; } = -Vector3.UnitZ;
     public Vector3 Color { get; init; } = Vector3.One;
@@ -59,7 +65,7 @@ public sealed record FieldLightingScene
 {
     public int SchemaVersion { get; init; } = 1;
     public required string FieldName { get; init; }
-    public IReadOnlyList<FieldSpotLight> Lights { get; init; } = [];
+    public IReadOnlyList<FieldLight> Lights { get; init; } = [];
     public string? PrimaryLightId { get; init; }
     public FieldGroundShadowSettings GroundShadow { get; init; } = new();
     public IReadOnlyList<FieldShadowReceiver> ShadowReceivers { get; init; } = [];
@@ -79,13 +85,27 @@ public static class FieldLightingSceneIO
     public const int MaximumShadowReceivers = 128;
     public const int MaximumDocumentBytes = 512 * 1024;
     public const string ComponentPath = "lighting/component.json";
+    private static readonly string[] SpotProperties = ["position", "range", "innerConeDegrees", "outerConeDegrees"];
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
         WriteIndented = true,
-        Converters = { new VectorConverter() }
+        Converters = { new VectorConverter() },
+        TypeInfoResolver = new DefaultJsonTypeInfoResolver { Modifiers = { ConfigureLightProperties } }
     };
+
+    private static void ConfigureLightProperties(JsonTypeInfo typeInfo)
+    {
+        if (typeInfo.Type != typeof(FieldLight))
+        {
+            return;
+        }
+        foreach (JsonPropertyInfo property in typeInfo.Properties.Where(property => SpotProperties.Contains(property.Name)))
+        {
+            property.ShouldSerialize = (light, _) => !((FieldLight)light).IsSunlight;
+        }
+    }
 
     public static string ScenePath(string fieldName)
     {
@@ -115,31 +135,38 @@ public static class FieldLightingSceneIO
         }
         HashSet<string> ids = new(StringComparer.Ordinal);
         int enabled = 0;
-        foreach (FieldSpotLight light in scene.Lights)
+        foreach (FieldLight light in scene.Lights)
         {
             if (light is null || !ValidId(light.Id) || !ids.Add(light.Id))
             {
                 throw new InvalidDataException("Light IDs must be unique stable identifiers containing 1..80 ASCII letters, digits, underscores or hyphens.");
             }
-            if (string.IsNullOrWhiteSpace(light.Name) || light.Name.Length > 128 || light.Name.Any(char.IsControl) || light.Type != "spot")
+            if (string.IsNullOrWhiteSpace(light.Name) || light.Name.Length > 128 || light.Name.Any(char.IsControl) || light.Type is not (FieldLight.SpotType or FieldLight.SunlightType))
             {
-                throw new InvalidDataException("Every light requires a readable name of at most 128 characters and type 'spot'.");
+                throw new InvalidDataException("Every light requires a readable name of at most 128 characters and type 'spot' or 'sunlight'.");
             }
-            if (!Finite(light.Position) || !Finite(light.Direction) || MathF.Abs(light.Direction.LengthSquared() - 1) > 0.0001f)
+            if (!Finite(light.Direction) || MathF.Abs(light.Direction.LengthSquared() - 1) > 0.0001f)
             {
-                throw new InvalidDataException("Light position must be finite and direction must be a finite normalized outward beam vector.");
+                throw new InvalidDataException("Light direction must be a finite normalized vector pointing along the rays.");
             }
-            if (!Finite(light.Color) || light.Color.X is < 0 or > 1 || light.Color.Y is < 0 or > 1 || light.Color.Z is < 0 or > 1 || !float.IsFinite(light.Intensity) || light.Intensity < 0 || !float.IsFinite(light.Range) || light.Range <= 0)
+            if (!Finite(light.Color) || light.Color.X is < 0 or > 1 || light.Color.Y is < 0 or > 1 || light.Color.Z is < 0 or > 1 || !float.IsFinite(light.Intensity) || light.Intensity < 0)
             {
-                throw new InvalidDataException("Light sRGB color channels must be within 0..1, intensity finite and nonnegative, and range finite and positive.");
+                throw new InvalidDataException("Light sRGB color channels must be within 0..1 and intensity finite and nonnegative.");
             }
-            if (!float.IsFinite(light.InnerConeDegrees) || !float.IsFinite(light.OuterConeDegrees) || light.InnerConeDegrees < 0 || light.InnerConeDegrees >= light.OuterConeDegrees || light.OuterConeDegrees > 85)
+            if (!light.IsSunlight)
             {
-                throw new InvalidDataException("Spot cone half-angles require 0 <= innerConeDegrees < outerConeDegrees <= 85.");
+                if (!Finite(light.Position) || !float.IsFinite(light.Range) || light.Range <= 0)
+                {
+                    throw new InvalidDataException("Spot position must be finite and range finite and positive.");
+                }
+                if (!float.IsFinite(light.InnerConeDegrees) || !float.IsFinite(light.OuterConeDegrees) || light.InnerConeDegrees < 0 || light.InnerConeDegrees >= light.OuterConeDegrees || light.OuterConeDegrees > 85)
+                {
+                    throw new InvalidDataException("Spot cone half-angles require 0 <= innerConeDegrees < outerConeDegrees <= 85.");
+                }
             }
             if (light.Enabled && ++enabled > MaximumEnabledLights)
             {
-                throw new InvalidDataException($"A lighting scene supports at most {MaximumEnabledLights} enabled spotlights. Disable a light before enabling another.");
+                throw new InvalidDataException($"A lighting scene supports at most {MaximumEnabledLights} enabled lights. Disable a light before enabling another.");
             }
         }
         if (scene.PrimaryLightId is not null && !ids.Contains(scene.PrimaryLightId))
@@ -199,7 +226,20 @@ public static class FieldLightingSceneIO
         {
             foreach (JsonElement light in document.RootElement.GetProperty("lights").EnumerateArray())
             {
-                RequireProperties(light, "id", "name", "enabled", "type", "position", "direction", "color", "intensity", "range", "innerConeDegrees", "outerConeDegrees");
+                RequireProperties(light, "id", "name", "enabled", "type", "direction", "color", "intensity");
+                JsonElement type = light.GetProperty("type");
+                if (type.ValueKind != JsonValueKind.String)
+                {
+                    throw new InvalidDataException("Light type must be a string.");
+                }
+                if (type.ValueEquals(FieldLight.SpotType))
+                {
+                    RequireProperties(light, SpotProperties);
+                }
+                else if (type.ValueEquals(FieldLight.SunlightType) && SpotProperties.Any(name => light.TryGetProperty(name, out _)))
+                {
+                    throw new InvalidDataException("Sunlight cannot define position, range or cone angles.");
+                }
             }
         }
         RequireProperties(document.RootElement.GetProperty("groundShadow"), "opacity", "softness");

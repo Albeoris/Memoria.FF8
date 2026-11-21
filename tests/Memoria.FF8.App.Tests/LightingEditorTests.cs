@@ -58,7 +58,7 @@ public sealed class LightingEditorTests
     {
         LightingEditorController editor = Create();
         editor.AddLight();
-        FieldSpotLight original = editor.Selected!;
+        FieldLight original = editor.Selected!;
         editor.BeginTransform(LightingTransformTool.Translate, LightingAxis.Z);
         editor.SetTransformNumeric("-500");
         Assert.True(editor.ConfirmTransform());
@@ -282,7 +282,7 @@ public sealed class LightingEditorTests
         LightingEditorController editor = Create();
         Poll(editor, new(), 140, 136, true);
         Poll(editor, new(), 140, 136);
-        FieldSpotLight fill = Assert.Single(editor.Draft.Lights);
+        FieldLight fill = Assert.Single(editor.Draft.Lights);
         Assert.Null(editor.Draft.PrimaryLightId);
         Assert.StartsWith("Fill light", fill.Name);
         Assert.InRange(fill.Intensity, 0.01f, 0.99f);
@@ -293,6 +293,66 @@ public sealed class LightingEditorTests
         editor.AddFillLight();
         Assert.Equal(primary, editor.Draft.PrimaryLightId);
         Assert.Equal(2, editor.History.CommandCount);
+    }
+
+    [Fact]
+    public void Add_sunlight_selects_a_directional_source_and_preserves_an_existing_primary_source()
+    {
+        LightingEditorController editor = Create();
+        editor.AddLight();
+        string primary = editor.SelectedId!;
+        editor.PointerPress(new(LightingEditorLayout.AddSunlight.X + 5, LightingEditorLayout.AddSunlight.Y + 5));
+        FieldLight sunlight = Assert.IsType<FieldLight>(editor.Selected);
+        Assert.Equal(FieldLight.SunlightType, sunlight.Type);
+        Assert.True(sunlight.Enabled);
+        Assert.InRange(sunlight.Direction.Length(), 0.999f, 1.001f);
+        Assert.True(sunlight.Direction.Z < 0);
+        Assert.Equal(primary, editor.Draft.PrimaryLightId);
+
+        editor.Select(null);
+        UiRect sunlightRow = LightingEditorLayout.LightRow(1);
+        editor.PointerPress(new(sunlightRow.X + 5, sunlightRow.Y + 5));
+        Assert.Equal(sunlight.Id, editor.SelectedId);
+        editor.TogglePrimary();
+        Assert.Equal(sunlight.Id, editor.Draft.PrimaryLightId);
+        editor.Undo();
+        Assert.Equal(primary, editor.Draft.PrimaryLightId);
+    }
+
+    [Fact]
+    public void Sunlight_exposes_aim_and_strength_without_positional_or_cone_controls()
+    {
+        LightingEditorController editor = Create();
+        editor.AddSunlight();
+        FieldLight sunlight = Assert.IsType<FieldLight>(editor.Selected);
+        Assert.Equal(sunlight.Id, editor.Draft.PrimaryLightId);
+        Assert.Equal(LightingTransformTool.Rotate, editor.ActiveTool);
+        IReadOnlyList<LightingGizmoSegment> gizmo = editor.GizmoSegments();
+        Assert.NotEmpty(gizmo);
+        Assert.All(gizmo, segment => Assert.Equal(LightingTransformTool.Rotate, segment.Tool));
+
+        RecordingCanvas canvas = new();
+        editor.BuildView().Draw(canvas, new UiTheme());
+        Assert.Contains("SUNLIGHT PROPERTIES", canvas.Texts);
+        Assert.Contains("Intensity", canvas.Texts);
+        Assert.DoesNotContain("Range", canvas.Texts);
+        Assert.DoesNotContain("Outer °", canvas.Texts);
+        Assert.DoesNotContain(canvas.Texts, text => text.StartsWith("Position", StringComparison.Ordinal));
+        editor.BeginPropertyEdit(LightingProperty.PositionX);
+        Assert.Null(editor.EditingProperty);
+        editor.BeginPropertyEdit(LightingProperty.Range);
+        Assert.Null(editor.EditingProperty);
+        editor.BeginTransform(LightingTransformTool.Translate, LightingAxis.X);
+        Assert.False(editor.HasPendingTransform);
+        editor.BeginTransform(LightingTransformTool.Orbit, LightingAxis.Z);
+        Assert.False(editor.HasPendingTransform);
+
+        editor.BeginTransform(LightingTransformTool.Rotate, LightingAxis.Z);
+        editor.SetTransformNumeric("90");
+        Assert.True(editor.ConfirmTransform());
+        AssertVector(new(-sunlight.Direction.Y, sunlight.Direction.X, sunlight.Direction.Z), editor.Selected!.Direction);
+        editor.Undo();
+        AssertVector(sunlight.Direction, editor.Selected!.Direction);
     }
 
     [Fact]

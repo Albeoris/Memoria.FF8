@@ -21,7 +21,7 @@ public sealed partial class GpuTriangleRenderer
     internal bool PreviewGrayFieldMaterial { get; set; }
     internal bool PreviewWrappedFieldDiffuse { get; set; }
 
-    public string? FieldLightingUnavailableReason => FieldLightingSupported ? null : "This graphics effect has no field spotlight shader.";
+    public string? FieldLightingUnavailableReason => FieldLightingSupported ? null : "This graphics effect has no field lighting shader.";
 
     public void SetFieldLighting(FieldLightingScene? scene)
     {
@@ -39,21 +39,28 @@ public sealed partial class GpuTriangleRenderer
         Array.Clear(fieldLightCones);
         if (scene is not null)
         {
-            foreach (FieldSpotLight light in scene.Lights.Where(light => light.Enabled))
+            foreach (FieldLight light in scene.Lights.Where(light => light.Enabled))
             {
                 if (count >= fieldLightPositions.Length)
                 {
-                    throw new InvalidDataException("Field lighting supports at most eight enabled spotlights.");
+                    throw new InvalidDataException("Field lighting supports at most eight enabled lights.");
                 }
                 if (light.Id == scene.PrimaryLightId)
                 {
                     fieldPrimaryIndex = count;
                 }
                 System.Numerics.Vector3 color = FieldLightingMath.LinearColor(light.Color);
-                fieldLightPositions[count] = new(light.Position.X, light.Position.Y, light.Position.Z, light.Range);
                 fieldLightDirections[count] = new(light.Direction.X, light.Direction.Y, light.Direction.Z, light.Intensity);
                 fieldLightColors[count] = new(color.X, color.Y, color.Z, 0);
-                fieldLightCones[count] = new(MathF.Cos(light.InnerConeDegrees * MathF.PI / 180), MathF.Cos(light.OuterConeDegrees * MathF.PI / 180), 0, 0);
+                if (light.IsSunlight)
+                {
+                    fieldLightCones[count].Z = 1;
+                }
+                else
+                {
+                    fieldLightPositions[count] = new(light.Position.X, light.Position.Y, light.Position.Z, light.Range);
+                    fieldLightCones[count] = new(MathF.Cos(light.InnerConeDegrees * MathF.PI / 180), MathF.Cos(light.OuterConeDegrees * MathF.PI / 180), 0, 0);
+                }
                 count++;
             }
         }
@@ -70,7 +77,7 @@ public sealed partial class GpuTriangleRenderer
         device.Textures[FieldShadowTextureSlot] = null;
     }
 
-    public bool PrepareFieldShadow(IReadOnlyList<FieldShadowTriangle> casters, out string? reason)
+    public bool PrepareFieldShadow(IReadOnlyList<FieldShadowTriangle> casters, out string? reason, IReadOnlyList<System.Numerics.Vector3>? receivers = null)
     {
         reason = null;
         if (fieldLightingScene is null || fieldPrimaryIndex < 0 || casters.Count == 0)
@@ -78,7 +85,7 @@ public sealed partial class GpuTriangleRenderer
             return true;
         }
         Flush();
-        FieldSpotLight light = fieldLightingScene.Lights.First(light => light.Id == fieldLightingScene.PrimaryLightId);
+        FieldLight light = fieldLightingScene.Lights.First(light => light.Id == fieldLightingScene.PrimaryLightId);
         RenderTargetBinding[] savedTargets = device.GetRenderTargets();
         Viewport savedViewport = device.Viewport;
         try
@@ -93,7 +100,7 @@ public sealed partial class GpuTriangleRenderer
                 }
                 fieldShadowTarget = new RenderTarget2D(device, FieldShadowMapSize, FieldShadowMapSize, false, SurfaceFormat.Vector2, DepthFormat.Depth24, 0, RenderTargetUsage.PreserveContents);
             }
-            System.Numerics.Matrix4x4 matrix = FieldLightingMath.ShadowViewProjection(light);
+            System.Numerics.Matrix4x4 matrix = light.IsSunlight ? FieldLightingMath.SunlightShadowViewProjection(light, casters, receivers ?? []) : FieldLightingMath.ShadowViewProjection(light);
             effect.Parameters["FieldShadowMatrix"].SetValue(new Matrix(matrix.M11, matrix.M12, matrix.M13, matrix.M14, matrix.M21, matrix.M22, matrix.M23, matrix.M24, matrix.M31, matrix.M32, matrix.M33, matrix.M34, matrix.M41, matrix.M42, matrix.M43, matrix.M44));
             effect.Parameters["FieldShadowTexture"].SetValue((Texture2D?)null);
             device.Textures[FieldShadowTextureSlot] = null;
@@ -113,7 +120,7 @@ public sealed partial class GpuTriangleRenderer
         catch (Exception exception) when (exception is NotSupportedException or InvalidOperationException)
         {
             vertexCount = 0;
-            reason = $"Spotlight shadow target unavailable: {exception.Message}";
+            reason = $"Field shadow target unavailable: {exception.Message}";
             effect.Parameters["FieldShadowParameters"].SetValue(Vector4.Zero);
             return false;
         }

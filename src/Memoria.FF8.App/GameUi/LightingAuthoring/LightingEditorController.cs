@@ -30,6 +30,7 @@ public sealed partial class LightingEditorController
     private Vector3? pickedGround;
     private (string LightId, Vector2 Position)? markerPress;
     private LightingTransform? transform;
+    private LightingTransformTool spotTool;
     private LightingPropertyEdit? propertyEdit;
     private LightingSliderDrag? slider;
     private bool selectAllText;
@@ -61,7 +62,7 @@ public sealed partial class LightingEditorController
     public LightingEditorHistory History { get; }
     public LightingShortcutSettings Shortcuts { get; private set; }
     public string? SelectedId { get; private set; }
-    public FieldSpotLight? Selected => Draft.Lights.FirstOrDefault(light => light.Id == SelectedId);
+    public FieldLight? Selected => Draft.Lights.FirstOrDefault(light => light.Id == SelectedId);
     public Vector3 Pivot { get; private set; }
     public bool OverlayVisible { get; private set; } = true;
     public bool IsDirty => dirty || propertyEdit is { } edit && edit.Text != edit.InitialText || transform is { Numeric.Length: > 0 };
@@ -70,7 +71,7 @@ public sealed partial class LightingEditorController
     public bool ShortcutsVisible { get; private set; }
     public bool ColorPickerVisible { get; private set; }
     public LightingEditorCommand? CapturingShortcut { get; private set; }
-    public LightingTransformTool ActiveTool { get; private set; }
+    public LightingTransformTool ActiveTool => Selected is { IsSunlight: true } ? LightingTransformTool.Rotate : spotTool;
     public LightingAxis ActiveAxis => transform?.Axis ?? LightingAxis.None;
     public bool HasPendingTransform => transform is not null;
     internal bool IsDraggingLight => OverlayVisible && wasFocused && transform is { Dragging: true };
@@ -82,7 +83,7 @@ public sealed partial class LightingEditorController
     {
         get
         {
-            if (Selected is not { } light)
+            if (Selected is not { IsSunlight: false } light)
             {
                 return null;
             }
@@ -158,7 +159,35 @@ public sealed partial class LightingEditorController
         AddLight(fill: true);
     }
 
+    public void AddSunlight()
+    {
+        AddLight(new FieldLight
+        {
+            Id = Guid.NewGuid().ToString("N"),
+            Name = "Sunlight",
+            Type = FieldLight.SunlightType,
+            Direction = Vector3.Normalize(new Vector3(0.45f, 0.3f, -1))
+        }, primaryIfFirst: true);
+    }
+
     private void AddLight(bool fill)
+    {
+        Vector3 ground = pickedGround ?? Pivot;
+        Vector3 position = ground + (fill ? new Vector3(1, -1, 1) : Vector3.UnitZ * 1.5f) * actorScale;
+        AddLight(new FieldLight
+        {
+            Id = Guid.NewGuid().ToString("N"),
+            Name = fill ? "Fill light" : "Spotlight",
+            Position = position,
+            Direction = fill ? Vector3.Normalize(ground + Vector3.UnitZ * actorScale * 0.6f - position) : -Vector3.UnitZ,
+            Intensity = fill ? 0.35f : 1,
+            Range = actorScale * 6,
+            InnerConeDegrees = fill ? 55 : 35,
+            OuterConeDegrees = fill ? 80 : 65
+        }, primaryIfFirst: !fill);
+    }
+
+    private void AddLight(FieldLight light, bool primaryIfFirst)
     {
         if (!CommitPendingEdit())
         {
@@ -169,27 +198,14 @@ public sealed partial class LightingEditorController
             Message = "This field has reached the document's lamp-entry limit.";
             return;
         }
-        bool enabled = Draft.Lights.Count(light => light.Enabled) < 8;
-        string kind = fill ? "Fill light" : "Spotlight";
+        bool enabled = Draft.Lights.Count(existing => existing.Enabled) < 8;
+        string kind = light.Name;
         string name = kind + " " + (Draft.Lights.Count + 1).ToString(CultureInfo.InvariantCulture);
-        Vector3 ground = pickedGround ?? Pivot;
-        Vector3 position = ground + (fill ? new Vector3(1, -1, 1) : Vector3.UnitZ * 1.5f) * actorScale;
-        FieldSpotLight light = new()
-        {
-            Id = Guid.NewGuid().ToString("N"),
-            Name = name,
-            Enabled = enabled,
-            Position = position,
-            Direction = fill ? Vector3.Normalize(ground + Vector3.UnitZ * actorScale * 0.6f - position) : -Vector3.UnitZ,
-            Intensity = fill ? 0.35f : 1,
-            Range = actorScale * 6,
-            InnerConeDegrees = fill ? 55 : 35,
-            OuterConeDegrees = fill ? 80 : 65
-        };
-        ApplyCommand(Draft with { Lights = [.. Draft.Lights, light], PrimaryLightId = !fill && Draft.Lights.Count == 0 ? light.Id : Draft.PrimaryLightId });
+        light = light with { Name = name, Enabled = enabled };
+        ApplyCommand(Draft with { Lights = [.. Draft.Lights, light], PrimaryLightId = primaryIfFirst && Draft.Lights.Count == 0 ? light.Id : Draft.PrimaryLightId });
         SelectedId = light.Id;
         ListOffset = Math.Max(0, Draft.Lights.Count - LightingEditorLayout.VisibleLights);
-        Message = enabled ? kind + " added. Drag its marker to move it." : "Eight enabled lamps is the limit. Disable another lamp to enable the new source.";
+        Message = enabled ? kind + (light.IsSunlight ? " added. Use Aim to change its direction." : " added. Drag its marker to move it.") : "Eight enabled lamps is the limit. Disable another lamp to enable the new source.";
     }
 
     public void DeleteSelected()
@@ -347,7 +363,7 @@ public sealed partial class LightingEditorController
         DraftChanged?.Invoke(scene);
     }
 
-    private static FieldLightingScene ReplaceLight(FieldLightingScene scene, FieldSpotLight light)
+    private static FieldLightingScene ReplaceLight(FieldLightingScene scene, FieldLight light)
     {
         return scene with { Lights = scene.Lights.Select(existing => existing.Id == light.Id ? light : existing).ToArray() };
     }

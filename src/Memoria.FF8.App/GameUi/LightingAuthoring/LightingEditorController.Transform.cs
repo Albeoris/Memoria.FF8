@@ -6,10 +6,10 @@ namespace Memoria.FF8.GameUi;
 
 public sealed partial class LightingEditorController
 {
-    private sealed class LightingTransform(FieldLightingScene scene, FieldSpotLight light, LightingTransformTool tool, LightingAxis axis, Vector2 pointer)
+    private sealed class LightingTransform(FieldLightingScene scene, FieldLight light, LightingTransformTool tool, LightingAxis axis, Vector2 pointer)
     {
         public FieldLightingScene Before { get; } = scene;
-        public FieldSpotLight Light { get; } = light;
+        public FieldLight Light { get; } = light;
         public LightingTransformTool Tool { get; } = tool;
         public LightingAxis Axis { get; set; } = axis;
         public Vector2 StartPointer { get; } = pointer;
@@ -19,9 +19,12 @@ public sealed partial class LightingEditorController
 
     public void SetTool(LightingTransformTool tool)
     {
-        if (CommitPendingEdit())
+        if (SupportsTransform(tool) && CommitPendingEdit())
         {
-            ActiveTool = tool;
+            if (Selected is not { IsSunlight: true })
+            {
+                spotTool = tool;
+            }
             PickingPivot = false;
         }
     }
@@ -33,18 +36,31 @@ public sealed partial class LightingEditorController
 
     private void BeginTransform(LightingTransformTool tool, LightingAxis axis, bool dragging, Vector2 startPointer)
     {
+        if (!SupportsTransform(tool))
+        {
+            Message = "Use Aim to change sunlight direction.";
+            return;
+        }
         if (!CommitProperty() || Selected is not { } selected)
         {
             return;
         }
         CancelTransform();
         EndSlider(true);
-        ActiveTool = tool;
+        if (!selected.IsSunlight)
+        {
+            spotTool = tool;
+        }
         interactionPointerOffset = Vector2.Zero;
         transform = new LightingTransform(Draft, selected, tool, axis, startPointer) { Dragging = dragging };
         textUndo.Clear();
         textRedo.Clear();
         Message = tool == LightingTransformTool.Translate ? "Choose an axis or type a signed distance." : "Choose an axis or type signed degrees.";
+    }
+
+    private bool SupportsTransform(LightingTransformTool tool)
+    {
+        return tool == LightingTransformTool.Rotate || Selected is not { IsSunlight: true };
     }
 
     public void Constrain(LightingAxis axis)
@@ -119,7 +135,7 @@ public sealed partial class LightingEditorController
             Message = "Enter a finite signed number before confirming or saving.";
             return false;
         }
-        FieldSpotLight edited = active.Light;
+        FieldLight edited = active.Light;
         if (active.Tool == LightingTransformTool.Translate)
         {
             Vector3 offset;
@@ -162,7 +178,7 @@ public sealed partial class LightingEditorController
         else
         {
             Vector3 axis = active.Axis == LightingAxis.None && active.Tool == LightingTransformTool.Rotate ? screenRay(active.StartPointer)?.Direction ?? Vector3.UnitZ : LightingEditorGeometry.AxisVector(active.Axis);
-            Vector3 center = active.Tool == LightingTransformTool.Orbit ? Pivot : active.Light.Position;
+            Vector3 center = TransformCenter(active.Light, active.Tool);
             if (!numeric)
             {
                 Vector3 normal = Vector3.Normalize(axis);
@@ -206,7 +222,7 @@ public sealed partial class LightingEditorController
         {
             return result;
         }
-        Vector3 center = ActiveTool == LightingTransformTool.Orbit ? Pivot : selected.Position;
+        Vector3 center = TransformCenter(selected, ActiveTool);
         Vector2? projectedCenter = project(center);
         if (projectedCenter is null)
         {
@@ -243,6 +259,11 @@ public sealed partial class LightingEditorController
             }
         }
         return result;
+    }
+
+    private Vector3 TransformCenter(FieldLight light, LightingTransformTool tool)
+    {
+        return light.IsSunlight || tool == LightingTransformTool.Orbit ? Pivot : light.Position;
     }
 
     private LightingGizmoSegment? HitGizmo(Vector2 position)

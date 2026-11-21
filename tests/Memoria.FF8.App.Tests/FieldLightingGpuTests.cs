@@ -21,7 +21,7 @@ public sealed class FieldLightingGpuTests
         PixelImage transparent = new(1, 1, [new Rgba32(255, 255, 255, 0)]);
         PixelImage red = new(1, 1, [new Rgba32(255, 0, 0, 255)]);
         PixelImage blue = new(1, 1, [new Rgba32(0, 0, 255, 255)]);
-        FieldSpotLight lamp = Lamp();
+        FieldLight lamp = Lamp();
         FieldLightingScene scene = new() { FieldName = "scene_a", Lights = [lamp], PrimaryLightId = lamp.Id, GroundShadow = new() { Opacity = 1, Softness = 0 } };
         TriangleVertex Caster(float x, float y) => new(Vector2.Zero, 0, 1, Vector2.Zero, Vector4.One) { WorldPosition = new(x, y, 5) };
         FieldShadowTriangle left = new(Caster(-3, -1), Caster(-1, -1), Caster(-3, 1), new(opaque));
@@ -85,8 +85,8 @@ public sealed class FieldLightingGpuTests
     {
         using GpuTestDevice device = new();
         using GpuTriangleRenderer renderer = new(device.Device);
-        FieldSpotLight lamp = Lamp();
-        Color Sample(params FieldSpotLight[] lights)
+        FieldLight lamp = Lamp();
+        Color Sample(params FieldLight[] lights)
         {
             renderer.Begin(64, 64, Vector4.One);
             renderer.SetFieldLighting(new FieldLightingScene { FieldName = "scene_a", Lights = lights });
@@ -107,12 +107,77 @@ public sealed class FieldLightingGpuTests
     }
 
     [Fact]
+    public void Sunlight_has_constant_diffuse_strength_across_the_field()
+    {
+        using GpuTestDevice device = new();
+        using GpuTriangleRenderer renderer = new(device.Device);
+        FieldLight sunlight = new() { Id = "sunlight", Name = "Sunlight", Type = FieldLight.SunlightType, Color = Vector3.UnitX, Direction = Vector3.Normalize(new(1, 0, -1)), Intensity = 0.5f };
+        Color[] Render(FieldLight light)
+        {
+            renderer.Begin(64, 64, Vector4.One);
+            renderer.SetFieldLighting(new FieldLightingScene { FieldName = "scene_a", Lights = [light] });
+            DrawPlane(renderer, 0, 64, 0, new TriangleMaterial(null) { FieldLighting = FieldLightingPass.Model });
+            renderer.End();
+            return GpuTestDevice.Read(renderer.Target);
+        }
+        Color[] pixels = Render(sunlight);
+        int expected = (int)MathF.Round(FieldLightingMath.LinearToSrgb(sunlight.Intensity * -sunlight.Direction.Z) * 255);
+        Assert.All(new[] { pixels[4 * 64 + 4], pixels[32 * 64 + 32], pixels[60 * 64 + 60] }, pixel =>
+        {
+            Assert.InRange((int)pixel.R, expected - 1, expected + 1);
+            Assert.Equal(0, pixel.G);
+            Assert.Equal(0, pixel.B);
+        });
+        Assert.Equal(pixels, Render(sunlight with { Position = new(200, 300, 400), Range = 1, InnerConeDegrees = 1, OuterConeDegrees = 2 }));
+        Assert.Equal(Color.Black, Render(sunlight with { Direction = -sunlight.Direction })[32 * 64 + 32]);
+        Assert.Equal(Color.Black, Render(sunlight with { Enabled = false })[32 * 64 + 32]);
+    }
+
+    [Fact]
+    public void Primary_sunlight_casts_parallel_shadows_onto_downstream_receivers()
+    {
+        using GpuTestDevice device = new();
+        using GpuTriangleRenderer renderer = new(device.Device);
+        PixelImage white = new(1, 1, [new Rgba32(255, 255, 255, 255)]);
+        FieldLight primary = new() { Id = "sunlight", Name = "Sunlight", Type = FieldLight.SunlightType, Color = Vector3.UnitX, Direction = Vector3.Normalize(new(1, 0, -1)), Intensity = 0.5f };
+        FieldLight fill = new() { Id = "fill", Name = "Fill", Type = FieldLight.SunlightType, Color = Vector3.UnitZ, Intensity = 0.5f };
+        FieldLightingScene scene = new() { FieldName = "scene_a", Lights = [primary, fill], PrimaryLightId = primary.Id, GroundShadow = new() { Opacity = 1, Softness = 0 } };
+        TriangleVertex Vertex(float x, float y) => new(Vector2.Zero, 0, 1, Vector2.Zero, Vector4.One) { WorldPosition = new(x, y, 5) };
+        FieldShadowTriangle first = new(Vertex(-3, -1), Vertex(-1, -1), Vertex(-3, 1), new(white));
+        FieldShadowTriangle second = new(Vertex(-1, -1), Vertex(-1, 1), Vertex(-3, 1), new(white));
+        Color[] Render(float z, FieldLightingPass pass, string? primaryId)
+        {
+            renderer.Begin(64, 64, Vector4.One);
+            renderer.SetFieldLighting(scene with { PrimaryLightId = primaryId });
+            Assert.True(renderer.PrepareFieldShadow([first, second], out string? reason, [new(-8, -8, z), new(8, -8, z), new(-8, 8, z), new(8, 8, z)]), reason);
+            TriangleMaterial material = pass == FieldLightingPass.Model ? new(null) : new(null, TriangleBlend.Alpha, DepthWrite: false);
+            DrawPlane(renderer, 0, 64, z, material with { FieldLighting = pass });
+            renderer.End();
+            return GpuTestDevice.Read(renderer.Target);
+        }
+        Color[] ground = Render(0, FieldLightingPass.GroundShadow, primary.Id);
+        Assert.InRange((int)ground[32 * 64 + 44].R, 1, 254);
+        Assert.Equal(Color.White, ground[32 * 64 + 24]);
+        Color[] raised = Render(2, FieldLightingPass.GroundShadow, primary.Id);
+        Assert.Equal(ground[32 * 64 + 44], raised[32 * 64 + 36]);
+        Assert.Equal(Color.White, raised[32 * 64 + 44]);
+        Assert.Equal(Color.White, Render(7, FieldLightingPass.GroundShadow, primary.Id)[32 * 64 + 16]);
+        Assert.Equal(Color.White, Render(0, FieldLightingPass.GroundShadow, null)[32 * 64 + 44]);
+        Color[] lit = Render(0, FieldLightingPass.Model, null);
+        Color[] shadowed = Render(0, FieldLightingPass.Model, primary.Id);
+        Assert.True(lit[32 * 64 + 44].R > 0);
+        Assert.Equal(0, shadowed[32 * 64 + 44].R);
+        Assert.Equal(lit[32 * 64 + 44].B, shadowed[32 * 64 + 44].B);
+        Assert.Equal(lit[32 * 64 + 24], shadowed[32 * 64 + 24]);
+    }
+
+    [Fact]
     public void Perspective_primary_map_unions_casters_and_obeys_receiver_ordering()
     {
         using GpuTestDevice device = new();
         using GpuTriangleRenderer renderer = new(device.Device);
         PixelImage white = new(1, 1, [new Rgba32(255, 255, 255, 255)]);
-        FieldSpotLight lamp = Lamp();
+        FieldLight lamp = Lamp();
         FieldLightingScene scene = new() { FieldName = "scene_a", Lights = [lamp], PrimaryLightId = lamp.Id, GroundShadow = new() { Opacity = 1, Softness = 0 } };
         TriangleVertex Vertex(float x, float y) => new(Vector2.Zero, 0, 1, Vector2.Zero, Vector4.One) { WorldPosition = new(x, y, 5) };
         FieldShadowTriangle first = new(Vertex(-1, -1), Vertex(1, -1), Vertex(-1, 1), new(white));
@@ -149,9 +214,9 @@ public sealed class FieldLightingGpuTests
     {
         using GpuTestDevice device = new();
         using GpuTriangleRenderer renderer = new(device.Device);
-        FieldSpotLight lamp = Lamp();
+        FieldLight lamp = Lamp();
         FieldLightingScene scene = new() { FieldName = "scene_a", Lights = [lamp] };
-        (Color Model, Color Background) Sample(bool gray, bool wrap, Vector3 normal, FieldSpotLight activeLamp)
+        (Color Model, Color Background) Sample(bool gray, bool wrap, Vector3 normal, FieldLight activeLamp)
         {
             renderer.PreviewGrayFieldMaterial = gray;
             renderer.PreviewWrappedFieldDiffuse = wrap;
@@ -175,18 +240,20 @@ public sealed class FieldLightingGpuTests
         Assert.Equal(nativeDiffuse, Sample(false, false, Vector3.UnitZ, lamp));
     }
 
-    private static FieldSpotLight Lamp() => new() { Id = "lamp", Name = "Lamp", Position = new(0, 0, 10), Range = 30 };
+    private static FieldLight Lamp() => new() { Id = "lamp", Name = "Lamp", Position = new(0, 0, 10), Range = 30 };
 
     [Theory]
-    [InlineData(0f)]
-    [InlineData(0.8f)]
-    public void Primary_does_not_occlude_its_own_lamp_facing_surface(float slope)
+    [InlineData(0f, false)]
+    [InlineData(0.8f, false)]
+    [InlineData(0f, true)]
+    [InlineData(0.8f, true)]
+    public void Primary_does_not_occlude_its_own_light_facing_surface(float slope, bool sunlight)
     {
         using GpuTestDevice device = new();
         using GpuTriangleRenderer renderer = new(device.Device);
         PixelImage white = new(1, 1, [new Rgba32(255, 255, 255, 255)]);
-        FieldSpotLight lamp = Lamp();
-        FieldLightingScene scene = new() { FieldName = "scene_a", Lights = [lamp], PrimaryLightId = lamp.Id };
+        FieldLight primary = sunlight ? Lamp() with { Type = FieldLight.SunlightType, Direction = Vector3.Normalize(new(0.5f, 0, -1)) } : Lamp();
+        FieldLightingScene scene = new() { FieldName = "scene_a", Lights = [primary], PrimaryLightId = primary.Id };
         Vector3 normal = Vector3.Normalize(new Vector3(-slope, 0, 1));
         TriangleVertex Vertex(float x, float y) => new(new Vector2(x * 4 + 32, y * 4 + 32), 0.5f, 1, Vector2.Zero, Vector4.One) { WorldPosition = new(x, y, 5 + slope * x), WorldNormal = normal };
         TriangleVertex a = Vertex(-4, -4);

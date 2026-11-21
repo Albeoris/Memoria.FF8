@@ -15,7 +15,7 @@ public sealed class FieldLightingTests : IDisposable
     public void RoundTripRetainsPositionDirectionColorAndDisabledPrimary()
     {
         FieldLightingScene scene = FieldLightingSceneIO.Deserialize(Encoding.UTF8.GetBytes(Valid), "fixture_a");
-        FieldSpotLight light = Assert.Single(scene.Lights);
+        FieldLight light = Assert.Single(scene.Lights);
         Assert.Equal(new Vector3(1, 2, 300), light.Position);
         Assert.Equal(-Vector3.UnitZ, light.Direction);
         Assert.Equal(new Vector3(1, 0.5f, 0.25f), light.Color);
@@ -24,6 +24,25 @@ public sealed class FieldLightingTests : IDisposable
         Assert.False(Assert.Single(roundTrip.Lights).Enabled);
         Assert.Equal("ceiling", roundTrip.PrimaryLightId);
         Assert.Equal(FieldLightingSceneIO.Serialize(scene), FieldLightingSceneIO.Serialize(roundTrip));
+    }
+
+    [Fact]
+    public void MixedLightsRoundTripWithoutPositionalSunlightProperties()
+    {
+        FieldLightingScene original = FieldLightingSceneIO.Deserialize(Encoding.UTF8.GetBytes(Valid));
+        FieldLight sunlight = new() { Id = "sun", Name = "Sun", Type = FieldLight.SunlightType, Color = new(1, 0.8f, 0.6f), Intensity = 0.6f };
+        FieldLightingScene scene = original with { Lights = [original.Lights[0], sunlight], PrimaryLightId = sunlight.Id };
+        byte[] bytes = FieldLightingSceneIO.Serialize(scene);
+        using JsonDocument document = JsonDocument.Parse(bytes);
+        JsonElement light = document.RootElement.GetProperty("lights")[1];
+        Assert.Equal(7, light.EnumerateObject().Count());
+        Assert.Equal("sunlight", light.GetProperty("type").GetString());
+        FieldLightingScene restored = FieldLightingSceneIO.Deserialize(bytes);
+        Assert.Equal(scene.Lights, restored.Lights);
+        Assert.Equal("sun", restored.PrimaryLightId);
+
+        string invalid = Encoding.UTF8.GetString(bytes).Replace("\"type\": \"sunlight\",", "\"type\": \"sunlight\", \"range\": 2,", StringComparison.Ordinal);
+        Assert.Throws<InvalidDataException>(() => FieldLightingSceneIO.Deserialize(Encoding.UTF8.GetBytes(invalid)));
     }
 
     [Fact]
@@ -45,6 +64,7 @@ public sealed class FieldLightingTests : IDisposable
     [InlineData("\"schemaVersion\":1", "\"schemaVersion\":1,\"schemaVersion\":1")]
     [InlineData("\"fieldName\":\"fixture_a\"", "\"fieldName\":\"../fixture_a\"")]
     [InlineData("\"type\":\"spot\"", "\"type\":\"directional\"")]
+    [InlineData("\"type\":\"spot\"", "\"type\":42")]
     [InlineData("\"direction\":[0,0,-1]", "\"direction\":[0,0,0]")]
     [InlineData("\"direction\":[0,0,-1]", "\"direction\":[0,0,-2]")]
     [InlineData("\"position\":[1,2,300]", "\"position\":[1,2,1e100]")]
@@ -73,7 +93,7 @@ public sealed class FieldLightingTests : IDisposable
     [Fact]
     public void EightEnabledLightsAreAllowedAndAdditionalDisabledLightsArePreserved()
     {
-        FieldLightingScene scene = new() { FieldName = "fixture_a", Lights = Enumerable.Range(0, 12).Select(index => new FieldSpotLight { Id = "lamp-" + index, Name = "Lamp " + index, Enabled = index < 8 }).ToArray() };
+        FieldLightingScene scene = new() { FieldName = "fixture_a", Lights = Enumerable.Range(0, 12).Select(index => new FieldLight { Id = "lamp-" + index, Name = "Lamp " + index, Enabled = index < 8 }).ToArray() };
         FieldLightingSceneIO.Validate(scene);
         Assert.Equal(12, FieldLightingSceneIO.Deserialize(FieldLightingSceneIO.Serialize(scene)).Lights.Count);
         Assert.Throws<InvalidDataException>(() => FieldLightingSceneIO.Validate(scene with { Lights = scene.Lights.Select(light => light with { Enabled = true }).ToArray() }));

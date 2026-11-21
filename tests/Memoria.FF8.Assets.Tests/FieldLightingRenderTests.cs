@@ -12,7 +12,7 @@ public sealed class FieldLightingRenderTests
     [Fact]
     public void Spotlight_has_no_ambient_and_uses_actual_distance_direction_and_color()
     {
-        FieldSpotLight light = new() { Id = "lamp", Name = "Lamp", Position = new(0, 0, 10), Range = 20 };
+        FieldLight light = new() { Id = "lamp", Name = "Lamp", Position = new(0, 0, 10), Range = 20 };
         FieldLightingScene scene = new() { FieldName = "scene_a", Lights = [light] };
         Assert.Equal(Vector3.Zero, FieldLightingMath.Illumination(FieldLightingScene.Empty("scene_a"), Vector3.Zero, Vector3.UnitZ));
         Assert.Equal(new Vector3(0.25f), FieldLightingMath.Illumination(scene, Vector3.Zero, Vector3.UnitZ));
@@ -20,6 +20,40 @@ public sealed class FieldLightingRenderTests
         Assert.Equal(0, FieldLightingMath.Influence(light, new Vector3(0, 0, -10)));
         Assert.Equal(0, FieldLightingMath.Influence(light with { Enabled = false }, Vector3.Zero));
         Assert.Equal(Vector3.Zero, FieldLightingMath.Illumination(scene, Vector3.Zero, -Vector3.UnitZ));
+    }
+
+    [Fact]
+    public void Sunlight_is_directional_and_adds_colored_fill_at_any_distance()
+    {
+        FieldLight sun = new() { Id = "sun", Name = "Sun", Type = FieldLight.SunlightType, Intensity = 0.25f, Color = Vector3.UnitX };
+        FieldLight fill = sun with { Id = "fill", Direction = -Vector3.UnitX, Intensity = 0.5f, Color = Vector3.UnitZ };
+        FieldLightingScene scene = new() { FieldName = "scene_a", Lights = [sun, fill], PrimaryLightId = sun.Id };
+        Vector3 normal = Vector3.Normalize(new Vector3(1, 0, 1));
+        Vector3 expected = new Vector3(0.25f, 0, 0.5f) * normal.Z;
+        Vector3 actual = FieldLightingMath.Illumination(scene, Vector3.Zero, normal);
+        Assert.InRange(Vector3.Distance(expected, actual), 0, 0.00001f);
+        Assert.Equal(actual, FieldLightingMath.Illumination(scene, new Vector3(50000, -70000, 90000), normal));
+        Assert.Equal(Vector3.Zero, FieldLightingMath.Illumination(scene, Vector3.Zero, -normal));
+        Assert.Equal(Vector3.Zero, FieldLightingMath.Illumination(scene with { Lights = [sun with { Enabled = false }] }, Vector3.Zero, normal));
+    }
+
+    [Fact]
+    public void Sunlight_shadow_projection_preserves_parallel_rays_and_includes_receiver_depth()
+    {
+        FieldLight sun = new() { Id = "sun", Name = "Sun", Type = FieldLight.SunlightType, Direction = Vector3.Normalize(new(0, 1, -1)) };
+        Vector3 start = new(300, -60, 100);
+        Vector3 receiver = start + sun.Direction * 300;
+        TriangleVertex a = new() { WorldPosition = start };
+        TriangleVertex b = new() { WorldPosition = start + Vector3.UnitX * 10 };
+        TriangleVertex c = new() { WorldPosition = start + Vector3.UnitY * 10 };
+        Matrix4x4 projection = FieldLightingMath.SunlightShadowViewProjection(sun, [new(a, b, c, default)], [receiver]);
+        Vector4 near = Vector4.Transform(new Vector4(start, 1), projection);
+        Vector4 far = Vector4.Transform(new Vector4(receiver, 1), projection);
+        Assert.Equal(1, near.W);
+        Assert.Equal(1, far.W);
+        Assert.InRange(Vector2.Distance(new(near.X, near.Y), new(far.X, far.Y)), 0, 0.0001f);
+        Assert.InRange(near.Z, 0, 0.1f);
+        Assert.InRange(far.Z, 0.9f, 1);
     }
 
     [Fact]
@@ -73,7 +107,7 @@ public sealed class FieldLightingRenderTests
     [Fact]
     public void Shadow_camera_is_perspective_at_actual_lamp_position()
     {
-        FieldSpotLight light = new() { Id = "lamp", Name = "Lamp", Position = new(0, 0, 10), Range = 30 };
+        FieldLight light = new() { Id = "lamp", Name = "Lamp", Position = new(0, 0, 10), Range = 30 };
         Matrix4x4 projection = FieldLightingMath.ShadowViewProjection(light);
         Vector4 near = Vector4.Transform(new Vector4(1, 0, 5, 1), projection);
         Vector4 far = Vector4.Transform(new Vector4(2, 0, 0, 1), projection);
@@ -95,7 +129,7 @@ public sealed class FieldLightingRenderTests
         Assert.Null(backend.Scene);
         Assert.Empty(renderer.LightingShadowStates);
 
-        FieldSpotLight disabled = new() { Id = "lamp", Name = "Lamp", Enabled = false, Position = new(0, 0, 10), Range = 30 };
+        FieldLight disabled = new() { Id = "lamp", Name = "Lamp", Enabled = false, Position = new(0, 0, 10), Range = 30 };
         FieldLightingScene authored = new() { FieldName = field.Name, Lights = [disabled], PrimaryLightId = disabled.Id };
         renderer.ActiveLighting = authored;
         renderer.Render(new Dictionary<int, int>(), [actor], TimeSpan.Zero);
@@ -119,7 +153,7 @@ public sealed class FieldLightingRenderTests
         FieldAssets field = FixtureField(false);
         RecordingLightingBackend backend = new();
         FieldRenderer renderer = new(field) { TriangleRenderer = backend };
-        FieldSpotLight light = new() { Id = "lamp", Name = "Lamp", Position = new(0, 0, 10), Range = 30 };
+        FieldLight light = new() { Id = "lamp", Name = "Lamp", Position = new(0, 0, 10), Range = 30 };
         ActorVisual actor = FixtureActor(0);
         foreach (FieldLightingScene scene in new[]
         {
@@ -142,7 +176,7 @@ public sealed class FieldLightingRenderTests
     {
         FieldAssets field = FixtureField(true);
         RecordingLightingBackend backend = new();
-        FieldSpotLight light = new() { Id = "lamp", Name = "Lamp", Position = new(0, 0, 10), Range = 30 };
+        FieldLight light = new() { Id = "lamp", Name = "Lamp", Position = new(0, 0, 10), Range = 30 };
         FieldRenderer renderer = new(field) { TriangleRenderer = backend, ActiveLighting = new FieldLightingScene { FieldName = field.Name, Lights = [light], PrimaryLightId = light.Id } };
         renderer.Render(new Dictionary<int, int>(), [FixtureActor(0), FixtureActor(1)], TimeSpan.Zero);
         Assert.Equal(2, backend.CasterCount);
@@ -154,13 +188,15 @@ public sealed class FieldLightingRenderTests
         Assert.Equal(0, backend.GroundTriangles);
     }
 
-    [Fact]
-    public void Authored_walls_receive_without_walkmesh_and_coplanar_duplicates_draw_once()
+    [Theory]
+    [InlineData(FieldLight.SpotType, 5)]
+    [InlineData(FieldLight.SunlightType, 5000)]
+    public void Authored_walls_receive_without_walkmesh_and_coplanar_duplicates_draw_once(string lightType, float wallDistance)
     {
         FieldAssets field = FixtureField(false);
         RecordingLightingBackend backend = new();
-        FieldSpotLight light = new() { Id = "lamp", Name = "Lamp", Position = new(0, -10, -1), Direction = Vector3.UnitY, Range = 30 };
-        FieldShadowReceiver wall = new() { Id = "wall", Kind = "wall", Center = new(0, 5, 1), Width = 10, Extent = 8 };
+        FieldLight light = new() { Id = "lamp", Name = "Lamp", Type = lightType, Position = new(0, -10, -1), Direction = Vector3.UnitY, Range = 30 };
+        FieldShadowReceiver wall = new() { Id = "wall", Kind = "wall", Center = new(0, wallDistance, 1), Width = 10, Extent = 8 };
         FieldLightingScene scene = new() { FieldName = field.Name, Lights = [light], PrimaryLightId = light.Id, ShadowReceivers = [wall, wall with { Id = "duplicate" }] };
         FieldRenderer renderer = new(field) { TriangleRenderer = backend, ActiveLighting = scene };
         renderer.Render(new Dictionary<int, int>(), [FixtureActor(0)], TimeSpan.Zero);
@@ -169,7 +205,7 @@ public sealed class FieldLightingRenderTests
         Assert.Equal(2, backend.GroundTriangles);
         Assert.Empty(renderer.LightingNativeShadowReceivers);
 
-        renderer.ActiveLighting = scene with { ShadowReceivers = [wall with { Center = new(25, 5, 1) }] };
+        renderer.ActiveLighting = scene with { ShadowReceivers = [wall with { Center = new(25, wallDistance, 1) }] };
         renderer.Render(new Dictionary<int, int>(), [FixtureActor(0)], TimeSpan.Zero);
         Assert.Equal(FieldActorShadowState.IntentionalNone, renderer.LightingShadowStates[0]);
         Assert.Equal(0, backend.CasterCount);
@@ -181,7 +217,7 @@ public sealed class FieldLightingRenderTests
     {
         FieldAssets field = FixtureField(true);
         RecordingLightingBackend backend = new();
-        FieldSpotLight light = new() { Id = "lamp", Name = "Lamp", Position = new(0, 0, 10), Range = 50 };
+        FieldLight light = new() { Id = "lamp", Name = "Lamp", Position = new(0, 0, 10), Range = 50 };
         FieldShadowReceiver floor = new() { Id = "floor", Kind = "floor", Width = 20, Extent = 10, HeadingDegrees = 32 };
         FieldLightingScene scene = new() { FieldName = field.Name, Lights = [light], PrimaryLightId = light.Id, ShadowReceivers = [floor] };
         FieldRenderer renderer = new(field) { TriangleRenderer = backend, ActiveLighting = scene };
@@ -238,7 +274,7 @@ public sealed class FieldLightingRenderTests
         {
             Scene = scene;
         }
-        public bool PrepareFieldShadow(IReadOnlyList<FieldShadowTriangle> casters, out string? reason)
+        public bool PrepareFieldShadow(IReadOnlyList<FieldShadowTriangle> casters, out string? reason, IReadOnlyList<Vector3>? receivers = null)
         {
             CasterCount = casters.Count;
             reason = null;
