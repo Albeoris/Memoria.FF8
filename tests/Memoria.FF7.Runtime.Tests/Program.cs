@@ -3,6 +3,30 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-crater-scene-admission-original-only", StringComparer.Ordinal))
+{
+    NativeCraterBridgeOriginalTests.RunSceneAdmission();
+    return 0;
+}
+
+if (args.Contains("--native-line-probe-isolation-only", StringComparer.Ordinal))
+{
+    NativeLineProbeIsolationTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-gateway-bridge-preference-only", StringComparer.Ordinal))
+{
+    NativeGatewayBridgePreferenceTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-crater-bridge-original-only", StringComparer.Ordinal))
+{
+    NativeCraterBridgeOriginalTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-kawai11-only", StringComparer.Ordinal))
 {
     NativeKawai11Tests.Run();

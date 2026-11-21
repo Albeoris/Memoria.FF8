@@ -1,4 +1,4 @@
-﻿using Memoria.AutoPlay;
+using Memoria.AutoPlay;
 using Memoria.FF7.Formats;
 
 namespace Memoria.FF7.Runtime;
@@ -16,7 +16,7 @@ public sealed partial class Ff7AutoPlayPolicy
         state.NavigationGoal = next.Goal ?? retained;
     }
 
-    internal static string? ResolveFieldDestinationGoal(Ff7AutoPlayState state, Ff7AutoPlayObservation observation, Func<ushort, int[]>? readConnections = null, Func<Ff7AutoPlayTarget, bool>? canSelect = null, Func<Ff7AutoPlayTarget, Ff7AutoPlayTarget, bool>? canUnblockGateway = null, Func<int, int[]>? readWorldConnections = null, Func<Ff7AutoPlayTarget, string?>? readDepartureSource = null, Func<ushort, Ff7AutoPlayFieldTopology?>? readTopology = null, Ff7Actor? player = null, byte[]? blocked = null, Ff7AutoPlayTarget? prerequisite = null)
+    internal static string? ResolveFieldDestinationGoal(Ff7AutoPlayState state, Ff7AutoPlayObservation observation, Func<ushort, int[]>? readConnections = null, Func<Ff7AutoPlayTarget, bool>? canSelect = null, Func<Ff7AutoPlayTarget, Ff7AutoPlayTarget, bool>? canUnblockGateway = null, Func<int, int[]>? readWorldConnections = null, Func<Ff7AutoPlayTarget, string?>? readDepartureSource = null, Func<ushort, Ff7AutoPlayFieldTopology?>? readTopology = null, Ff7Actor? player = null, byte[]? blocked = null, Ff7AutoPlayTarget? prerequisite = null, Func<Ff7AutoPlayTarget, Ff7AutoPlayTarget, int?>? readGatewayPrerequisiteLength = null)
     {
         if (state.DestinationField is not ushort destination)
         {
@@ -49,7 +49,7 @@ public sealed partial class Ff7AutoPlayPolicy
             }
             if (canUnblockGateway is not null)
             {
-                selected = FindFieldDestinationPrerequisite(state, observation, destination, ReadConnections, canSelect, canUnblockGateway);
+                selected = FindFieldDestinationPrerequisite(state, observation, destination, ReadConnections, canSelect, canUnblockGateway, readGatewayPrerequisiteLength);
             }
             if (selected is null && readTopology is not null && player is not null && blocked is not null)
             {
@@ -119,7 +119,7 @@ public sealed partial class Ff7AutoPlayPolicy
         return null;
     }
 
-    private static Ff7AutoPlayTarget? FindFieldDestinationPrerequisite(Ff7AutoPlayState state, Ff7AutoPlayObservation observation, ushort destination, Func<ushort, int[]> readConnections, Func<Ff7AutoPlayTarget, bool>? canSelect, Func<Ff7AutoPlayTarget, Ff7AutoPlayTarget, bool> canUnblockGateway)
+    private static Ff7AutoPlayTarget? FindFieldDestinationPrerequisite(Ff7AutoPlayState state, Ff7AutoPlayObservation observation, ushort destination, Func<ushort, int[]> readConnections, Func<Ff7AutoPlayTarget, bool>? canSelect, Func<Ff7AutoPlayTarget, Ff7AutoPlayTarget, bool> canUnblockGateway, Func<Ff7AutoPlayTarget, Ff7AutoPlayTarget, int?>? readGatewayPrerequisiteLength)
     {
         Ff7AutoPlayTarget[] producers = observation.Events.Where(target => target.AnalysisComplete && target.MayChangeNavigation && !target.ChangesField && (target.UnblockedTriangles.Length != 0 || target.LadderLandings.Length != 0 || target.TerminalJumpLandings.Length != 0 || target.PossibleJumpLandings.Length != 0) && canSelect?.Invoke(target) != false).Where(target =>
         {
@@ -132,7 +132,7 @@ public sealed partial class Ff7AutoPlayPolicy
             return null;
         }
         var (gateway, _) = FindFieldDestinationAdvice(state, observation with { Events = gateways }, destination, readConnections, null);
-        return gateway is null ? null : producers.First(producer => canUnblockGateway(producer, gateway));
+        return gateway is null ? null : producers.Where(producer => canUnblockGateway(producer, gateway)).OrderBy(producer => readGatewayPrerequisiteLength?.Invoke(producer, gateway) ?? int.MaxValue).First();
     }
 
     internal static bool HasRecordedLocalNavigationStep(Ff7AutoPlayState state, Ff7AutoPlayObservation observation, Ff7AutoPlayTarget target)
@@ -145,23 +145,32 @@ public sealed partial class Ff7AutoPlayPolicy
         return state.DestinationField is not null && state.Coverage.NavigationVisits.Any(visit => visit.Key == observation.NavigationKey && visit.VisitKey == observation.VisitId) && observation.Events.Contains(target) && target.AnalysisComplete && target.MayChangeNavigation && !target.ChangesField && !target.ChangesStory && target.Kind is >= Ff7AutoPlayTargetKind.LineTalk and <= Ff7AutoPlayTargetKind.LineLeave && (target.LadderLandings.Length != 0 || target.PossibleJumpLandings.Length != 0 || target.UnblockedTriangles.Length != 0) && state.Coverage.NavigationRoutes.Any(route => route.SourceKey == observation.NavigationKey && route.EventId == target.Id && route.Route.TargetId == target.Id && route.Route.ConditionSignature == target.ConditionFingerprint && route.Route.DestinationVisitKey != observation.VisitId && state.Coverage.NavigationVisits.Any(visit => visit.Key == route.DestinationKey && visit.VisitKey == route.Route.DestinationVisitKey));
     }
 
-    private bool CanUnblockDestinationGateway(Ff7AutoPlayTarget producer, Ff7AutoPlayTarget gateway, IReadOnlyList<Ff7AutoPlayTarget> targets)
+    private int? ReadDestinationGatewayPrerequisiteLength(Ff7AutoPlayTarget producer, Ff7AutoPlayTarget gateway, IReadOnlyList<Ff7AutoPlayTarget> targets)
     {
         if (gateway.GatewayIndex is not int index || (uint)index >= session.Field.Triggers.Gateways.Count)
         {
-            return false;
+            return null;
         }
         Ff7Actor player = session.Host.Process.Actors.Single(actor => actor.PlayerControlled);
         PcFieldGateway native = session.Field.Triggers.Gateways[index];
-        return CanUnblockFieldGateway(session.Field.Walkmesh, session.Host.Process.BlockedTriangles, player, native, producer.UnblockedTriangles) || CanEstablishFieldGatewayLanding(session.Field.Walkmesh, session.Host.Process.BlockedTriangles, player, native, producer.LadderLandings) || CanEstablishFieldGatewayJumpLanding(session.Field.Walkmesh, session.Host.Process.BlockedTriangles, player, native, producer.TerminalJumpLandings) || CanEstablishFieldGatewayComponentRoute(session.Field.Walkmesh, session.Host.Process.BlockedTriangles, player, native, producer, targets, session.Host.Process.Lines);
+        if (CanUnblockFieldGateway(session.Field.Walkmesh, session.Host.Process.BlockedTriangles, player, native, producer.UnblockedTriangles) || CanEstablishFieldGatewayLanding(session.Field.Walkmesh, session.Host.Process.BlockedTriangles, player, native, producer.LadderLandings) || CanEstablishFieldGatewayJumpLanding(session.Field.Walkmesh, session.Host.Process.BlockedTriangles, player, native, producer.TerminalJumpLandings))
+        {
+            return 1;
+        }
+        return ReadFieldGatewayComponentRouteLength(session.Field.Walkmesh, session.Host.Process.BlockedTriangles, player, native, producer, targets, session.Host.Process.Lines);
     }
 
     internal static bool CanEstablishFieldGatewayComponentRoute(IReadOnlyList<PcWalkmeshTriangle> mesh, byte[] blocked, Ff7Actor player, PcFieldGateway gateway, Ff7AutoPlayTarget first, IReadOnlyList<Ff7AutoPlayTarget> targets, IReadOnlyList<Ff7Line> lines)
     {
+        return ReadFieldGatewayComponentRouteLength(mesh, blocked, player, gateway, first, targets, lines) is not null;
+    }
+
+    internal static int? ReadFieldGatewayComponentRouteLength(IReadOnlyList<PcWalkmeshTriangle> mesh, byte[] blocked, Ff7Actor player, PcFieldGateway gateway, Ff7AutoPlayTarget first, IReadOnlyList<Ff7AutoPlayTarget> targets, IReadOnlyList<Ff7Line> lines)
+    {
         bool Supported(Ff7AutoPlayTarget target) => target.AnalysisComplete && target.MayChangeNavigation && !target.ChangesField && !target.ChangesStory && target.Kind is >= Ff7AutoPlayTargetKind.LineTalk and <= Ff7AutoPlayTargetKind.LineLeave;
         if (!Supported(first) || !targets.Contains(first) || Ff7AutoplayDriver.HasGatewayTopologyPath(mesh, blocked, player, gateway, out _))
         {
-            return false;
+            return null;
         }
         bool Contact(Ff7Actor actor, Ff7AutoPlayTarget target) => lines.Any(line => line.Entity == target.Entity && line.Enabled == 1 && Ff7AutoplayDriver.DiscoverLineContacts(mesh, blocked, actor, line).Count != 0);
         IEnumerable<Ff7Actor> Endpoints(Ff7AutoPlayTarget target)
@@ -185,29 +194,30 @@ public sealed partial class Ff7AutoPlayPolicy
         }
         if (!Contact(player, first))
         {
-            return false;
+            return null;
         }
-        Queue<Ff7Actor> pending = new(Endpoints(first));
+        Queue<(Ff7Actor Actor, int Length)> pending = new(Endpoints(first).Select(actor => (actor, 1)));
         HashSet<int> visited = [player.Triangle];
-        while (pending.TryDequeue(out Ff7Actor? current))
+        while (pending.TryDequeue(out var step))
         {
+            Ff7Actor current = step.Actor;
             if (!visited.Add(current.Triangle))
             {
                 continue;
             }
             if (Ff7AutoplayDriver.HasGatewayTopologyPath(mesh, blocked, current, gateway, out _))
             {
-                return true;
+                return step.Length;
             }
             foreach (Ff7AutoPlayTarget target in targets.Where(Supported).Where(target => Contact(current, target)))
             {
                 foreach (Ff7Actor endpoint in Endpoints(target))
                 {
-                    pending.Enqueue(endpoint);
+                    pending.Enqueue((endpoint, step.Length + 1));
                 }
             }
         }
-        return false;
+        return null;
     }
 
     internal static bool CanEstablishFieldGatewayJumpLanding(IReadOnlyList<PcWalkmeshTriangle> walkmesh, byte[] blockedTriangles, Ff7Actor player, PcFieldGateway gateway, IReadOnlyList<Memoria.FF7.Events.FieldActorJumpLanding> landings)

@@ -438,7 +438,7 @@ public sealed partial class Ff7AutoplayDriver
                         driver.navigationLineTalk = false;
                         Ff7Actor controlled = player with { MoveSpeed = unchecked((ushort)branch.GetPlayerMovementSpeed(run)) };
                         Ff7NativeMoveResult move = branch.Host.Movement!.StepDirection(controlled, unchecked((byte)(direction.Direction + branch.Field.Triggers.ControlDirection)), branch.Host.Process.Actors, branch.Host.Process.BlockedTriangles, false, branch.Host.Process.LineBlocked);
-                        if (!move.Moved || distance[move.Actor.Triangle] > distance[player.Triangle] || distance[move.Actor.Triangle] == distance[player.Triangle] && Vector3.DistanceSquared(Position3D(move.Actor), waypoint) >= Vector3.DistanceSquared(Position3D(player), waypoint) || driver.AllowsPlannedMove(controlled, move))
+                        if (!move.Moved || distance[move.Actor.Triangle] > distance[player.Triangle] || distance[move.Actor.Triangle] == distance[player.Triangle] && Vector3.DistanceSquared(Position3D(move.Actor), waypoint) >= Vector3.DistanceSquared(Position3D(player), waypoint) || driver.ProbePlannedMove(controlled, move))
                         {
                             continue;
                         }
@@ -447,7 +447,7 @@ public sealed partial class Ff7AutoplayDriver
                             try
                             {
                                 driver.navigationLineTargets = protectedTargets.Where(target => target.Entity != entity).ToArray();
-                                if (driver.AllowsPlannedMove(controlled, move))
+                                if (driver.ProbePlannedMove(controlled, move))
                                 {
                                     blocked.Add(entity);
                                 }

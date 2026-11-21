@@ -367,6 +367,19 @@ public sealed partial class Ff7AutoplayDriver
         return true;
     }
 
+    internal bool ProbePlannedMove(Ff7Actor from, Ff7NativeMoveResult move)
+    {
+        bool rejected = navigationLineRejected;
+        try
+        {
+            return AllowsPlannedMove(from, move);
+        }
+        finally
+        {
+            navigationLineRejected = rejected;
+        }
+    }
+
     internal static bool AllowsLineEnterMove(Ff7Line line, Ff7Actor from, Ff7Actor to)
     {
         bool Touches(Ff7Actor actor)
