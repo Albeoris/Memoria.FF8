@@ -3,6 +3,24 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-gaea-icicle-original-only", StringComparer.Ordinal))
+{
+    NativeGaeaIcicleOriginalTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-gaea-icicle-only", StringComparer.Ordinal))
+{
+    NativeGaeaIciclePrerequisiteTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-gaea-icicle-inspect-only", StringComparer.Ordinal))
+{
+    NativeGaeaIcicleOriginalTests.Inspect();
+    return 0;
+}
+
 if (args.Contains("--native-gaea-rock-only", StringComparer.Ordinal))
 {
     NativeGaeaRockPrerequisiteTests.Run();
