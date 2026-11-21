@@ -99,12 +99,18 @@ public sealed partial class Ff7AutoPlayPolicy
         }
         FieldEntitySnapshot entity = vm.Entities[owner.Entity];
         int pc = entity.ProgramCounter;
-        if (entity.Priority != owner.Priority || entity.SyncStates.Length <= owner.Priority || entity.SyncOwners.Length <= owner.Priority || entity.SyncStates[owner.Priority] != FieldSyncState.None || entity.SyncOwners[owner.Priority] != -1 || pc != owner.Entry || pc < 0 || pc + 5 >= script.Length || script[pc] != 0xBC || script[pc + 4] == 0 || script[pc + 5] != 0 || process.PlayerLocked || process.MenuDisabled || process.GlobalCommand != Ff7GlobalCommand.None || process.Join is not null || process.Transition is not null || process.Movie is { Playing: true } || process.Menu is { Completed: false } || process.Dialogues.Any(dialogue => !dialogue.Completed))
+        if (entity.Priority != owner.Priority || entity.SyncStates.Length <= owner.Priority || entity.SyncOwners.Length <= owner.Priority || entity.SyncStates[owner.Priority] != FieldSyncState.None || entity.SyncOwners[owner.Priority] != -1 || pc < owner.Entry || pc < 0 || pc + 3 >= script.Length || process.PlayerLocked || process.MenuDisabled || process.GlobalCommand != Ff7GlobalCommand.None || process.Join is not null || process.Transition is not null || process.Movie is { Playing: true } || process.Menu is { Completed: false } || process.Dialogues.Any(dialogue => !dialogue.Completed))
         {
             return false;
         }
+        FieldAnimation? expected = script[pc] switch
+        {
+            0xA3 when script[pc + 2] != 0 && script[pc + 3] == 0 => new(script[pc + 1], script[pc + 2], true, false),
+            0xBC when pc + 5 < script.Length && script[pc + 4] != 0 && script[pc + 5] == 0 => new(script[pc + 1], script[pc + 4], true, true, FirstFrame: script[pc + 2], LastFrame: script[pc + 3]),
+            _ => null
+        };
         FieldHostRequest[] requests = (vm.PendingRequests ?? []).Where(request => request.Entity == owner.Entity && request.Priority == owner.Priority).ToArray();
-        if (requests is not [{ Command: FieldAnimation animation } request] || request.ProgramCounter != pc || animation != new FieldAnimation(script[pc + 1], script[pc + 4], true, true, FirstFrame: script[pc + 2], LastFrame: script[pc + 3]) || !process.AnimationRequests.Any(item => item.RequestId == request.Id && item.Entity == owner.Entity))
+        if (expected is null || requests is not [{ Command: FieldAnimation animation } request] || request.ProgramCounter != pc || animation != expected || !process.AnimationRequests.Any(item => item.RequestId == request.Id && item.Entity == owner.Entity))
         {
             return false;
         }

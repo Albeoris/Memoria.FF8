@@ -51,7 +51,23 @@ internal static class NativeUnlockedAnimationDebtTests
         FieldHostRequest pending = fixture.Vm.PendingRequests!.Single();
         Check(!Settled(fixture with { Vm = fixture.Vm with { PendingRequests = [pending with { ProgramCounter = 11 }] } }), "A different pending request PC authenticated cosmetic debt.");
         Check(!Settled(fixture with { Vm = fixture.Vm with { PendingRequests = [pending with { Command = new FieldAnimation(9, 1, true, true, FirstFrame: 11, LastFrame: 19) }] } }), "A different typed pending animation authenticated cosmetic debt.");
+        CheckLiteralA3Tail();
         Console.WriteLine("Unlocked superseded player animation debt guards passed without native completion.");
+    }
+
+    private static void CheckLiteralA3Tail()
+    {
+        Fixture fixture = Create();
+        new byte[] { 0x33, 1, 0xA3, 8, 1, 0, 0x80, 0x50, 0, 99 }.CopyTo(fixture.Script, 10);
+        fixture.Vm.Entities[1] = fixture.Vm.Entities[1] with { ProgramCounter = 12 };
+        FieldHostRequest request = new(8, 1, 6, 12, new FieldAnimation(8, 1, true, false));
+        fixture = fixture with { Vm = fixture.Vm with { PendingRequests = [request] } };
+        string before = JsonSerializer.Serialize(fixture);
+        Check(Settled(fixture), "A current literal A3/RET tail after an already executed prefix was not presentation-settled.");
+        Check(before == JsonSerializer.Serialize(fixture), "A3 tail qualification changed native execution.");
+        Check(!Settled(fixture with { Vm = fixture.Vm with { PendingRequests = [request with { Command = new FieldAnimation(8, 1, true, true) }] } }), "A wrong typed A3 pending command was ignored.");
+        fixture.Script[15] = 0x80;
+        Check(!Settled(fixture), "An effectful instruction after A3 was mistaken for its RET footer.");
     }
 
     private static Fixture Create()

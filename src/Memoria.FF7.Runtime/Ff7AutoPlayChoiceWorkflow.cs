@@ -70,7 +70,8 @@ public sealed partial class Ff7AutoPlayChoiceWorkflow
         string owner = ReadOwnerIdentity(before, dialogue, first, last);
         int? navigationPreference = ReadVinesChoicePreference(before, state, dialogue);
         bool tutorialExit = IsNativeTutorialExitPrompt(before, state, dialogue);
-        int? currentPreference = navigationPreference ?? (tutorialExit ? 2 : null);
+        bool glacierMap = IsNativeGlacierMapPrompt(before, state, dialogue);
+        int? currentPreference = navigationPreference ?? (tutorialExit ? 2 : glacierMap ? 1 : null);
         Ff7AutoPlayChoiceState? current = state.Choice;
         string key = current?.OwnerIdentity == owner ? current.Key : before.World is { } world ? Hash(new { Owner = owner, before.Vm.PersistentVariables, Local = world.Vm.Local, Conditions = state.Active?.ConditionFingerprint, Parent = current?.Key, ParentSelections = Selections }) : "field-choice-v2:" + Hash(new { Owner = owner, Visit = state.Active?.VisitId ?? before.FieldName, Conditions = state.Active?.ConditionFingerprint, Parent = current?.Key, ParentSelections = Selections });
         if (tutorialExit && current is not null && current.OwnerIdentity == owner && Coverage(current.Key).ActiveOption == 1 && CanAbandonNativeTutorialCycle(before, state, dialogue, current))
@@ -80,7 +81,7 @@ public sealed partial class Ff7AutoPlayChoiceWorkflow
             current = current with { NativeOwner = ReadNativeChoiceOwner(before, dialogue) };
             state.Choice = current;
         }
-        if (navigationPreference is int preferred && state.Active is { TravelRoute.Selections: { } recipe } proposed && recipe.Skip(proposed.TravelSelections?.Count ?? 0).FirstOrDefault() is { } next && next.Key == key && next.Selection != preferred)
+        if ((navigationPreference is not null || glacierMap) && currentPreference is int preferred && state.Active is { TravelRoute.Selections: { } recipe } proposed && recipe.Skip(proposed.TravelSelections?.Count ?? 0).FirstOrDefault() is { } next && next.Key == key && next.Selection != preferred)
         {
             state.Active = proposed with { TravelRoute = null };
         }
@@ -102,6 +103,10 @@ public sealed partial class Ff7AutoPlayChoiceWorkflow
             if (tutorialExit)
             {
                 Coverage(key).PolicyDeferredOptions.Add(1);
+            }
+            if (glacierMap && !Coverage(key).CompletedOptions.Contains(0))
+            {
+                Coverage(key).PolicyDeferredOptions.Add(0);
             }
             if (planner.PlanChoice(key).Kind == AutoPlayChoiceStepKind.Complete)
             {
@@ -189,6 +194,7 @@ public sealed partial class Ff7AutoPlayChoiceWorkflow
             throw new InvalidOperationException("A choice continuation cannot complete before its selected native option executes.");
         }
         Ff7SessionSave current = capture();
+        bool glacierMapReturned = HasNativeGlacierMapControlReturn(current, state, choice, coverage.ActiveOption, nativeSession is null ? default : nativeSession.Field.Scripts.Data.Span);
         int? beforeStory = choice.BeforeStory ?? (coverage.BeforeCheckpoint is string path ? readCheckpointStory(path) : null);
         bool storyAdvanced = beforeStory is int baseline && ReadStory(current) > baseline;
         string? continuation = coverage.ContinuationCheckpoint;
@@ -198,7 +204,7 @@ public sealed partial class Ff7AutoPlayChoiceWorkflow
             choice = choice with { ContinuationActive = state.Active };
             state.Choice = choice;
         }
-        else
+        else if (!glacierMapReturned)
         {
             continuation = PreferActualContinuation(choice, coverage, current) ?? continuation;
             choice = state.Choice ?? choice;
@@ -206,7 +212,7 @@ public sealed partial class Ff7AutoPlayChoiceWorkflow
         bool tutorialReturned = HasNativeTutorialControlReturn(current, state, choice, coverage.ActiveOption);
         planner.CompleteChoiceAtControlReturn(choice.Key, continuation);
         bool navigationAdvanced = HasCompletedVinesChoiceNavigation(current, state, choice);
-        if (storyAdvanced || navigationAdvanced || tutorialReturned)
+        if (storyAdvanced || navigationAdvanced || tutorialReturned || glacierMapReturned)
         {
             foreach (int option in Enumerable.Range(coverage.FirstOption, coverage.OptionCount).Where(option => !coverage.CompletedOptions.Contains(option)))
             {
@@ -214,7 +220,7 @@ public sealed partial class Ff7AutoPlayChoiceWorkflow
             }
             planner.FinishChoice(choice.Key);
             state.Choice = choice.Parent;
-            state.Status = tutorialReturned ? "The native tutorial returned control; continuing from its actual selected exit." : navigationAdvanced ? "Optional choice alternatives were deferred after the owned native navigation returned control; continuing from the current native state." : "Optional choice alternatives were deferred after native story progress; continuing from the current native state.";
+            state.Status = glacierMapReturned ? "The native Glacier Map award returned control; preserving its actual acquired key item." : tutorialReturned ? "The native tutorial returned control; continuing from its actual selected exit." : navigationAdvanced ? "Optional choice alternatives were deferred after the owned native navigation returned control; continuing from the current native state." : "Optional choice alternatives were deferred after native story progress; continuing from the current native state.";
             return CompleteAtControlReturn();
         }
         AutoPlayChoiceStep next = planner.PlanChoice(choice.Key);
