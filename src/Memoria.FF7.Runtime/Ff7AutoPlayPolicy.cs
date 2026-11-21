@@ -18,6 +18,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
     private readonly Ff7AutoPlayNativeReadiness navigationPreparation = new();
     private readonly Ff7AutoPlayNativeReadiness cameraCompletion = new();
     private readonly Ff7AutoPlayNativeReadiness synchronousTriangleSetup = new();
+    private readonly Ff7AutoPlayNativeReadiness excavationContinuation = new();
     private string? movementEvent;
     private string? ordinaryLegIdentity;
     private (int X, int Y, int Z)? ordinaryLegStart;
@@ -221,6 +222,15 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
                 return default;
             }
             return ChooseWorldInput(driver);
+        }
+        if (Ff7AutoPlayScriptedInput.IsExcavationProgram(session.Machine.ProgramIdentity) && excavationContinuation.ShouldWaitForExcavationBombContinuation(session.FieldGeneration, session.Machine.Capture(), session.Host.Process, session.Field.Scripts.Data.Span))
+        {
+            CancelNativePlanning("native-excavation-bomb-continuation");
+            driver.BeginPlanningStep();
+            controllable = true;
+            State.Status = "Waiting for the admitted native excavation bomb continuation";
+            Publish();
+            return default;
         }
         if (State.NativeRoute is not null && resumedNativePlan is null)
         {

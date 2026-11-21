@@ -3,6 +3,18 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-excavation-continuation-only", StringComparer.Ordinal))
+{
+    NativeExcavationContinuationTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-excavation-continuation-original-only", StringComparer.Ordinal))
+{
+    NativePromptInputOriginalTests.RunBombOwnedContinuation();
+    return 0;
+}
+
 if (args.Contains("--native-excavation-bomb-input-only", StringComparer.Ordinal))
 {
     NativeExcavationBombInputTests.Run();

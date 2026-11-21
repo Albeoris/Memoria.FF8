@@ -6,6 +6,27 @@ public sealed partial class Ff7AutoPlayScriptedInput
 {
     private const string ExcavationProgram = "CB5DD0DE1FCFDBC2FB36AA8B960EEB05A6E46AED03B256712851B87434A5ADDE";
 
+    internal static bool IsExcavationProgram(string programIdentity)
+    {
+        return programIdentity == ExcavationProgram;
+    }
+
+    internal static bool IsExcavationBombContinuation(FieldVmSnapshot vm, Ff7FieldProcess process)
+    {
+        if (!IsExcavationProgram(vm.ProgramIdentity) || vm.Entities.Length <= 2 || vm.MapVariables.Length <= 0x2B || vm.PersistentVariables.Length <= 0xEB || vm.PersistentVariables[0xEB] != 1 || process.GlobalCommand != Ff7GlobalCommand.None || process.Transition is not null || process.Join is not null || process.Movie is { Playing: true })
+        {
+            return false;
+        }
+        FieldEntitySnapshot director = vm.Entities[0];
+        FieldEntitySnapshot worker = vm.Entities[2];
+        if (director.Priority != 7 || director.ProgramCounter != 0x06CD || worker.Priority != 6 || worker.SyncStates.Length <= 6 || worker.SyncOwners.Length <= 6 || worker.SavedProgramCounters.Length <= 7 || worker.SyncStates[6] != FieldSyncState.Waiting || worker.SyncOwners[6] != 0 || worker.SavedProgramCounters[7] != 0x06FD)
+        {
+            return false;
+        }
+        int phase = vm.MapVariables[0x0C];
+        return phase == 2 && worker.ProgramCounter is >= 0x07EE and <= 0x0895 || phase == 1 && worker.ProgramCounter is >= 0x0895 and <= 0x0AB4;
+    }
+
     internal static bool IsExcavationBombInput(FieldVmSnapshot vm, Ff7FieldProcess process, Ff7Dialogue prompt, FieldHostRequest request, FieldScriptInputDemand demand)
     {
         if (vm.ProgramIdentity != ExcavationProgram || demand.ProgramIdentity != ExcavationProgram || demand.Entity != 0 || demand.Priority != 7 || demand.ProgramCounter != 0x06C9 || demand.Kind != FieldScriptInputKind.Pressed || demand.Mapped || demand.Mask != 0x80 || !demand.AwaitingInput || vm.Entities.Length <= 2 || vm.MapVariables.Length <= 0x2B || vm.PersistentVariables.Length <= 0xEB || vm.MapVariables[0x0C] != 2 || vm.MapVariables[0x2B] != 0 || vm.PersistentVariables[0xEB] != 1)

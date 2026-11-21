@@ -29,7 +29,32 @@ internal sealed class Ff7AutoPlayNativeReadiness
         {
             return false;
         }
-        HashSet<int> work = [owner.Entity];
+        HashSet<int> work = ReadSynchronousWork(vm, script, [owner.Entity]);
+        if (!ObserveWork(generation, $"choice:{owner.ProgramIdentity}:{owner.RequestId}:{owner.Entity}:{owner.Priority}", vm, process, work))
+        {
+            throw new NotSupportedException("The admitted native choice continuation did not establish a control-return boundary within its progress bounds.");
+        }
+        return true;
+    }
+
+    internal bool ShouldWaitForExcavationBombContinuation(long generation, FieldVmSnapshot vm, Ff7FieldProcess process, ReadOnlySpan<byte> script)
+    {
+        if (!Ff7AutoPlayScriptedInput.IsExcavationBombContinuation(vm, process) || script.Length <= 0x06CF || script[0x06CD] != 0x03 || script[0x06CE] != 2 || script[0x06CF] != 0xC3)
+        {
+            Reset();
+            return false;
+        }
+        HashSet<int> work = ReadSynchronousWork(vm, script, [0, 2]);
+        if (!ObserveWork(generation, $"excavation-bomb:{vm.ProgramIdentity}", vm, process, work, includeCamera: true))
+        {
+            throw new NotSupportedException("The admitted native excavation bomb continuation did not return within its progress bounds.");
+        }
+        return true;
+    }
+
+    private static HashSet<int> ReadSynchronousWork(FieldVmSnapshot vm, ReadOnlySpan<byte> script, HashSet<int> roots)
+    {
+        HashSet<int> work = roots;
         bool added;
         do
         {
@@ -51,11 +76,7 @@ internal sealed class Ff7AutoPlayNativeReadiness
             }
         }
         while (added);
-        if (!ObserveWork(generation, $"choice:{owner.ProgramIdentity}:{owner.RequestId}:{owner.Entity}:{owner.Priority}", vm, process, work))
-        {
-            throw new NotSupportedException("The admitted native choice continuation did not establish a control-return boundary within its progress bounds.");
-        }
-        return true;
+        return work;
     }
 
     internal bool ShouldWaitForSynchronousTriangleSetup(long generation, string source, FieldVmSnapshot vm, Ff7FieldProcess process, ReadOnlySpan<byte> script, Func<int, int, int> readScriptEntry)

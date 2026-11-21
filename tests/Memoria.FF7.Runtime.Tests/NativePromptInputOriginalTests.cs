@@ -6,6 +6,34 @@ using Memoria.FF7.Runtime;
 
 internal static class NativePromptInputOriginalTests
 {
+    internal static void RunBombOwnedContinuation()
+    {
+        string path = Environment.GetEnvironmentVariable("MEMORIA_FF7_NATIVE_PROMPT_INPUT_SAVE") ?? throw new InvalidOperationException("Select a native admitted excavation continuation fixture.");
+        byte[] bytes = File.ReadAllBytes(path);
+        byte[] hash = SHA256.HashData(bytes);
+        using MemoryStream input = new(bytes, writable: false);
+        using var session = Ff7Session.Restore(Ff7Installation.Discover(Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR")!), CombinedSessionCodec.Read(input).Ff7!);
+        using var policy = new Ff7AutoPlayPolicy(session, (_, _) => throw new InvalidOperationException("The admitted bomb continuation must not create a choice checkpoint."));
+        int outcome = session.Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 0xEA);
+        int harp = session.Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 0xE7);
+        var controller = new Ff7AutoPlayController(session, policy.ChooseInput, advanceTick: () => session.AdvanceTick(advanceClock: false), chooseDialogueSelection: policy.ChooseDialogueSelection);
+        controller.Start();
+        Stopwatch timer = Stopwatch.StartNew();
+        bool ready = false;
+        bool sawMessage = false;
+        for (int polls = 0; polls < 100000 && controller.Steps < 1024 && timer.Elapsed.TotalSeconds < 35 && controller.Error is null && !ready; polls++)
+        {
+            controller.Advance(1);
+            sawMessage |= session.Host.Process.Dialogues.Any(dialogue => dialogue.Text == 31);
+            ready = session.Machine.Variables.ReadByte(FieldBank.MapByte, 0x0C) == 1 && session.Machine.Capture().Entities[2].Priority == 7;
+        }
+        Console.WriteLine($"Original admitted bomb continuation: callbacks={controller.Steps}, seconds={timer.Elapsed.TotalSeconds:F3}, tick={session.Host.Process.Tick}, phase={session.Machine.Variables.ReadByte(FieldBank.MapByte, 0x0C)}, message31={sawMessage}, workerPriority={session.Machine.Capture().Entities[2].Priority}, nextInput={new Ff7AutoPlayScriptedInput(session).ChooseInput()}, physical={controller.PlanningProgress.PhysicalNodes}, detached={controller.PlanningProgress.DetachedNativeCallbacks}, error={controller.Error}");
+        if (!ready || !sawMessage || new Ff7AutoPlayScriptedInput(session).ChooseInput() is not null || controller.Error is not null || session.Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 0xEA) != outcome || session.Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 0xE7) != harp || !hash.AsSpan().SequenceEqual(SHA256.HashData(File.ReadAllBytes(path))))
+        {
+            throw new InvalidOperationException("The admitted bomb continuation did not return normally before the next positional input.");
+        }
+    }
+
     internal static void RunBombContinuation()
     {
         string path = Environment.GetEnvironmentVariable("MEMORIA_FF7_NATIVE_PROMPT_INPUT_SAVE") ?? throw new InvalidOperationException("Select a native excavation bomb fixture.");
