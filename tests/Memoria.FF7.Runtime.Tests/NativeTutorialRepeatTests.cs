@@ -70,7 +70,43 @@ internal static class NativeTutorialRepeatTests
         state.Active = completed with { ExecutionProvenance = completed.ExecutionProvenance! with { RootDispatchTick = 99 } };
         Check(!Complete(returned), "A different root lifetime completed an old choice.");
         Check(choice.NativeSourceOwned == false, "The adapter fabricated native source ownership for an old choice.");
+        CheckDirectTalkRoot();
         Console.WriteLine("Native repeat-tutorial prompt, lifetime and whole-root completion guards passed.");
+    }
+
+    private static void CheckDirectTalkRoot()
+    {
+        Ff7AutoPlayActiveEvent active = new("visit", "talk", "condition", 1, 25, 1, Ff7AutoPlayTargetKind.ActorTalk, null, 0, "before", Accepted: true, NavigationKey: "nav");
+        active = active with { ExecutionProvenance = Ff7AutoPlayExecutionOwners.Begin(active, Program, 0x135E, 20) with { Owners = [new(25, 1, 1, 0x135E, -1, -1, 0, 20, false), new(8, 6, 3, 0x0AC0, 25, 1, 0x13A5, 21, false)] } };
+        FieldEntitySnapshot Ambient() => new(0, 7, 0, new int[8], new FieldSyncState[8], Enumerable.Repeat(-1, 8).ToArray());
+        FieldEntitySnapshot[] entities = Enumerable.Range(0, 26).Select(_ => Ambient()).ToArray();
+        entities[25] = entities[25] with { ProgramCounter = 0x13A5, Priority = 1 };
+        entities[8] = entities[8] with { ProgramCounter = 0x0AD8, Priority = 6 };
+        entities[8].SavedProgramCounters[7] = 12;
+        entities[8].SyncStates[6] = FieldSyncState.Waiting;
+        entities[8].SyncOwners[6] = 25;
+        FieldHostRequest request = new(8, 8, 6, 0x0AD8, new FieldDialogueCommand(2, 30, 1, 2));
+        FieldVmSnapshot vm = new(1, FieldMachine.SemanticProfile, Program, 30, true, new byte[1280], new byte[256], entities, PendingRequests: [request]);
+        Ff7SessionSave source = new() { ResourceProfile = "test", Language = "test", FieldName = "field", FieldGeneration = 1, Progress = new() { InitialKernelData = [], Characters = [], Party = [], Inventory = [], Materia = [] }, Vm = vm, Process = new() { PlayerLocked = true, MenuDisabled = true } };
+        Ff7AutoPlayState state = new() { Active = active };
+        Ff7Dialogue dialogue = new(8, 2, 30, 1, 2, 1);
+        Ff7AutoPlayChoiceState choice = new("direct-choice", active) { NativeSourceOwned = true, NativeOwner = new(1, Program, 8, 8, 6, 0x0AD8, entities[8].SavedProgramCounters.ToArray()) };
+        string before = JsonSerializer.Serialize(new { source, active, choice });
+        Check(Ff7AutoPlayChoiceWorkflow.IsNativeTutorialExitPrompt(source, state, dialogue), "The same actual tutorial ASK under its directly admitted Talk root was excluded.");
+        entities[8].SyncOwners[6] = 10;
+        Check(!Ff7AutoPlayChoiceWorkflow.IsNativeTutorialExitPrompt(source, state, dialogue), "A wrong live sync owner authenticated the direct Talk prompt.");
+        entities[8].SyncOwners[6] = 25;
+        state.Active = active with { Entity = 24 };
+        Check(!Ff7AutoPlayChoiceWorkflow.IsNativeTutorialExitPrompt(source, state, dialogue), "An unrelated root authenticated the direct Talk prompt.");
+        state.Active = active with { ExecutionProvenance = active.ExecutionProvenance! with { Owners = [active.ExecutionProvenance!.Owners[0]] } };
+        Check(!Ff7AutoPlayChoiceWorkflow.IsNativeTutorialExitPrompt(source, state, dialogue), "A missing actual child admission authenticated the direct Talk prompt.");
+        state.Active = active;
+        Check(before == JsonSerializer.Serialize(new { source, active, choice }), "Direct Talk prompt qualification changed native facts or choice ownership.");
+        state.Active = active with { Returned = true, ExecutionProvenance = active.ExecutionProvenance! with { RootReturned = true, Owners = [] } };
+        Ff7SessionSave returned = source with { Vm = vm with { Entities = Enumerable.Range(0, 26).Select(_ => Ambient()).ToArray(), PendingRequests = [] }, Process = new() };
+        Check(Ff7AutoPlayChoiceWorkflow.HasNativeTutorialControlReturn(returned, state, choice, 2), "The actual direct Talk root's exit2/control return was not recognized.");
+        Check(!Ff7AutoPlayChoiceWorkflow.HasNativeTutorialControlReturn(returned, state, choice, 1), "The repeat branch received exit completion credit.");
+        Check(choice.NativeSourceOwned == true, "Direct-root qualification rewrote the existing native ownership marker.");
     }
 
     private static void Check(bool condition, string message)
