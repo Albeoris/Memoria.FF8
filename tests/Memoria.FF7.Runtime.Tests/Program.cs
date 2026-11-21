@@ -3,6 +3,18 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-byte-decrement-only", StringComparer.Ordinal))
+{
+    NativeSaturatingByteDecrementTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-byte-decrement-original-only", StringComparer.Ordinal))
+{
+    NativeSaturatingByteDecrementOriginalTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-whirlwind-tutorial-only", StringComparer.Ordinal))
 {
     NativeWhirlwindTutorialTests.Run();

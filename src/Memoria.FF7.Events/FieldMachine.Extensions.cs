@@ -215,6 +215,10 @@ public sealed partial class FieldMachine
                 Variables.WriteByte(Bank(id, 2), B(id, 2), (byte)Math.Min(255, R8(id, 2, 2) + 1));
                 Advance(id, 3);
                 return false;
+            case 0x7C:
+                Variables.WriteByte(Bank(id, 2), B(id, 2), (byte)Math.Max(0, R8(id, 2, 2) - 1));
+                Advance(id, 3);
+                return false;
             case 0x77:
             {
                 int value = Math.Min(short.MaxValue, R16(id, 1, 2) + R16(id, 2, 3));
