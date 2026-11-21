@@ -67,6 +67,15 @@ public interface IFf7ActorAppearance
         worldVertices = [];
         return false;
     }
+    bool TrySampleVertices(Ff7ActorVisual pose, PcFieldModelDescriptor descriptor, Ff7FieldModelResources original, Vector3 modelLocalScale, out IReadOnlyList<Vector3> worldVertices)
+    {
+        if (modelLocalScale == Vector3.One)
+        {
+            return TrySampleVertices(pose, descriptor, original, out worldVertices);
+        }
+        worldVertices = [];
+        return false;
+    }
     bool TryCreate(Ff7ActorVisual actor, PcFieldModelDescriptor descriptor, Ff7FieldModelResources original, out IReadOnlyList<Ff7AppearanceTriangle> triangles);
 }
 

@@ -51,7 +51,7 @@ internal sealed partial class Ff7Scene
         {
             throw new InvalidDataException("Water appearance colors require their captured native pose.");
         }
-        if (!appearance.SupportsVertexColorBindings || !appearance.TrySampleVertices(pose, descriptor, original, out IReadOnlyList<System.Numerics.Vector3> vertices))
+        if (!appearance.SupportsVertexColorBindings || !appearance.TrySampleVertices(pose, descriptor, original, region.LocalVertexScale, out IReadOnlyList<System.Numerics.Vector3> vertices))
         {
             return effects;
         }
@@ -66,7 +66,8 @@ internal sealed partial class Ff7Scene
                 {
                     throw new InvalidDataException("Water appearance colors require the captured target vertex identity.");
                 }
-                return modified[vertex] ? Ff7NativeColorOffset.Shade(color, parameters.Red, parameters.Green, parameters.Blue) : color;
+                short blue = region.ProfileSix ? Ff7FieldWaterGeometryMath.ProfileSixBlueOffset(parameters.Blue, vertex) : parameters.Blue;
+                return modified[vertex] ? Ff7NativeColorOffset.Shade(color, parameters.Red, parameters.Green, blue) : color;
             }
         };
     }
@@ -76,20 +77,21 @@ internal sealed partial class Ff7Scene
         water.Validate();
         visibility?.Validate();
         Ff7NativeWaterEffectSample sample = water is { OwnsColors: true, DisplayedSample: { } displayed } ? displayed : throw new InvalidDataException("Native water colors require their captured material owner.");
-        Dictionary<int, bool[]> masks = sample.Parts.ToDictionary(part => part.Part, part => part.ModifiedVertices);
+        Dictionary<int, Ff7FieldWaterPartMask> parts = sample.Parts.ToDictionary(part => part.Part);
         return new(part => visibility is null || Ff7NativePartVisibility.PartVisible(visibility, part), null, false)
         {
             SourceVertexColor = (part, vertex, original) =>
             {
-                if (!masks.TryGetValue(part, out bool[]? mask))
+                if (!parts.TryGetValue(part, out Ff7FieldWaterPartMask? sampled))
                 {
                     return original;
                 }
-                if ((uint)vertex >= mask.Length)
+                if ((uint)vertex >= sampled.ModifiedVertices.Length)
                 {
                     throw new InvalidDataException("Native water colors require their original vertex topology.");
                 }
-                return mask[vertex] ? Ff7NativeColorOffset.Shade(original, sample.Parameters.Red, sample.Parameters.Green, sample.Parameters.Blue) : original;
+                short blue = sampled.BlueOffsets?[vertex] ?? sample.Parameters.Blue;
+                return sampled.ModifiedVertices[vertex] ? Ff7NativeColorOffset.Shade(original, sample.Parameters.Red, sample.Parameters.Green, blue) : original;
             }
         };
     }

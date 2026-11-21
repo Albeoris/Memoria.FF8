@@ -42,7 +42,7 @@ public sealed record Ff7NativeWaterEffectState
         {
             throw new InvalidDataException("FFVII water-effect continuation has invalid parameters, model ownership or counters.");
         }
-        if (DisplayedSample is { } sample && (sample.Parameters is null || sample.Parts is null || sample.Parts.Any(part => part is null || part.Part < 0 || part.ModifiedVertices is null) || sample.Parts.Select(part => part.Part).Distinct().Count() != sample.Parts.Length || sample.CycleIndex is < 0 or > 3 || sample.SubcycleIndex is < 0 or > 2))
+        if (DisplayedSample is { } sample && (sample.Parameters is null || sample.Parts is null || sample.Parts.Any(part => part is null || part.Part < 0 || part.ModifiedVertices is null || part.BlueOffsets is { } offsets && offsets.Length != part.ModifiedVertices.Length) || sample.Parts.Select(part => part.Part).Distinct().Count() != sample.Parts.Length || sample.CycleIndex is < 0 or > 3 || sample.SubcycleIndex is < 0 or > 2))
         {
             throw new InvalidDataException("FFVII water-effect color sample has invalid topology or counters.");
         }

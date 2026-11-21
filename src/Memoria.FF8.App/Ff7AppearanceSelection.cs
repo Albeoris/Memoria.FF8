@@ -39,6 +39,13 @@ internal static class Ff7AppearanceSelection
             return profile is not null && profile.TrySampleVertices(pose, descriptor, original, out worldVertices);
         }
 
+        public bool TrySampleVertices(Ff7ActorVisual pose, PcFieldModelDescriptor descriptor, Ff7FieldModelResources original, System.Numerics.Vector3 modelLocalScale, out IReadOnlyList<System.Numerics.Vector3> worldVertices)
+        {
+            worldVertices = [];
+            Ff7ModelAppearance? profile = Select(pose, descriptor, original);
+            return profile is not null && profile.TrySampleVertices(pose, descriptor, original, modelLocalScale, out worldVertices);
+        }
+
         private Ff7ModelAppearance? Select(Ff7ActorVisual actor, PcFieldModelDescriptor descriptor, Ff7FieldModelResources original)
         {
             int character = actor.PartyCharacter is >= 0 and <= 8 ? actor.PartyCharacter : CrossoverCharacterCatalog.IdentifyStoryCharacter(descriptor);

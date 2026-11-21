@@ -3,6 +3,12 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-water-profile-original-only", StringComparer.Ordinal))
+{
+    NativeWaterProfileOriginalTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-main-party-read-only", StringComparer.Ordinal))
 {
     NativeMainPartyReadTests.Run();

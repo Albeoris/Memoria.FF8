@@ -284,7 +284,7 @@ public sealed partial class Ff7FieldHost
                     Ff7FieldWaterGeometry geometry = (NativeWaterGeometryCapture ?? throw new NotSupportedException("FFVII native water application requires the selected original model pose and environment."))(actor, camera, parameters);
                     Ff7NativeModelPresentation configuration = (NativeModelConfiguration ?? throw new NotSupportedException("Native water sampling requires the selected model presentation."))(actor.Slot);
                     Vector3 position = Ff7NativeModelPosition.PresentationPoint(actor, configuration);
-                    sample = new(parameters, geometry.Parts.Select(part => new Ff7FieldWaterPartMask(part.Part, (bool[])part.ModifiedVertices.Clone())).ToArray(), water.CycleIndex, water.SubcycleIndex)
+                    sample = new(parameters, geometry.Parts.Select(part => new Ff7FieldWaterPartMask(part.Part, (bool[])part.ModifiedVertices.Clone()) { BlueOffsets = part.BlueOffsets is null ? null : (short[])part.BlueOffsets.Clone() }).ToArray(), water.CycleIndex, water.SubcycleIndex)
                     {
                         SamplingPose = new(actor.Model, actor.Animation, (actor.AnimationFrame16 >> 4) << 4, checked((byte)actor.Direction), position.X, position.Y, position.Z),
                         ColorRegion = geometry.ColorRegion

@@ -66,7 +66,16 @@ internal sealed partial class Ff7ModelAppearance : IFf7ActorAppearance
         return TryCreateCore(pose with { ModelEffects = null }, descriptor, original, false, out _, out worldVertices);
     }
 
-    private bool TryCreateCore(Ff7ActorVisual actor, PcFieldModelDescriptor descriptor, Ff7FieldModelResources original, bool createTriangles, out IReadOnlyList<Ff7AppearanceTriangle> triangles, out IReadOnlyList<Vector3> worldVertices)
+    public bool TrySampleVertices(Ff7ActorVisual pose, PcFieldModelDescriptor descriptor, Ff7FieldModelResources original, Vector3 modelLocalScale, out IReadOnlyList<Vector3> worldVertices)
+    {
+        if (!float.IsFinite(modelLocalScale.X) || !float.IsFinite(modelLocalScale.Y) || !float.IsFinite(modelLocalScale.Z))
+        {
+            throw new ArgumentException("Appearance effect sampling requires finite model-local scaling.", nameof(modelLocalScale));
+        }
+        return TryCreateCore(pose with { ModelEffects = null }, descriptor, original, false, out _, out worldVertices, modelLocalScale);
+    }
+
+    private bool TryCreateCore(Ff7ActorVisual actor, PcFieldModelDescriptor descriptor, Ff7FieldModelResources original, bool createTriangles, out IReadOnlyList<Ff7AppearanceTriangle> triangles, out IReadOnlyList<Vector3> worldVertices, Vector3? modelLocalScale = null)
     {
         triangles = [];
         worldVertices = [];
@@ -74,7 +83,7 @@ internal sealed partial class Ff7ModelAppearance : IFf7ActorAppearance
         {
             if (variants.TryGetValue(Path.GetFileName(descriptor.Hrc), out Ff7ModelAppearance? variant))
             {
-                return variant.TryCreateCore(actor, descriptor, original, createTriangles, out triangles, out worldVertices);
+                return variant.TryCreateCore(actor, descriptor, original, createTriangles, out triangles, out worldVertices, modelLocalScale);
             }
             if (actor.PartyCharacter == 0)
             {
@@ -168,7 +177,7 @@ internal sealed partial class Ff7ModelAppearance : IFf7ActorAppearance
             }
         }
         Matrix4x4 world = targetToFf7 * Matrix4x4.CreateScale(descriptorRatio) * Matrix4x4.CreateRotationZ(actor.Direction * MathF.Tau / 256) * Matrix4x4.CreateTranslation(actor.X4096 / 4096f, actor.Y4096 / 4096f, actor.Z4096 / 4096f);
-        Vector3[] vertices = posed.Select(vertex => Vector3.Transform(vertex, world)).ToArray();
+        Vector3[] vertices = posed.Select(vertex => Vector3.Transform(vertex * (modelLocalScale ?? Vector3.One), world)).ToArray();
         worldVertices = Array.AsReadOnly(vertices);
         if (!createTriangles)
         {

@@ -13,7 +13,7 @@ public sealed partial class Ff7FieldRenderer
         {
             throw new InvalidDataException("Appearance vertex colors require a committed native pose, independent of presentation interpolation.");
         }
-        if (!appearance.SupportsVertexColorBindings || !appearance.TrySampleVertices(pose, descriptor, original, out IReadOnlyList<Vector3> positions))
+        if (!appearance.SupportsVertexColorBindings || !appearance.TrySampleVertices(pose, descriptor, original, region.LocalVertexScale, out IReadOnlyList<Vector3> positions))
         {
             throw new NotSupportedException("The selected appearance requires an explicit committed-pose vertex-color sampling binding.");
         }
