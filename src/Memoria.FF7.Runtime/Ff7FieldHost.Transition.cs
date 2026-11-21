@@ -11,9 +11,10 @@ public sealed partial class Ff7FieldHost
 
     public Ff7FieldProcess CreateNextFieldProcess(ushort? previousMap = null)
     {
-        int current = NormalizeNativeMusicTrack(Process.NativeMusicTrack ?? (Process.Music is null || Process.Music.Track < 0 ? 0 : ResolveNativeMusicTrack(Process.Music.Track)));
-        int target = Process.NextFieldMusicTrack < 0 ? current : NormalizeNativeMusicTrack(ResolveNativeMusicTrack(Process.NextFieldMusicTrack));
-        int? saved = Process.SavedNativeMusicTrack ?? (Process.SavedMusicTrack < 0 ? null : NormalizeNativeMusicTrack(ResolveNativeMusicTrack(Process.SavedMusicTrack)));
+        int current = ReadNativeMusicPlaybackTrack();
+        int requested = Process.NextFieldMusicTrack < 0 ? Process.NativeMusicRequest ?? current : ResolveNativeMusicTrack(Process.NextFieldMusicTrack);
+        int target = Process.NextFieldMusicTrack < 0 ? current : requested is >= 0 and <= 98 ? NormalizeNativeMusicTrack(requested) : current;
+        int? saved = Process.SavedNativeMusicTrack ?? (Process.SavedMusicTrack < 0 ? null : ResolveNativeMusicTrack(Process.SavedMusicTrack));
         return new Ff7FieldProcess
         {
             Windows = Enumerable.Range(0, 4).Select(id => Ff7Window.CreateDefault(id) with { NativeNumber = Process.Windows.SingleOrDefault(window => window.Id == id)?.NativeNumber ?? 0 }).ToArray(),
@@ -21,6 +22,7 @@ public sealed partial class Ff7FieldHost
             BlinkRandomIndex = Process.BlinkRandomIndex,
             BlinkStateInitialized = true,
             NativeMusicTrack = target,
+            NativeMusicRequest = requested,
             MusicTicks = target == current ? Process.MusicTicks : 0,
             SavedNativeMusicTrack = saved,
             MusicVolume = Process.MusicVolume,

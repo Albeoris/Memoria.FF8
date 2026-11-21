@@ -215,6 +215,8 @@ public sealed record Ff7FieldProcess
     public byte MusicLock { get; init; }
     public long MusicTicks { get; init; }
     public int? NativeMusicTrack { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public int? NativeMusicRequest { get; init; }
     public int? SavedNativeMusicTrack { get; init; }
     public int MusicVolume { get; init; } = 127;
     public Ff7MusicVolumeFade? MusicVolumeFade { get; init; }
@@ -343,7 +345,7 @@ public sealed record Ff7FieldProcess
         {
             throw new InvalidDataException("The pending native MIDI transition has invalid track, phase or gain ownership.");
         }
-        if (MusicTicks < 0 || NativeMusicTrack is < 0 or > 98 || SavedNativeMusicTrack is < 0 or > 98 || MusicVolume is < 0 or > 127)
+        if (MusicTicks < 0 || NativeMusicTrack is < 0 or > 98 || SavedNativeMusicTrack is < -1 or > 254 || NativeMusicRequest is < -1 or > 254 || MusicVolume is < 0 or > 127)
         {
             throw new InvalidDataException("FFVII music continuation has invalid native track, clock or volume state.");
         }

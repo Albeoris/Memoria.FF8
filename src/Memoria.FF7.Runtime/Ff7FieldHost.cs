@@ -376,7 +376,7 @@ public sealed partial class Ff7FieldHost : IFieldHost
             Process = Process with { FadeState = next, NewFadeOrigin = origin };
         }
         AdvanceBlink();
-        Process = Process with { Tick = Process.Tick + 1, MusicTicks = Process.NativeMusicTrack == 0 || Process.NativeMusicTrack is null && Process.Music is null ? Process.MusicTicks : Process.MusicTicks + 1 };
+        Process = Process with { Tick = Process.Tick + 1, MusicTicks = ReadNativeMusicPlaybackTrack() == 0 ? Process.MusicTicks : Process.MusicTicks + 1 };
     }
 
     public void PublishMovieFrame(int frame, bool completed)

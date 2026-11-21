@@ -78,11 +78,17 @@ public sealed partial class Ff7FieldHost
         }
         int offset = checked((int)field.Scripts.AkaoOffsets[localTrack]);
         ReadOnlySpan<byte> data = field.Scripts.Data.Span;
-        if (offset > data.Length - 5 || !data.Slice(offset, 4).SequenceEqual("AKAO"u8) || data[offset + 4] == 0)
+        if (offset > data.Length - 5)
         {
-            throw new InvalidDataException("FFVII local music requires a bounded original AKAO header and nonzero native ID.");
+            throw new InvalidDataException("FFVII local music ID exceeds its original section bounds.");
         }
         return data[offset + 4] - 1;
+    }
+
+    private int ReadNativeMusicPlaybackTrack()
+    {
+        int track = Process.NativeMusicTrack ?? (Process.Music is null || Process.Music.Track < 0 ? 0 : ResolveNativeMusicTrack(Process.Music.Track));
+        return track is >= 0 and <= 98 ? NormalizeNativeMusicTrack(track) : 0;
     }
 
     public static int NormalizeNativeMusicTrack(int track)
@@ -144,16 +150,24 @@ public sealed partial class Ff7FieldHost
             Process = Process with { NextBattleMusicTrack = music.Track };
             return;
         }
-        int current = Process.NativeMusicTrack ?? (Process.Music is null || Process.Music.Track < 0 ? 0 : ResolveNativeMusicTrack(Process.Music.Track));
+        int current = ReadNativeMusicPlaybackTrack();
         int target = music.Operation == FieldMusicOperation.SwapSaved ? Process.SavedNativeMusicTrack ?? (Process.SavedMusicTrack < 0 ? 0 : ResolveNativeMusicTrack(Process.SavedMusicTrack)) : ResolveNativeMusicTrack(music.Track);
         Process = music.Operation switch
         {
             FieldMusicOperation.Play => Process with { Music = music },
-            FieldMusicOperation.SaveCurrentAndPlay => Process with { SavedMusicTrack = Process.Music?.Track ?? -1, SavedNativeMusicTrack = current, Music = music },
-            FieldMusicOperation.SwapSaved => Process with { SavedMusicTrack = Process.Music?.Track ?? -1, SavedNativeMusicTrack = current, Music = new FieldMusicCommand(FieldMusicOperation.Play, Process.SavedMusicTrack) },
+            FieldMusicOperation.SaveCurrentAndPlay => Process with { SavedMusicTrack = Process.Music?.Track ?? -1, SavedNativeMusicTrack = Process.NativeMusicRequest ?? current, Music = music },
+            FieldMusicOperation.SwapSaved => Process with { SavedMusicTrack = Process.Music?.Track ?? -1, SavedNativeMusicTrack = Process.NativeMusicRequest ?? current, Music = new FieldMusicCommand(FieldMusicOperation.Play, Process.SavedMusicTrack) },
             _ => throw new NotSupportedException("Unsupported FFVII music operation.")
         };
-        PlayNativeMusic(target);
+        Process = Process with { NativeMusicRequest = target };
+        if (target is >= 0 and <= 98)
+        {
+            PlayNativeMusic(target);
+        }
+        else if (Process.NativeMusicTrack is null)
+        {
+            Process = Process with { NativeMusicTrack = current };
+        }
     }
 
     private void ApplyAudio(FieldAudioCommand audio)

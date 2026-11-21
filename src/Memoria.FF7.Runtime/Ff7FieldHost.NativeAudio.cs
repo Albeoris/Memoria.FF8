@@ -14,8 +14,8 @@ public sealed partial class Ff7FieldHost
 
     public bool ReadNativeMusicPlaying()
     {
-        int track = Process.NativeMusicTrack ?? (Process.Music is null || Process.Music.Track < 0 ? 0 : ResolveNativeMusicTrack(Process.Music.Track));
-        return track != 0 && DescribeNativeMusic(track).IsPlaying(Process.MusicTicks);
+        int track = ReadNativeMusicPlaybackTrack();
+        return track is > 0 and <= 98 && DescribeNativeMusic(track).IsPlaying(Process.MusicTicks);
     }
 
     /// <summary>Publishes a native module audio command through the shared FFVII audio owner.</summary>
@@ -37,6 +37,10 @@ public sealed partial class Ff7FieldHost
     {
         if (command.Operation is 0x10 or 0x14 or 0x18)
         {
+            if (command.Operation == 0x10 && command.Parameter0 is < 0 or > 98)
+            {
+                return;
+            }
             int track = NormalizeNativeMusicTrack(command.Parameter0);
             if (command.Operation == 0x18)
             {
