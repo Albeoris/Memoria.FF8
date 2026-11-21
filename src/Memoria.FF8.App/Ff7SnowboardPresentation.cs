@@ -28,60 +28,66 @@ internal sealed class Ff7SnowboardPresentation
 
     public void Render(ITriangleRenderer renderer, Ff7SnowboardFrame frame, int width, int height)
     {
-        renderer.Begin(width, height, new(0, 0, 0, 1));
-        foreach (Ff7SnowboardModelInstance instance in frame.Instances)
+        renderer.Begin(width, height, new(1, 1, 1, 0));
+        try
         {
-            if ((uint)instance.ModelIndex >= model.Objects.Count)
+            foreach (Ff7SnowboardModelInstance instance in frame.Instances)
             {
-                throw new InvalidDataException("Snowboard draw references an invalid native model.");
+                if ((uint)instance.ModelIndex >= model.Objects.Count)
+                {
+                    throw new InvalidDataException("Snowboard draw references an invalid native model.");
+                }
+                PcSnowboardObject source = model.Objects[instance.ModelIndex];
+                Matrix4x4 transform = instance.Transform * frame.View * frame.Projection;
+                Vector4[] vertices = source.Vertices.Select(vertex => Vector4.Transform(new Vector4(vertex.X, vertex.Y, vertex.Z, 1), transform)).ToArray();
+                foreach (PcSnowboardPrimitive primitive in source.Primitives)
+                {
+                    IReadOnlyList<uint> words = primitive.Words;
+                    int kind = instance.NativePrimitiveKind;
+                    int indexWord = kind == 2 ? 4 : 3;
+                    if (kind is < 0 or > 3 || words.Count <= indexWord + 1)
+                    {
+                        throw new InvalidDataException($"Unsupported native snowboard primitive layout: model {instance.ModelIndex}, kind {kind}, mode {primitive.Mode:X2}, words {words.Count}.");
+                    }
+                    int a = (ushort)words[indexWord];
+                    int b = (ushort)words[indexWord + 1];
+                    int c = (ushort)(words[indexWord] >> 16);
+                    if ((uint)a >= vertices.Length || (uint)b >= vertices.Length || (uint)c >= vertices.Length)
+                    {
+                        throw new InvalidDataException("Snowboard primitive vertex index exceeds its model.");
+                    }
+                    TriangleMaterial material = Solid;
+                    Vector2 uvA = default;
+                    Vector2 uvB = default;
+                    Vector2 uvC = default;
+                    Vector4 colorA;
+                    Vector4 colorB;
+                    Vector4 colorC;
+                    if (kind == 2)
+                    {
+                        (material, uvA, uvB, uvC, colorA) = Texture(words, instance.DrawArgument);
+                        colorB = colorA;
+                        colorC = colorA;
+                    }
+                    else
+                    {
+                        colorA = Color(words[0], kind, instance.DrawArgument, vertices[a].Z);
+                        colorB = Color(words[2], kind, instance.DrawArgument, vertices[b].Z);
+                        colorC = Color(words[1], kind, instance.DrawArgument, vertices[c].Z);
+                    }
+                    Submit(renderer, new(vertices[a], uvA, colorA), new(vertices[b], uvB, colorB), new(vertices[c], uvC, colorC), material, width, height);
+                }
             }
-            PcSnowboardObject source = model.Objects[instance.ModelIndex];
-            Matrix4x4 transform = instance.Transform * frame.View * frame.Projection;
-            Vector4[] vertices = source.Vertices.Select(vertex => Vector4.Transform(new Vector4(vertex.X, vertex.Y, vertex.Z, 1), transform)).ToArray();
-            foreach (PcSnowboardPrimitive primitive in source.Primitives)
+            if (frame.OverlayArgb is uint overlay)
             {
-                IReadOnlyList<uint> words = primitive.Words;
-                int kind = instance.NativePrimitiveKind;
-                int indexWord = kind == 2 ? 4 : 3;
-                if (kind is < 0 or > 3 || words.Count <= indexWord + 1)
-                {
-                    throw new InvalidDataException("Unsupported native snowboard primitive layout.");
-                }
-                int a = (ushort)words[indexWord];
-                int b = (ushort)words[indexWord + 1];
-                int c = (ushort)(words[indexWord] >> 16);
-                if ((uint)a >= vertices.Length || (uint)b >= vertices.Length || (uint)c >= vertices.Length)
-                {
-                    throw new InvalidDataException("Snowboard primitive vertex index exceeds its model.");
-                }
-                TriangleMaterial material = Solid;
-                Vector2 uvA = default;
-                Vector2 uvB = default;
-                Vector2 uvC = default;
-                Vector4 colorA;
-                Vector4 colorB;
-                Vector4 colorC;
-                if (kind == 2)
-                {
-                    (material, uvA, uvB, uvC, colorA) = Texture(words, instance.DrawArgument);
-                    colorB = colorA;
-                    colorC = colorA;
-                }
-                else
-                {
-                    colorA = Color(words[0], kind, instance.DrawArgument, vertices[a].Z);
-                    colorB = Color(words[2], kind, instance.DrawArgument, vertices[b].Z);
-                    colorC = Color(words[1], kind, instance.DrawArgument, vertices[c].Z);
-                }
-                Submit(renderer, new(vertices[a], uvA, colorA), new(vertices[b], uvB, colorB), new(vertices[c], uvC, colorC), material, width, height);
+                TriangleMaterial material = new(null, TriangleBlend.Alpha, TriangleDepthComparison.Always, false, MinimumAlpha: 0);
+                TrianglePrimitives.Quad(renderer, Vector2.Zero, new(width, height), 0, Argb(overlay), material, Vector2.One);
             }
         }
-        if (frame.OverlayArgb is uint overlay)
+        finally
         {
-            TriangleMaterial material = new(null, TriangleBlend.Alpha, TriangleDepthComparison.Always, false, MinimumAlpha: 0);
-            TrianglePrimitives.Quad(renderer, Vector2.Zero, new(width, height), 0, Argb(overlay), material, Vector2.One);
+            renderer.End();
         }
-        renderer.End();
     }
 
     private (TriangleMaterial Material, Vector2 A, Vector2 B, Vector2 C, Vector4 Color) Texture(IReadOnlyList<uint> words, int argument)
@@ -186,7 +192,7 @@ internal sealed class Ff7SnowboardPresentation
             TriangleVertex y = Project(first[index]);
             TriangleVertex z = Project(first[index + 1]);
             float area = (y.Position.X - x.Position.X) * (z.Position.Y - x.Position.Y) - (y.Position.Y - x.Position.Y) * (z.Position.X - x.Position.X);
-            if (area > 0)
+            if (area < 0)
             {
                 renderer.Draw(x, y, z, material);
             }
@@ -195,7 +201,7 @@ internal sealed class Ff7SnowboardPresentation
         TriangleVertex Project(Vertex vertex)
         {
             float reciprocal = 1 / vertex.Clip.W;
-            return new(new((vertex.Clip.X * reciprocal + 1) * width / 2, (1 - vertex.Clip.Y * reciprocal) * height / 2), vertex.Clip.Z * reciprocal, reciprocal, vertex.Uv, vertex.Color);
+            return new(new((vertex.Clip.X * reciprocal + 1) * width / 2, (1 - vertex.Clip.Y * reciprocal) * height / 2), Math.Clamp(vertex.Clip.Z * reciprocal, 0, 1), reciprocal, vertex.Uv, vertex.Color);
         }
 
         static float Distance(Vector4 value, int plane)

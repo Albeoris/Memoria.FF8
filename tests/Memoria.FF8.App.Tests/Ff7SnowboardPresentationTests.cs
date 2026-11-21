@@ -14,6 +14,7 @@ public sealed class Ff7SnowboardPresentationTests
     {
         Capture renderer = Render(128, 128, 128);
         Assert.Equal(1, renderer.Triangles);
+        Assert.Equal(new Vector4(1, 1, 1, 0), renderer.ClearColor);
         Assert.Equal(new Vector4(1, 0, 0, 1), renderer.Colors[0]);
         Assert.Equal(new Vector4(0, 0, 1, 1), renderer.Colors[1]);
         Assert.Equal(new Vector4(0, 1, 0, 1), renderer.Colors[2]);
@@ -26,7 +27,21 @@ public sealed class Ff7SnowboardPresentationTests
         Assert.Equal(0, Render(32, 32, 32).Triangles);
     }
 
-    private static Capture Render(short firstZ, short secondZ, short thirdZ)
+    [Fact]
+    public void InvalidPrimitiveStillEndsTheRenderer()
+    {
+        Capture renderer = new();
+        Assert.Throws<InvalidDataException>(() => Render(128, 128, 128, 4, renderer));
+        Assert.True(renderer.Ended);
+    }
+
+    [Fact]
+    public void NativeUpwardGroundFacesTheCamera()
+    {
+        Assert.Equal(1, Render(0, 0, 0, nativeGround: true).Triangles);
+    }
+
+    private static Capture Render(short firstZ, short secondZ, short thirdZ, int kind = 0, Capture? renderer = null, bool nativeGround = false)
     {
         byte[] bytes = new byte[88];
         UInt(0, 0x41);
@@ -36,8 +51,16 @@ public sealed class Ff7SnowboardPresentationTests
         UInt(28, 52);
         UInt(32, 1);
         Vertex(40, -32, -32, firstZ);
-        Vertex(48, -32, 32, secondZ);
-        Vertex(56, 32, -32, thirdZ);
+        Vertex(48, 32, -32, secondZ);
+        Vertex(56, -32, 32, thirdZ);
+        Matrix4x4 view = Matrix4x4.Identity;
+        if (nativeGround)
+        {
+            Vertex(40, 2250, -364, 0);
+            Vertex(48, 1781, -121, -254);
+            Vertex(56, 1671, -130, 0);
+            view = Ff7SnowboardCamera.CreateView(new Vector3(1900, -200, -128) * 4096, Vector3.Zero, new(0, 256, 1024), 0, 2048, 0, 0);
+        }
         bytes[64] = 6;
         bytes[65] = 5;
         bytes[67] = 0x30;
@@ -48,8 +71,8 @@ public sealed class Ff7SnowboardPresentationTests
         UInt(84, 2);
         Ff7SnowboardAssets assets = new(PcSnowboardModel.Read(bytes), new Dictionary<string, PcTexture>());
         Ff7SnowboardPresentation presentation = new(assets, Array.Empty<Ff7SnowboardTextureBinding>());
-        Ff7SnowboardFrame frame = new(0, Ff7SnowboardPhase.Playing, Vector3.Zero, Matrix4x4.Identity, Ff7SnowboardCamera.CreateProjection(640, 480), [new(0, Matrix4x4.Identity)], 0, 0, 0, 0);
-        Capture renderer = new();
+        Ff7SnowboardFrame frame = new(0, Ff7SnowboardPhase.Playing, Vector3.Zero, view, Ff7SnowboardCamera.CreateProjection(640, 480), [new(0, Matrix4x4.Identity) { NativePrimitiveKind = kind }], 0, 0, 0, 0);
+        renderer ??= new();
         presentation.Render(renderer, frame, 640, 480);
         return renderer;
 
@@ -69,10 +92,13 @@ public sealed class Ff7SnowboardPresentationTests
     private sealed class Capture : ITriangleRenderer
     {
         internal int Triangles { get; private set; }
+        internal bool Ended { get; private set; }
+        internal Vector4 ClearColor { get; private set; }
         internal List<Vector4> Colors { get; } = [];
 
         public void Begin(int width, int height, Vector4 clearColor, float clearDepth = 1)
         {
+            ClearColor = clearColor;
         }
 
         public void Draw(in TriangleVertex a, in TriangleVertex b, in TriangleVertex c, in TriangleMaterial material)
@@ -86,6 +112,7 @@ public sealed class Ff7SnowboardPresentationTests
 
         public void End()
         {
+            Ended = true;
         }
     }
 }
