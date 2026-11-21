@@ -5,7 +5,7 @@ namespace Memoria.FF7.Runtime;
 
 public sealed partial class Ff7AutoPlayDiscovery
 {
-    private bool CanOfferGateway(PcFieldGateway gateway)
+    private bool CanOfferGateway(PcFieldGateway gateway, IReadOnlyList<Ff7AutoPlayTarget> targets)
     {
         Ff7FieldProcess process = session.Host.Process;
         Ff7Actor? player = process.Actors.SingleOrDefault(actor => actor.PlayerControlled);
@@ -14,7 +14,12 @@ public sealed partial class Ff7AutoPlayDiscovery
             return true;
         }
         int speed = Math.Max(unchecked((ushort)session.GetPlayerMovementSpeed(true)), unchecked((ushort)session.GetPlayerMovementSpeed(false)));
-        return ReadGatewayCrossingAvailability(session.Field.Walkmesh, process.BlockedTriangles, player, gateway, Ff7NativeMovement.ReadMaximumPlanarStep(speed)) != false;
+        return CanOfferGatewayWithComponentRoute(ReadGatewayCrossingAvailability(session.Field.Walkmesh, process.BlockedTriangles, player, gateway, Ff7NativeMovement.ReadMaximumPlanarStep(speed)), session.Field.Walkmesh, process.BlockedTriangles, player, gateway, targets, process.Lines);
+    }
+
+    internal static bool CanOfferGatewayWithComponentRoute(bool? directAvailability, IReadOnlyList<PcWalkmeshTriangle> mesh, byte[] blocked, Ff7Actor player, PcFieldGateway gateway, IReadOnlyList<Ff7AutoPlayTarget> targets, IReadOnlyList<Ff7Line> lines)
+    {
+        return directAvailability != false || targets.Any(target => Ff7AutoPlayPolicy.CanEstablishFieldGatewayComponentRoute(mesh, blocked, player, gateway, target, targets, lines));
     }
 
     internal static bool? ReadGatewayCrossingAvailability(IReadOnlyList<PcWalkmeshTriangle> mesh, byte[] blocked, Ff7Actor player, PcFieldGateway gateway, int maximumStep)

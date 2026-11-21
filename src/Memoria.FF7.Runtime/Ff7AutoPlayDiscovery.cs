@@ -214,7 +214,7 @@ public sealed partial class Ff7AutoPlayDiscovery(Ff7Session session)
                 {
                     continue;
                 }
-                if (!CanOfferGateway(gateway))
+                if (!CanOfferGateway(gateway, events))
                 {
                     continue;
                 }
