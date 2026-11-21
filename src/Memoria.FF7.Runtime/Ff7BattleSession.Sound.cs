@@ -107,7 +107,11 @@ public sealed partial class Ff7BattleSession
             }
             StartHitmark(impact.Target, style);
         }
-        Ff7BattleSecondaryState secondary = Ff7BattleSecondaryEffects.Advance(state.SecondaryEffects!, SecondaryActorPoint, slot => new(0, (short)VisualPlacement(slot).Yaw, 0), random.NextCrt, slot => (ImpactAnchor(slot), CollisionRadius(slot)));
+        Ff7BattleSecondaryState secondary = Ff7BattleSecondaryEffects.Advance(state.SecondaryEffects!, SecondaryActorPoint, slot => new(0, (short)VisualPlacement(slot).Yaw, 0), random.NextCrt, slot => (ImpactAnchor(slot), CollisionRadius(slot)), callback =>
+        {
+            var script = animations.ActorUvAnimation(callback.Model, callback.Selector);
+            return (ActorModelState(callback.Actor).UvAnimationGeneration, script.Allocation, script.Offset);
+        });
         state = state with { SecondaryEffects = secondary, Sounds = before with { DueImpacts = [], PendingHitmarks = [], DueEffects = [] } };
         foreach (Ff7BattleActorModelWrite write in secondary.ActorWrites)
         {

@@ -4,6 +4,7 @@ using System.Text.Json.Serialization;
 namespace Memoria.FF7.Formats;
 
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "Callback")]
+[JsonDerivedType(typeof(Ff7BattleActorUvAnimationCallback), "ActorUvAnimation")]
 [JsonDerivedType(typeof(Ff7BattleGunEmitter), "GunEmitter")]
 [JsonDerivedType(typeof(Ff7BattleGunMuzzleCallback), "GunMuzzle")]
 [JsonDerivedType(typeof(Ff7BattleGunCasingCallback), "GunCasing")]
@@ -26,6 +27,8 @@ public abstract record Ff7BattleSecondaryCallback
 {
     public int Age { get; init; }
 }
+
+public sealed record Ff7BattleActorUvAnimationCallback(int Actor, string Model, byte Selector, BattleActorUvAnimationState State) : Ff7BattleSecondaryCallback;
 
 public sealed record Ff7BattleGunEmitter(int Actor, int Bone, short Offset, byte Delay, byte Duration) : Ff7BattleSecondaryCallback;
 public sealed record Ff7BattleGunMuzzleCallback(int Actor, int Bone, short Offset) : Ff7BattleSecondaryCallback;
@@ -136,7 +139,7 @@ public static partial class Ff7BattleSecondaryEffects
         return state with { Hitmarks = [.. state.Hitmarks, previous], DrawOrder = [.. state.DrawOrder, new(Ff7BattleSecondaryDrawKind.Hitmark, state.Hitmarks.Count)] };
     }
 
-    public static Ff7BattleSecondaryState Advance(Ff7BattleSecondaryState state, Func<int, int, Vector3, Vector3> actorPoint, Func<int, BattleRotationWords> actorRotation, Func<int> nextCrt, Func<int, (Vector3 Position, int CollisionRadius)>? actorHitmark = null)
+    public static Ff7BattleSecondaryState Advance(Ff7BattleSecondaryState state, Func<int, int, Vector3, Vector3> actorPoint, Func<int, BattleRotationWords> actorRotation, Func<int> nextCrt, Func<int, (Vector3 Position, int CollisionRadius)>? actorHitmark = null, Func<Ff7BattleActorUvAnimationCallback, (byte Generation, ReadOnlyMemory<byte> Allocation, int Offset)>? actorUv = null)
     {
         ArgumentNullException.ThrowIfNull(actorPoint);
         ArgumentNullException.ThrowIfNull(actorRotation);
@@ -161,6 +164,15 @@ public static partial class Ff7BattleSecondaryEffects
             {
                 case null:
                     continue;
+                case Ff7BattleActorUvAnimationCallback uv:
+                    var uvSource = actorUv?.Invoke(uv) ?? throw new NotSupportedException("FFVII actor UV animation requires its original allocation and current actor generation.");
+                    BattleActorUvAnimationUpdate uvUpdate = BattleActorUvAnimation.Advance(uv.State, uvSource.Generation, uvSource.Allocation, uvSource.Offset);
+                    slots[cursor] = uvUpdate.State is { } uvState ? uv with { State = uvState } : null;
+                    if (uvUpdate.PackedUv is ushort packedUv)
+                    {
+                        actorWrites.Add(new(uv.Actor, NativeUvOffset: packedUv));
+                    }
+                    break;
                 case Ff7BattleBossDeathShakeCallback shake:
                     Ff7BattleBossDeathShakeUpdate shakeUpdate = Ff7BattleActorDeath.AdvanceShake(shake.State);
                     slots[cursor] = shakeUpdate.State is { } shakeState ? shake with { State = shakeState, Age = shake.Age + 1 } : null;

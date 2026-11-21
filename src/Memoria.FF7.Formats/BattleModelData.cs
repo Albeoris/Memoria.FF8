@@ -69,6 +69,26 @@ public sealed record BattleModelData(uint Type, IReadOnlyList<BattleBone> Bones,
 public sealed record BattleActionBank(ushort CollisionRadius, ReadOnlyMemory<byte> JointSelectors, IReadOnlyList<ReadOnlyMemory<byte>> Scripts)
 {
     private const int TableStart = 104;
+    private ReadOnlyMemory<byte> Allocation { get; init; }
+
+    public (ReadOnlyMemory<byte> Allocation, int Offset) ReadUvAnimation(byte selector)
+    {
+        if (selector >= 8)
+        {
+            throw new NotSupportedException("FFVII actor UV animation requires one of its eight relocated native script pointers.");
+        }
+        int table = 0x24 + selector * 4;
+        if (table > Allocation.Length - 4)
+        {
+            throw new InvalidDataException("FFVII actor UV animation has no retained original script allocation.");
+        }
+        uint offset = System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(Allocation.Span[table..]);
+        if (offset >= Allocation.Length)
+        {
+            throw new InvalidDataException("FFVII actor UV animation pointer lies outside its original member.");
+        }
+        return (Allocation, (int)offset);
+    }
 
     public static BattleActionBank Read(ReadOnlyMemory<byte> source)
     {
@@ -120,6 +140,6 @@ public sealed record BattleActionBank(ushort CollisionRadius, ReadOnlyMemory<byt
                 scripts[index] = source[offset..ordered[boundaryIndex + 1]];
             }
         }
-        return new(radius, joints, Array.AsReadOnly(scripts));
+        return new(radius, joints, Array.AsReadOnly(scripts)) { Allocation = source };
     }
 }

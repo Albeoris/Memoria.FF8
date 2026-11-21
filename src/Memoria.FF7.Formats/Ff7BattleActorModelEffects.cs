@@ -8,6 +8,9 @@ public sealed record Ff7BattleActorModelModifiers(bool ScaleOverride = false, by
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ImmutableDictionary<int, uint>? TexturePalette { get; init; }
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ushort? NativeUvOffset { get; init; }
+
     public short NativeScale { get; init; } = 4096;
 
     [JsonIgnore]
@@ -19,7 +22,7 @@ public sealed record Ff7BattleActorModelModifiers(bool ScaleOverride = false, by
     public byte Alpha => Transparency >> 4 >= 256 ? (byte)0 : (byte)(255 - (Transparency >> 4));
 }
 
-public sealed record Ff7BattleActorModelWrite(int Target, Ff7BattleActorModelModifiers? Modifiers = null, short? WorldZ = null, bool RestoreHome = false, bool Ready = false);
+public sealed record Ff7BattleActorModelWrite(int Target, Ff7BattleActorModelModifiers? Modifiers = null, short? WorldZ = null, bool RestoreHome = false, bool Ready = false, ushort? NativeUvOffset = null);
 public sealed record Ff7BattleActorModelSound(int Target, ushort Sound, int Channel = 3);
 public sealed record Ff7BattleBossDeathShakeRequest(int Target, short BaseZ);
 public sealed record Ff7BattleActorDeathResources(float AngleStep, IReadOnlyList<short> LiftSteps);

@@ -503,6 +503,10 @@ public sealed partial class Ff7BattleSession
                         active = ScheduleTargetReactions(active, command.TargetMask, instruction.Operands.Span[0]);
                     }
                 }
+                else if (instruction.Opcode == 0xF8)
+                {
+                    ScheduleActorUvAnimation(command.ActorSlot, instruction.Operands.Span[0]);
+                }
                 else if (instruction.Opcode == 0x90)
                 {
                     ApplyActorPaletteColor(command.ActorSlot, instruction.Operands.Span);

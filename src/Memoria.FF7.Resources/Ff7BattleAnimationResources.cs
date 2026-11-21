@@ -50,6 +50,8 @@ public sealed partial class Ff7BattleAnimationResources(LgpArchive archive, Ff7B
         return sequence;
     }
 
+    public (ReadOnlyMemory<byte> Allocation, int Offset) ActorUvAnimation(string prefix, byte selector) => GetModel(prefix).Bank.ReadUvAnimation(selector);
+
     public ushort CollisionRadius(string prefix) => GetModel(prefix).Bank.CollisionRadius;
     public int BoneCount(string prefix) => GetModel(prefix).Model.Bones.Count + 1;
     public byte JointSelector(string prefix, int selector) => GetModel(prefix).Bank.JointSelectors.Span[selector];

@@ -20,6 +20,8 @@ public sealed record Ff7BattleActorFade(byte Remaining, ushort Step, bool Appear
 
 public sealed record Ff7BattleActorModelState(int Slot, short Action = 0, BattleActionPoseState? Pose = null, bool Ready = true, ushort? Limit = null, long? IdleStarted = null, bool Reaction = false, long PendingSince = -1, Ff7BattleActorModelModifiers? Modifiers = null, Ff7BattlePosition? Position = null, int? FacingYaw = null, Ff7BattleWorldJoint[]? Joints = null, Ff7BattleActorRenderState? Render = null, bool ReactionKnockedOut = false, bool? PresentedKnockedOut = null)
 {
+    public byte UvAnimationGeneration { get; init; }
+    public ushort? NativeUvOffset { get; init; }
     public bool? PresentedFrog { get; init; }
     public bool LinkedAction { get; init; }
     public Ff7BattleMotion? Motion { get; init; }
@@ -49,7 +51,7 @@ public sealed partial class Ff7BattleSession
             || state.PrimaryEffects?.Slots.Any(callback => callback is Ff7BattlePrimaryDeathController death && death.State.Target == slot) == true;
     }
 
-    private Ff7BattleActorModelModifiers LiveActorModelOutput(int slot) => ActorModelState(slot).Modifiers! with { NativeScale = GetActorScale(slot) };
+    private Ff7BattleActorModelModifiers LiveActorModelOutput(int slot) => ActorModelState(slot).Modifiers! with { NativeScale = GetActorScale(slot), NativeUvOffset = ActorModelState(slot).NativeUvOffset };
 
     private void InitializeActorModels(bool fresh = false)
     {
@@ -340,6 +342,9 @@ public sealed partial class Ff7BattleSession
                     case 0xE7:
                         SetActorModelVisibility(previous.Slot, instruction.Operands.Span[0] != 0);
                         break;
+                    case 0xF8:
+                        ScheduleActorUvAnimation(previous.Slot, instruction.Operands.Span[0]);
+                        break;
                     case 0xF7:
                         if (state.Action?.Command.TargetMask is ushort targets && targets != 0)
                         {
@@ -537,7 +542,7 @@ public sealed partial class Ff7BattleSession
         {
             position = Ff7BattlePosition.FromVector(HomePlacement(write.Target).Position);
         }
-        ReplaceActorModel(model with { Modifiers = write.Modifiers ?? model.Modifiers, Position = position, Ready = write.Ready || model.Ready });
+        ReplaceActorModel(model with { Modifiers = write.Modifiers ?? model.Modifiers, Position = position, Ready = write.Ready || model.Ready, NativeUvOffset = write.NativeUvOffset ?? model.NativeUvOffset });
     }
 
     private void ValidateActorModels(Ff7BattleSnapshot snapshot)

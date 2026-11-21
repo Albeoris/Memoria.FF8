@@ -3,6 +3,18 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-battle-uv-only", StringComparer.Ordinal))
+{
+    NativeBattleUvAnimationTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-battle-uv-original-only", StringComparer.Ordinal))
+{
+    NativeBattleUvOriginalTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-gaea-icicle-original-only", StringComparer.Ordinal))
 {
     NativeGaeaIcicleOriginalTests.Run();
