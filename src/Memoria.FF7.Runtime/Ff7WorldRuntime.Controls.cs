@@ -48,12 +48,11 @@ public sealed partial class Ff7WorldRuntime
         ushort pressed = (ushort)(held & ~input.PreviousControlHeld);
         if (Resources.World == 3)
         {
-            RejectAutoPlayMovement(autoPlayPreview, "Snow-world controls require their own native preview contract.");
             if ((pressed & 0x900) != 0)
             {
                 radarMode = radarMode == 0 ? 2 : 0;
             }
-            ApplySnowWorldControls(ref player, held, pressed, ref dx, ref dz);
+            ApplySnowWorldControls(ref player, held, pressed, ref dx, ref dz, autoPlayPreview);
             if ((held & 0xA00C) != 0)
             {
                 WorldRandom.Next();

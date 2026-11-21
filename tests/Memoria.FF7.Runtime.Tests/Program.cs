@@ -3,6 +3,18 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-snow-world-preview-only", StringComparer.Ordinal))
+{
+    NativeSnowWorldPreviewTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-snow-world-preview-original-only", StringComparer.Ordinal))
+{
+    NativeSnowWorldPreviewOriginalTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-holzoff-repeat-only", StringComparer.Ordinal))
 {
     NativeHolzoffRepeatChoiceTests.Run();

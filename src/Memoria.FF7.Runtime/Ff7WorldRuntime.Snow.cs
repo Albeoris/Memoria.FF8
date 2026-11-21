@@ -53,7 +53,7 @@ public sealed partial class Ff7WorldRuntime
         };
     }
 
-    private void ApplySnowWorldControls(ref Ff7WorldEntity player, ushort held, ushort pressed, ref int dx, ref int dz)
+    private void ApplySnowWorldControls(ref Ff7WorldEntity player, ushort held, ushort pressed, ref int dx, ref int dz, bool autoPlayPreview = false)
     {
         snow ??= new();
         int angle = camera.Heading;
@@ -85,6 +85,7 @@ public sealed partial class Ff7WorldRuntime
         if (countdown >= length && (pressed & 0x20) != 0)
         {
             int model = 21 + poleIndex;
+            RejectAutoPlayMovement(autoPlayPreview && !Machine.IsModelAttached(model), "Placing a new snow marker requires its native presentation-model allocation.");
             Machine.EnsurePresentationModel(model);
             Ff7WorldEntity pole = RequireEntity(model);
             Vector3 offset = inputMath.TransformRotation(new(0, 0, 300), 0, -angle, 0);

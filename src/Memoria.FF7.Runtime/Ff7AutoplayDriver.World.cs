@@ -514,7 +514,7 @@ public sealed partial class Ff7AutoplayDriver
 
     internal static string WorldSearchKey(Ff7AutoPlayWorldMovementState state)
     {
-        // Admitted navigation inputs exclude transport dismounts. Current facing and visual turn smoothing do not feed their motion.
+        // Ordinary foot motion can merge visual facing; snow wind captures the native facing at its onset.
         return WorldMovementKey(state, includePresentationFacing: false);
     }
 
@@ -522,12 +522,18 @@ public sealed partial class Ff7AutoplayDriver
     {
         Ff7WorldEntity p = state.Player;
         Ff7WorldInputState i = state.Input;
-        StringBuilder key = new($"model-contact-admission:{WorldModelContactAdmissionRevision}:{state.WorldId}:{state.WorldMapState}:{p.Model}:{p.X}:{p.Y}:{p.Z}:{p.Terrain}:{p.Flags}:{p.ContactModel}:{(includePresentationFacing ? p.Direction : 0)}:{p.TargetDirection}:{(includePresentationFacing ? p.TurnOffset : 0)}:{state.ViewMode}:{i.CameraHeadingTarget ?? state.Camera.Heading}:{i.FreeDirectionOffset}:{i.PreviousControlHeld}:{i.CollisionSide}:{Math.Min(i.CollisionAge, 8)}:{i.CollisionRecovery}:{i.BridgeCooldown}:{i.HeightSmoothVelocity}:{i.HeightSmoothRemaining}:{i.TerrainScript}:{i.GroundTriangle}:{i.Bridge}");
+        bool facing = includePresentationFacing || state.WorldId == 3;
+        StringBuilder key = new($"model-contact-admission:{WorldModelContactAdmissionRevision}:{state.WorldId}:{state.WorldMapState}:{p.Model}:{p.X}:{p.Y}:{p.Z}:{p.Terrain}:{p.Flags}:{p.ContactModel}:{(facing ? p.Direction : 0)}:{p.TargetDirection}:{(facing ? p.TurnOffset : 0)}:{state.ViewMode}:{i.CameraHeadingTarget ?? state.Camera.Heading}:{i.FreeDirectionOffset}:{i.PreviousControlHeld}:{i.CollisionSide}:{Math.Min(i.CollisionAge, 8)}:{i.CollisionRecovery}:{i.BridgeCooldown}:{i.HeightSmoothVelocity}:{i.HeightSmoothRemaining}:{i.TerrainScript}:{i.GroundTriangle}:{i.Bridge}");
         foreach (Ff7WorldTerrainReference cached in i.TerrainCache ?? [])
         {
             key.Append($"|{cached.ChunkX},{cached.ChunkZ},{cached.Triangle}");
         }
-        // Supported foot-control RNG draws have no physical return value. VM execution is not forecast.
+        if (state.WorldId == 3)
+        {
+            Ff7WorldSnowState? snow = state.Snow;
+            key.Append($"|snow:{state.Camera.Heading}:{p.ScriptDirection}:{state.RandomIndex}:{(state.Random is null ? "none" : Convert.ToHexString(SHA256.HashData(state.Random)))}:{snow?.PoleIndex}:{snow?.Countdown}:{snow?.WindLength}:{snow?.WindVelocity}:{snow?.CycleLength}:{snow?.LockedFacing}:{JsonSerializer.Serialize(state.SnowPoles)}:{JsonSerializer.Serialize(state.ScriptCamera)}");
+        }
+        // Ordinary foot-control RNG draws have no physical return value. Snow wind consumes their values above.
         return key.ToString();
     }
 
