@@ -114,12 +114,12 @@ internal static class Ff7AutoPlayExecutionOwners
         return result;
     }
 
-    internal static bool HasOutstandingChildren(FieldVmSnapshot vm, Ff7AutoPlayActiveEvent active, long generation)
+    internal static bool HasOutstandingChildren(FieldVmSnapshot vm, Ff7AutoPlayActiveEvent active, long generation, Func<Ff7AutoPlayExecutionOwner, bool>? settledPresentation = null)
     {
         if (!Matches(active, generation, vm.ProgramIdentity))
         {
             return false;
         }
-        return active.ExecutionProvenance!.Owners.Any(owner => (owner.Entity != active.Entity || owner.Priority != 1) && (uint)owner.Entity < vm.Entities.Length && (vm.Entities[owner.Entity].Priority == owner.Priority || vm.Entities[owner.Entity].Priority < owner.Priority && owner.Priority < vm.Entities[owner.Entity].SavedProgramCounters.Length && vm.Entities[owner.Entity].SavedProgramCounters[owner.Priority] != 0));
+        return active.ExecutionProvenance!.Owners.Any(owner => (owner.Entity != active.Entity || owner.Priority != 1) && (uint)owner.Entity < vm.Entities.Length && (vm.Entities[owner.Entity].Priority == owner.Priority || vm.Entities[owner.Entity].Priority < owner.Priority && owner.Priority < vm.Entities[owner.Entity].SavedProgramCounters.Length && vm.Entities[owner.Entity].SavedProgramCounters[owner.Priority] != 0) && settledPresentation?.Invoke(owner) != true);
     }
 }

@@ -372,7 +372,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         if (State.Active is { } active && (active.Returned || active.Generation != observation.Generation))
         {
             bool changedField = active.Generation != observation.Generation;
-            bool nativeCompletion = active.Accepted && active.Returned && !Ff7AutoPlayExecutionOwners.HasOutstandingChildren(readinessVm, active, observation.Generation) || changedField && (active.TransitionOwned && active.Kind is not (Ff7AutoPlayTargetKind.WorldMesh or Ff7AutoPlayTargetKind.WorldModel) || active.Kind == Ff7AutoPlayTargetKind.Gateway && active.DestinationField == session.MapId || IsSpatialTransitionCompletion(active, session.MapId) || IsAcceptedWorldDeparture(active, State.WorldDispatch, observation.Generation, session.MapId));
+            bool nativeCompletion = active.Accepted && active.Returned && !Ff7AutoPlayExecutionOwners.HasOutstandingChildren(readinessVm, active, observation.Generation, owner => IsSettledPresentationChild(active, readinessVm, owner)) || changedField && (active.TransitionOwned && active.Kind is not (Ff7AutoPlayTargetKind.WorldMesh or Ff7AutoPlayTargetKind.WorldModel) || active.Kind == Ff7AutoPlayTargetKind.Gateway && active.DestinationField == session.MapId || IsSpatialTransitionCompletion(active, session.MapId) || IsAcceptedWorldDeparture(active, State.WorldDispatch, observation.Generation, session.MapId));
             if (nativeCompletion)
             {
                 CompleteActive(observation, active, changedField, driver, physicalGuards);

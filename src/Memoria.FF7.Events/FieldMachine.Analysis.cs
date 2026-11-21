@@ -31,6 +31,7 @@ public sealed record FieldScriptAnalysis(bool Complete, string? Reason, string F
     public int[] UnblockedTriangles { get; init; } = [];
     public FieldActorLadderLanding[] LadderLandings { get; init; } = [];
     public bool IndependentActorMotionLoop { get; init; }
+    public FieldFadeCommand? RepeatingConstantFade { get; init; }
     public FieldScriptInstructionSite[] InstructionSites { get; init; } = [];
 }
 
@@ -154,6 +155,8 @@ public sealed partial class FieldMachine
         HashSet<FieldActorLadderLanding> ladderLandings = [];
         HashSet<FieldScriptInstructionSite> independentActorInstructions = [];
         bool independentActorMotion = false;
+        HashSet<FieldScriptInstructionSite> constantFadeInstructions = [];
+        HashSet<FieldFadeCommand> constantFades = [];
         HashSet<int> exits = [];
         bool inputIndependent = true;
         Dictionary<int, bool> physicalExits = [];
@@ -281,6 +284,7 @@ public sealed partial class FieldMachine
                 if (opcode is >= 0x10 and <= 0x13)
                 {
                     independentActorInstructions.Add(new(owner, pc));
+                    constantFadeInstructions.Add(new(owner, pc));
                     int distance = (opcode & 1) != 0 ? Word(1) : Byte(1);
                     Enqueue(opcode < 0x12 ? pc + 1 + distance : pc - distance);
                     continue;
@@ -387,6 +391,16 @@ public sealed partial class FieldMachine
                 {
                     independentActorInstructions.Add(new(owner, pc));
                     independentActorMotion |= detached.inspection.Commands.Any(command => command is FieldActorMove or FieldActorPlacement);
+                }
+                bool literalState = owner == entity && instructionWrites.Count == 0 && instructionReads.All(read => read.Bank == FieldBank.Immediate);
+                if (literalState && detached.inspection.Commands is [FieldFadeCommand { Type: 8, Speed: 255, Adjustment: 0, NewFade: false, Wait: false } constantFade])
+                {
+                    constantFades.Add(constantFade);
+                    constantFadeInstructions.Add(new(owner, pc));
+                }
+                else if (literalState && detached.inspection.Commands.Count == 0 && opcode is 0x24 or 0x5F)
+                {
+                    constantFadeInstructions.Add(new(owner, pc));
                 }
                 if (stochasticNode is not null)
                 {
@@ -503,6 +517,7 @@ public sealed partial class FieldMachine
             fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes($"{program.Identity}:{entity}:{script}:unsupported")));
         }
         bool independentLoop = reason is null && independentActorMotion && visited.All(site => site.Entity == entity && independentActorInstructions.Contains(new(site.Entity, site.Pc)));
-        return new(reason is null, reason, fingerprint, changesStory, dependencies, visited.Select(value => value.Pc).Distinct().Order().ToArray(), destinations.Order().ToArray()) { HostReads = hostReads.OrderBy(read => read.Kind).ThenBy(read => read.Parameter).ThenBy(read => read.Selector).ToArray(), MayChangeNavigation = mayChangeNavigation, InputIndependent = reason is null && inputIndependent, ExitProgramCounters = exits.Order().ToArray(), UnblockedTriangles = unblockedTriangles.Order().ToArray(), LadderLandings = ladderLandings.ToArray(), IndependentActorMotionLoop = independentLoop, InstructionSites = visited.Select(value => new FieldScriptInstructionSite(value.Entity, value.Pc)).Distinct().ToArray() };
+        FieldFadeCommand? repeatingFade = reason is null && constantFades.Count == 1 && visited.All(site => site.Entity == entity && constantFadeInstructions.Contains(new(site.Entity, site.Pc))) ? constantFades.Single() : null;
+        return new(reason is null, reason, fingerprint, changesStory, dependencies, visited.Select(value => value.Pc).Distinct().Order().ToArray(), destinations.Order().ToArray()) { HostReads = hostReads.OrderBy(read => read.Kind).ThenBy(read => read.Parameter).ThenBy(read => read.Selector).ToArray(), MayChangeNavigation = mayChangeNavigation, InputIndependent = reason is null && inputIndependent, ExitProgramCounters = exits.Order().ToArray(), UnblockedTriangles = unblockedTriangles.Order().ToArray(), LadderLandings = ladderLandings.ToArray(), IndependentActorMotionLoop = independentLoop, RepeatingConstantFade = repeatingFade, InstructionSites = visited.Select(value => new FieldScriptInstructionSite(value.Entity, value.Pc)).Distinct().ToArray() };
     }
 }

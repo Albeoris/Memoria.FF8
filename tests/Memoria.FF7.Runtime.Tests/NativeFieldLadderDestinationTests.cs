@@ -21,18 +21,22 @@ internal static class NativeFieldLadderDestinationTests
         string before = JsonSerializer.Serialize(new { mesh, blocked, player, gate, landing });
         bool Connects(IReadOnlyList<FieldActorLadderLanding> effects, byte[]? mask = null, Ff7Actor? actual = null) => Ff7AutoPlayPolicy.CanEstablishFieldGatewayLanding(mesh, mask ?? blocked, actual ?? player, gate, effects);
         Check(Connects([landing]), "A literal player ladder endpoint did not establish the disconnected gateway approach.");
+        foreach (byte mode in new byte[] { 0, 2, 3 })
+        {
+            Check(Connects([landing with { Command = landing.Command with { Mode = mode } }]), "A supported native ladder axis/reversal lost its endpoint advice.");
+        }
         foreach (FieldActorLadderLanding invalid in new[]
         {
             landing with { Entity = 2 },
             landing with { Literal = false },
-            landing with { Command = landing.Command with { Mode = 0 } },
+            landing with { Command = landing.Command with { Mode = 4 } },
             landing with { Command = landing.Command with { Triangle = -1 } },
             landing with { Command = landing.Command with { Triangle = 2 } },
             landing with { Command = landing.Command with { X = 500 } },
             landing with { Command = landing.Command with { Z = 356 } }
         })
         {
-            Check(!Connects([invalid]), "An NPC, variable, nonforward or invalid native endpoint authorized a destination prerequisite.");
+            Check(!Connects([invalid]), "An NPC, variable, unsupported or invalid native endpoint authorized a destination prerequisite.");
         }
         Check(!Connects([]) && !Connects([landing, landing with { ProgramCounter = 20 }]), "Missing or ambiguous player ladder outcomes authorized a prerequisite.");
         Check(!Connects([landing], [2]), "A blocked landing triangle authorized a prerequisite.");

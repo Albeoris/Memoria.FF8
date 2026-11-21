@@ -142,7 +142,7 @@ public sealed partial class Ff7AutoPlayPolicy
             return false;
         }
         var effects = landings.Where(landing => landing.Entity == player.Entity).Distinct().ToArray();
-        if (effects.Length != 1 || !effects[0].Literal || effects[0].Command is not { Mode: 1 } ladder || (uint)ladder.Triangle >= walkmesh.Count || ladder.Triangle >> 3 >= blockedTriangles.Length || (blockedTriangles[ladder.Triangle >> 3] & 1 << (ladder.Triangle & 7)) != 0)
+        if (effects.Length != 1 || !effects[0].Literal || effects[0].Command is not { Mode: <= 3 } ladder || (uint)ladder.Triangle >= walkmesh.Count || ladder.Triangle >> 3 >= blockedTriangles.Length || (blockedTriangles[ladder.Triangle >> 3] & 1 << (ladder.Triangle & 7)) != 0)
         {
             return false;
         }

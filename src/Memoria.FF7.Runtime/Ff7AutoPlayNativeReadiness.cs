@@ -395,6 +395,11 @@ internal sealed class Ff7AutoPlayNativeReadiness
         return ShouldWait(generation, navigationKey, vm, process, script, inputDemands, admittedSetupOnly: true, analyzeContinuation);
     }
 
+    internal static bool HasCompletedConstantFade(Ff7FieldProcess process, FieldFadeCommand fade)
+    {
+        return fade is { Type: 8, Speed: 255, Adjustment: 0, NewFade: false, Wait: false } && process.FadeState is { Type: 8, Completed: true, Speed: 255, EntryCurve: false } current && current.HasConstantFieldColor && !current.HidesField && current.Red == fade.Red && current.Green == fade.Green && current.Blue == fade.Blue;
+    }
+
     private bool ShouldWait(long generation, string navigationKey, FieldVmSnapshot vm, Ff7FieldProcess process, ReadOnlySpan<byte> script, IReadOnlyList<FieldScriptInputDemand> inputDemands, bool admittedSetupOnly, Func<int, int, FieldScriptAnalysis>? analyzeContinuation = null)
     {
         HashSet<int> work = [];
@@ -404,7 +409,7 @@ internal sealed class Ff7AutoPlayNativeReadiness
             FieldEntitySnapshot target = vm.Entities[targetId];
             int currentPc = target.ProgramCounter;
             bool admitted = HasAdmittedContinuation(target, script);
-            if (admittedSetupOnly && admitted && analyzeContinuation is not null && target.SyncStates.Length > target.Priority && target.SyncOwners.Length > target.Priority && target.SyncStates[target.Priority] == FieldSyncState.None && target.SyncOwners[target.Priority] == -1 && process.Actors.Any(actor => actor.EntityBound && actor.Entity == targetId && !actor.PlayerControlled) && !process.Actors.Any(actor => actor.Entity == targetId && actor.PlayerControlled) && analyzeContinuation(targetId, currentPc) is { Complete: true, IndependentActorMotionLoop: true })
+            if (admittedSetupOnly && admitted && analyzeContinuation is not null && target.SyncStates.Length > target.Priority && target.SyncOwners.Length > target.Priority && target.SyncStates[target.Priority] == FieldSyncState.None && target.SyncOwners[target.Priority] == -1 && analyzeContinuation(targetId, currentPc) is { Complete: true } continuation && (continuation.IndependentActorMotionLoop && process.Actors.Any(actor => actor.EntityBound && actor.Entity == targetId && !actor.PlayerControlled) && !process.Actors.Any(actor => actor.Entity == targetId && actor.PlayerControlled) || continuation.RepeatingConstantFade is { } fade && HasCompletedConstantFade(process, fade)))
             {
                 admitted = false;
             }

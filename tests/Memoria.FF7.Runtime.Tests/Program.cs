@@ -3,6 +3,18 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-constant-fade-completion-only", StringComparer.Ordinal))
+{
+    NativeConstantFadeCompletionTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-night-continuation-original-only", StringComparer.Ordinal))
+{
+    NativeNightContinuationOriginalTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-background-destination-readiness-only", StringComparer.Ordinal))
 {
     NativeBackgroundDestinationReadinessTests.Run();

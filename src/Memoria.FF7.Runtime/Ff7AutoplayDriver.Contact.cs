@@ -426,6 +426,10 @@ public sealed partial class Ff7AutoplayDriver
             {
                 FieldNavigationEntryProof proof = session.ReadNavigationEntryProof(target.Entity, target.Script, input, talkContext: talk);
                 skip = proof.Complete && proof.HasNoEffect;
+                if (!skip)
+                {
+                    skip = session.HasCurrentPersistentNoEffectEntry($"ff7:{session.MapId}:{session.Machine.ProgramIdentity}", target.Id);
+                }
             }
             navigationLineSkips.Add(key, skip);
         }

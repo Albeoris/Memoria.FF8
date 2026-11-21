@@ -5,6 +5,21 @@ namespace Memoria.FF7.Runtime;
 
 public sealed partial class Ff7AutoPlayPolicy
 {
+    private bool IsSettledPresentationChild(Ff7AutoPlayActiveEvent active, FieldVmSnapshot vm, Ff7AutoPlayExecutionOwner owner)
+    {
+        FieldScriptAnalysis? analysis = (uint)owner.Entity < vm.Entities.Length && vm.Entities[owner.Entity].Priority == owner.Priority ? session.Machine.AnalyzeScriptAtProgramCounter(owner.Entity, vm.Entities[owner.Entity].ProgramCounter) : null;
+        return CanSettlePresentationChild(active, session.FieldGeneration, vm, session.Host.Process, owner, analysis);
+    }
+
+    internal static bool CanSettlePresentationChild(Ff7AutoPlayActiveEvent active, long generation, FieldVmSnapshot vm, Ff7FieldProcess process, Ff7AutoPlayExecutionOwner owner, FieldScriptAnalysis? analysis)
+    {
+        if (!active.Returned || !Ff7AutoPlayExecutionOwners.Matches(active, generation, vm.ProgramIdentity) || active.ExecutionProvenance?.Owners.Contains(owner) != true || owner.Queued || owner.ParentEntity < 0 || (uint)owner.Entity >= vm.Entities.Length || vm.Entities[owner.Entity].Priority != owner.Priority || owner.Priority < 0 || owner.Priority >= vm.Entities[owner.Entity].SyncStates.Length || owner.Priority >= vm.Entities[owner.Entity].SyncOwners.Length || vm.Entities[owner.Entity].SyncStates[owner.Priority] != FieldSyncState.None || vm.Entities[owner.Entity].SyncOwners[owner.Priority] != -1 || analysis is not { Complete: true, RepeatingConstantFade: { Type: 8, Speed: 255, Adjustment: 0, NewFade: false, Wait: false } fade })
+        {
+            return false;
+        }
+        return !process.PlayerLocked && !process.MenuDisabled && process.GlobalCommand == Ff7GlobalCommand.None && process.Join is null && process.Transition is null && process.Movie is not { Playing: true } && process.Menu is not { Completed: false } && !process.Dialogues.Any(dialogue => !dialogue.Completed) && !(vm.PendingRequests ?? []).Any(request => request.Entity == owner.Entity && request.Priority == owner.Priority) && Ff7AutoPlayNativeReadiness.HasCompletedConstantFade(process, fade);
+    }
+
     private bool CompletePresentationActivation(Ff7AutoPlayObservation observation)
     {
         if (State.Active is not { Accepted: true, Returned: false, TransitionOwned: false, CompletionRecorded: false } active || active.Kind is < Ff7AutoPlayTargetKind.LineTalk or > Ff7AutoPlayTargetKind.LineLeave || active.BeforeStory != Story() || session.Battle is not null || session.World is not null || !CanCompletePresentationActivation(State, observation, session.Machine.Capture(), session.Host.Process, session.Field.Scripts.Data.Span))
