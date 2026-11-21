@@ -149,6 +149,11 @@ public sealed partial class Ff7AutoPlayScriptedInput(Ff7Session session)
             return new(Held: 0, Run: false);
         }
         IReadOnlyList<FieldScriptInputDemand> demands = session.Machine.ReadCurrentInputDemands().Where(demand => !Ff7AutoPlayPolicy.IsNativeGaeaWarmthDemand(demand)).ToArray();
+        if (ReadNativeJunonEscapeInput(vm, session.Host.Process, session.Field.Scripts.Data.Span) is Ff7AutoplayInput escapeInput)
+        {
+            CurrentDemand = demands.FirstOrDefault(demand => demand.Entity == 3 && demand.Priority == 6 && demand.AwaitingInput);
+            return escapeInput;
+        }
         CurrentDemand = demands.Where(demand => IsOwnedSpatialContinuationDemand(demand, vm, active, session.FieldGeneration, locked)).OrderBy(demand => demand.Priority).ThenBy(demand => demand.Entity).FirstOrDefault();
         if (CurrentDemand is not null)
         {
