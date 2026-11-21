@@ -3,6 +3,18 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-excavation-bomb-input-only", StringComparer.Ordinal))
+{
+    NativeExcavationBombInputTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-excavation-bomb-original-only", StringComparer.Ordinal))
+{
+    NativePromptInputOriginalTests.RunBombContinuation();
+    return 0;
+}
+
 if (args.Contains("--native-choice-source-accounting-only", StringComparer.Ordinal))
 {
     NativeChoiceSourceAccountingTests.Run();

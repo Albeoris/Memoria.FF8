@@ -6,6 +6,38 @@ using Memoria.FF7.Runtime;
 
 internal static class NativePromptInputOriginalTests
 {
+    internal static void RunBombContinuation()
+    {
+        string path = Environment.GetEnvironmentVariable("MEMORIA_FF7_NATIVE_PROMPT_INPUT_SAVE") ?? throw new InvalidOperationException("Select a native excavation bomb fixture.");
+        byte[] bytes = File.ReadAllBytes(path);
+        byte[] hash = SHA256.HashData(bytes);
+        using MemoryStream input = new(bytes, writable: false);
+        using var session = Ff7Session.Restore(Ff7Installation.Discover(Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR")!), CombinedSessionCodec.Read(input).Ff7!);
+        using var policy = new Ff7AutoPlayPolicy(session, (_, _) => throw new InvalidOperationException("The bomb continuation must not create a choice checkpoint."));
+        int outcome = session.Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 0xEA);
+        int harp = session.Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 0xE7);
+        var controller = new Ff7AutoPlayController(session, policy.ChooseInput, advanceTick: () => session.AdvanceTick(advanceClock: false), chooseDialogueSelection: policy.ChooseDialogueSelection);
+        controller.Start();
+        Stopwatch timer = Stopwatch.StartNew();
+        HashSet<int> texts = [];
+        bool ready = false;
+        for (int polls = 0; polls < 100000 && controller.Steps < 1024 && timer.Elapsed.TotalSeconds < 35 && controller.Error is null && !ready; polls++)
+        {
+            controller.Advance(1);
+            foreach (Ff7Dialogue dialogue in session.Host.Process.Dialogues.Where(dialogue => !dialogue.Completed))
+            {
+                texts.Add(dialogue.Text);
+            }
+            ready = texts.Contains(30);
+        }
+        Console.WriteLine($"Original bomb continuation: callbacks={controller.Steps}, seconds={timer.Elapsed.TotalSeconds:F3}, tick={session.Host.Process.Tick}, phase={session.Machine.Variables.ReadByte(FieldBank.MapByte, 0x0C)}, texts={string.Join(',', texts.Order())}, workerPriority={session.Machine.Capture().Entities[2].Priority}, nextInput={new Ff7AutoPlayScriptedInput(session).ChooseInput()}, error={controller.Error}");
+        Console.WriteLine($"bomb boundary ownerPc={session.Machine.Capture().Entities[2].ProgramCounter:X4}, windows={string.Join(';', session.Host.Process.Windows.Select(window => $"{window.Id}/{window.Style}/{window.Flags}"))}, dialogues={string.Join(';', session.Host.Process.Dialogues.Where(dialogue => !dialogue.Completed).Select(dialogue => $"{dialogue.Text}/await:{dialogue.AwaitingInput}/state:{dialogue.Presentation?.NativeState}/token:{dialogue.TokenPosition}/confirm:{session.Host.CanConfirmDialogue(dialogue.RequestId)}"))}");
+        if (!ready || new Ff7AutoPlayScriptedInput(session).ChooseInput() is not null || controller.Error is not null || session.Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 0xEA) != outcome || session.Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 0xE7) != harp || !hash.AsSpan().SequenceEqual(SHA256.HashData(File.ReadAllBytes(path))))
+        {
+            throw new InvalidOperationException("The bomb did not reach its native message boundary or a positional dig input was admitted prematurely.");
+        }
+    }
+
     internal static void RunChoiceRouteContinuation()
     {
         string path = Environment.GetEnvironmentVariable("MEMORIA_FF7_NATIVE_PROMPT_INPUT_SAVE")!;

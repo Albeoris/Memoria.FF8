@@ -168,7 +168,7 @@ public sealed partial class Ff7AutoPlayScriptedInput(Ff7Session session)
         {
             return null;
         }
-        FieldScriptInputDemand[] demands = session.Machine.ReadCurrentInputDemands().Where(demand => session.Machine.ProveCurrentPromptChoiceInput(demand, request)).ToArray();
+        FieldScriptInputDemand[] demands = session.Machine.ReadCurrentInputDemands().Where(demand => IsExcavationBombInput(vm, process, prompts[0], request, demand) || session.Machine.ProveCurrentPromptChoiceInput(demand, request)).ToArray();
         if (demands.Length != 1)
         {
             return null;
