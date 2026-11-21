@@ -132,7 +132,7 @@ public sealed partial class Ff7AutoPlayScriptedInput(Ff7Session session)
         bool locked = session.Host.Process.PlayerLocked;
         if (!locked && (active is not { Accepted: true, Returned: false } || active.Generation != session.FieldGeneration))
         {
-            return null;
+            return ChooseAmbientPromptInput(active);
         }
         FieldVmSnapshot vm = session.Machine.Capture();
         IReadOnlyList<FieldScriptInputDemand> demands = session.Machine.ReadCurrentInputDemands();
@@ -148,6 +148,33 @@ public sealed partial class Ff7AutoPlayScriptedInput(Ff7Session session)
         }
         CurrentDemand = SelectDemand(ownedDemands);
         return CurrentDemand is null ? null : SelectInput(CurrentDemand, session.Machine.Input);
+    }
+
+    private Ff7AutoplayInput? ChooseAmbientPromptInput(Ff7AutoPlayActiveEvent? active)
+    {
+        Ff7FieldProcess process = session.Host.Process;
+        if (active is { Accepted: true } || !process.MenuDisabled || process.GlobalCommand != Ff7GlobalCommand.None || process.Join is not null || process.Movie is { Playing: true })
+        {
+            return null;
+        }
+        Ff7Dialogue[] prompts = process.Dialogues.Where(dialogue => !dialogue.Completed && dialogue.AwaitingInput && dialogue.FirstChoice is null && dialogue.LastChoice is null && !session.Host.CanConfirmDialogue(dialogue.RequestId)).ToArray();
+        if (prompts.Length != 1)
+        {
+            return null;
+        }
+        FieldVmSnapshot vm = session.Machine.Capture();
+        FieldHostRequest? request = vm.PendingRequests?.SingleOrDefault(request => request.Id == prompts[0].RequestId && request.Command is FieldDialogueCommand command && command.Window == prompts[0].Window && command.Text == prompts[0].Text);
+        if (request is null)
+        {
+            return null;
+        }
+        FieldScriptInputDemand[] demands = session.Machine.ReadCurrentInputDemands().Where(demand => session.Machine.ProveCurrentPromptChoiceInput(demand, request)).ToArray();
+        if (demands.Length != 1)
+        {
+            return null;
+        }
+        CurrentDemand = demands[0];
+        return SelectInput(CurrentDemand, session.Machine.Input);
     }
 
     internal static bool IsInteractionInputOwner(FieldScriptInputDemand demand, FieldVmSnapshot vm, Ff7AutoPlayActiveEvent? active, long generation)
