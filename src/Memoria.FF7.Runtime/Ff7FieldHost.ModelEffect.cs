@@ -10,7 +10,7 @@ public sealed partial class Ff7FieldHost
     private FieldHostReply ModelEffect(int entity, FieldModelEffectCommand command)
     {
         FieldHostReply reply = ModelEffectCore(entity, command);
-        if (!command.Wait && command.Operation is not (12 or 255) && reply.Completed && GetActor(entity).NativeModelCompletion is not null)
+        if (!command.Wait && command.Operation is not (11 or 12 or 255) && reply.Completed && GetActor(entity).NativeModelCompletion is not null)
         {
             SetActor(entity, current => current with { NativeModelCompletion = null });
         }
@@ -41,7 +41,7 @@ public sealed partial class Ff7FieldHost
             }
             return new(completed);
         }
-        if (command.Operation is 12 or 255)
+        if (command.Operation is 11 or 12 or 255)
         {
             byte[] payload = command.Payload ?? throw new InvalidDataException("Native model completion requires its complete original payload.");
             if (command.Mode != (payload.Length == 0 ? null : (byte?)payload[0]))

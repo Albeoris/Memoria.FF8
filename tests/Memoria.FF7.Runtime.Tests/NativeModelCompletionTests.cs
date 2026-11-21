@@ -11,7 +11,7 @@ internal static class NativeModelCompletionTests
     {
         Ff7Actor legacy = JsonSerializer.Deserialize<Ff7Actor>("{\"Slot\":0,\"Entity\":0,\"Model\":0}")!;
         Check(legacy.NativeModelCompletion is null && !JsonSerializer.Serialize(legacy).Contains("NativeModelCompletion", StringComparison.Ordinal), "An absent presentation owner changed old actor compatibility or serialization.");
-        Throws<InvalidDataException>(() => new Ff7NativeModelCompletionState(11, [0]).Validate());
+        Throws<InvalidDataException>(() => new Ff7NativeModelCompletionState(14, [0]).Validate());
         new Ff7NativeModelCompletionState(12, []).Validate();
         new Ff7NativeModelCompletionState(255, []).Validate();
         string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");

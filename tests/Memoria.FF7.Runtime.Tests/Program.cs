@@ -3,6 +3,18 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-kawai11-only", StringComparer.Ordinal))
+{
+    NativeKawai11Tests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-kawai11-original-only", StringComparer.Ordinal))
+{
+    NativeKawai11OriginalTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-gaea-movie-prerequisite-only", StringComparer.Ordinal))
 {
     NativeGaeaMoviePrerequisiteTests.Run();
