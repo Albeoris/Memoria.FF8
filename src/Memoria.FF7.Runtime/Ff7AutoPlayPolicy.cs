@@ -1136,6 +1136,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         }
         CancelNativePlanning();
         CancelWorldBoardingPlanning();
+        CancelDestinationBoardingSearches();
         CancelWorldModePlanning();
         session.NativeInteractionScriptRequested -= ObserveEffectAliasAdmission;
         session.InteractionScriptRequested -= ObserveInteraction;

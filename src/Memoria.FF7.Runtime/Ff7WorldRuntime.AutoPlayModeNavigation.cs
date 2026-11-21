@@ -171,6 +171,7 @@ internal sealed class Ff7WorldModeTopologyCursor(IEnumerator<Ff7AutoPlayWorldMod
     internal bool HasPendingWork => !Completed && remaining is not null;
     internal long Operations { get; private set; }
     internal Ff7AutoPlayWorldModeGuide? Result { get; private set; }
+    internal Ff7AutoPlayWorldGuide? BoardingContactGuide { get; set; }
 
     internal void Resume(Ff7NativePlanningQuantum quantum)
     {
@@ -200,5 +201,6 @@ internal sealed class Ff7WorldModeTopologyCursor(IEnumerator<Ff7AutoPlayWorldMod
     {
         remaining?.Dispose();
         remaining = null;
+        BoardingContactGuide = null;
     }
 }

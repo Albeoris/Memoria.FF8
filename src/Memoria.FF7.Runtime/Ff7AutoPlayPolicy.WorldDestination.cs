@@ -7,28 +7,52 @@ public sealed partial class Ff7AutoPlayPolicy
 {
     private Ff7WorldRuntime? destinationBoardingOwner;
     private readonly Dictionary<string, bool> destinationBoardingAdvice = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, Ff7WorldModeTopologyCursor> destinationBoardingSearches = new(StringComparer.Ordinal);
 
-    private void AddWorldDestinationBoarding(Ff7WorldRuntime world, HashSet<string> targets, Func<AutoPlayEvent, AutoPlayEventAvailability?> readAvailability)
+    private void CancelDestinationBoardingSearches()
+    {
+        foreach (Ff7WorldModeTopologyCursor search in destinationBoardingSearches.Values)
+        {
+            search.Dispose();
+        }
+        destinationBoardingSearches.Clear();
+    }
+
+    private bool AddWorldDestinationBoarding(Ff7WorldRuntime world, HashSet<string> targets, Func<AutoPlayEvent, AutoPlayEventAvailability?> readAvailability)
     {
         if (!ReferenceEquals(destinationBoardingOwner, world))
         {
             destinationBoardingAdvice.Clear();
+            CancelDestinationBoardingSearches();
             destinationBoardingOwner = world;
         }
         var coverage = State.Coverage.Visits.Single(visit => visit.Visit.Key == worldVisit);
         if (coverage.Events.Any(item => targets.Contains(item.Event.Id) && readAvailability(item.Event)?.Unavailable != true))
         {
-            return;
+            CancelDestinationBoardingSearches();
+            return false;
         }
         Ff7AutoPlayWorldScriptObservation[] destinations = worldCatalogs.Values.SelectMany(catalog => catalog.Scripts).Where(target => targets.Contains(target.Id)).ToArray();
         foreach (Ff7AutoPlayWorldModelScriptObservation contact in worldModelCatalog.Values.Where(contact => contact.Complete && contact.Analysis.Transitions.Any(transition => transition.Operation == WorldOperation.BoardTransport && transition.Model is not null)))
         {
             foreach (Ff7AutoPlayWorldScriptObservation destination in destinations)
             {
-                string key = WorldModelCondition(contact) + ":destination:" + WorldCondition(destination) + ":context:" + world.ReadAutoPlayNavigationContext();
+                string key = WorldModelCondition(contact) + ":destination:" + WorldCondition(destination) + ":context:" + world.ReadAutoPlayNavigationContext() + ":source:" + Ff7AutoplayDriver.WorldMovementKey(world.CaptureAutoPlayMovementState());
                 if (!destinationBoardingAdvice.TryGetValue(key, out bool connected))
                 {
-                    connected = world.ReadAutoPlayBoardingAdvice(contact, destination).Connected;
+                    if (!destinationBoardingSearches.TryGetValue(key, out Ff7WorldModeTopologyCursor? search))
+                    {
+                        CancelDestinationBoardingSearches();
+                    }
+                    Ff7AutoPlayWorldBoardingAdvice advice = world.ReadAutoPlayBoardingAdvice(contact, destination, ref search, nativePlanningQuantum ?? new());
+                    if (advice.Pending)
+                    {
+                        destinationBoardingSearches[key] = search!;
+                        return true;
+                    }
+                    search?.Dispose();
+                    destinationBoardingSearches.Remove(key);
+                    connected = advice.Connected;
                     destinationBoardingAdvice[key] = connected;
                 }
                 if (connected)
@@ -38,6 +62,7 @@ public sealed partial class Ff7AutoPlayPolicy
                 }
             }
         }
+        return false;
     }
 
     private (Ff7AutoPlayObservation Observation, HashSet<string> Targets) ObserveRequestedWorldDestination(Ff7WorldRuntime world, Ff7AutoPlayObservation observation)

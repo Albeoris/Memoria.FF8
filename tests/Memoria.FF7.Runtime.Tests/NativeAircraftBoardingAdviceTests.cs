@@ -46,6 +46,45 @@ internal static class NativeAircraftBoardingAdviceTests
             Ff7AutoPlayWorldBoardingAdvice advice = world.ReadAutoPlayBoardingAdvice(contact, destination);
             Check(advice.Supported && advice.Connected && advice.Transport == model && advice.ContactFaces > 0 && advice.TransportFaces > 0 && advice.RiderFaces > 0, $"A parked native transport lost its projected boarding/flight/landing/rider connection: model={model}, {advice.Reason}");
             Check(before == JsonSerializer.Serialize(world.Process), "Boarding projection changed real native VM, vehicle, camera, RNG, input or rider allocation.");
+            Ff7WorldModeTopologyCursor? search = null;
+            bool observedPending = false;
+            Ff7AutoPlayWorldBoardingAdvice resumed;
+            int resumes = 0;
+            try
+            {
+                resumed = world.ReadAutoPlayBoardingAdvice(contact, destination, ref search, new(0, TimeSpan.MaxValue));
+                observedPending = resumed.Pending;
+                Check(resumed.Pending && !resumed.Connected && before == JsonSerializer.Serialize(world.Process), "An exhausted shared allowance lost pending boarding work or changed native state.");
+                Ff7AutoPlayWorldGuide retainedContact = search?.BoardingContactGuide ?? throw new InvalidOperationException("Pending boarding discarded its completed contact guide.");
+                resumed = world.ReadAutoPlayBoardingAdvice(contact, destination, ref search, new(0, TimeSpan.MaxValue));
+                Check(resumed.Pending && ReferenceEquals(retainedContact, search!.BoardingContactGuide) && before == JsonSerializer.Serialize(world.Process), "A same-context pending resume recomputed its contact guide or changed native state.");
+                do
+                {
+                    resumed = world.ReadAutoPlayBoardingAdvice(contact, destination, ref search, new(1, TimeSpan.MaxValue));
+                    resumes++;
+                    observedPending |= resumed.Pending;
+                    Check(!resumed.Pending || ReferenceEquals(retainedContact, search!.BoardingContactGuide), "A retained boarding cursor replaced its certified same-context contact guide.");
+                    Check(!resumed.Pending || !resumed.Connected, "Pending boarding topology was published as an established connection.");
+                    Check(before == JsonSerializer.Serialize(world.Process), "A cooperative boarding resume changed the live native VM, camera, rider or input state.");
+                }
+                while (resumed.Pending && resumes < 512);
+                Check(observedPending && !resumed.Pending && resumed.Connected && resumed.Transport == advice.Transport, "Cooperative boarding did not retain its pending work through the same completed connection as synchronous advice.");
+            }
+            finally
+            {
+                search?.Dispose();
+            }
+            Check(search is not null && search.BoardingContactGuide is null, "Disposing boarding work retained stale contact-guide authority.");
+            Ff7WorldModeTopologyCursor? fresh = null;
+            try
+            {
+                Ff7AutoPlayWorldBoardingAdvice reproved = world.ReadAutoPlayBoardingAdvice(contact, destination, ref fresh, new(16384, TimeSpan.MaxValue));
+                Check(reproved.Connected && !reproved.Pending && fresh is not null && !ReferenceEquals(fresh, search) && before == JsonSerializer.Serialize(world.Process), "A new boarding cursor failed to independently reprove the connection after invalidation.");
+            }
+            finally
+            {
+                fresh?.Dispose();
+            }
             foreach (Ff7AutoPlayWorldModelScriptObservation invalid in new[]
             {
                 contact with { Complete = false },
@@ -55,6 +94,16 @@ internal static class NativeAircraftBoardingAdviceTests
             })
             {
                 Check(!world.ReadAutoPlayBoardingAdvice(invalid, destination).Connected && before == JsonSerializer.Serialize(world.Process), "An incomplete or unrelated boarding receiver acquired advice or mutated the live source.");
+                Ff7WorldModeTopologyCursor? invalidSearch = null;
+                try
+                {
+                    Ff7AutoPlayWorldBoardingAdvice rejected = world.ReadAutoPlayBoardingAdvice(invalid, destination, ref invalidSearch, new(1, TimeSpan.MaxValue));
+                    Check(!rejected.Connected && !rejected.Pending && before == JsonSerializer.Serialize(world.Process), "An immediately invalid boarding receiver retained cooperative work or changed native state.");
+                }
+                finally
+                {
+                    invalidSearch?.Dispose();
+                }
             }
         }
         Console.WriteLine("Parked aircraft and existing surface boarding advice preserve native source state while connecting the actual rider destination.");

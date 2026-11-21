@@ -2,12 +2,25 @@ using Memoria.FF7.Events;
 
 namespace Memoria.FF7.Runtime;
 
-internal sealed record Ff7AutoPlayWorldBoardingAdvice(bool Supported, bool Connected, int? Transport, int ContactFaces, int TransportFaces, int RiderFaces, string? Reason);
+internal sealed record Ff7AutoPlayWorldBoardingAdvice(bool Supported, bool Connected, int? Transport, int ContactFaces, int TransportFaces, int RiderFaces, string? Reason, bool Pending = false);
 
 public sealed partial class Ff7WorldRuntime
 {
     /// <summary>Projects an offered native boarding receiver's existing physical profile. No boarding operation or VM instruction is executed.</summary>
     internal Ff7AutoPlayWorldBoardingAdvice ReadAutoPlayBoardingAdvice(Ff7AutoPlayWorldModelScriptObservation contact, Ff7AutoPlayWorldScriptObservation destination)
+    {
+        Ff7WorldModeTopologyCursor? search = null;
+        try
+        {
+            return ReadAutoPlayBoardingAdvice(contact, destination, ref search, new(16384, TimeSpan.MaxValue));
+        }
+        finally
+        {
+            search?.Dispose();
+        }
+    }
+
+    internal Ff7AutoPlayWorldBoardingAdvice ReadAutoPlayBoardingAdvice(Ff7AutoPlayWorldModelScriptObservation contact, Ff7AutoPlayWorldScriptObservation destination, ref Ff7WorldModeTopologyCursor? search, Ff7NativePlanningQuantum quantum)
     {
         int[] receivers = contact.Analysis.Transitions.Where(transition => transition.Operation == WorldOperation.BoardTransport && transition.Model is not null).Select(transition => transition.Model!.Value).Distinct().ToArray();
         Ff7AutoPlayWorldBoardingAdvice Unavailable(string reason) => new(false, false, null, 0, 0, 0, reason);
@@ -20,7 +33,7 @@ public sealed partial class Ff7WorldRuntime
         {
             return Unavailable(riderEntry.Reason ?? "The projected rider has no admitted native field-entry branch at the destination.");
         }
-        Ff7AutoPlayWorldGuide contactGuide = ReadAutoPlayModelNavigationGuide(contact);
+        Ff7AutoPlayWorldGuide contactGuide = search?.BoardingContactGuide ?? ReadAutoPlayModelNavigationGuide(contact);
         if (contactGuide.Faces.Length == 0)
         {
             return new(true, false, transport.Model, 0, 0, 0, contactGuide.Reason);
@@ -62,7 +75,13 @@ public sealed partial class Ff7WorldRuntime
                     AdvanceHighwindFlightCamera();
                 }
             }
-            Ff7AutoPlayWorldModeGuide guide = ReadAutoPlaySurfaceVehicleGuide(destination, (face, previous) => PreviewAutoPlaySurfaceLandingAtFace(face, previous).Ground);
+            search ??= CreateAutoPlaySurfaceVehicleGuide(destination, (face, previous) => PreviewAutoPlaySurfaceLandingAtFace(face, previous).Ground);
+            search.BoardingContactGuide = contactGuide;
+            search.Resume(quantum);
+            if (search.Result is not { } guide)
+            {
+                return new(true, false, transport.Model, contactGuide.Faces.Length, 0, 0, "The native boarding topology traversal has remaining work.", Pending: search.HasPendingWork);
+            }
             return new(true, guide.TransportGuide.Faces.Length > 0 && guide.RiderGuide.Faces.Length > 0, transport.Model, contactGuide.Faces.Length, guide.TransportGuide.Faces.Length, guide.RiderGuide.Faces.Length, guide.Reason);
         }
         finally

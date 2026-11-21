@@ -168,11 +168,17 @@ public sealed partial class Ff7AutoPlayPolicy
         RetireConsumedWorldFrontier(State);
         if (destinationTargets is not null)
         {
-            AddWorldDestinationBoarding(world, destinationTargets, target =>
+            bool boardingPending = AddWorldDestinationBoarding(world, destinationTargets, target =>
             {
                 var item = State.Coverage.Visits.Single(visit => visit.Visit.Key == observation.VisitId).Events.Single(item => item.Event.Id == target.Id);
                 return ReadWorldSemanticAvailability(item, target, AutoPlayPlanner<Ff7AutoPlayDeferral>.ReadAvailability(item, physicalGuards));
             });
+            if (boardingPending)
+            {
+                driver.DeferPlanning();
+                State.Status = "Planning native boarding and destination topology";
+                return default;
+            }
             if (State.Active is { Accepted: false } unrelated && !destinationTargets.Contains(unrelated.EventId))
             {
                 State.Active = null;
