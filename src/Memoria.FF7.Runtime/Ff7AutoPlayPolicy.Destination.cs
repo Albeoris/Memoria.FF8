@@ -16,14 +16,15 @@ public sealed partial class Ff7AutoPlayPolicy
         state.NavigationGoal = next.Goal ?? retained;
     }
 
-    internal static string? ResolveFieldDestinationGoal(Ff7AutoPlayState state, Ff7AutoPlayObservation observation, Func<ushort, int[]>? readConnections = null, Func<Ff7AutoPlayTarget, bool>? canSelect = null, Func<Ff7AutoPlayTarget, Ff7AutoPlayTarget, bool>? canUnblockGateway = null, Func<int, int[]>? readWorldConnections = null, Func<Ff7AutoPlayTarget, string?>? readDepartureSource = null, Func<ushort, Ff7AutoPlayFieldTopology?>? readTopology = null, Ff7Actor? player = null, byte[]? blocked = null)
+    internal static string? ResolveFieldDestinationGoal(Ff7AutoPlayState state, Ff7AutoPlayObservation observation, Func<ushort, int[]>? readConnections = null, Func<Ff7AutoPlayTarget, bool>? canSelect = null, Func<Ff7AutoPlayTarget, Ff7AutoPlayTarget, bool>? canUnblockGateway = null, Func<int, int[]>? readWorldConnections = null, Func<Ff7AutoPlayTarget, string?>? readDepartureSource = null, Func<ushort, Ff7AutoPlayFieldTopology?>? readTopology = null, Ff7Actor? player = null, byte[]? blocked = null, Ff7AutoPlayTarget? prerequisite = null)
     {
         if (state.DestinationField is not ushort destination)
         {
             return null;
         }
         Ff7AutoPlayTarget[] candidates = observation.Events.Where(target => target.AnalysisComplete && (target.Kind == Ff7AutoPlayTargetKind.Gateway || target.ChangesField) && TargetDestinations(target).Contains(destination) && CanRequestFieldTravel(state, observation, target) && canSelect?.Invoke(target) != false).ToArray();
-        Ff7AutoPlayTarget? selected = candidates.FirstOrDefault(target => state.NavigationGoal is { } retained && retained.NavigationKey == observation.NavigationKey && retained.EventId == target.Id)
+        Ff7AutoPlayTarget? selected = prerequisite is not null && observation.Events.Contains(prerequisite) && canSelect?.Invoke(prerequisite) != false ? prerequisite : null;
+        selected ??= candidates.FirstOrDefault(target => state.NavigationGoal is { } retained && retained.NavigationKey == observation.NavigationKey && retained.EventId == target.Id)
             ?? candidates.FirstOrDefault(target => target.DestinationField == destination)
             ?? candidates.FirstOrDefault();
         bool limited = false;

@@ -304,6 +304,11 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             CancelNativePlanning("native-snowboard-departure-priority");
             Publish();
         }
+        if (ReadNativeRockPrerequisite(observation) is { } rock && driver.HasNativeGeometricContact(rock) && RetireUnacceptedRockPlan(State, observation, session.Host.Process, session.Machine.Variables, Ff7AutoplayDriver.ReachableTriangles(session.Field.Walkmesh, session.Host.Process.BlockedTriangles, session.Host.Process.Actors.Single(actor => actor.PlayerControlled).Triangle)))
+        {
+            CancelNativePlanning("native-rock-prerequisite-priority");
+            Publish();
+        }
         bool resumeNative = nativePlanning is not null && !nativePlanningForActive;
         if (resumeNative)
         {
@@ -452,7 +457,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
                 Publish();
                 return default;
             }
-            string? destinationReason = ResolveFieldDestinationGoal(State, observation, session.ReadAutoPlayFieldConnections, CanSelectDestination, (producer, gateway) => CanUnblockDestinationGateway(producer, gateway, observation.Events), session.ReadAutoPlayWorldConnections, target => ReadKnownFieldDepartureSource(State, observation, target), field => session.IsKnownAutoPlayDestination(field) ? session.ReadAutoPlayFieldTopology(field) : null, session.Host.Process.Actors.Single(actor => actor.PlayerControlled), session.Host.Process.BlockedTriangles);
+            string? destinationReason = ResolveFieldDestinationGoal(State, observation, session.ReadAutoPlayFieldConnections, CanSelectDestination, (producer, gateway) => CanUnblockDestinationGateway(producer, gateway, observation.Events), session.ReadAutoPlayWorldConnections, target => ReadKnownFieldDepartureSource(State, observation, target), field => session.IsKnownAutoPlayDestination(field) ? session.ReadAutoPlayFieldTopology(field) : null, session.Host.Process.Actors.Single(actor => actor.PlayerControlled), session.Host.Process.BlockedTriangles, ReadNativeRockPrerequisite(observation));
             Ff7NativeSourceRevalidation[] revalidations = State.DestinationField is null ? ReadPendingSourceRevalidations(State, observation) : [];
             string? refreshSource = revalidations.FirstOrDefault()?.NavigationKey;
             bool continuingRefresh = State.NavigationGoal is { EventId: null } goal && revalidations.Any(item => item.NavigationKey == goal.NavigationKey);
