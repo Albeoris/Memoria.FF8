@@ -141,15 +141,18 @@ public sealed partial class Ff7AutoplayDriver
         }
         navigationModeGoal = goal;
         navigationTalkContactSearchPhase = false;
-        ClearParkedNavigationModes();
+        if (!preparingNavigationMode)
+        {
+            ClearParkedNavigationModes();
+        }
         ResetObstacleEscape();
     }
 
-    private sealed record NavigationModeState(long WaypointGeneration, int WaypointDestination, Vector3? CommittedWaypoint, int WaypointSourceTriangle, Vector3? FinalTarget, long ObstacleGeneration, Vector3? ObstacleTarget, int ObstacleSpeed, Vector3[] ObstacleHistory, EscapeStep[] ObstacleEscape, bool? RunMode, bool? ActionProgress, bool LineRejected, bool EscapeAction, string? ApproachGuideContext, (int From, int To)[] ApproachAdviceExclusions, PhysicalSearchCursor? ObstacleSearch, string? ObstacleSearchContext);
+    private sealed record NavigationModeState(long WaypointGeneration, int WaypointDestination, Vector3? CommittedWaypoint, int WaypointSourceTriangle, Vector3? FinalTarget, long ObstacleGeneration, Vector3? ObstacleTarget, int ObstacleSpeed, Vector3[] ObstacleHistory, EscapeStep[] ObstacleEscape, bool? RunMode, bool? ActionProgress, bool LineRejected, bool EscapeAction, string? ApproachGuideContext, (int From, int To)[] ApproachAdviceExclusions, PhysicalSearchCursor? ObstacleSearch, string? ObstacleSearchContext, string? Goal);
 
     private NavigationModeState CaptureNavigationMode()
     {
-        return new(waypointGeneration, waypointDestination, committedWaypoint, waypointSourceTriangle, finalTarget, obstacleGeneration, obstacleTarget, obstacleSpeed, obstacleHistory.ToArray(), obstacleEscape.ToArray(), navigationRunMode, navigationActionProgress, navigationLineRejected, navigationEscapeAction, approachGuideContext, approachAdviceExclusions.ToArray(), obstacleSearch, obstacleSearchContext);
+        return new(waypointGeneration, waypointDestination, committedWaypoint, waypointSourceTriangle, finalTarget, obstacleGeneration, obstacleTarget, obstacleSpeed, obstacleHistory.ToArray(), obstacleEscape.ToArray(), navigationRunMode, navigationActionProgress, navigationLineRejected, navigationEscapeAction, approachGuideContext, approachAdviceExclusions.ToArray(), obstacleSearch, obstacleSearchContext, navigationModeGoal);
     }
 
     private void RestoreNavigationMode(NavigationModeState state)
@@ -181,6 +184,7 @@ public sealed partial class Ff7AutoplayDriver
         navigationEscapeAction = state.EscapeAction;
         obstacleSearch = state.ObstacleSearch;
         obstacleSearchContext = state.ObstacleSearchContext;
+        navigationModeGoal = state.Goal;
     }
     internal bool? PlannedActionAdvances => navigationActionProgress;
     private bool physicalSearchPreparedThisStep;
@@ -263,6 +267,8 @@ public sealed partial class Ff7AutoplayDriver
         Ff7NativePlanningQuantum? previousQuantum = navigationModeQuantum;
         navigationModeQuantum = new();
         Ff7AutoplayInput? idle = null;
+        Ff7AutoplayInput? facingPreparation = null;
+        NavigationModeState? facingState = null;
         Ff7AutoplayInput? detour = null;
         NavigationModeState? detourState = null;
         Ff7AutoPlayNavigationUnavailableException? failure = null;
@@ -325,6 +331,15 @@ public sealed partial class Ff7AutoplayDriver
                     }
                     if (action.Horizontal != 0 || action.Vertical != 0 || action.Held != 0 || action.Talk)
                     {
+                        if (navigationActionProgress == false && !navigationEscapeAction && action.Held == 0 && !action.Talk)
+                        {
+                            if (facingPreparation is null)
+                            {
+                                facingPreparation = action;
+                                facingState = CaptureNavigationMode();
+                            }
+                            continue;
+                        }
                         if (detour is Ff7AutoplayInput retained)
                         {
                             Ff7AutoplayInput selected = PreferAdvancingNavigationInput(retained, action, navigationActionProgress == true);
@@ -369,6 +384,11 @@ public sealed partial class Ff7AutoplayDriver
                 DeferPlanning();
                 physicalSearchPreparedThisStep = true;
                 return default;
+            }
+            if (facingPreparation is Ff7AutoplayInput preparation)
+            {
+                Adopt(preparation.Run, facingState);
+                return preparation;
             }
             if (idle is Ff7AutoplayInput waiting && !rejected)
             {

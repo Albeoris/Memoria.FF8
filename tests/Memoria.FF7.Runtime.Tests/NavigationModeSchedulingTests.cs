@@ -26,6 +26,7 @@ internal static class NavigationModeSchedulingTests
         CheckContactSearchPhase();
         CheckCheapReadyWalk();
         CheckFairPendingAndCancellation();
+        CheckPendingBeforeFacingPreparation();
         CheckSelectedWalkPrefix();
         Console.WriteLine("PASS retained run/walk fair shared-quantum scheduling, cancellation, required mode and selected walk prefix");
     }
@@ -155,7 +156,7 @@ internal static class NavigationModeSchedulingTests
         string point = "point-a";
         Ff7AutoplayInput Choose(bool run)
         {
-            Method("UpdateNavigationModeGoal").Invoke(driver, [point]);
+            Method("UpdateNavigationModeGoal").Invoke(driver, [$"{point}:{run}"]);
             if (Field("obstacleSearch").GetValue(driver) is not Ff7AutoplayDriver.PhysicalSearchCursor cursor)
             {
                 cursor = Cursor();
@@ -186,6 +187,54 @@ internal static class NavigationModeSchedulingTests
         Check(!ReferenceEquals(runCursor, cursors[true]) && !ReferenceEquals(walkCursor, cursors[false]), "A changed native source resumed stale parked physical work.");
         Method("CancelObstacleSearch").Invoke(driver, null);
         Check(Parked(driver) == 0 && Field("obstacleSearch").GetValue(driver) is null, "Explicit cancellation retained a sibling mode cursor.");
+    }
+
+    private static void CheckPendingBeforeFacingPreparation()
+    {
+        foreach (bool pendingRun in new[] { true, false })
+        {
+            Ff7AutoplayDriver driver = new(null!);
+            Ff7AutoplayDriver.PhysicalSearchCursor? retained = null;
+            Ff7AutoplayInput Choose(bool run)
+            {
+                Method("UpdateNavigationModeGoal").Invoke(driver, [$"contact:{run}"]);
+                if (run == pendingRun)
+                {
+                    if (Field("obstacleSearch").GetValue(driver) is not Ff7AutoplayDriver.PhysicalSearchCursor cursor)
+                    {
+                        cursor = Cursor();
+                        Field("obstacleSearch").SetValue(driver, cursor);
+                    }
+                    Check(retained is null || ReferenceEquals(retained, cursor), "Evaluating the other mode discarded the pending contact graph.");
+                    retained = cursor;
+                    driver.ResumePhysicalSearch(cursor);
+                    driver.DeferPlanning();
+                    return default;
+                }
+                Field("navigationActionProgress").SetValue(driver, false);
+                return new(Horizontal: 1, Run: run);
+            }
+            int expanded = 0;
+            for (int poll = 0; poll < 3; poll++)
+            {
+                Ff7AutoplayInput action = driver.ChooseNavigationModes("source", "intent", new(), Source, Choose, _ => true);
+                Check(driver.PlanningPending && action == default && Parked(driver) == 1, "A facing-only action replaced an unfinished sibling-mode search.");
+                Check(retained is not null && retained.Expanded > expanded, "Pending contact search failed to advance across ordinary mode evaluations.");
+                expanded = retained!.Expanded;
+            }
+        }
+        foreach (bool? advancingRun in new bool?[] { null, true, false })
+        {
+            Ff7AutoplayDriver driver = new(null!);
+            Ff7AutoplayInput Choose(bool run)
+            {
+                Method("UpdateNavigationModeGoal").Invoke(driver, [$"contact:{run}"]);
+                Field("navigationActionProgress").SetValue(driver, run == advancingRun);
+                return new(Horizontal: 1, Run: run);
+            }
+            Ff7AutoplayInput action = driver.ChooseNavigationModes("source", "intent", new(), Source, Choose, _ => true);
+            Check(!driver.PlanningPending && action.Horizontal == 1 && (advancingRun is null || action.Run == advancingRun), "Facing fallback suppressed real movement or disappeared without pending work.");
+        }
     }
 
     private static void CheckSelectedWalkPrefix()
