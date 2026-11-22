@@ -101,7 +101,15 @@ public sealed partial class Ff7Session
         {
             return [];
         }
-        PcFieldFile file = PcFieldFile.ReadCompressed(fields.ReadEntry(fields.Find(mapList[field]).Single()));
+        var archiveEntries = fields.Find(mapList[field]);
+        if (archiveEntries.Count == 0)
+        {
+            // A map-list name without an archive resource cannot provide advisory graph edges.
+            // Loading an actually requested field remains strict in the native transition path.
+            autoPlayFieldConnections[field] = [];
+            return [];
+        }
+        PcFieldFile file = PcFieldFile.ReadCompressed(fields.ReadEntry(archiveEntries.Single()));
         PcFieldScripts scripts;
         try
         {

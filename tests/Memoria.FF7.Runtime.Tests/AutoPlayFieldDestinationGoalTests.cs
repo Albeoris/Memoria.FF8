@@ -10,6 +10,16 @@ using Memoria.FF7.Runtime;
 
 internal static class AutoPlayFieldDestinationGoalTests
 {
+    internal static void RunConnectivityAdvice()
+    {
+        RunWorldBridge();
+        CheckKnownComponentDeparture();
+        CheckRemoteDestinationAdvice();
+        CheckCausalUnblockPrerequisite();
+        CheckSampledDestinationAdvice();
+        Console.WriteLine("PASS complete finite destination connectivity, native world bridge, shortest admitted route, unavailable exits, prerequisites and unchanged history.");
+    }
+
     internal static void Run()
     {
         CheckLockedDestinationArrival();
@@ -119,6 +129,10 @@ internal static class AutoPlayFieldDestinationGoalTests
         Check(JsonSerializer.Serialize(state.Coverage) == coverage && blocked[0] == 2, "Causal prerequisite advice must preserve all native blocks, consumed entries, routes and navigation receipts.");
         Ff7AutoPlayState cold = state.Clone();
         Check(Ff7AutoPlayPolicy.ResolveFieldDestinationGoal(cold, observation, Read, Available, Unblocks) is null && cold.NavigationGoal == state.NavigationGoal, "Cold restoration must resolve the same causal intent using current native topology without a required new save marker.");
+        int[] ShorterAdmittedRoute(ushort field) => field is 200 or 400 ? [300] : [];
+        Check(Ff7AutoPlayPolicy.ResolveFieldDestinationGoal(state, observation, ShorterAdmittedRoute, Available, Unblocks) is null && state.NavigationGoal?.EventId == backtrack.Id, "A currently reachable shorter route must not lose to a producer that opens a different gateway solely because a prerequisite exists.");
+        Check(Ff7AutoPlayPolicy.ResolveFieldDestinationGoal(state, observation, Read, Available, Unblocks, readGatewayPrerequisiteLength: (_, _) => 3) is null && state.NavigationGoal?.EventId == backtrack.Id, "The complete advice cost must include every proved prerequisite event, rather than comparing only remaining field hops.");
+        Check(JsonSerializer.Serialize(state.Coverage) == coverage && blocked[0] == 2, "Comparing full route and prerequisite costs changed native topology or durable coverage.");
         planner.Completed(observation.VisitId, producer.Id, observedStoryChanged: false, entrySignature: producer.ConditionFingerprint, entrySignatureAuthoritative: true);
         Check(Ff7AutoPlayPolicy.ResolveFieldDestinationGoal(state, observation, Read, Available, Unblocks) is null && state.NavigationGoal?.EventId != producer.Id && blocked[0] == 2, "An unchanged consumed producer must not be replayed or treated as an executed unblock merely because its analysis has a possible effect.");
         Ff7AutoPlayState fresh = new() { DestinationField = 300 };
@@ -286,8 +300,17 @@ internal static class AutoPlayFieldDestinationGoalTests
         AutoPlayPlanStep? longer = planner.PlanNavigation(observation.NavigationKey, preferredGoal: state.NavigationGoal, readAvailability: (_, target) => new(target.Id == exit.Id, [], "short-corridor-blocked"));
         Check(longer?.Event.Id == alternate.Id && Ff7AutoPlayPolicy.IsDestinationPlan(state, longer, observation.NavigationKey), "The shared planner must admit the longer goal-reaching exit while excluding an unrelated optional room.");
         state.DestinationField = 1000;
-        string? limited = Ff7AutoPlayPolicy.ResolveFieldDestinationGoal(state, observation with { Events = [exit] }, field => [(int)field + 1]);
-        Check(limited?.Contains("bounded search limit", StringComparison.Ordinal) == true && state.NavigationGoal is null, "An unfinished bounded native connectivity search must report its limit instead of exploring unrelated fields.");
+        Dictionary<ushort, int> reads = [];
+        int[] LongGraph(ushort field)
+        {
+            reads[field] = reads.GetValueOrDefault(field) + 1;
+            return field < 1000 ? [field, field + 1, field + 1] : [];
+        }
+        string? connected = Ff7AutoPlayPolicy.ResolveFieldDestinationGoal(state, observation with { Events = [exit] }, LongGraph);
+        Check(connected is null && state.NavigationGoal?.EventId == exit.Id && reads.Count > 128 && reads.Values.All(count => count == 1), "A finite cyclic destination graph must find its actual route beyond 128 fields while reading each resource once.");
+        state.DestinationField = 1100;
+        string? disconnected = Ff7AutoPlayPolicy.ResolveFieldDestinationGoal(state, observation with { Events = [exit] }, field => field < 1000 ? [field, field + 1] : []);
+        Check(disconnected?.StartsWith("No currently admitted native field connectivity route", StringComparison.Ordinal) == true && state.NavigationGoal is null, "An exhaustively disconnected finite graph must report no route, not a fabricated search limit.");
         state.DestinationField = null;
         Check(Ff7AutoPlayPolicy.IsDestinationPlan(state, blocked, observation.NavigationKey), "Ordinary exploration must retain its existing admission and frontier policy when no destination is requested.");
     }
@@ -403,7 +426,11 @@ internal static class AutoPlayFieldDestinationGoalTests
         Ff7AutoPlayActiveEvent active = policy.State.Active ?? throw new InvalidOperationException($"No native destination was selected: {controller.Error ?? policy.Status}");
         Ff7AutoPlayTarget selected = new Ff7AutoPlayDiscovery(session).FindTarget(active.EventId) ?? throw new InvalidOperationException("The selected native entrance was absent from discovery.");
         bool worldBridge = selected.DestinationField is int selector && selector is >= 1 and <= 64 && session.ReadAutoPlayWorldConnections(selector).Contains(destination);
-        Check(controller.Error is null && selected.AnalysisComplete && (selected.DestinationField == destination || selected.PossibleDestinationFields.Contains(destination) || selected.SpatialDestinations?.Contains(destination) == true || worldBridge), "The native planner must select an entrance whose complete native analysis includes the requested field or a compatible native world handoff.");
+        string? expected = Environment.GetEnvironmentVariable("MEMORIA_FF7_FIELD_DESTINATION_EVENT");
+        Console.WriteLine($"Original first destination: active={active.EventId}, expected={expected}, direct={selected.DestinationField}, destination={destination}, error={controller.Error}, status={policy.Status}, prerequisite={active.NavigationPrerequisiteGoal}, selectedGoal={policy.State.NavigationGoal}, ladders={string.Join(";", selected.LadderLandings.Select(landing => $"{landing.Entity}:{landing.Command.Triangle}"))}, blocked={string.Join(",", selected.UnblockedTriangles)}.");
+        bool expectedHop = expected is not null && policy.State.NavigationGoal?.EventId == expected && (active.EventId == expected || active.NavigationPrerequisiteGoal == policy.State.NavigationGoal);
+        bool admittedAdvice = expected is not null ? expectedHop : selected.DestinationField == destination || selected.PossibleDestinationFields.Contains(destination) || selected.SpatialDestinations?.Contains(destination) == true || worldBridge;
+        Check(controller.Error is null && selected.AnalysisComplete && admittedAdvice, "The native planner must select the externally qualified first entrance or a complete direct destination/world handoff.");
         Check(policy.State.DestinationField == destination, "A native world bridge replaced the final requested field destination with its intermediate selector.");
         Check(active.SpatialDestinations is null || selected.SpatialDestinations is not null, "Ordinary goal metadata must not create spatial transition ownership or completion evidence.");
         if (selected.Entity >= 0 && selected.Script >= 0)
@@ -411,7 +438,7 @@ internal static class AutoPlayFieldDestinationGoalTests
             int[] analyzed = session.Machine.AnalyzeScript(selected.Entity, selected.Script).DestinationFields;
             Check(selected.PossibleDestinationFields.SequenceEqual(analyzed) && selected.DestinationField == (analyzed.Length == 1 ? analyzed[0] : (int?)null), "Ordinary discovery must preserve every analyzed destination while retaining the exact single-destination shortcut.");
         }
-        Check(policy.State.NavigationGoal is { } goal && goal.EventId == active.EventId && goal.Conditions == active.ConditionFingerprint, "Native local selection must preserve the exact destination goal and entry condition.");
+        Check(policy.State.NavigationGoal is { } goal && (goal.EventId == active.EventId && goal.Conditions == active.ConditionFingerprint || active.NavigationPrerequisiteGoal == goal), "Native local selection must preserve the exact destination goal and entry condition, including an authenticated current prerequisite.");
         Check(bytes.SequenceEqual(File.ReadAllBytes(path)), "Native destination selection must leave the standalone fixture unchanged.");
         Console.WriteLine($"PASS original field destination selection and retained native goal: {active.EventId}; possible destinations=[{string.Join(',', selected.PossibleDestinationFields)}]; source unchanged");
     }

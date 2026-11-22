@@ -1956,6 +1956,12 @@ if (args.Contains("--world-destination-original-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--field-destination-connectivity-only", StringComparer.Ordinal))
+{
+    AutoPlayFieldDestinationGoalTests.RunConnectivityAdvice();
+    return 0;
+}
+
 if (args.Contains("--field-destination-goal-only", StringComparer.Ordinal))
 {
     AutoPlayFieldDestinationGoalTests.Run();

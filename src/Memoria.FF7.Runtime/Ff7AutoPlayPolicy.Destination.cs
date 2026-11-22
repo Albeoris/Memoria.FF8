@@ -31,41 +31,32 @@ public sealed partial class Ff7AutoPlayPolicy
         if (selected is null && readConnections is not null)
         {
             Dictionary<ushort, int[]> connections = [];
-            bool resourceLimit = false;
             int[] ReadConnections(ushort field)
             {
                 if (connections.TryGetValue(field, out int[]? known))
                 {
                     return known;
                 }
-                if (connections.Count >= 128)
-                {
-                    resourceLimit = true;
-                    return [];
-                }
                 int[] result = field is >= 1 and <= 64 ? readWorldConnections?.Invoke(field) ?? [] : readConnections(field);
                 connections[field] = result;
                 return result;
             }
-            if (canUnblockGateway is not null)
+            int prerequisiteCost = int.MaxValue;
+            Ff7AutoPlayTarget? gatewayPrerequisite = canUnblockGateway is null ? null : FindFieldDestinationPrerequisite(state, observation, destination, ReadConnections, canSelect, canUnblockGateway, readGatewayPrerequisiteLength, out prerequisiteCost);
+            int routeCost = int.MaxValue;
+            if (readTopology is not null && player is not null && blocked is not null)
             {
-                selected = FindFieldDestinationPrerequisite(state, observation, destination, ReadConnections, canSelect, canUnblockGateway, readGatewayPrerequisiteLength);
-            }
-            if (selected is null && readTopology is not null && player is not null && blocked is not null)
-            {
-                Ff7AutoPlayFieldTopology? ReadTopology(ushort field)
-                {
-                    ReadConnections(field);
-                    return connections.ContainsKey(field) ? readTopology(field) : null;
-                }
-                (selected, limited) = FindFieldEntryDestinationAdvice(state, observation, destination, player, blocked, ReadTopology, canSelect);
+                (selected, limited) = FindFieldEntryDestinationAdvice(state, observation, destination, player, blocked, readTopology, canSelect, out routeCost);
             }
             if (selected is null)
             {
-                (selected, bool fallbackLimited) = FindFieldDestinationAdvice(state, observation, destination, ReadConnections, canSelect);
+                (selected, bool fallbackLimited) = FindFieldDestinationAdvice(state, observation, destination, ReadConnections, canSelect, out routeCost);
                 limited |= fallbackLimited;
             }
-            limited |= resourceLimit;
+            if (gatewayPrerequisite is not null && prerequisiteCost <= routeCost)
+            {
+                selected = gatewayPrerequisite;
+            }
         }
         if (selected is not null)
         {
@@ -119,8 +110,9 @@ public sealed partial class Ff7AutoPlayPolicy
         return null;
     }
 
-    private static Ff7AutoPlayTarget? FindFieldDestinationPrerequisite(Ff7AutoPlayState state, Ff7AutoPlayObservation observation, ushort destination, Func<ushort, int[]> readConnections, Func<Ff7AutoPlayTarget, bool>? canSelect, Func<Ff7AutoPlayTarget, Ff7AutoPlayTarget, bool> canUnblockGateway, Func<Ff7AutoPlayTarget, Ff7AutoPlayTarget, int?>? readGatewayPrerequisiteLength)
+    private static Ff7AutoPlayTarget? FindFieldDestinationPrerequisite(Ff7AutoPlayState state, Ff7AutoPlayObservation observation, ushort destination, Func<ushort, int[]> readConnections, Func<Ff7AutoPlayTarget, bool>? canSelect, Func<Ff7AutoPlayTarget, Ff7AutoPlayTarget, bool> canUnblockGateway, Func<Ff7AutoPlayTarget, Ff7AutoPlayTarget, int?>? readGatewayPrerequisiteLength, out int cost)
     {
+        cost = int.MaxValue;
         Ff7AutoPlayTarget[] producers = observation.Events.Where(target => target.AnalysisComplete && target.MayChangeNavigation && !target.ChangesField && (target.UnblockedTriangles.Length != 0 || target.LadderLandings.Length != 0 || target.TerminalJumpLandings.Length != 0 || target.PossibleJumpLandings.Length != 0) && canSelect?.Invoke(target) != false).Where(target =>
         {
             AutoPlayEventCoverage<Ff7AutoPlayDeferral>? coverage = state.Coverage.Visits.SingleOrDefault(visit => visit.Visit.Key == observation.VisitId)?.Events.SingleOrDefault(item => item.Event.Id == target.Id);
@@ -131,8 +123,25 @@ public sealed partial class Ff7AutoPlayPolicy
         {
             return null;
         }
-        var (gateway, _) = FindFieldDestinationAdvice(state, observation with { Events = gateways }, destination, readConnections, null);
-        return gateway is null ? null : producers.Where(producer => canUnblockGateway(producer, gateway)).OrderBy(producer => readGatewayPrerequisiteLength?.Invoke(producer, gateway) ?? int.MaxValue).First();
+        Ff7AutoPlayTarget? selected = null;
+        foreach (Ff7AutoPlayTarget gateway in gateways)
+        {
+            var (reachable, _) = FindFieldDestinationAdvice(state, observation with { Events = [gateway] }, destination, readConnections, null, out int remaining);
+            if (reachable is null)
+            {
+                continue;
+            }
+            foreach (Ff7AutoPlayTarget producer in producers.Where(producer => canUnblockGateway(producer, gateway)))
+            {
+                int? prerequisites = readGatewayPrerequisiteLength is null ? 1 : readGatewayPrerequisiteLength(producer, gateway);
+                if (prerequisites is > 0 && remaining <= int.MaxValue - prerequisites.Value && remaining + prerequisites.Value < cost)
+                {
+                    selected = producer;
+                    cost = remaining + prerequisites.Value;
+                }
+            }
+        }
+        return selected;
     }
 
     internal static bool HasRecordedLocalNavigationStep(Ff7AutoPlayState state, Ff7AutoPlayObservation observation, Ff7AutoPlayTarget target)
@@ -276,18 +285,23 @@ public sealed partial class Ff7AutoPlayPolicy
 
     private static (Ff7AutoPlayTarget? Target, bool Limited) FindFieldDestinationAdvice(Ff7AutoPlayState state, Ff7AutoPlayObservation observation, ushort destination, Func<ushort, int[]> readConnections, Func<Ff7AutoPlayTarget, bool>? canSelect)
     {
-        const int maximumFields = 128;
-        Queue<(ushort Field, Ff7AutoPlayTarget First)> pending = new();
+        return FindFieldDestinationAdvice(state, observation, destination, readConnections, canSelect, out _);
+    }
+
+    private static (Ff7AutoPlayTarget? Target, bool Limited) FindFieldDestinationAdvice(Ff7AutoPlayState state, Ff7AutoPlayObservation observation, ushort destination, Func<ushort, int[]> readConnections, Func<Ff7AutoPlayTarget, bool>? canSelect, out int cost)
+    {
+        cost = int.MaxValue;
+        Queue<(ushort Field, Ff7AutoPlayTarget First, int Cost)> pending = new();
         int current = ReadVisitField(observation.VisitId);
         HashSet<ushort> visited = current > 64 && current < short.MaxValue ? [(ushort)current] : [];
         foreach (Ff7AutoPlayTarget target in observation.Events.Where(target => target.AnalysisComplete && (target.Kind == Ff7AutoPlayTargetKind.Gateway || target.ChangesField) && CanRequestFieldTravel(state, observation, target) && canSelect?.Invoke(target) != false))
         {
             foreach (int field in TargetDestinations(target).Where(field => field > 0 && field < short.MaxValue && field != current))
             {
-                pending.Enqueue(((ushort)field, target));
+                pending.Enqueue(((ushort)field, target, 1));
             }
         }
-        while (pending.Count != 0 && visited.Count < maximumFields)
+        while (pending.Count != 0)
         {
             var step = pending.Dequeue();
             if (!visited.Add(step.Field))
@@ -296,12 +310,13 @@ public sealed partial class Ff7AutoPlayPolicy
             }
             if (step.Field == destination)
             {
+                cost = step.Cost;
                 return (step.First, false);
             }
             IEnumerable<int> recorded = state.Coverage.Visits.Where(visit => ReadVisitField(visit.Visit.Key) == step.Field).SelectMany(visit => visit.Events).SelectMany(item => item.Routes).Select(route => ReadVisitField(route.DestinationVisitKey));
             foreach (int field in readConnections(step.Field).Concat(recorded).Where(field => field > 0 && field < short.MaxValue).Distinct())
             {
-                pending.Enqueue(((ushort)field, step.First));
+                pending.Enqueue(((ushort)field, step.First, step.Cost + 1));
             }
         }
         return (null, pending.Count != 0);

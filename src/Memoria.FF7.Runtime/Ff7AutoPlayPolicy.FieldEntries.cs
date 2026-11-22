@@ -7,24 +7,30 @@ public sealed partial class Ff7AutoPlayPolicy
 {
     internal static (Ff7AutoPlayTarget? Target, bool Limited) FindFieldEntryDestinationAdvice(Ff7AutoPlayState state, Ff7AutoPlayObservation observation, ushort destination, Ff7Actor player, byte[] blocked, Func<ushort, Ff7AutoPlayFieldTopology?> readTopology, Func<Ff7AutoPlayTarget, bool>? canSelect)
     {
+        return FindFieldEntryDestinationAdvice(state, observation, destination, player, blocked, readTopology, canSelect, out _);
+    }
+
+    private static (Ff7AutoPlayTarget? Target, bool Limited) FindFieldEntryDestinationAdvice(Ff7AutoPlayState state, Ff7AutoPlayObservation observation, ushort destination, Ff7Actor player, byte[] blocked, Func<ushort, Ff7AutoPlayFieldTopology?> readTopology, Func<Ff7AutoPlayTarget, bool>? canSelect, out int cost)
+    {
+        cost = int.MaxValue;
         int currentField = ReadVisitField(observation.VisitId);
         if (currentField <= 64 || currentField >= short.MaxValue || readTopology((ushort)currentField) is not { } origin)
         {
             return (null, true);
         }
-        Queue<(FieldTransitionCommand Entry, Ff7AutoPlayTarget First)> pending = new();
+        Queue<(FieldTransitionCommand Entry, Ff7AutoPlayTarget First, int Cost)> pending = new();
         HashSet<(ushort Field, ushort Triangle)> visited = [((ushort)currentField, checked((ushort)player.Triangle))];
         foreach (Ff7AutoPlayTarget target in observation.Events.Where(target => target.AnalysisComplete && (target.Kind == Ff7AutoPlayTargetKind.Gateway || target.ChangesField) && CanRequestFieldTravel(state, observation, target) && canSelect?.Invoke(target) != false))
         {
             if (target.GatewayIndex is int index && (uint)index < origin.Gateways.Count)
             {
-                pending.Enqueue((GatewayEntry(origin.Gateways[index]), target));
+                pending.Enqueue((GatewayEntry(origin.Gateways[index]), target, 1));
             }
             else
             {
                 foreach (Ff7AutoPlayLineTransition line in origin.Lines.Where(line => line.Line.Entity == target.Entity && line.Script == target.Script))
                 {
-                    pending.Enqueue((line.Transition, target));
+                    pending.Enqueue((line.Transition, target, 1));
                 }
             }
         }
@@ -58,15 +64,16 @@ public sealed partial class Ff7AutoPlayPolicy
             }
             if (entry.Map == destination)
             {
+                cost = step.Cost;
                 return (step.First, false);
             }
             foreach (PcFieldGateway gateway in topology.Gateways.Where(gateway => gateway.DestinationField > 64 && gateway.DestinationField < short.MaxValue && Ff7AutoplayDriver.HasGatewayTopologyPath(topology.Walkmesh, mask, actor, gateway, out _)))
             {
-                pending.Enqueue((GatewayEntry(gateway), step.First));
+                pending.Enqueue((GatewayEntry(gateway), step.First, step.Cost + 1));
             }
             foreach (Ff7AutoPlayLineTransition line in topology.Lines.Where(line => line.Line.Enabled == 1 && Ff7AutoplayDriver.DiscoverLineContacts(topology.Walkmesh, mask, actor, line.Line).Count != 0))
             {
-                pending.Enqueue((line.Transition, step.First));
+                pending.Enqueue((line.Transition, step.First, step.Cost + 1));
             }
         }
         return (null, limited);
