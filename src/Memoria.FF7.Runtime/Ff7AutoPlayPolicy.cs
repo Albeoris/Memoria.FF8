@@ -122,6 +122,12 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
 
     public Ff7AutoplayInput ChooseInput(Ff7AutoplayDriver driver)
     {
+        if (Ff7AutoPlayChoiceWorkflow.HasCompletedCommittedSource(State))
+        {
+            choices.CompleteAtControlReturn();
+            Publish();
+            return default;
+        }
         ObserveSummitRecoveryHost();
         RetireCurrentPersistentNoEffectGoal();
         nativeInputReservation = null;
@@ -849,6 +855,10 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             State.SourceGoal = sourceGoal with { AcceptedEntry = sourceGoal.Entry };
         }
         bool sourceCompleted = CompleteSourceGoal(State, State.Active ?? active);
+        if (sourceCompleted && Ff7AutoPlayChoiceWorkflow.HasCompletedCommittedSource(State))
+        {
+            choices.CompleteAtControlReturn();
+        }
         State.Active = null;
         if (State.NavigationGoal is { } goal && IsNavigationGoalCompleted(goal, active, observation.NavigationKey))
         {

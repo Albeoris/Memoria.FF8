@@ -227,7 +227,7 @@ public sealed partial class Ff7AutoPlayChoiceWorkflow
         }
         Ff7SessionSave current = capture();
         bool executionCommitted = choice.NativeExecutionCommitted == true;
-        if (executionCommitted && (current.World is not null || current.Battle is not null || current.Process.GlobalCommand != Ff7GlobalCommand.None || current.Process.PlayerLocked || current.Process.MenuDisabled || current.Process.Transition is not null || current.Process.Join is not null || current.Process.Movie is { Playing: true } || current.Process.Dialogues.Any(dialogue => !dialogue.Completed)))
+        if (executionCommitted && !HasCompletedCommittedSource(state) && (current.World is not null || current.Battle is not null || current.Process.GlobalCommand != Ff7GlobalCommand.None || current.Process.PlayerLocked || current.Process.MenuDisabled || current.Process.Transition is not null || current.Process.Join is not null || current.Process.Movie is { Playing: true } || current.Process.Dialogues.Any(dialogue => !dialogue.Completed)))
         {
             return false;
         }

@@ -4,6 +4,37 @@ namespace Memoria.FF7.Runtime;
 
 public sealed partial class Ff7AutoPlayChoiceWorkflow
 {
+    internal static bool HasCompletedCommittedSource(Ff7AutoPlayState state)
+    {
+        if (state.PendingRestore is not null || state.SourceGoal is not { Completed: true, AcceptedEntry: int accepted } goal || accepted != goal.Entry || state.Choice is null)
+        {
+            return false;
+        }
+        Ff7AutoPlayActiveEvent? first = null;
+        for (Ff7AutoPlayChoiceState? choice = state.Choice; choice is not null; choice = choice.Parent)
+        {
+            if (choice.NativeExecutionCommitted != true || choice.NativeSourceOwned != true || choice.BeforeActive is not { Accepted: true } source || source.VisitId != goal.VisitId || source.NavigationKey != goal.NavigationKey || source.Generation != goal.Generation || source.EventId != goal.EventId || source.ConditionFingerprint != goal.ConditionFingerprint || source.Kind != goal.Kind || source.Entity != goal.Entity || source.Script != goal.Script || !Ff7AutoPlayExecutionOwners.Matches(source, goal.Generation, goal.ProgramIdentity) || source.ExecutionProvenance is not { RootDispatchTick: >= 0 } provenance || choice.NativeOwner is not { } owner || owner.Generation != goal.Generation || owner.ProgramIdentity != goal.ProgramIdentity || first is not null && !MatchesChoiceSource(choice, first))
+            {
+                return false;
+            }
+            if (state.Active is { } current && (!current.CompletionRecorded || !MatchesChoiceSource(choice, current)))
+            {
+                return false;
+            }
+            first ??= source;
+            if (!provenance.Owners.Any(owner => !owner.Queued && owner.Entity == goal.Entity && owner.Priority == 1 && owner.ParentEntity == -1 && owner.Entry == goal.Entry))
+            {
+                return false;
+            }
+            var coverage = state.Coverage.Choices.SingleOrDefault(item => item.Key == choice.Key);
+            if (coverage?.ActiveOption is not int option || option < coverage.FirstOption || option >= coverage.FirstOption + coverage.OptionCount)
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
     internal static bool ObserveOwnedMinigameChoice(Ff7SessionSave source, Ff7AutoPlayState state)
     {
         if (state.PendingRestore is not null || state.Choice is null || source.World is not null || source.Battle is not null || state.Active is not { Accepted: true, Returned: false, ExecutionProvenance: { RootReturned: false } } active || !Ff7AutoPlayExecutionOwners.Matches(active, source.FieldGeneration, source.Vm.ProgramIdentity) || source.Process.GlobalCommand != Ff7GlobalCommand.Minigame || source.Process.GlobalRequestId is not long id)

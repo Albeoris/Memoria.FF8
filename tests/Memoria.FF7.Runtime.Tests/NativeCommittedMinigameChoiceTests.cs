@@ -52,6 +52,7 @@ internal static class NativeCommittedMinigameChoiceTests
         }
         Check(source.State.Coverage.Choices.All(item => item.CompletedOptions.Count == 0), "Native module admission fabricated a completed choice.");
         CheckControlReturn();
+        CheckCompletedSourceReturn();
         Console.WriteLine("Owned native minigame choice commitment retains only authenticated live source execution without credit or native mutation.");
     }
 
@@ -103,6 +104,48 @@ internal static class NativeCommittedMinigameChoiceTests
         Check(!Observe(orphan with { Source = orphan.Source with { Condor = cache, Vm = orphan.Source.Vm with { PendingRequests = [] } } }), "An orphan minigame cache substituted for actual current native admission.");
     }
 
+    private static void CheckCompletedSourceReturn()
+    {
+        Fixture source = Create();
+        Observe(source);
+        PrepareHistory(source);
+        var active = source.State.Active!;
+        source.State.SourceGoal = new(active.VisitId, "program", active.Generation, active.NavigationKey!, active.EventId, active.ConditionFingerprint, active.Kind, active.Entity, active.Script, 10, Completed: true, AcceptedEntry: 10);
+        source.State.Active = null;
+        Check(Ff7AutoPlayChoiceWorkflow.HasCompletedCommittedSource(source.State), "The exact completed source did not authenticate its nested committed choices.");
+        foreach (Action<Ff7AutoPlayState> invalidate in new Action<Ff7AutoPlayState>[]
+        {
+            state => state.SourceGoal = state.SourceGoal! with { Completed = false },
+            state => state.SourceGoal = state.SourceGoal! with { AcceptedEntry = null },
+            state => state.SourceGoal = state.SourceGoal! with { ConditionFingerprint = "foreign" },
+            state => state.SourceGoal = state.SourceGoal! with { Entry = 11, AcceptedEntry = 11 },
+            state => state.SourceGoal = state.SourceGoal! with { Generation = 2 },
+            state => state.SourceGoal = state.SourceGoal! with { ProgramIdentity = "foreign" },
+            state => state.SourceGoal = state.SourceGoal! with { NavigationKey = "foreign" },
+            state => state.Active = active,
+            state => state.Active = active with { CompletionRecorded = true, EventId = "foreign" },
+            state => state.Choice = state.Choice! with { Parent = state.Choice!.Parent! with { NativeExecutionCommitted = false } },
+            state => state.Choice = state.Choice! with { Parent = state.Choice!.Parent! with { BeforeActive = active with { ExecutionProvenance = active.ExecutionProvenance! with { RootDispatchTick = 99 } } } },
+            state => state.PendingRestore = new("old")
+        })
+        {
+            var copy = JsonSerializer.Deserialize<Ff7AutoPlayState>(JsonSerializer.Serialize(source.State))!;
+            invalidate(copy);
+            Check(!Ff7AutoPlayChoiceWorkflow.HasCompletedCommittedSource(copy), "A foreign, unfinished or uncommitted source retired a choice chain.");
+        }
+        Ff7SessionSave current = source.Source with { Process = source.Source.Process with { PlayerLocked = true, MenuDisabled = true } };
+        string native = JsonSerializer.Serialize(current);
+        int writes = 0;
+        Ff7AutoPlayChoiceWorkflow workflow = new(() => current, Ff7AutoPlayPolicy.CreatePlanner(source.State), source.State, (_, save) =>
+        {
+            Check(JsonSerializer.Serialize(save with { AutoPlay = current.AutoPlay }) == native, "Completed-source settlement rewrote native gameplay facts.");
+            return "live-" + ++writes;
+        }, _ => true, _ => 1110);
+        workflow.CompleteAtControlReturn();
+        Check(source.State.Choice is null && source.State.PendingRestore is null && writes == 2, "The authenticated completed source left a nested committed choice or queued a replay.");
+        Check(source.State.Coverage.Choices.All(choice => choice.CompletedOptions.ToHashSet().SetEquals([1, 2]) && choice.PolicyDeferredOptions.Contains(3)), "Completed-source settlement lost history or credited an unexecuted alternative.");
+    }
+
     private static void PrepareHistory(Fixture source)
     {
         foreach (var coverage in source.State.Coverage.Choices)
@@ -123,7 +166,7 @@ internal static class NativeCommittedMinigameChoiceTests
 
     private static Fixture Create()
     {
-        Ff7AutoPlayActiveEvent active = new("visit", "talk", "condition", 1, 0, 1, Ff7AutoPlayTargetKind.ActorTalk, null, 1110, "before", Accepted: true);
+        Ff7AutoPlayActiveEvent active = new("visit", "talk", "condition", 1, 0, 1, Ff7AutoPlayTargetKind.ActorTalk, null, 1110, "before", Accepted: true, NavigationKey: "nav");
         active = active with { ExecutionProvenance = Ff7AutoPlayExecutionOwners.Begin(active, "program", 10, 20) };
         FieldEntitySnapshot entity = new(20, 1, 0, new int[8], new FieldSyncState[8], Enumerable.Repeat(-1, 8).ToArray());
         entity.SavedProgramCounters[7] = 1;
