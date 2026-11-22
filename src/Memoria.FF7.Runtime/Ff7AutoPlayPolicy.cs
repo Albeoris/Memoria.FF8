@@ -274,6 +274,14 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             Publish();
             return default;
         }
+        if (scriptedInput.ChooseCounterProgressInput(dialogueVm) is Ff7AutoplayInput counterInput)
+        {
+            CancelNativePlanning("native-owned-counter-input");
+            driver.BeginPlanningStep();
+            controllable = true;
+            State.Status = "Advancing the owned native input counter toward its equality guard";
+            return counterInput;
+        }
         if (scriptedInput.ChooseDialogueClosingInput() is Ff7AutoplayInput closeDialogue)
         {
             CancelNativePlanning("native-owned-dialogue-input");
@@ -860,7 +868,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             Publish();
             return;
         }
-        if (State.SourceGoal is { AcceptedEntry: null } sourceGoal && sourceGoal.Generation == observation.Generation && sourceGoal.ProgramIdentity == session.Machine.ProgramIdentity && sourceGoal.Entity == active.Entity && sourceGoal.Script == active.Script && session.Field.Scripts.Entities[sourceGoal.Entity].ScriptOffsets[sourceGoal.Script] == sourceGoal.Entry && Ff7AutoPlayExecutionOwners.Matches(active, sourceGoal.Generation, sourceGoal.ProgramIdentity))
+        if (State.SourceGoal is { AcceptedEntry: null } sourceGoal && sourceGoal.ExecutionConditionFingerprint == active.ConditionFingerprint && sourceGoal.Generation == observation.Generation && sourceGoal.ProgramIdentity == session.Machine.ProgramIdentity && sourceGoal.Entity == active.Entity && sourceGoal.Script == active.Script && session.Field.Scripts.Entities[sourceGoal.Entity].ScriptOffsets[sourceGoal.Script] == sourceGoal.Entry && Ff7AutoPlayExecutionOwners.Matches(active, sourceGoal.Generation, sourceGoal.ProgramIdentity))
         {
             State.SourceGoal = sourceGoal with { AcceptedEntry = sourceGoal.Entry };
         }
@@ -908,9 +916,9 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             Ff7AutoPlayActiveEvent admitted = active with { Accepted = true, ConditionFingerprint = signature, BeforeStory = Story(), BeforeWitness = session.CaptureEventProgressWitness(), NavigationKey = observation.NavigationKey, EntryAvailabilityFingerprint = availability, TransportEntry = ReadCurrentTransportEntry(observation, active.EventId) };
             bool started = admitted.Kind is >= Ff7AutoPlayTargetKind.ActorTalk and <= Ff7AutoPlayTargetKind.LineLeave && admitted.SpatialOwner is null && admitted.DirectEffectOwner is null && currentInteractionAdmission is { Accepted: true, Started: true, Priority: 1 } actual && actual.Entity == entity && actual.Script == script;
             State.Active = admitted with { ExecutionProvenance = started ? Ff7AutoPlayExecutionOwners.Begin(admitted, session.Machine.ProgramIdentity, session.Field.Scripts.Entities[entity].ScriptOffsets[script], session.Machine.Tick) : active.ExecutionProvenance };
-            if (started && State.SourceGoal is { Completed: false } goal && goal.EventId == admitted.EventId && goal.ConditionFingerprint == admitted.ConditionFingerprint && goal.Generation == admitted.Generation && goal.ProgramIdentity == session.Machine.ProgramIdentity && goal.Entry == session.Field.Scripts.Entities[entity].ScriptOffsets[script])
+            if (started && State.SourceGoal is { Completed: false } goal && observation.Events.SingleOrDefault(target => target.Id == active.EventId) is { } admittedTarget && BindSourceGoalAdmission(goal, observation, admittedTarget, State.Active!, session.Field.Scripts.Entities[entity].ScriptOffsets[script]) is { } boundGoal)
             {
-                State.SourceGoal = goal with { AcceptedEntry = goal.Entry };
+                State.SourceGoal = boundGoal;
             }
             Publish();
         }

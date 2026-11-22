@@ -4,6 +4,91 @@ public sealed record FieldScriptEntryDependencies(bool Complete, string? Reason,
 
 public sealed partial class FieldMachine
 {
+    /// <summary>Reads a finite, side-effect-free entry guard ending at an actual literal bit mutation. Unsupported prefixes retain their full execution fingerprint.</summary>
+    public string? ReadEntryGuardFingerprint(int entity, int script, int instructionBudget = 128)
+    {
+        if ((uint)entity >= entities.Length || script is < 0 or > 31 || instructionBudget is < 1 or > 1024)
+        {
+            throw new ArgumentOutOfRangeException(nameof(entity));
+        }
+        Queue<int> pending = new();
+        HashSet<int> visited = [];
+        HashSet<FieldVariableRead> reads = [];
+        bool material = false;
+        pending.Enqueue(program.Entry(entity, script));
+        try
+        {
+            while (pending.TryDequeue(out int pc))
+            {
+                if (!visited.Add(pc))
+                {
+                    continue;
+                }
+                if (visited.Count > instructionBudget)
+                {
+                    return null;
+                }
+                byte opcode = program.Read(pc);
+                byte Byte(int offset) => program.Read(pc + offset);
+                ushort Word(int offset) => (ushort)(Byte(offset) | Byte(offset + 1) << 8);
+                if (opcode == 0)
+                {
+                    continue;
+                }
+                if (opcode is 0x10 or 0x11)
+                {
+                    int next = pc + 1 + (opcode == 0x11 ? Word(1) : Byte(1));
+                    if (next <= pc)
+                    {
+                        return null;
+                    }
+                    pending.Enqueue(next);
+                    continue;
+                }
+                if (opcode is >= 0x14 and <= 0x19)
+                {
+                    bool word = opcode >= 0x16;
+                    int branch = word ? 7 : 5;
+                    bool wide = (opcode & 1) != 0;
+                    reads.Add(new((FieldBank)(Byte(1) >> 4), word ? Word(2) : Byte(2), word));
+                    reads.Add(new((FieldBank)(Byte(1) & 15), word ? Word(4) : Byte(3), word));
+                    int next = pc + branch + (wide ? unchecked((short)Word(branch)) : Byte(branch));
+                    if (next <= pc)
+                    {
+                        return null;
+                    }
+                    pending.Enqueue(pc + branch + (wide ? 2 : 1));
+                    pending.Enqueue(next);
+                    continue;
+                }
+                if (opcode is 0x82 or 0x83 && (Byte(1) & 15) == 0 && Byte(3) < 8)
+                {
+                    FieldBank bank = (FieldBank)(Byte(1) >> 4);
+                    if (bank is not (FieldBank.MapByte or FieldBank.Persistent0Byte or FieldBank.Persistent1Byte))
+                    {
+                        return null;
+                    }
+                    FieldVariableRead read = new(bank, Byte(2), false);
+                    reads.Add(read);
+                    int value = Variables.ReadByte(bank, Byte(2));
+                    bool set = (value & (1 << Byte(3))) != 0;
+                    if (set == (opcode == 0x82))
+                    {
+                        return null;
+                    }
+                    material = true;
+                    continue;
+                }
+                return null;
+            }
+            return material ? ReadScriptAnalysisFingerprint(entity, script, reads.OrderBy(read => read.Bank).ThenBy(read => read.Operand).ThenBy(read => read.Word).ToArray()) : null;
+        }
+        catch (Exception error) when (error is InvalidDataException or NotSupportedException or ArgumentException or IndexOutOfRangeException)
+        {
+            return null;
+        }
+    }
+
     private sealed record EntryContinuation(int Entity, int ProgramCounter);
     private sealed record EntryLocation(int Entity, int ProgramCounter, EntryContinuation[] Returns);
     private sealed record EntryDefinitions(HashSet<FieldVariableRead> Variables, HashSet<int> Positions);

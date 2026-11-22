@@ -165,6 +165,10 @@ public sealed partial class Ff7AutoPlayScriptedInput(Ff7Session session)
             return SelectOwnedSpatialContinuationInput(CurrentDemand, vm, active, session.FieldGeneration, locked, session.Machine.Input);
         }
         FieldScriptInputDemand[] ownedDemands = demands.Where(demand => locked || IsInteractionInputOwner(demand, vm, active, session.FieldGeneration)).ToArray();
+        if (ChooseCounterProgressInput(vm) is Ff7AutoplayInput counterInput)
+        {
+            return counterInput;
+        }
         if (TryChooseClockInput(ownedDemands, out Ff7AutoplayInput clockInput))
         {
             return clockInput;

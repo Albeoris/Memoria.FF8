@@ -3,6 +3,25 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-source-goal-guard-only", StringComparer.Ordinal))
+{
+    NativeSourceGoalGuardTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-input-counter-original-only", StringComparer.Ordinal))
+{
+    NativeInputCounterOriginalTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-input-counter-progress-only", StringComparer.Ordinal))
+{
+    NativeInputCounterProgressTests.Run();
+    NativeInputCounterDialogueTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-owned-dialogue-original-only", StringComparer.Ordinal))
 {
     NativeOwnedDialogueOriginalTests.Run();

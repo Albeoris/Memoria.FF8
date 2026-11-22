@@ -67,12 +67,12 @@ public sealed partial class Ff7AutoPlayPolicy
         {
             throw new ArgumentException("The source goal requires a current complete native field interaction.");
         }
-        return new(observation.VisitId, observation.ProgramIdentity, observation.Generation, observation.NavigationKey, target.Id, target.ConditionFingerprint, target.Kind, target.Entity, target.Script, entry);
+        return new(observation.VisitId, observation.ProgramIdentity, observation.Generation, observation.NavigationKey, target.Id, target.ConditionFingerprint, target.Kind, target.Entity, target.Script, entry) { EntryGuardFingerprint = target.EntryGuardFingerprint };
     }
 
     internal static bool MatchesSourceGoal(Ff7AutoPlaySourceGoal goal, Ff7AutoPlayObservation observation, Ff7AutoPlayTarget target)
     {
-        return !goal.Completed && observation.CanAcceptInput && observation.Generation == goal.Generation && observation.VisitId == goal.VisitId && observation.ProgramIdentity == goal.ProgramIdentity && observation.NavigationKey == goal.NavigationKey && observation.Events.Contains(target) && target.AnalysisComplete && target.Id == goal.EventId && target.ConditionFingerprint == goal.ConditionFingerprint && target.Kind == goal.Kind && target.Entity == goal.Entity && target.Script == goal.Script;
+        return !goal.Completed && observation.CanAcceptInput && observation.Generation == goal.Generation && observation.VisitId == goal.VisitId && observation.ProgramIdentity == goal.ProgramIdentity && observation.NavigationKey == goal.NavigationKey && observation.Events.Contains(target) && target.AnalysisComplete && target.Id == goal.EventId && (target.ConditionFingerprint == goal.ExecutionConditionFingerprint || goal.AcceptedEntry is null && goal.EntryGuardFingerprint is not null && target.EntryGuardFingerprint == goal.EntryGuardFingerprint) && target.Kind == goal.Kind && target.Entity == goal.Entity && target.Script == goal.Script;
     }
 
     internal static bool IsSourceGoalPlan(Ff7AutoPlayState state, AutoPlayPlanStep? next)
@@ -85,17 +85,26 @@ public sealed partial class Ff7AutoPlayPolicy
         {
             return false;
         }
-        return next.Goal is { } planned ? planned == new AutoPlayTravelGoal(goal.NavigationKey, goal.EventId, goal.ConditionFingerprint) : !next.IsTravel && next.VisitKey == goal.VisitId && next.Event.Id == goal.EventId && next.Event.ConditionSignature == goal.ConditionFingerprint;
+        return next.Goal is { } planned ? planned == new AutoPlayTravelGoal(goal.NavigationKey, goal.EventId, goal.ExecutionConditionFingerprint) : !next.IsTravel && next.VisitKey == goal.VisitId && next.Event.Id == goal.EventId && next.Event.ConditionSignature == goal.ExecutionConditionFingerprint;
     }
 
     internal static bool CompleteSourceGoal(Ff7AutoPlayState state, Ff7AutoPlayActiveEvent active)
     {
-        if (state.SourceGoal is not { Completed: false } goal || !active.Accepted || !active.CompletionRecorded || active.VisitId != goal.VisitId || active.NavigationKey != goal.NavigationKey || active.EventId != goal.EventId || active.ConditionFingerprint != goal.ConditionFingerprint || active.Kind != goal.Kind || active.Entity != goal.Entity || active.Script != goal.Script || !Ff7AutoPlayExecutionOwners.Matches(active, goal.Generation, goal.ProgramIdentity) || active.ExecutionProvenance is not { } provenance || !(active.Returned && provenance.RootReturned || active.TransitionOwned && provenance.AcceptedTransition is not null && provenance.AcceptedTransitionTick >= provenance.RootDispatchTick) || provenance.Owners.Any(owner => owner.Entity == goal.Entity && owner.Priority == 1 && owner.ParentEntity == -1 && owner.Entry != goal.Entry) || !(goal.AcceptedEntry is int accepted ? accepted == goal.Entry : provenance.Owners.Any(owner => owner.Entity == goal.Entity && owner.Priority == 1 && owner.ParentEntity == -1 && owner.Entry == goal.Entry)))
+        if (state.SourceGoal is not { Completed: false } goal || !active.Accepted || !active.CompletionRecorded || active.VisitId != goal.VisitId || active.NavigationKey != goal.NavigationKey || active.EventId != goal.EventId || active.ConditionFingerprint != goal.ExecutionConditionFingerprint || active.Kind != goal.Kind || active.Entity != goal.Entity || active.Script != goal.Script || !Ff7AutoPlayExecutionOwners.Matches(active, goal.Generation, goal.ProgramIdentity) || active.ExecutionProvenance is not { } provenance || !(active.Returned && provenance.RootReturned || active.TransitionOwned && provenance.AcceptedTransition is not null && provenance.AcceptedTransitionTick >= provenance.RootDispatchTick) || provenance.Owners.Any(owner => owner.Entity == goal.Entity && owner.Priority == 1 && owner.ParentEntity == -1 && owner.Entry != goal.Entry) || !(goal.AcceptedEntry is int accepted ? accepted == goal.Entry : provenance.Owners.Any(owner => owner.Entity == goal.Entity && owner.Priority == 1 && owner.ParentEntity == -1 && owner.Entry == goal.Entry)))
         {
             return false;
         }
         state.SourceGoal = goal with { Completed = true };
         return true;
+    }
+
+    internal static Ff7AutoPlaySourceGoal? BindSourceGoalAdmission(Ff7AutoPlaySourceGoal goal, Ff7AutoPlayObservation observation, Ff7AutoPlayTarget target, Ff7AutoPlayActiveEvent active, int entry)
+    {
+        if (goal.Completed || goal.AcceptedEntry is not null || observation.Generation != goal.Generation || observation.ProgramIdentity != goal.ProgramIdentity || observation.VisitId != goal.VisitId || observation.NavigationKey != goal.NavigationKey || !observation.Events.Contains(target) || !target.AnalysisComplete || entry != goal.Entry || target.Id != goal.EventId || target.Kind != goal.Kind || target.Entity != goal.Entity || target.Script != goal.Script || !(target.ConditionFingerprint == goal.ExecutionConditionFingerprint || goal.EntryGuardFingerprint is not null && target.EntryGuardFingerprint == goal.EntryGuardFingerprint) || !active.Accepted || active.ConditionFingerprint != target.ConditionFingerprint || active.EventId != goal.EventId || active.Entity != goal.Entity || active.Script != goal.Script || active.Kind != goal.Kind || active.VisitId != goal.VisitId || active.NavigationKey != goal.NavigationKey || !Ff7AutoPlayExecutionOwners.Matches(active, goal.Generation, goal.ProgramIdentity) || active.ExecutionProvenance is not { } provenance || !provenance.Owners.Any(owner => owner.Entity == goal.Entity && owner.Priority == 1 && owner.ParentEntity == -1 && owner.Entry == entry))
+        {
+            return null;
+        }
+        return goal with { AcceptedEntry = entry, CurrentConditionFingerprint = target.ConditionFingerprint == goal.ConditionFingerprint ? null : target.ConditionFingerprint };
     }
 
     private void ValidateSourceGoal(Ff7AutoPlayObservation observation)
@@ -109,6 +118,7 @@ public sealed partial class Ff7AutoPlayPolicy
         {
             throw new InvalidOperationException("The explicit native source changed before admission; select its current observed source again.");
         }
-        State.NavigationGoal = new(goal.NavigationKey, goal.EventId, goal.ConditionFingerprint);
+        State.SourceGoal = goal with { CurrentConditionFingerprint = target.ConditionFingerprint == goal.ConditionFingerprint ? null : target.ConditionFingerprint };
+        State.NavigationGoal = new(goal.NavigationKey, goal.EventId, target.ConditionFingerprint);
     }
 }
