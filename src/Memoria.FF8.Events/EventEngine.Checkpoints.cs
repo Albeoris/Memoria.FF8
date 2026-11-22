@@ -808,7 +808,7 @@ public sealed partial class EventEngine
         }
         Scene = saved.Scene;
         // A suspended field retains its cached eye process while battle owns shared memory and CRT.
-        if (restoreSharedState && !IsDormantWorldReturnCheckpoint(snapshot) && services is GameSession eyeSession && OwnsNativeFieldEyeProcess(eyeSession) && Scene.NativeEyeProcess is not null)
+        if (restoreSharedState && !IsDormantWorldReturnCheckpoint(snapshot) && services is GameSession eyeSession && eyeSession.OwnsNativeFieldMemory(FieldId) && Scene.NativeEyeProcess is not null)
         {
             PublishNativeFieldEyeProcess(restoredEyeProcess ?? throw new InvalidDataException("Saved field eye ownership was not prepared before restoration."));
         }

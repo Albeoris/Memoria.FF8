@@ -46,7 +46,7 @@ public sealed partial class EventEngine
         NativeFieldEyeProcess next = new(process.Version, rebuilt.Memory, process.CrtRandom);
         next.Validate(rebuilt.State);
         Scene.NativeFieldRegistration = rebuilt.State;
-        if (OwnsNativeFieldEyeProcess(session))
+        if (session.OwnsNativeFieldMemory(FieldId))
         {
             PublishNativeFieldEyeProcess(next);
         }

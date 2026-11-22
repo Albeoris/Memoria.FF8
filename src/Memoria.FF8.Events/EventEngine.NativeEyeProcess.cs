@@ -46,7 +46,7 @@ public sealed partial class EventEngine
             throw new NotSupportedException("Native eye process requires its shared game-session owners.");
         }
         process = process.RestoreOwned();
-        if (OwnsNativeFieldEyeProcess(session))
+        if (session.OwnsNativeFieldMemory(FieldId))
         {
             session.SetNativeFieldEyeOwners(process.Memory, process.CrtRandom);
         }
@@ -129,18 +129,12 @@ public sealed partial class EventEngine
 
     private NativeFieldEyeProcess ReadCurrentNativeEyeProcess(NativeFieldEyeProcess cached)
     {
-        if (services is GameSession session && OwnsNativeFieldEyeProcess(session))
+        if (services is GameSession session && session.OwnsNativeFieldMemory(FieldId))
         {
             NativeBattleRetainedMemory memory = session.CurrentNativeBattleMemory ?? throw new NotSupportedException("Native eye process lost its current shared memory owner.");
             return new(1, memory, session.State.CrtRandom);
         }
         return cached;
-    }
-
-    private bool OwnsNativeFieldEyeProcess(GameSession session)
-    {
-        // A field movie still runs the current field's model callbacks against the shared owners.
-        return !session.HasActiveBattle && session.HasActiveFieldScene && session.State.FieldId == FieldId;
     }
 
     private SceneEventState CaptureNativeEyeProcessScene()
@@ -150,7 +144,7 @@ public sealed partial class EventEngine
             return Scene;
         }
         process = ReadCurrentNativeEyeProcess(process);
-        NativeFieldEyeProcess detached = services is GameSession session && OwnsNativeFieldEyeProcess(session)
+        NativeFieldEyeProcess detached = services is GameSession session && session.OwnsNativeFieldMemory(FieldId)
             ? process with { Memory = session.CaptureNativeFieldMemory() ?? throw new InvalidDataException("Field checkpoint lost its retained memory.") }
             : process.CaptureSnapshot();
         return Scene.CreateEyeProcessCheckpointProjection(detached);

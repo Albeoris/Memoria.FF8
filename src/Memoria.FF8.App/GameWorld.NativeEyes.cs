@@ -26,7 +26,7 @@ internal sealed partial class GameWorld
             }
             return null;
         }
-        bool activeField = !session.HasActiveBattle && session.HasActiveFieldScene && session.State.FieldId == Events.FieldId;
+        bool activeField = session.OwnsNativeFieldMemory(Events.FieldId);
         NativeBattleRetainedMemory memory = activeField ? session.CurrentNativeBattleMemory ?? throw new InvalidDataException("Native model drawing lost its active physical memory owner.") : process.Memory;
         NativeBattleEffectTextureState textures = memory.EffectMemory?.Textures ?? throw new InvalidDataException("Native model drawing lost its registered physical texture memory.");
         bool nativePlanes = Field?.NativeRegistration?.ExecutableHash == NativeFieldRuntimeProfile.RemasteredEnImageHash;

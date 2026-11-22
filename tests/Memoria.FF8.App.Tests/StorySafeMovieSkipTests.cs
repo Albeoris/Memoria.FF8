@@ -33,24 +33,7 @@ public sealed class StorySafeMovieSkipTests
         DecodeThrough(session, world, clock, game, skipFrame);
         Assert.Equal(229, session.State.FieldId);
         Assert.True(session.IsMoviePlaying);
-        session.SetEventState(world.Events.Capture());
-        GameState beforeSkip = session.State;
-
-        // The old implementation's immediate cleanup is native-correct as a low-level close,
-        // but is not a story-safe skip: controller0/script8 waits forever for L[80]>=144.
-        var closedSession = new GameSession(JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(beforeSkip))!);
-        using (var control = new GameWorld(closedSession, game))
-        {
-            control.EnsureField();
-            closedSession.CompleteMovie(true);
-            for (int callback = 0; callback < 200; callback++)
-            {
-                control.Events.Step();
-            }
-            Assert.Equal(229, closedSession.State.FieldId);
-            Assert.Null(control.Events.LastFault);
-            Assert.Contains(control.Events.Decisions, decision => decision.Predicate == "(native[80/4] < 144)" && decision.Value != 0);
-        }
+        JsonElement beforeSkip = JsonSerializer.SerializeToElement(session.PrepareSnapshot());
 
         long frameBefore = world.Events.Frame;
         PlayerActionResult result = world.Apply(new PlayerAction(PlayerActionKind.SkipMovie));
@@ -72,8 +55,23 @@ public sealed class StorySafeMovieSkipTests
         }
         Assert.Equal(0, world.Events.CurrentDialogue!.MessageId);
         Assert.Null(world.Events.LastFault);
-        session.SetEventState(world.Events.Capture());
-        GameState source = session.State;
+
+        // Immediate movie cleanup leaves controller 0/script 8 waiting for L[80] >= 144.
+        var closedSession = new GameSession(beforeSkip.Deserialize<GameState>()!);
+        using (var control = new GameWorld(closedSession, game))
+        {
+            control.EnsureField();
+            closedSession.CompleteMovie(true);
+            for (int callback = 0; callback < 200; callback++)
+            {
+                control.Events.Step();
+            }
+            Assert.Equal(229, closedSession.State.FieldId);
+            Assert.Null(control.Events.LastFault);
+            Assert.Contains(control.Events.Decisions, decision => decision.Predicate == "(native[80/4] < 144)" && decision.Value != 0);
+        }
+
+        GameState source = session.PrepareSnapshot();
         string temporary = Path.Combine(Path.GetTempPath(), "Memoria.FF8-story-skip-" + Guid.NewGuid().ToString("N") + ".json");
         try
         {
@@ -89,7 +87,6 @@ public sealed class StorySafeMovieSkipTests
             if (skipFrame == 34)
             {
                 string checkpoint = TestResources.ArtifactFile("App.Tests.StorySafeMovieSkipTests.2.json");
-                session.SetEventState(world.Events.Capture());
                 session.Save(checkpoint);
             }
         }
@@ -109,25 +106,21 @@ public sealed class StorySafeMovieSkipTests
             {
                 return;
             }
-            DialogueState? dialogue = world.Events.CurrentDialogue;
-            PlayerAction action = session.IsMoviePlaying ? new(PlayerActionKind.SkipMovie) : dialogue?.IsNamePrompt == true ? new(PlayerActionKind.EnterName, Text: playerName) : dialogue is { CanConfirm: true, FirstChoice: int choice } ? new(PlayerActionKind.Choose, choice) : dialogue is { CanConfirm: true } ? new(PlayerActionKind.Confirm) : world.Events.FieldId == 229 && world.Events.CanAcceptMovementInput ? centering++ < 2 ? new(PlayerActionKind.Move, Horizontal: -1) : new(PlayerActionKind.Move, Vertical: 1) : new(PlayerActionKind.Wait);
+            PlayerAction action = OpeningInputHarness.SelectAction(session.IsMoviePlaying, world.Events.CurrentDialogue);
+            if (action.Kind == PlayerActionKind.EnterName)
+            {
+                action = action with { Text = playerName };
+            }
+            else if (action.Kind == PlayerActionKind.Wait && world.Events.FieldId == 229 && world.Events.NextTrigger.Kind == PlayerTriggerKind.Playable)
+            {
+                action = centering++ < 2 ? new(PlayerActionKind.Move, Horizontal: -1) : new(PlayerActionKind.Move, Vertical: 1);
+            }
             PlayerActionResult result = world.Apply(action);
             Assert.True(result.Accepted);
-            AdvanceClosingDialogue(world, action, result);
+            OpeningInputHarness.AdvanceUnchangedInput(world, result);
             Assert.Null(world.Events.LastFault);
         }
-        Assert.Fail("The genuine opening route did not reach the corridor movie.");
-    }
-
-    private static void AdvanceClosingDialogue(GameWorld world, PlayerAction action, PlayerActionResult result)
-    {
-        if (action.Kind == PlayerActionKind.Wait && result.FramesAdvanced == 0 && world.Events.CurrentDialogue is { CanConfirm: false, IsNamePrompt: false })
-        {
-            long frame = world.Events.Frame;
-            world.AdvanceAutoPlayInputFrame();
-            Assert.Equal(frame + 1, world.Events.Frame);
-            Assert.Null(world.Events.LastFault);
-        }
+        Assert.Fail($"The opening did not reach the corridor movie: field {world.Events.FieldId}, VM frame {world.Events.Frame}, trigger {world.Events.NextTrigger}, dialogue {world.Events.CurrentDialogue}.");
     }
 
     internal static void DecodeThrough(GameSession session, GameWorld world, MovieClock clock, string game, int target)
