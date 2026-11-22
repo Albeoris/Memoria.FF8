@@ -42,6 +42,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         session.NativeInteractionScriptRequested += ObserveEffectAliasAdmission;
         session.InteractionScriptRequested += ObserveInteraction;
         session.NativeTickCompleted += ObserveTick;
+        session.NativeMinigameReturned += ObserveOwnedMinigameReturn;
         session.NativeFieldDeparting += ObserveNativeFieldDeparture;
         session.WorldBattleStarting += SaveWorldBattleBoundary;
         session.WorldFieldDeparting += ObserveWorldFieldDeparture;
@@ -1039,7 +1040,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
 
     private bool ObservePendingMinigameChoice()
     {
-        if (State.Choice is null || session.Host.PendingMinigame?.Command is not FieldMinigameCommand { Game: 3 })
+        if (State.Choice is null || session.Host.PendingMinigame?.Command is not FieldMinigameCommand { Game: 3 or 4 })
         {
             return false;
         }
@@ -1196,6 +1197,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         session.NativeInteractionScriptRequested -= ObserveEffectAliasAdmission;
         session.InteractionScriptRequested -= ObserveInteraction;
         session.NativeTickCompleted -= ObserveTick;
+        session.NativeMinigameReturned -= ObserveOwnedMinigameReturn;
         session.NativeFieldDeparting -= ObserveNativeFieldDeparture;
         session.WorldBattleStarting -= SaveWorldBattleBoundary;
         session.WorldFieldDeparting -= ObserveWorldFieldDeparture;

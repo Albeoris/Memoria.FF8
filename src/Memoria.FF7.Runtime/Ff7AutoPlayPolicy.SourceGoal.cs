@@ -6,7 +6,12 @@ public sealed partial class Ff7AutoPlayPolicy
 {
     internal static Ff7AutoPlayActiveEvent? ReadSourceActivation(Ff7AutoPlayActiveEvent active, Ff7NativeTickObservation observation)
     {
-        if (observation.SourceActivation is not { ExecutionProvenance: { } provenance } tracked || active.ExecutionProvenance is not { } original || observation.Generation != active.Generation || provenance.RootDispatchTick != original.RootDispatchTick || !Ff7AutoPlayExecutionOwners.Matches(tracked, active.Generation, original.ProgramIdentity) || tracked.VisitId != active.VisitId || tracked.NavigationKey != active.NavigationKey || tracked.EventId != active.EventId || tracked.ConditionFingerprint != active.ConditionFingerprint || tracked.Kind != active.Kind || tracked.Entity != active.Entity || tracked.Script != active.Script)
+        return ReadSourceActivation(active, observation.SourceActivation, observation.Generation);
+    }
+
+    internal static Ff7AutoPlayActiveEvent? ReadSourceActivation(Ff7AutoPlayActiveEvent active, Ff7AutoPlayActiveEvent? tracked, long generation)
+    {
+        if (tracked is not { ExecutionProvenance: { } provenance } || active.ExecutionProvenance is not { } original || generation != active.Generation || provenance.RootDispatchTick != original.RootDispatchTick || !Ff7AutoPlayExecutionOwners.Matches(tracked, active.Generation, original.ProgramIdentity) || tracked.VisitId != active.VisitId || tracked.NavigationKey != active.NavigationKey || tracked.EventId != active.EventId || tracked.ConditionFingerprint != active.ConditionFingerprint || tracked.Kind != active.Kind || tracked.Entity != active.Entity || tracked.Script != active.Script)
         {
             return null;
         }
