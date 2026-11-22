@@ -37,6 +37,7 @@ internal sealed partial class Ff7Scene
             Battle = battle is null ? null : new { battle.Tick, battle.Outcome, battle.ResultReady, battle.ReadyPlayer, battle.Message, Actors = battle.Actors.Take(16).Select(state => new { state.Identity, state.Actor.Slot, Name = battle.Name(state.Actor.Slot), state.Actor.HitPoints, state.Actor.MaxHitPoints, state.Actor.MagicPoints, state.Actor.MaxMagicPoints, state.Actor.Statuses, state.AwaitingTurn }).ToArray() },
             BattleInput = battle is null ? null : new { Owner = battleInputOwner, Category = highlightedBattleCategory?.Name, Page = battleCommandPage?.Name, Argument = highlightedBattleArgument, TargetSlot = highlightedBattleTarget?.Slot, TargetIdentity = highlightedBattleTarget?.Identity, Selected = selectedBattleCommand, Unavailable = unavailableBattleCommand, Group = battleTargetGroup },
             World = world is null ? null : new { world.WorldId, world.Tick, world.ControlledModel, world.MovementEnabled, world.ControlLock, world.MainState, Player = world.Entities.Where(entity => entity.Model == world.ControlledModel).Select(entity => new { entity.Model, entity.X, entity.Y, entity.Z, entity.Direction }).FirstOrDefault() },
+            Condor = session.Condor?.Frame,
             StoryProgress = session.World is null ? session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0) : session.World.ReadPersistentByte(0) | session.World.ReadPersistentByte(1) << 8,
             Party = session.Progress.Party.Where(identity => identity != 255).Select(identity =>
             {
