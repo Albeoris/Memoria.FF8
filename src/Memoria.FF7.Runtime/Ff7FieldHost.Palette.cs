@@ -38,7 +38,26 @@ public sealed partial class Ff7FieldHost
         ushort[] buffer = (ushort[])Process.PaletteBuffer.Clone();
         int source = command.Source * 16 + command.First;
         int destination = command.Destination * 16 + destinationFirst;
-        if (command.Operation == FieldPaletteOperation.Store)
+        if (command.Rotation is < 0 or > 255 || command.Operation != FieldPaletteOperation.Rotate && command.Rotation != 0)
+        {
+            throw new InvalidDataException("FFVII palette rotation operand is invalid.");
+        }
+        if (command.Operation == FieldPaletteOperation.Rotate)
+        {
+            if (command.First != 0 || command.DestinationFirst.HasValue || source + Math.Min(0, command.Count - command.Rotation) < 0 || source + command.Count >= buffer.Length || destination + Math.Max(command.Count, command.Rotation) >= buffer.Length)
+            {
+                throw new InvalidDataException("FFVII palette rotation exceeds the native buffer.");
+            }
+            for (int index = 0, target = command.Rotation; target <= command.Count; index++, target++)
+            {
+                buffer[destination + target] = buffer[source + index];
+            }
+            for (int index = command.Count - command.Rotation, target = 0; index <= command.Count; index++, target++)
+            {
+                buffer[destination + target] = buffer[source + index];
+            }
+        }
+        else if (command.Operation == FieldPaletteOperation.Store)
         {
             if (command.Source >= Process.PaletteRows.Length || command.First + command.Count > Process.PaletteRows[command.Source].Length || destination + command.Count > buffer.Length)
             {

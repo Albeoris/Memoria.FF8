@@ -513,6 +513,8 @@ public sealed partial class FieldMachine
             case 0xE6:
             case 0xE7:
                 return Host(id, new FieldPaletteCommand(opcode == 0xE5 ? FieldPaletteOperation.Store : opcode == 0xE6 ? FieldPaletteOperation.Load : FieldPaletteOperation.Copy, R8(id, 1, 2), R8(id, 2, 3), B(id, 4) + 1), 5);
+            case 0xE8:
+                return Host(id, new FieldPaletteCommand(FieldPaletteOperation.Rotate, R8(id, 1, 3), R8(id, 2, 4), B(id, 6) + 1, Rotation: R8(id, 4, 5)), 7);
             case 0xEB:
             case 0xEC:
                 return Host(id, new FieldPaletteCommand(opcode == 0xEB ? FieldPaletteOperation.Store : FieldPaletteOperation.Load, B(id, 1), B(id, 2), B(id, 4) + 1, First: B(id, 3)), 5);
