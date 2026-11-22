@@ -8,6 +8,8 @@ namespace Memoria.FF8;
 
 internal sealed partial class Ff7Scene
 {
+    public int? StoryProgress => Session is not { } session ? null : session.World is { } world ? world.ReadPersistentByte(0) | world.ReadPersistentByte(1) << 8 : session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0);
+
     private Ff7Session? navigationSession;
     private Ff7AutoplayDriver? navigationDriver;
 
@@ -38,7 +40,7 @@ internal sealed partial class Ff7Scene
             BattleInput = battle is null ? null : new { Owner = battleInputOwner, Category = highlightedBattleCategory?.Name, Page = battleCommandPage?.Name, Argument = highlightedBattleArgument, TargetSlot = highlightedBattleTarget?.Slot, TargetIdentity = highlightedBattleTarget?.Identity, Selected = selectedBattleCommand, Unavailable = unavailableBattleCommand, Group = battleTargetGroup },
             World = world is null ? null : new { world.WorldId, world.Tick, world.ControlledModel, world.MovementEnabled, world.ControlLock, world.MainState, Player = world.Entities.Where(entity => entity.Model == world.ControlledModel).Select(entity => new { entity.Model, entity.X, entity.Y, entity.Z, entity.Direction }).FirstOrDefault() },
             Condor = session.Condor?.Frame,
-            StoryProgress = session.World is null ? session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0) : session.World.ReadPersistentByte(0) | session.World.ReadPersistentByte(1) << 8,
+            StoryProgress,
             Party = session.Progress.Party.Where(identity => identity != 255).Select(identity =>
             {
                 int recordId = Ff7NativeCharacterIdentity.RecordId(identity);
