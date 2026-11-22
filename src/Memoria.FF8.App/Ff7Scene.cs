@@ -301,7 +301,7 @@ internal sealed partial class Ff7Scene : IDisposable
                 if (autoPlay?.Running == true && !autoPlay.Paused)
                 {
                     AdvanceAutoPlay();
-                    if (error is not null)
+                    if (error is not null || autoPlay.Paused)
                     {
                         return false;
                     }

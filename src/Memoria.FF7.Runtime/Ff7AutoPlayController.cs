@@ -75,7 +75,7 @@ public sealed partial class Ff7AutoPlayController(Ff7Session session, Func<Ff7Au
         {
             try
             {
-                if (UsesManualScene() || CompleteIfReached())
+                if (PauseCompletedSourceGoal() || UsesManualScene() || CompleteIfReached())
                 {
                     return;
                 }
@@ -211,7 +211,7 @@ public sealed partial class Ff7AutoPlayController(Ff7Session session, Func<Ff7Au
                 ObserveProgress(progress, observed);
                 driver.BeginPlanningStep();
                 Ff7AutoplayInput input = continuingTick ? default : chooseInput(driver);
-                if (session.AutoPlayState?.PendingRestore is not null)
+                if (PauseCompletedSourceGoal() || session.AutoPlayState?.PendingRestore is not null)
                 {
                     return;
                 }
@@ -267,6 +267,16 @@ public sealed partial class Ff7AutoPlayController(Ff7Session session, Func<Ff7Au
     private bool UsesManualScene()
     {
         return session.Highway is not null || session.Host.Process.Menu is { Mode: 7, Completed: false };
+    }
+
+    private bool PauseCompletedSourceGoal()
+    {
+        if (session.HasPendingTick || session.AutoPlayState is not { SourceGoal.Completed: true, Active: null, Choice: null, PendingRestore: null })
+        {
+            return false;
+        }
+        Pause();
+        return true;
     }
 
     private bool CompleteIfReached()

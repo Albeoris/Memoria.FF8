@@ -16,6 +16,7 @@ internal sealed partial class Ff7Scene
     public bool AutoPlayPaused => autoPlay?.Paused == true;
     public string? AutoPlayError => autoPlay?.Error;
     public Ff7AutoPlayPlanningProgress? AutoPlayPlanning => autoPlay?.PlanningProgress;
+    public Ff7AutoPlaySourceGoal? AutoPlaySourceGoal => autoPlayPolicy?.State.SourceGoal;
     public Ff7AutoPlayFrontierProgress? AutoPlayFrontier => autoPlayPolicy?.FrontierAttention;
 
     public void ConfigureAutoPlayCheckpoint(string path)
@@ -75,6 +76,11 @@ internal sealed partial class Ff7Scene
     public void SetAutoPlayDestination(ushort? field)
     {
         (autoPlayPolicy ?? throw new InvalidOperationException("Start automatic play before selecting its planning destination.")).SetDestinationField(field);
+    }
+
+    public void SetAutoPlaySourceGoal(string? eventId)
+    {
+        (autoPlayPolicy ?? throw new InvalidOperationException("Start automatic play before selecting its native source.")).SetSourceGoal(eventId);
     }
 
     private void SaveAutoPlayCheckpoint(Ff7SessionSave state)

@@ -11,6 +11,8 @@ public sealed record Ff7AutoPlaySpatialOwner(int SourceProgramCounter, int Targe
 
 public sealed record Ff7AutoPlayWorldModeGoal(string TargetEventId, Ff7AutoPlayWorldChunk Chunk, int Script, int RiderModel);
 
+public sealed record Ff7AutoPlaySourceGoal(string VisitId, string ProgramIdentity, long Generation, string NavigationKey, string EventId, string ConditionFingerprint, Ff7AutoPlayTargetKind Kind, int Entity, int Script, int Entry, bool Completed = false, int? AcceptedEntry = null);
+
 public sealed record Ff7AutoPlayActiveEvent(string VisitId, string EventId, string ConditionFingerprint, long Generation, int Entity, int Script, Ff7AutoPlayTargetKind Kind, int? DestinationField, int BeforeStory, string BeforeWitness, bool Accepted = false, bool Returned = false, bool TransitionOwned = false, int LinePhase = 0, float LineSide = 0, int MovementCallbacks = 0, int StagnantCallbacks = 0, int? LastX = null, int? LastY = null, int? LastZ = null, bool CompletionRecorded = false, string? NavigationKey = null, string? NavigationProbeKey = null, string? EntryAvailabilityFingerprint = null, int[]? SpatialDestinations = null, AutoPlayEventRoute? TravelRoute = null, IReadOnlyList<AutoPlayChoiceSelection>? TravelSelections = null, Ff7AutoPlaySpatialOwner? SpatialOwner = null, IReadOnlyDictionary<string, string>? EntryGuardFingerprints = null, FieldSpatialEffectOwner? DirectEffectOwner = null, Ff7AutoPlayWorldControlObservation? WorldControl = null, int WorldControlPhase = 0, Ff7AutoPlayWorldModeGoal? WorldModeGoal = null, Ff7AutoPlayTransportEntry? TransportEntry = null)
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -43,6 +45,8 @@ public sealed class Ff7AutoPlayState
     public int Version { get; set; } = 1;
     public AutoPlayPlannerState<Ff7AutoPlayDeferral> Coverage { get; set; } = new();
     public ushort? DestinationField { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Ff7AutoPlaySourceGoal? SourceGoal { get; set; }
     public Ff7AutoPlayActiveEvent? Active { get; set; }
     public Ff7AutoPlayNativeRoute? NativeRoute { get; set; }
     public Ff7AutoPlayChoiceState? Choice { get; set; }
@@ -73,6 +77,10 @@ public sealed class Ff7AutoPlayState
 
     public void Validate()
     {
+        if (SourceGoal is { } source && (string.IsNullOrEmpty(source.VisitId) || string.IsNullOrEmpty(source.ProgramIdentity) || string.IsNullOrEmpty(source.NavigationKey) || string.IsNullOrEmpty(source.EventId) || string.IsNullOrEmpty(source.ConditionFingerprint) || source.Generation < 0 || source.Entity is < 0 or > 255 || source.Script is < 0 or > 31 || source.Entry is < 0 or > 65535 || source.Kind is < Ff7AutoPlayTargetKind.ActorTalk or > Ff7AutoPlayTargetKind.LineLeave || source.AcceptedEntry is int acceptedEntry && acceptedEntry != source.Entry))
+        {
+            throw new InvalidDataException("The explicit native source goal has invalid source metadata.");
+        }
         if (SummitRecovery is { } recovery && (recovery.Generation < 0 || recovery.RootDispatchTick < 0 || string.IsNullOrEmpty(recovery.Program) || string.IsNullOrEmpty(recovery.VisitId) || string.IsNullOrEmpty(recovery.EventId) || string.IsNullOrEmpty(recovery.Condition) || recovery.Request is not { Id: > 0, Entity: >= 3 and <= 5, Priority: 1, Command: FieldPartyRecovery { AllCharacters: true } } request || request.ProgramCounter != 0x377 + (request.Entity - 3) * 0x32))
         {
             throw new InvalidDataException("The recorded summit recovery lost its native request or source lifetime.");

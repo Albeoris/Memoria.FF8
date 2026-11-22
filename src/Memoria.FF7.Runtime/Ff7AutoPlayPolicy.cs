@@ -309,6 +309,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         {
             return default;
         }
+        ValidateSourceGoal(observation);
         if (driver.ReadPendingNavigationLineRequest(observation.Events) is Ff7AutoPlayTarget queuedLine && !IsReturnedQueuedLineActivation(State, observation, queuedLine, session.Machine.Capture()))
         {
             driver.BeginPlanningStep();
@@ -540,12 +541,16 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             if (!continuingRefresh)
             {
                 next ??= ContinueOwnedTravel(observation, ordinaryAvailability);
-                next ??= planner.PlanNavigation(observation.NavigationKey, needsRefresh: NeedsVisitRefresh, preferredGoal: State.NavigationGoal, readAvailability: ordinaryAvailability);
-                next ??= planner.PlanNavigation(observation.NavigationKey, needsRefresh: NeedsVisitRefresh, allowRemoteConditionRoutes: true, preferredGoal: State.NavigationGoal, readAvailability: ordinaryAvailability);
+                next ??= planner.PlanNavigation(observation.NavigationKey, needsRefresh: NeedsVisitRefresh, preferredGoal: State.NavigationGoal, readAvailability: ordinaryAvailability, strongPreferredGoal: State.SourceGoal is { Completed: false });
+                next ??= planner.PlanNavigation(observation.NavigationKey, needsRefresh: NeedsVisitRefresh, allowRemoteConditionRoutes: true, preferredGoal: State.NavigationGoal, readAvailability: ordinaryAvailability, strongPreferredGoal: State.SourceGoal is { Completed: false });
             }
             if (refreshSource is not null)
             {
                 next ??= SelectSourceRefreshPlan(State, planner, observation, revalidations.First(item => item.NavigationKey == refreshSource), NeedsVisitRefresh, ordinaryAvailability);
+            }
+            if (!IsSourceGoalPlan(State, next))
+            {
+                throw new NotSupportedException("The explicit native source has no currently admitted plan; another source was not selected.");
             }
             if (!IsDestinationPlan(State, next, observation.NavigationKey))
             {
@@ -838,6 +843,11 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             Publish();
             return;
         }
+        if (State.SourceGoal is { AcceptedEntry: null } sourceGoal && sourceGoal.Generation == observation.Generation && sourceGoal.ProgramIdentity == session.Machine.ProgramIdentity && sourceGoal.Entity == active.Entity && sourceGoal.Script == active.Script && session.Field.Scripts.Entities[sourceGoal.Entity].ScriptOffsets[sourceGoal.Script] == sourceGoal.Entry && Ff7AutoPlayExecutionOwners.Matches(active, sourceGoal.Generation, sourceGoal.ProgramIdentity))
+        {
+            State.SourceGoal = sourceGoal with { AcceptedEntry = sourceGoal.Entry };
+        }
+        bool sourceCompleted = CompleteSourceGoal(State, State.Active ?? active);
         State.Active = null;
         if (State.NavigationGoal is { } goal && IsNavigationGoalCompleted(goal, active, observation.NavigationKey))
         {
@@ -853,7 +863,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         {
             RefreshOwnedTargetIntent(observation, driver, physicalGuards);
         }
-        State.Status = "Native event completed; selecting the next frontier";
+        State.Status = sourceCompleted ? "Explicit native source completed" : "Native event completed; selecting the next frontier";
         Publish();
     }
 
@@ -877,6 +887,10 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             Ff7AutoPlayActiveEvent admitted = active with { Accepted = true, ConditionFingerprint = signature, BeforeStory = Story(), BeforeWitness = session.CaptureEventProgressWitness(), NavigationKey = observation.NavigationKey, EntryAvailabilityFingerprint = availability, TransportEntry = ReadCurrentTransportEntry(observation, active.EventId) };
             bool started = admitted.Kind is >= Ff7AutoPlayTargetKind.ActorTalk and <= Ff7AutoPlayTargetKind.LineLeave && admitted.SpatialOwner is null && admitted.DirectEffectOwner is null && currentInteractionAdmission is { Accepted: true, Started: true, Priority: 1 } actual && actual.Entity == entity && actual.Script == script;
             State.Active = admitted with { ExecutionProvenance = started ? Ff7AutoPlayExecutionOwners.Begin(admitted, session.Machine.ProgramIdentity, session.Field.Scripts.Entities[entity].ScriptOffsets[script], session.Machine.Tick) : active.ExecutionProvenance };
+            if (started && State.SourceGoal is { Completed: false } goal && goal.EventId == admitted.EventId && goal.ConditionFingerprint == admitted.ConditionFingerprint && goal.Generation == admitted.Generation && goal.ProgramIdentity == session.Machine.ProgramIdentity && goal.Entry == session.Field.Scripts.Entities[entity].ScriptOffsets[script])
+            {
+                State.SourceGoal = goal with { AcceptedEntry = goal.Entry };
+            }
             Publish();
         }
         currentInteractionAdmission = null;

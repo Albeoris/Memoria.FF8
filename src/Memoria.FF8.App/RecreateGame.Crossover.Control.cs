@@ -30,7 +30,14 @@ internal sealed partial class RecreateGame
                     throw new InvalidOperationException("FFVII automatic play requires its active world.");
                 }
                 ff7Scene!.ApplyAutoPlayCommand(request.Name ?? "start");
-                return new { ff7Scene.AutoPlayStatus, ff7Scene.AutoPlayRunning, ff7Scene.AutoPlayPaused, ff7Scene.AutoPlayError, ff7Scene.AutoPlayPlanning, ff7Scene.AutoPlayFrontier, ff7Scene.StoryProgress };
+                return new { ff7Scene.AutoPlayStatus, ff7Scene.AutoPlayRunning, ff7Scene.AutoPlayPaused, ff7Scene.AutoPlayError, ff7Scene.AutoPlayPlanning, ff7Scene.AutoPlayFrontier, ff7Scene.StoryProgress, SourceGoal = ff7Scene.AutoPlaySourceGoal };
+            case "world-autoplay-source":
+                if (!InFf7)
+                {
+                    throw new InvalidOperationException("FFVII source planning requires its active field.");
+                }
+                ff7Scene!.SetAutoPlaySourceGoal(request.Name);
+                return new { SourceGoal = ff7Scene.AutoPlaySourceGoal, ff7Scene.StoryProgress };
             case "world-autoplay-destination":
                 if (!InFf7)
                 {
@@ -49,7 +56,7 @@ internal sealed partial class RecreateGame
                     throw new ArgumentException("An automatic step name must be empty or transition.");
                 }
                 ff7Scene!.StepAutoPlay(Math.Clamp(request.Frames, 1, 900), stopAtTransition: !string.IsNullOrEmpty(request.Name));
-                return new { ff7Scene.AutoPlayStatus, ff7Scene.AutoPlayRunning, ff7Scene.AutoPlayPaused, Error = ff7Scene.Error ?? ff7Scene.AutoPlayError, ff7Scene.AutoPlayPlanning, ff7Scene.AutoPlayFrontier, ff7Scene.StoryProgress };
+                return new { ff7Scene.AutoPlayStatus, ff7Scene.AutoPlayRunning, ff7Scene.AutoPlayPaused, Error = ff7Scene.Error ?? ff7Scene.AutoPlayError, ff7Scene.AutoPlayPlanning, ff7Scene.AutoPlayFrontier, ff7Scene.StoryProgress, SourceGoal = ff7Scene.AutoPlaySourceGoal };
             case "world-open":
                 OpenCrossoverSetup();
                 return new { Open = true };

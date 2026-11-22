@@ -345,6 +345,7 @@ public sealed partial class Ff7AutoPlayPolicy
         {
             throw new InvalidOperationException("The current native event must return before changing its planning destination.");
         }
+        State.SourceGoal = null;
         State.DestinationField = destination;
         State.Active = null;
         State.NavigationGoal = null;

@@ -67,6 +67,12 @@ Windowed `action`/`advance` is refused while a normal UI overlay owns input. Use
 
 With FFVII active, `world-autoplay` with `Name:"start"` starts its current autoplay policy. Under `--control-step`, `world-autoplay-step` advances that policy through the normal scene owners; `Frames` is clamped to 1..900. It requires running, unpaused autoplay and returns its status, running/paused flags and error.
 
+Autoplay status and step responses include nullable `StoryProgress`, read from the live field or world state, and nullable `SourceGoal`. `AutoPlayFrontier` describes the planner frontier and can remain unchanged while an already owned native scene advances.
+
+`world-autoplay-source` with `Name` equal to an observed native interaction ID requests one execution of that exact current source. Start autoplay before assigning it. The request binds the current field generation, program, navigation component, source entry and condition; it refuses while another accepted event or native choice owns control. It uses normal navigation and native admission, including for a previously consumed source, without erasing its history. A changed source or unavailable exact plan fails instead of selecting an unrelated interaction.
+
+After genuine source completion, `SourceGoal.Completed` becomes true and autoplay pauses before choosing another input, even within a larger step request. Check errors before treating this as success. Assign a normal field destination or clear the source goal with an empty `Name`, then resume autoplay to continue. A source assignment clears the previous field destination; a field destination assignment clears the source goal.
+
 Leave `Name` empty for the complete frame budget, or use `Name:"transition"` to stop after the first field-generation, world-allocation or session change. The transition mode returns before the next scene update, allowing observation or a save at the new boundary without choosing player input manually. It does not change the autoplay goal, mark completion or alter native state directly.
 
 ```json
