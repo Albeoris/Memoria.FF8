@@ -40,7 +40,10 @@ public sealed record AutoPlayPlanStep(string VisitKey, AutoPlayEvent Event, bool
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? DestinationNavigationKey { get; init; }
 }
-public sealed record AutoPlayEventAvailability(bool Unavailable, HashSet<string> UnavailableVariants, string? Fingerprint);
+public sealed record AutoPlayEventAvailability(bool Unavailable, HashSet<string> UnavailableVariants, string? Fingerprint)
+{
+    public IReadOnlySet<string>? AttemptedConditions { get; init; }
+}
 public sealed record AutoPlayUnavailableAttempt(string SourceConditionSignature, string DestinationVisitKey, string GuardKey, string GuardFingerprint, string? TargetId = null);
 
 public sealed class AutoPlayEventCoverage<TDeferral> where TDeferral : class, IAutoPlayParticipantPolicyDeferral

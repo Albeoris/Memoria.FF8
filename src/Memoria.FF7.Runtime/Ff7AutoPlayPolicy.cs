@@ -72,7 +72,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             bool unconsumedCondition = target.ConditionSignature is string condition && coverage?.Conditions is { } conditions && !conditions.HasExecutedEntry(condition);
             if (coverage?.Completed != true || unconsumedCondition)
             {
-                bool attempted = HasAttemptedEntryCondition(coverage, target);
+                bool attempted = HasAttemptedEntryCondition(candidate, target);
                 return attempted && unvisitedDestination?.Invoke(visit, target) != true ? 0 : target.ChangesStory ? -2 : -1;
             }
             return candidate.RouteNeedsRediscovery ? 0 : Math.Max(1, coverage.Conditions?.ConsumedEntries.Count ?? 1);

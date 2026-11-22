@@ -146,7 +146,10 @@ public sealed partial class Ff7AutoPlayPolicy
             return new(true, new(StringComparer.Ordinal) { observed.Id }, $"consumed-effect-alias:{observed.EffectFingerprint}");
         }
         AutoPlayEventCoverage<Ff7AutoPlayDeferral> scoped = new() { Event = observed, UnavailableAttempts = aggregate.UnavailableAttempts.Where(attempt => state.NavigationGuards.TryGetValue(attempt.GuardKey, out var guard) && guard.NavigationKey == navigation.Key && !IsUncertifiedMovementAdvice(attempt.GuardKey, guard) && (includeRefusal is null || includeRefusal(attempt.GuardKey, guard)) && (guard.MovementFailure is null || (readSourceInside is null ? guard.MovementSourceInside : readSourceInside(attempt.GuardKey, guard)) != false)).ToList() };
-        return ReadGatewayTopologyAvailability(state, navigation, observed, AutoPlayPlanner<Ff7AutoPlayDeferral>.ReadAvailability(scoped, facts))!;
+        return ReadGatewayTopologyAvailability(state, navigation, observed, AutoPlayPlanner<Ff7AutoPlayDeferral>.ReadAvailability(scoped, facts))! with
+        {
+            AttemptedConditions = aggregate.UnavailableAttempts.Where(attempt => !state.NavigationGuards.TryGetValue(attempt.GuardKey, out var guard) || guard.NavigationKey is null || guard.NavigationKey == navigation.Key).Select(attempt => attempt.SourceConditionSignature).ToHashSet(StringComparer.Ordinal)
+        };
     }
 
     internal static bool IsUncertifiedMovementAdvice(string key, Ff7AutoPlayNavigationGuard guard)

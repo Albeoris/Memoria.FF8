@@ -3,6 +3,19 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-component-attempt-only", StringComparer.Ordinal))
+{
+    NativeComponentAttemptPriorityTests.Run();
+    NativeRearmedStoryPriorityTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-component-attempt-original-only", StringComparer.Ordinal))
+{
+    NativeComponentAttemptOriginalTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-boarding-suffix-only", StringComparer.Ordinal))
 {
     NativeBoardingSuffixTests.Run();
