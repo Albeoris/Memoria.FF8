@@ -8,7 +8,37 @@ public sealed partial class Ff7AutoPlayPolicy
     private bool IsSettledPresentationChild(Ff7AutoPlayActiveEvent active, FieldVmSnapshot vm, Ff7AutoPlayExecutionOwner owner)
     {
         FieldScriptAnalysis? analysis = (uint)owner.Entity < vm.Entities.Length && vm.Entities[owner.Entity].Priority == owner.Priority ? session.Machine.AnalyzeScriptAtProgramCounter(owner.Entity, vm.Entities[owner.Entity].ProgramCounter) : null;
-        return CanSettlePresentationChild(active, session.FieldGeneration, vm, session.Host.Process, owner, analysis) || CanSettleSupersededPlayerAnimation(active, session.FieldGeneration, vm, session.Host.Process, owner, session.Field.Scripts.Data.Span) || CanSettleGuardedNpcAnimation(active, session.FieldGeneration, vm, session.Host.Process, owner, session.Field.Scripts.Data.Span) || CanSettleLoopingNpcAnimations(active, session.FieldGeneration, vm, session.Host.Process, owner, session.Field.Scripts.Data.Span, analysis) || CanSettlePassiveNpcPolling(active, session.FieldGeneration, vm, session.Host.Process, owner, session.Field.Scripts.Data.Span);
+        return CanSettlePresentationChild(active, session.FieldGeneration, vm, session.Host.Process, owner, analysis) || CanSettleSupersededPlayerAnimation(active, session.FieldGeneration, vm, session.Host.Process, owner, session.Field.Scripts.Data.Span) || CanSettleGuardedNpcAnimation(active, session.FieldGeneration, vm, session.Host.Process, owner, session.Field.Scripts.Data.Span) || CanSettleLoopingNpcAnimations(active, session.FieldGeneration, vm, session.Host.Process, owner, session.Field.Scripts.Data.Span, analysis) || CanSettlePassiveNpcPolling(active, session.FieldGeneration, vm, session.Host.Process, owner, session.Field.Scripts.Data.Span) || CanSettleIdleNpcYield(active, session.FieldGeneration, vm, session.Host.Process, owner, session.Field.Scripts.Data.Span);
+    }
+
+    internal static bool CanSettleIdleNpcYield(Ff7AutoPlayActiveEvent active, long generation, FieldVmSnapshot vm, Ff7FieldProcess process, Ff7AutoPlayExecutionOwner owner, ReadOnlySpan<byte> script)
+    {
+        if (active is not { Accepted: true, Returned: true, CompletionRecorded: false, ExecutionProvenance.RootReturned: true } || !Ff7AutoPlayExecutionOwners.Matches(active, generation, vm.ProgramIdentity) || !active.ExecutionProvenance.Owners.Contains(owner) || owner.Queued || owner.ParentEntity != active.Entity || owner.ParentPriority != 1 || owner.Priority is < 0 or >= 7 || owner.Script is < 0 or > 31 || (uint)owner.Entity >= vm.Entities.Length || owner.DispatchTick < active.ExecutionProvenance.RootDispatchTick || owner.DispatchTick > vm.Tick || owner.SourceProgramCounter < 0 || owner.SourceProgramCounter + 2 >= script.Length || script[owner.SourceProgramCounter] is not (0x01 or 0x02) || script[owner.SourceProgramCounter + 1] != owner.Entity || script[owner.SourceProgramCounter + 2] != ((owner.Priority << 5) | owner.Script))
+        {
+            return false;
+        }
+        FieldEntitySnapshot current = vm.Entities[owner.Entity];
+        return current.Priority == owner.Priority && current.ProgramCounter >= owner.Entry && HasIndependentNpcIdleYield(vm, process, owner.Entity, script);
+    }
+
+    internal static bool HasIndependentNpcIdleYield(FieldVmSnapshot vm, Ff7FieldProcess process, int entity, ReadOnlySpan<byte> script)
+    {
+        if ((uint)entity >= vm.Entities.Length)
+        {
+            return false;
+        }
+        FieldEntitySnapshot current = vm.Entities[entity];
+        int pc = current.ProgramCounter;
+        if (current.Priority is < 0 or >= 7 || pc < 0 || pc + 1 >= script.Length || current.SyncStates.Length <= current.Priority || current.SyncOwners.Length <= current.Priority || current.SyncStates[current.Priority] != FieldSyncState.None || current.SyncOwners[current.Priority] != -1 || process.PlayerLocked || process.MenuDisabled || process.GlobalCommand != Ff7GlobalCommand.None || process.Join is not null || process.Transition is not null || process.Movie is { Playing: true } || process.Menu is { Completed: false } || process.Dialogues.Any(dialogue => !dialogue.Completed) || !process.Actors.Any(actor => actor.PlayerControlled && actor.EntityBound) || (vm.PendingRequests ?? []).Any(request => request.Entity == entity && request.Priority == current.Priority))
+        {
+            return false;
+        }
+        bool selfYield = script[pc] == 0x12 && script[pc + 1] == 0 || script[pc] == 0x13 && pc + 2 < script.Length && script[pc + 1] == 0 && script[pc + 2] == 0;
+        if (!selfYield || !current.ModelBound || process.Actors.Where(actor => actor.Entity == entity).ToArray() is not [{ EntityBound: true, PlayerControlled: false, Jump: null, Ladder: null } actor])
+        {
+            return false;
+        }
+        return !process.Motions.Any(motion => motion.Entity == entity && !motion.Completed) && (actor.TurnSteps <= 0 || actor.TurnStep >= actor.TurnSteps);
     }
 
     internal static bool CanSettlePassiveNpcPolling(Ff7AutoPlayActiveEvent active, long generation, FieldVmSnapshot vm, Ff7FieldProcess process, Ff7AutoPlayExecutionOwner owner, ReadOnlySpan<byte> script)

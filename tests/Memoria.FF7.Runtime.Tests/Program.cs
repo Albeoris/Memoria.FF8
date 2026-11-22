@@ -3,6 +3,18 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-idle-npc-only", StringComparer.Ordinal))
+{
+    NativeIdleNpcYieldTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-idle-npc-original-only", StringComparer.Ordinal))
+{
+    NativeIdleNpcOriginalTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-party-spatial-only", StringComparer.Ordinal))
 {
     NativePartySpatialPredicateTests.Run();
