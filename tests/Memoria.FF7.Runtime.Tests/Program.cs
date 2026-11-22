@@ -3,6 +3,18 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-rearmed-exploration-only", StringComparer.Ordinal))
+{
+    NativeRearmedExplorationPriorityTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-rearmed-interaction-original-only", StringComparer.Ordinal))
+{
+    NativeRearmedInteractionOriginalTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-component-attempt-only", StringComparer.Ordinal))
 {
     NativeComponentAttemptPriorityTests.Run();

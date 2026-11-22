@@ -79,6 +79,14 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         }, observationsCoverWholeVisit: true, candidateExplorationOrder: (visit, target, candidate) =>
         {
             AutoPlayEventCoverage<Ff7AutoPlayDeferral> coverage = state.Coverage.Visits.SingleOrDefault(entry => entry.Visit.Key == visit.Key)?.Events.SingleOrDefault(entry => entry.Event.Id == target.Id) ?? candidate;
+            if (coverage.Completed && coverage.Conditions is { ConsumedEntries.Count: > 0 } conditions && target.ConditionSignature is string condition && condition == coverage.Event.ConditionSignature && !conditions.HasExecutedEntry(condition))
+            {
+                bool recordedNavigation = coverage.Routes.Any(route => route.DestinationVisitKey != visit.Key) || state.Coverage.NavigationRoutes.Any(route => route.EventId == target.Id && state.Coverage.NavigationVisits.Any(navigation => navigation.Key == route.SourceKey && navigation.VisitKey == visit.Key));
+                if (!recordedNavigation)
+                {
+                    return -1;
+                }
+            }
             return coverage.Conditions?.ConsumedEntries.Count ?? (coverage.Completed ? 1 : 0);
         }, intrinsicGoal: (visit, target) => (state.DestinationField is not null || IsIntrinsicTransportGoal(state, visit.Key, target)) && currentGoalEligibility?.Invoke(visit, target) != false, reusableRoute: (visit, target, route) => IsReusableTransportRoute(state, visit.Key, target, route));
     }
