@@ -57,6 +57,7 @@ public sealed partial class BattlePresentationProcess
         actor = NativeBattleBodyBoneMatrices.Compose5095B0(actor, world);
         ImmutableArray<NativeBattleActionMatrix> bones = NativeBattleBodyBoneMatrices.Require(actor, source);
         ImmutableArray<NativeBattleRawMesh> geometry = NativeBattleActorMaterialGeometry.PrepareBody(resource, actor);
+        NativeBattleModelTextureOwner? material = SelectNativeModelMaterial(graphics, index, frame.Memory.Textures);
         uint mask = actor.SequenceState?.MeshMask124 ?? throw new NotSupportedException("Native Meltdown requires its actual body object mask.");
         uint color = actor.Color40 ?? throw new NotSupportedException("Native Meltdown requires its actual packed body color.");
         ushort maximum = NativeModelCpuResources?.ScratchMaximum ?? throw new NotSupportedException("Native Meltdown requires its loaded shared vertex capacity.");
@@ -76,7 +77,7 @@ public sealed partial class BattlePresentationProcess
             }
             NativeFileStaging = (NativeFileStaging ?? throw new NotSupportedException("Native Meltdown requires its canonical shared vertex bytes.")).Write(scratch, vertices.AsSpan());
             NativeBattleGfGeometryBatch batch = NativeBattleMeltdownGeometry.Emit612B40(mesh, vertices, view, projection, color, request.PilotIdentity is { } bodyIdentity ? bodyIdentity with { Primitive = 0x10000 + meshIndex } : null);
-            NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(process, primitive.Pending, batch);
+            NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(process, primitive.Pending, BindNativeModelMaterial(batch, material));
             process = written.Process;
             primitive = primitive with { Pending = written.Ordering };
         }
@@ -99,7 +100,7 @@ public sealed partial class BattlePresentationProcess
                 {
                     NativeFileStaging = (NativeFileStaging ?? throw new NotSupportedException("Native Meltdown linked projection requires its canonical shared vertex bytes.")).Write(scratch, drawn.ProjectedScratch.AsSpan().Slice(0, drawn.ProjectedBytesWritten));
                 }
-                NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(process, primitive.Pending, drawn.Packets);
+                NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(process, primitive.Pending, BindNativeModelMaterial(drawn.Packets, material));
                 process = written.Process.Publish50FDF0(unchecked((uint)(written.Process.ByteCursor ?? throw new NotSupportedException("Native Meltdown linked draw lost its current COMMON cursor."))), null);
                 primitive = primitive with { Pending = written.Ordering };
             }
