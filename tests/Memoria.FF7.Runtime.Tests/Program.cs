@@ -3,6 +3,18 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-passive-input-child-only", StringComparer.Ordinal))
+{
+    NativePassiveInputChildTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-passive-input-original-only", StringComparer.Ordinal))
+{
+    NativePassiveInputOriginalTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-autonomous-fade-only", StringComparer.Ordinal))
 {
     NativeAutonomousFadeReadinessTests.Run();

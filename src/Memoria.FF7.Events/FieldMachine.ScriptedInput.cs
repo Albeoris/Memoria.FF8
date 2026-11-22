@@ -187,6 +187,60 @@ public sealed partial class FieldMachine
         return false;
     }
 
+    /// <summary>Proves that the current frame only polls an unmet input and yields back to its current instruction without effects.</summary>
+    public bool CanPollCurrentScriptWithoutInput(int entity, int priority, int instructionBudget = 64)
+    {
+        if ((uint)entity >= entities.Length || priority is < 0 or > 7 || instructionBudget is < 1 or > 1024)
+        {
+            throw new ArgumentOutOfRangeException(nameof(entity));
+        }
+        if (!Initialized || entities[entity].Priority != priority)
+        {
+            return false;
+        }
+        FieldMachine detached = Restore(program, Capture() with { CycleCursor = null }, new InspectionHost());
+        int entry = detached.entities[entity].Pc;
+        HashSet<int> visited = [];
+        bool input = false;
+        bool yielded = false;
+        for (int step = 0; step < instructionBudget; step++)
+        {
+            Entity owner = detached.entities[entity];
+            if (step > 0 && owner.Pc == entry)
+            {
+                return input && yielded;
+            }
+            if (owner.Priority != priority || !visited.Add(owner.Pc))
+            {
+                return false;
+            }
+            try
+            {
+                int pc = owner.Pc;
+                byte opcode = program.Read(pc);
+                if (opcode is not (>= 0x10 and <= 0x19 or >= 0x30 and <= 0x32))
+                {
+                    return false;
+                }
+                yielded |= detached.Execute(entity);
+                if (opcode is >= 0x30 and <= 0x32)
+                {
+                    int unmatched = unchecked((ushort)(pc + 3 + program.Read(pc + 3)));
+                    if (owner.Pc != unmatched || owner.Pc == unchecked((ushort)(pc + 4)))
+                    {
+                        return false;
+                    }
+                    input = true;
+                }
+            }
+            catch (Exception error) when (error is FieldExecutionException or InvalidDataException or NotSupportedException or ArgumentException or IndexOutOfRangeException)
+            {
+                return false;
+            }
+        }
+        return false;
+    }
+
     /// <summary>Finds current native button waits without dispatching hosts, requesting scripts or advancing the live VM.</summary>
     public IReadOnlyList<FieldScriptInputDemand> ReadCurrentInputDemands(int instructionBudget = 64)
     {
