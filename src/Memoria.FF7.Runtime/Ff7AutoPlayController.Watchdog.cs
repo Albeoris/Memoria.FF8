@@ -11,13 +11,14 @@ public sealed partial class Ff7AutoPlayController
         {
             movieProgress.Reset();
         }
+        bool countIdleStep = semanticWatchdog.HasPendingNativeObservation;
         semanticWatchdog.Observe(progress, readFrontierProgress?.Invoke(), advancedMovie);
         progress += ":physical-planning:" + driver.PhysicalPlanningWork;
         if (readPlanningProgress?.Invoke() is string planning)
         {
             progress += ":planning:" + planning;
         }
-        if (progressWatchdog.Observe(progress, advancedMovie))
+        if (progressWatchdog.Observe(progress, advancedMovie, countIdleStep))
         {
             deadline.Reset();
         }
@@ -93,7 +94,7 @@ internal sealed class Ff7AutoPlayProgressWatchdog
         idleSteps = 0;
     }
 
-    public bool Observe(string progress, bool advancedMovie = false)
+    public bool Observe(string progress, bool advancedMovie = false, bool countIdleStep = true)
     {
         if (recentProgress.Add(progress))
         {
@@ -110,7 +111,7 @@ internal sealed class Ff7AutoPlayProgressWatchdog
             idleSteps = 0;
             return true;
         }
-        if (++idleSteps >= IdleStepLimit)
+        if (countIdleStep && ++idleSteps >= IdleStepLimit)
         {
             throw new TimeoutException($"FFVII autoplay made no native scene, dialogue or battle progress for {IdleStepLimit} consecutive steps.");
         }
@@ -123,6 +124,7 @@ internal sealed class Ff7AutoPlaySemanticWatchdog
 {
     private readonly Ff7AutoPlayProgressWatchdog progress = new();
     private bool observationPending = true;
+    internal bool HasPendingNativeObservation => observationPending;
 
     public void Reset()
     {
