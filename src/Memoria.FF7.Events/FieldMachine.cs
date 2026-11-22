@@ -456,6 +456,7 @@ public sealed partial class FieldMachine
         }
         entity.Pc = program.Entry(id, script);
         entity.Priority = priority;
+        RetireReplacedHostWaits(id);
         return false;
     }
 

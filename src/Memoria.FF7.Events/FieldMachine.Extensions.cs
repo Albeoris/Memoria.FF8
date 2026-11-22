@@ -120,11 +120,24 @@ public sealed partial class FieldMachine
                 throw new InvalidDataException("Duplicate FFVII pending host request owner.");
             }
             Entity entity = entities[request.Entity];
-            int ownerPc = entity.Priority == request.Priority ? entity.Pc : entity.Saved[request.Priority];
-            if (ownerPc != request.ProgramCounter)
+            if (!HasHostWaitOwner(entity, request.Priority, request.ProgramCounter))
             {
                 throw new InvalidDataException("FFVII pending host request has no active or suspended script owner.");
             }
+        }
+    }
+
+    private static bool HasHostWaitOwner(Entity entity, int priority, int pc)
+    {
+        return entity.Priority == priority ? entity.Pc == pc : entity.Priority < priority && entity.Saved[priority] == pc;
+    }
+
+    private void RetireReplacedHostWaits(int id)
+    {
+        Entity entity = entities[id];
+        foreach (var key in pendingRequests.Keys.Where(key => key.Entity == id && !HasHostWaitOwner(entity, key.Priority, key.Pc)).ToArray())
+        {
+            pendingRequests.Remove(key);
         }
     }
 
