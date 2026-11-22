@@ -307,6 +307,7 @@ public sealed partial class Ff7Session : IDisposable
         Host.AdvanceActors();
         Host.AdvanceNativeDiscChange();
         Host.AdvanceNativeMenu();
+        ReleaseUnloadedMovieResources();
         FieldVmSnapshot snapshot = Machine.Capture();
         Host.RetireCompletedRequests((snapshot.PendingRequests ?? []).Select(request => request.Id).ToHashSet());
         tickTailInProgress = false;

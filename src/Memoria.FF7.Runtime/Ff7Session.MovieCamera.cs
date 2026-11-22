@@ -31,6 +31,16 @@ public sealed partial class Ff7Session
         return nativeMovieResources;
     }
 
+    private void ReleaseUnloadedMovieResources()
+    {
+        if (Host.Process.Movie is null && nativeMovieResources is not null)
+        {
+            nativeMovieResources = null;
+            nativeMovieCameraTrack = null;
+            nativeMovieCameraIdentity = null;
+        }
+    }
+
     private int ReadNativeMovieCameraRecordCount() => NativeMovieResources().Cameras?.Count ?? 0;
 
     public PcFieldCamera? ReadNativeMovieCamera()

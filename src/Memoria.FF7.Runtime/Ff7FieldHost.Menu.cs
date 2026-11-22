@@ -1,4 +1,4 @@
-﻿using Memoria.FF7.Events;
+using Memoria.FF7.Events;
 
 namespace Memoria.FF7.Runtime;
 
@@ -19,7 +19,7 @@ public sealed partial class Ff7FieldHost
         {
             return new(false);
         }
-        if (command.Mode is not (6 or 7 or 8 or 14 or 17 or 21 or 22))
+        if (command.Mode is not (6 or 7 or 8 or 14 or 17 or 20 or 21 or 22))
         {
             throw new NotSupportedException($"FFVII menu mode {command.Mode} requires its native menu process.");
         }
@@ -47,8 +47,14 @@ public sealed partial class Ff7FieldHost
 
     public void AdvanceNativeMenu()
     {
-        if (Process.Menu is not { Mode: 17 or 21 or 22, Completed: false } menu || Process.GlobalCommand != Ff7GlobalCommand.Menu || Process.GlobalRequestId != menu.RequestId)
+        if (Process.Menu is not { Mode: 17 or 20 or 21 or 22, Completed: false } menu || Process.GlobalCommand != Ff7GlobalCommand.Menu || Process.GlobalRequestId != menu.RequestId)
         {
+            return;
+        }
+        if (menu.Mode == 20)
+        {
+            Process = Process with { Movie = null };
+            CompleteMenu(menu.RequestId);
             return;
         }
         FieldHostReply reply = ExternalCommand?.Invoke(new FieldMenuCommand(menu.Mode, menu.Parameter)) ?? throw new NotSupportedException("FFVII automatic menu operation requires its native progress owner.");

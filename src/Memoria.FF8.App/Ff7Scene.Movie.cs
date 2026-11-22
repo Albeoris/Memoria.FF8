@@ -131,6 +131,11 @@ internal sealed partial class Ff7Scene
         Ff7Movie? state = Session?.World is null ? Session?.Host.Process.Movie : null;
         if (state is not { Playing: true })
         {
+            if (state is null)
+            {
+                preparedMovieSource = null;
+                preparedMovieIdentity = null;
+            }
             if (movie is not null)
             {
                 StopMovie();

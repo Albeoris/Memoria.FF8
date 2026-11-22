@@ -30,6 +30,14 @@ internal static class NativeMovieCameraServiceTests
         cold.PublishMovieFrame(2, true);
         Check(cold.Process.Movie is { Playing: false, Completed: true, CameraConsumption: { Frame: 2, WordsBeforeRead: 20, WordsAfterRead: 30 } }, "Terminal camera publication must occur before clearing the active movie owner.");
 
+        Ff7FieldHost unload = Host(cold.Capture() with { MovieCameraDisabled = true });
+        FieldHostRequest request = new(2, 0, 7, 10, new FieldMenuCommand(20, 255));
+        Check(!unload.Execute(request).Completed && unload.Process.Movie == cold.Process.Movie, "Movie unload must first yield to its native service.");
+        unload.AdvanceNativeMenu();
+        Check(unload.Process.Movie is null && unload.Process.MovieCameraDisabled && unload.Process.GlobalCommand == Ff7GlobalCommand.Menu, "Movie unload changed MVCAM or released the menu owner before acknowledgement.");
+        unload.AdvanceNativeMenu();
+        Check(unload.Execute(request).Completed && unload.Process.GlobalCommand == Ff7GlobalCommand.None, "The owned movie unload failed to acknowledge completion.");
+
         host = Host();
         host.NativeMovieCameraRecordCount = () => -1;
         string before = JsonSerializer.Serialize(host.Capture());
