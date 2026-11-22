@@ -87,6 +87,13 @@ public sealed partial class Ff7AutoPlayChoiceWorkflow
             current = current with { NativeOwner = ReadNativeChoiceOwner(before, dialogue) };
             state.Choice = current;
         }
+        if (current is not null && current.OwnerIdentity == owner && Coverage(current.Key).ActiveOption == 2 && CanAbandonNativeSubmarineManualCycle(before, state, dialogue, current))
+        {
+            Coverage(current.Key).ActiveOption = null;
+            Coverage(current.Key).PolicyDeferredOptions.Add(2);
+            current = current with { NativeOwner = ReadNativeChoiceOwner(before, dialogue) };
+            state.Choice = current;
+        }
         if (current is not null && current.OwnerIdentity == owner && Coverage(current.Key).ActiveOption == 1 && (tutorialExit && CanAbandonNativeTutorialCycle(before, state, dialogue, current) || holzoffExit && CanAbandonNativeHolzoffCycle(before, state, dialogue, current)))
         {
             Coverage(current.Key).ActiveOption = null;

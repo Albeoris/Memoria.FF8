@@ -3,6 +3,18 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-submarine-manual-only", StringComparer.Ordinal))
+{
+    NativeSubmarineManualChoiceTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-submarine-manual-original-only", StringComparer.Ordinal))
+{
+    NativeSubmarineManualOriginalTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-source-pipeline-only", StringComparer.Ordinal))
 {
     NativeSourceGoalPipelineTests.Run();
