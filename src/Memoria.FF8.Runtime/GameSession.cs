@@ -85,6 +85,7 @@ public sealed partial class GameSession : IEventServices
     public SceneKind CurrentScene => State.Scene;
     public MoviePlaybackState? CurrentMoviePlayback => State.MoviePlayback;
     public bool IsMoviePlaying => State.Scene == SceneKind.Movie;
+    public bool HasActiveFieldScene => State.Scene == SceneKind.Field || IsMoviePlaying && movieReturnScene == SceneKind.Field;
     // Accepted RequestMovie models51F390->55A530; CompleteMovie models55A5C0 cleanup.
     public bool? NativeMovieClockFlag => IsMoviePlaying;
     public event Action<GameState>? StateChanged;
@@ -260,8 +261,7 @@ public sealed partial class GameSession : IEventServices
         {
             throw new NotSupportedException("Nonzero original field entry points are not implemented. Resume a full recreation checkpoint for an exact state.");
         }
-        bool hasFieldSource = State.Scene == SceneKind.Field || State.Scene == SceneKind.Movie && movieReturnScene == SceneKind.Field;
-        int? previousFieldId = hasFieldSource ? State.FieldId : null;
+        int? previousFieldId = HasActiveFieldScene ? State.FieldId : null;
         if (previousFieldId is < 0 or > ushort.MaxValue)
         {
             throw new InvalidDataException("The departing field cannot be represented by the native previous-field WORD.");

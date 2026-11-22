@@ -139,7 +139,8 @@ public sealed partial class EventEngine
 
     private bool OwnsNativeFieldEyeProcess(GameSession session)
     {
-        return !session.HasActiveBattle && session.State.Scene == SceneKind.Field && session.State.FieldId == FieldId;
+        // A field movie still runs the current field's model callbacks against the shared owners.
+        return !session.HasActiveBattle && session.HasActiveFieldScene && session.State.FieldId == FieldId;
     }
 
     private SceneEventState CaptureNativeEyeProcessScene()

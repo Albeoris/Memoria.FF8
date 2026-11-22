@@ -49,6 +49,52 @@ public sealed class NativeInitialEyeRegistrationTests
         Assert.Equal(original, File.ReadAllBytes(source));
     }
 
+    [Fact]
+    public void FieldEyeCallbacksKeepTheSharedVramPublicationDuringMovie()
+    {
+        GameSession session = GameSession.CreateColdProcess();
+        session.StartNewGame();
+        using GameWorld world = new(session, TestResources.GameDirectory);
+        for (int action = 0; action < 6000; action++)
+        {
+            world.EnsureField();
+            if (world.Field!.Id == 229 && world.Events.NextTrigger.Kind == PlayerTriggerKind.Playable)
+            {
+                break;
+            }
+            PlayerActionResult result = world.Apply(OpeningInputHarness.SelectAction(session.IsMoviePlaying, world.CurrentDialogue));
+            Assert.True(result.Accepted, result.Detail);
+            OpeningInputHarness.AdvanceUnchangedInput(world, result);
+        }
+        Assert.Equal(229, world.Events.FieldId);
+        object initial = session.CurrentNativeBattleMemory!.EffectMemory!.Textures!.VramPublicationIdentity;
+
+        // Exercise the field callbacks without a decoder or a CAM-controlled footstep camera.
+        var captureFootstepOrigin = world.Events.CaptureFootstepModelOrigin;
+        world.Events.CaptureFootstepModelOrigin = null;
+        session.RequestMovie(session.MovieSource?.MovieIndex ?? 0);
+        for (int callback = 0; callback < 64; callback++)
+        {
+            world.Events.StepMovieFrame(0, 0);
+        }
+
+        Assert.True(session.IsMoviePlaying);
+        NativeFieldEyeProcess process = Assert.IsType<NativeFieldEyeProcess>(world.Events.Scene.NativeEyeProcess);
+        object published = process.Memory.EffectMemory!.Textures!.VramPublicationIdentity;
+        object sharedPublication = session.CurrentNativeBattleMemory!.EffectMemory!.Textures!.VramPublicationIdentity;
+        NativeCrtRandomState? sharedRandom = session.State.CrtRandom;
+        session.CompleteMovie();
+        world.Events.CaptureFootstepModelOrigin = captureFootstepOrigin;
+        for (int callback = 0; callback < 64; callback++)
+        {
+            world.Events.Step();
+        }
+        Assert.NotSame(initial, published);
+        Assert.Same(published, sharedPublication);
+        Assert.Equal(process.CrtRandom, sharedRandom);
+        Assert.NotSame(published, session.CurrentNativeBattleMemory!.EffectMemory!.Textures!.VramPublicationIdentity);
+    }
+
     [Theory]
     [InlineData(0)]
     [InlineData(1)]
