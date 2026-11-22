@@ -109,6 +109,8 @@ public sealed record Ff7SessionSave
     public Ff7ChocoboSnapshot? ChocoboRace { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Ff7ChocoboCarryState? ChocoboCarry { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Ff7CondorSnapshot? Condor { get; init; }
 
     public void Validate()
     {
@@ -127,6 +129,10 @@ public sealed record Ff7SessionSave
             throw new InvalidDataException("The native gateway departure receipt does not match its pending source transition.");
         }
         ChocoboCarry?.Validate();
+        if (Condor is { } condor && (Process.GlobalCommand != Ff7GlobalCommand.Minigame || Process.GlobalRequestId != condor.Request.Id || condor.Request.Command is not FieldMinigameCommand { Game: 3 } || Vm.PendingRequests?.Contains(condor.Request) != true || condor.Attack != Vm.PersistentVariables[0xA9] || condor.Funds != Progress.Gil))
+        {
+            throw new InvalidDataException("The FFVII Condor snapshot requires its actual unfinished field departure and native parameters.");
+        }
         if (ChocoboRace is { } race)
         {
             race.Validate();

@@ -3,6 +3,19 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-condor-only", StringComparer.Ordinal))
+{
+    NativeCondorResourceTests.Run();
+    NativeCondorSimulationTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-condor-original-only", StringComparer.Ordinal))
+{
+    NativeCondorOriginalTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-condor-tutorial-only", StringComparer.Ordinal))
 {
     NativeCondorTutorialTests.Run();

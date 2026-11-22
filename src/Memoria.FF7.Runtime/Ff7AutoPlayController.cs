@@ -140,6 +140,37 @@ public sealed partial class Ff7AutoPlayController(Ff7Session session, Func<Ff7Au
                     }
                     return;
                 }
+                if (session.Condor is not null || session.Host.PendingMinigame?.Command is Memoria.FF7.Events.FieldMinigameCommand { Game: 3 })
+                {
+                    present?.Invoke();
+                    lastSafe = session.Capture();
+                    if (session.Condor is { } condor)
+                    {
+                        ObserveProgress("condor:" + condor.NativeProgress);
+                        ushort held = Ff7CondorAutoPlay.ChooseInput(condor);
+                        session.SetCondorInput(held, (ushort)(held & ~condor.Capture().PreviousInput));
+                    }
+                    else
+                    {
+                        ObserveProgress("condor:pending");
+                    }
+                    long generation = session.FieldGeneration;
+                    if (advanceTick is null)
+                    {
+                        session.AdvanceTick();
+                    }
+                    else
+                    {
+                        advanceTick();
+                    }
+                    Steps++;
+                    semanticWatchdog.NativeAdvanced();
+                    if (session.FieldGeneration != generation)
+                    {
+                        CaptureCheckpoint();
+                    }
+                    return;
+                }
                 if (session.Shop is { Phase: not Ff7ShopPhase.Completed } shop)
                 {
                     present?.Invoke();

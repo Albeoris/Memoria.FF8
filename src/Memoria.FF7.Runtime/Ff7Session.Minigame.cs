@@ -33,6 +33,11 @@ public sealed partial class Ff7Session
                 AdvanceSnowboard(request, advanceClock);
                 return;
             }
+            if (command.Game == 3)
+            {
+                AdvanceCondor(request, advanceClock);
+                return;
+            }
             if (command.Game != 0)
             {
                 throw new NotSupportedException($"FFVII minigame {command.Game} requires its native gameplay module before returning to map {command.Return.Map}.");
@@ -124,7 +129,7 @@ public sealed partial class Ff7Session
             throw new NotSupportedException("FFVII minigame return requires a field destination.");
         }
         long generation = checked(FieldGeneration + 1);
-        var original = (Field, MapId, models, encounterTables, Host, Machine, Progress);
+        var original = (Field, MapId, models, encounterTables, Host, Machine, Progress, Battle);
         List<Action> effects = [];
         fieldEntryEffects = effects;
         try
@@ -135,7 +140,7 @@ public sealed partial class Ff7Session
                 host.AudioRequested = audio => effects.Add(() => original.Host.AudioRequested?.Invoke(audio));
                 host.NativeSoundRequested = sound => effects.Add(() => original.Host.NativeSoundRequested?.Invoke(sound));
                 host.NativeSoundLoopAlreadyPlaying = null;
-                host.BeginBattleRequest = _ => throw new NotSupportedException("FFVII minigame return cannot prepare a field initializer that starts a battle.");
+                host.BeginBattleRequest = BeginFieldBattle;
                 prepareAudio?.Invoke(host);
             });
             fieldLoadIncomplete = true;
@@ -149,7 +154,7 @@ public sealed partial class Ff7Session
         }
         catch
         {
-            (Field, MapId, models, encounterTables, Host, Machine, Progress) = original;
+            (Field, MapId, models, encounterTables, Host, Machine, Progress, Battle) = original;
             throw;
         }
         finally
