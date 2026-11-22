@@ -591,7 +591,10 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             }
             if (next is null)
             {
-                if (nativeReadiness.ShouldWait(session.FieldGeneration, observation.NavigationKey, session.Machine.Capture(), session.Host.Process, session.Field.Scripts.Data.Span, session.Machine.ReadCurrentInputDemands()))
+                bool waitingForSetup = State.DestinationField is not null
+                    ? nativeReadiness.ShouldWaitForDestinationSetup(session.FieldGeneration, observation.NavigationKey, session.Machine.Capture(), session.Host.Process, session.Field.Scripts.Data.Span, session.Machine.ReadCurrentInputDemands(), (entity, pc) => session.Machine.AnalyzeScriptAtProgramCounter(entity, pc))
+                    : nativeReadiness.ShouldWait(session.FieldGeneration, observation.NavigationKey, session.Machine.Capture(), session.Host.Process, session.Field.Scripts.Data.Span, session.Machine.ReadCurrentInputDemands());
+                if (waitingForSetup)
                 {
                     State.Status = "Waiting for existing native setup to finish";
                     Publish();

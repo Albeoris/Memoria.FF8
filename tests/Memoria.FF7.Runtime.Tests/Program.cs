@@ -1164,6 +1164,12 @@ if (args.Contains("--native-background-destination-readiness-only", StringCompar
     return 0;
 }
 
+if (args.Contains("--native-destination-failure-original-only", StringComparer.Ordinal))
+{
+    NativeDestinationFailureOriginalTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-background-destination-original-only", StringComparer.Ordinal))
 {
     NativeDestinationReadinessOriginalTests.RunBackgroundContinuation();

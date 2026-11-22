@@ -18,6 +18,11 @@ internal static class NativeBackgroundDestinationReadinessTests
         waiting[1] = waiting[1] with { ProgramCounter = 14, WaitCounter = 30 };
         Check(!Destination(loop with { Vm = loop.Vm with { Entities = waiting } }), "The same certified loop blocked destination setup during its WAIT frame.");
         Check(new Ff7AutoPlayNativeReadiness().ShouldWait(1, "nav", loop.Vm, loop.Process, loop.Code, []), "The destination-only rule changed general native readiness.");
+        FieldEntitySnapshot[] ambient = loop.Vm.Entities.ToArray();
+        ambient[1] = ambient[1] with { Priority = 7, SavedProgramCounters = new int[8] };
+        FieldVmSnapshot patrol = loop.Vm with { Entities = ambient, PendingRequests = [loop.Vm.PendingRequests![0] with { Priority = 7 }] };
+        Check(new Ff7AutoPlayNativeReadiness().ShouldWait(1, "nav", patrol, loop.Process, loop.Code, []), "General frontier readiness no longer allowed an actual finite ambient motion to continue.");
+        Check(!new Ff7AutoPlayNativeReadiness().ShouldWaitForDestinationSetup(1, "nav", patrol, loop.Process, loop.Code, [], (_, _) => analysis), "An unowned ambient motion hid an unavailable explicit destination route.");
         Check(new Ff7AutoPlayNativeReadiness().ShouldWaitForDestinationSetup(1, "nav", loop.Vm, loop.Process, loop.Code, []), "Missing old analysis evidence silently suppressed admitted work.");
         Check(new Ff7AutoPlayNativeReadiness().ShouldWaitForDestinationSetup(1, "nav", loop.Vm, loop.Process, loop.Code, [], (_, _) => analysis with { Complete = false }), "An incomplete certificate suppressed admitted work.");
         Check(Destination(loop with { Process = loop.Process with { Actors = [loop.Process.Actors.Single() with { PlayerControlled = true }] } }), "A controlled player's native movement was treated as background work.");
