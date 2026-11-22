@@ -118,7 +118,7 @@ public sealed partial class Ff7AutoPlayPolicy
     private static Ff7AutoPlayTarget? FindFieldDestinationPrerequisite(Ff7AutoPlayState state, Ff7AutoPlayObservation observation, ushort destination, Func<ushort, int[]> readConnections, Func<Ff7AutoPlayTarget, bool>? canSelect, Func<Ff7AutoPlayTarget, Ff7AutoPlayTarget, bool> canUnblockGateway, Func<Ff7AutoPlayTarget, Ff7AutoPlayTarget, int?>? readGatewayPrerequisiteLength, out int cost)
     {
         cost = int.MaxValue;
-        Ff7AutoPlayTarget[] producers = observation.Events.Where(target => target.AnalysisComplete && target.MayChangeNavigation && !target.ChangesField && (target.UnblockedTriangles.Length != 0 || target.LadderLandings.Length != 0 || target.TerminalJumpLandings.Length != 0 || target.PossibleJumpLandings.Length != 0) && canSelect?.Invoke(target) != false).Where(target =>
+        Ff7AutoPlayTarget[] producers = observation.Events.Where(target => target.AnalysisComplete && target.MayChangeNavigation && !target.ChangesField && (target.UnblockedTriangles.Length != 0 || target.LadderLandings.Length != 0 || target.TerminalJumpLandings.Length != 0 || target.PossibleJumpLandings.Length != 0 || target.PlacementLandings.Length != 0) && canSelect?.Invoke(target) != false).Where(target =>
         {
             AutoPlayEventCoverage<Ff7AutoPlayDeferral>? coverage = state.Coverage.Visits.SingleOrDefault(visit => visit.Visit.Key == observation.VisitId)?.Events.SingleOrDefault(item => item.Event.Id == target.Id);
             return coverage is null || !coverage.PolicyDeferred && coverage.BlockedReason is null && ((coverage.Conditions is { } conditions ? !conditions.HasExecutedEntry(target.ConditionFingerprint) : !coverage.Completed) || HasRecordedLocalNavigationStep(state, observation, target) || HasInterruptedLocalNavigationStep(state, observation, target));
@@ -156,7 +156,7 @@ public sealed partial class Ff7AutoPlayPolicy
 
     internal static bool HasInterruptedLocalNavigationStep(Ff7AutoPlayState state, Ff7AutoPlayObservation observation, Ff7AutoPlayTarget target)
     {
-        return state.DestinationField is not null && state.Coverage.NavigationVisits.Any(visit => visit.Key == observation.NavigationKey && visit.VisitKey == observation.VisitId) && observation.Events.Contains(target) && target.AnalysisComplete && target.MayChangeNavigation && !target.ChangesField && !target.ChangesStory && target.Kind is >= Ff7AutoPlayTargetKind.LineTalk and <= Ff7AutoPlayTargetKind.LineLeave && (target.LadderLandings.Length != 0 || target.PossibleJumpLandings.Length != 0 || target.UnblockedTriangles.Length != 0) && state.Coverage.NavigationRoutes.Any(route => route.SourceKey == observation.NavigationKey && route.EventId == target.Id && route.Route.TargetId == target.Id && route.Route.ConditionSignature == target.ConditionFingerprint && route.Route.DestinationVisitKey != observation.VisitId && state.Coverage.NavigationVisits.Any(visit => visit.Key == route.DestinationKey && visit.VisitKey == route.Route.DestinationVisitKey));
+        return state.DestinationField is not null && state.Coverage.NavigationVisits.Any(visit => visit.Key == observation.NavigationKey && visit.VisitKey == observation.VisitId) && observation.Events.Contains(target) && target.AnalysisComplete && target.MayChangeNavigation && !target.ChangesField && !target.ChangesStory && target.Kind is >= Ff7AutoPlayTargetKind.LineTalk and <= Ff7AutoPlayTargetKind.LineLeave && (target.LadderLandings.Length != 0 || target.PossibleJumpLandings.Length != 0 || target.PlacementLandings.Length != 0 || target.UnblockedTriangles.Length != 0) && state.Coverage.NavigationRoutes.Any(route => route.SourceKey == observation.NavigationKey && route.EventId == target.Id && route.Route.TargetId == target.Id && route.Route.ConditionSignature == target.ConditionFingerprint && route.Route.DestinationVisitKey != observation.VisitId && state.Coverage.NavigationVisits.Any(visit => visit.Key == route.DestinationKey && visit.VisitKey == route.Route.DestinationVisitKey));
     }
 
     private int? ReadDestinationGatewayPrerequisiteLength(Ff7AutoPlayTarget producer, Ff7AutoPlayTarget gateway, IReadOnlyList<Ff7AutoPlayTarget> targets)
@@ -189,6 +189,14 @@ public sealed partial class Ff7AutoPlayPolicy
         bool Contact(Ff7Actor actor, Ff7AutoPlayTarget target) => lines.Any(line => line.Entity == target.Entity && line.Enabled == 1 && Ff7AutoplayDriver.DiscoverLineContacts(mesh, blocked, actor, line).Count != 0);
         IEnumerable<Ff7Actor> Endpoints(Ff7AutoPlayTarget target)
         {
+            foreach (var landing in target.PlacementLandings.Where(landing => landing.Entity == player.Entity))
+            {
+                var placement = landing.Command;
+                if (placement.Triangle is short triangle && placement.Z is short z && (uint)triangle < mesh.Count && triangle >> 3 < blocked.Length && (blocked[triangle >> 3] & 1 << (triangle & 7)) == 0 && Ff7AutoplayDriver.Contains(mesh[triangle], new(placement.X, placement.Y, z), out float height) && height >= z - 255 && height < z + 256)
+                {
+                    yield return player with { X4096 = placement.X << 12, Y4096 = placement.Y << 12, Z4096 = z << 12, Triangle = triangle };
+                }
+            }
             foreach (var landing in target.PossibleJumpLandings.Where(landing => landing.Entity == player.Entity && landing.Literal && landing.Command.Duration > 0))
             {
                 var jump = landing.Command;

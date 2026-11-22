@@ -26,6 +26,10 @@ internal static class NativeGatewayBridgePreferenceTests
         byte[] blocked = [0];
         int? Length(Ff7AutoPlayTarget first, IReadOnlyList<Ff7AutoPlayTarget>? candidates = null, byte[]? mask = null, IReadOnlyList<Ff7Line>? actualLines = null) => Ff7AutoPlayPolicy.ReadFieldGatewayComponentRouteLength(mesh, mask ?? blocked, player, gateway, first, candidates ?? targets, actualLines ?? lines);
         string before = JsonSerializer.Serialize(new { mesh, player, gateway, targets, lines, blocked });
+        Ff7AutoPlayTarget placement = direct with { Kind = Ff7AutoPlayTargetKind.LineCross, PossibleJumpLandings = [], PlacementLandings = [new(1, 10, new(1220, 20, 0, 4))] };
+        Check(Length(placement, [placement]) == 1, "An exact player placement could not connect the disconnected gateway component.");
+        Ff7AutoPlayTarget nonplayer = placement with { PlacementLandings = [new(2, 10, new(1220, 20, 0, 4))] };
+        Check(Length(placement, [placement], mask: [16]) is null && Length(nonplayer, [nonplayer]) is null, "A blocked or nonplayer placement authorized a route.");
         Check(Length(direct) == 1, "A direct native bridge was charged for triangle edges instead of one admission.");
         Check(Length(reverse) == 3 && Length(side) == 3, "Returning to another triangle in the main component lost the valid three-bridge route.");
         Check(Length(reverse, [reverse, back with { PossibleJumpLandings = reverse.PossibleJumpLandings }, direct]) is null, "A closed reverse cycle invented a path back to the main component.");
