@@ -36,6 +36,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         discovery = new(session);
         choices = new(session, planner, State, writeChoiceCheckpoint);
         choices.RecoverLostRestoredChoiceObservation();
+        ObservePendingMinigameChoice();
         scriptedInput = new(session);
         session.NativeInteractionScriptRequested += ObserveEffectAliasAdmission;
         session.InteractionScriptRequested += ObserveInteraction;
@@ -996,11 +997,25 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         }
         bool returned = active.SpatialOwner is null && active.DirectEffectOwner is null && active.Accepted && (active.ExecutionProvenance?.RootReturned ?? observation.ScriptReturns.Any(owner => owner.Entity == active.Entity && owner.Priority == 1));
         bool transition = IsOwnedTransition(observation, active);
-        if (returned || transition || spatialChanged || provenanceChanged)
+        bool minigameCommitted = ObservePendingMinigameChoice();
+        if (returned || transition || spatialChanged || provenanceChanged || minigameCommitted)
         {
             State.Active = active with { Returned = active.Returned || returned, TransitionOwned = active.TransitionOwned || transition };
             Publish();
         }
+    }
+
+    private bool ObservePendingMinigameChoice()
+    {
+        if (State.Choice is null || session.Host.PendingMinigame?.Command is not FieldMinigameCommand { Game: 3 })
+        {
+            return false;
+        }
+        if (!Ff7AutoPlayChoiceWorkflow.ObserveOwnedMinigameChoice(session.Capture(), State))
+        {
+            throw new InvalidDataException("The native minigame choice lost its admitted execution owner.");
+        }
+        return true;
     }
 
     internal static Ff7AutoPlayActiveEvent ObserveSpatialScriptActivity(Ff7AutoPlayActiveEvent active, IReadOnlyList<Ff7NativeScriptActivity> activities)

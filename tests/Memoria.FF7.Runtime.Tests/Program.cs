@@ -3,6 +3,12 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-committed-minigame-choice-only", StringComparer.Ordinal))
+{
+    NativeCommittedMinigameChoiceTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-condor-only", StringComparer.Ordinal))
 {
     NativeCondorResourceTests.Run();

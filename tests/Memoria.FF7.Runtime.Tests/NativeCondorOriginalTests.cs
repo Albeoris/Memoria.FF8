@@ -30,10 +30,12 @@ internal static class NativeCondorOriginalTests
         int maximumEnemies = 0;
         bool combat = false;
         bool overrun = false;
+        bool committed = false;
         Ff7CondorSnapshot? last = null;
         while (controller.Error is null && session.Battle is null && timer.Elapsed.TotalSeconds < 30)
         {
             controller.Advance(1);
+            committed |= policy.State.Choice?.NativeExecutionCommitted == true;
             if (session.Condor is { } condor)
             {
                 last = condor.Capture();
@@ -42,8 +44,12 @@ internal static class NativeCondorOriginalTests
                 overrun |= last.Phase == Ff7CondorPhase.Overrun;
             }
         }
+        if (session.Battle is not null)
+        {
+            controller.Advance(2);
+        }
         Console.WriteLine($"Native Condor: callbacks={controller.Steps}, seconds={timer.Elapsed.TotalSeconds:F3}, phase={last?.Phase}, enemies={maximumEnemies}, first={last?.Enemies.FirstOrDefault()}, field={session.MapId}, tick={session.Machine.Tick}, battle={session.Battle?.Formation.FormationId}, result={session.Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 0xAC)}, error={controller.Failure?.Message ?? controller.Error}");
-        if (controller.Error is not null || !combat || !overrun || maximumEnemies == 0 || session.Condor is not null || session.MapId != 356 || session.Battle?.Formation.FormationId != 290 || session.Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 0xAC) != 1 || session.Progress.Gil != source.Progress.Gil || !SHA256.HashData(bytes).AsSpan().SequenceEqual(SHA256.HashData(File.ReadAllBytes(path))))
+        if (controller.Error is not null || !committed || policy.State.Choice is not { NativeExecutionCommitted: true } || policy.State.PendingRestore is not null || !combat || !overrun || maximumEnemies == 0 || session.Condor is not null || session.MapId != 356 || session.Battle?.Formation.FormationId != 290 || session.Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 0xAC) != 1 || session.Progress.Gil != source.Progress.Gil || !SHA256.HashData(bytes).AsSpan().SequenceEqual(SHA256.HashData(File.ReadAllBytes(path))))
         {
             throw new InvalidOperationException("The native Condor enemy wave did not execute through its actual field-owned commander battle.", controller.Failure);
         }
