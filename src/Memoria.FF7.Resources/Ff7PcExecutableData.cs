@@ -176,7 +176,7 @@ public sealed partial class Ff7PcExecutableData
         {
             throw new InvalidDataException("FF7 native field-entry fade alpha table has invalid endpoints or ordering.");
         }
-        return new Ff7PcExecutableData(sinCos, angles, movieFiles, musicNames, ReadVirtual(stream, pe, 0x9059A0, 256), ReadVirtual(stream, pe, 0x905E50, 1)[0], soundPan, soundVolume, resolvedMateriaClasses, materiaStatModifiers, ReadVirtual(stream, pe, 0x905920, 256), ReadFieldPresentationData(stream, pe), fieldEntryFadeAlpha);
+        return new Ff7PcExecutableData(sinCos, angles, movieFiles, musicNames, ReadVirtual(stream, pe, 0x9059A0, 256), ReadVirtual(stream, pe, 0x905E50, 1)[0], soundPan, soundVolume, resolvedMateriaClasses, materiaStatModifiers, ReadVirtual(stream, pe, 0x905920, 256), ReadFieldPresentationData(stream, pe), fieldEntryFadeAlpha) { NativeMateriaRequirementGroups = ReadMateriaRequirementGroups(stream, pe) };
     }
 
     private static FileStream OpenSupportedImage(Ff7Installation installation)

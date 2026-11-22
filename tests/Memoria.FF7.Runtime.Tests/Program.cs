@@ -2278,6 +2278,18 @@ if (args.Contains("--native-model-scale-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--native-materia-prerequisites-only", StringComparer.Ordinal))
+{
+    NativeMateriaPrerequisiteTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-materia-prerequisites-original-only", StringComparer.Ordinal))
+{
+    NativeMateriaPrerequisiteTests.RunOriginal();
+    return 0;
+}
+
 if (args.Contains("--native-model-completion-only", StringComparer.Ordinal))
 {
     NativeModelCompletionTests.Run();
@@ -3082,6 +3094,7 @@ var tests = new (string Name, Action Run)[]
     ("native automatic blink eligibility and cold continuation", NativeBlinkTests.Run),
     ("native materia acquisition and cold continuation", NativeMateriaTests.Run),
     ("native equipment removal and cold continuation", NativeEquipmentRemovalTests.Run),
+    ("native materia prerequisites and menu acknowledgement", NativeMateriaPrerequisiteTests.Run),
     ("native autoplay lifecycle and standalone continuation", NativeAutoPlayTests.Run),
     ("native generic autoplay discovery", NativeAutoPlayDiscoveryTests.Run),
     ("native autonomous spatial frontiers", NativeAutoPlaySpatialTests.Run),

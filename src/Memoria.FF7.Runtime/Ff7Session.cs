@@ -466,6 +466,12 @@ public sealed partial class Ff7Session : IDisposable
 
     private FieldHostReply ExecuteExternal(FieldCommand command)
     {
+        if (command is FieldMenuCommand { Mode: 22 } prerequisites)
+        {
+            bool satisfied = Ff7NativeMateriaPrerequisites.Evaluate(Progress, prerequisites.Parameter, executable.NativeMateriaRequirementGroups);
+            Machine.Variables.WriteByte(FieldBank.Persistent4Byte, 111, satisfied ? (byte)1 : (byte)0);
+            return new(true);
+        }
         if (command is FieldMenuCommand { Mode: 21 })
         {
             ApplyHighwayHealth();
