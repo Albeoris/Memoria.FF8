@@ -19,7 +19,7 @@ internal sealed partial class Ff7Scene
     private bool playerMenuClockChanged;
     private bool pendingPlayerMenuRequest;
     private bool nativePlayerMenuActive;
-    private static readonly IReadOnlySet<string> PlayerPreferenceKeys = new[] { "config-graphics", "config-frame-limits", "config-audio", "config-interface", "config-text", "config-speed" }.SelectMany(page => SettingsPlacement.Pages[page].Items).Where(key => !key.StartsWith("config-", StringComparison.Ordinal)).Concat(["Battle ATB mode", "Battle policy", "Random encounters"]).ToHashSet(StringComparer.Ordinal);
+    private static readonly IReadOnlySet<string> PlayerPreferenceKeys = new[] { "config-graphics", "config-frame-limits", "config-audio", "config-interface", "config-text", "config-speed" }.SelectMany(page => SettingsPlacement.Pages[page].Items).Where(key => !key.StartsWith("config-", StringComparison.Ordinal)).Concat(UiPreferences.AutoSaveSettingKeys).Concat(["Battle ATB mode", "Battle policy", "Random encounters"]).ToHashSet(StringComparer.Ordinal);
 
     internal MenuController? ActivePlayerMenu => titleConfigMenu?.IsOpen == true ? titleConfigMenu : guestPlayerMenu?.IsOpen == true ? guestPlayerMenu : playerMenu?.IsOpen == true ? playerMenu : null;
     internal bool IsPlayerMenuOpen => ActivePlayerMenu is not null;
@@ -49,7 +49,7 @@ internal sealed partial class Ff7Scene
                 new("status", "Status", "View the current party.", "ff7-status"),
                 new("order", "Order", "Change the party order or battle row.", "ff7-order"),
                 new("limit", "Limit", "View learned Limits or change the active level.", "ff7-limit"),
-                new("config", "Config", "Shared controls, graphics, audio and interface preferences.", "config"),
+                new("config", "Config", "Shared controls, graphics, audio, interface and autosave preferences.", "config"),
                 new("mods", "Mods", "Configure FFVII enemy integration and installed packages.", "ff7-enemy-integration"),
                 new("phs", "PHS", CanUsePlayerMenuPhs ? "Exchange active and reserve party members." : "PHS is unavailable at this location.", "ff7-phs", Enabled: CanUsePlayerMenuPhs),
                 new("save", "Save", "Save the current continuation.", Action: new("ff7-save"), Enabled: CanSave),
@@ -69,8 +69,8 @@ internal sealed partial class Ff7Scene
         {
             Id = "config",
             Title = "Config",
-            Help = "Shared presentation and control preferences.",
-            Entries = menu => [.. menu.ConfigEntries().Where(entry => entry.Id is "config-graphics" or "config-audio" or "config-interface" or "config-controls"), new("config-speed", "Speed", "Movement and fast-forward preferences.", "config-speed"), new("config-combat", "Combat", "Battle timing and encounter settings for the current game.", "config-combat")]
+            Help = "Shared presentation, control and autosave preferences.",
+            Entries = menu => [.. menu.ConfigEntries().Where(entry => entry.Id is "config-graphics" or "config-audio" or "config-interface" or "config-controls"), new("config-speed", "Speed", "Movement and fast-forward preferences.", "config-speed"), new("config-combat", "Combat", "Battle timing and encounter settings for the current game.", "config-combat"), new("config-exploration", "Exploration and saving", "Automatic save preferences.", "config-exploration")]
         });
         RegisterPlayerCombatSettings(playerMenu);
     }
@@ -147,7 +147,7 @@ internal sealed partial class Ff7Scene
         {
             if (!PlayerPreferenceKeys.Contains(action.SubjectId))
             {
-                throw new NotSupportedException("This FFVII menu exposes only shared presentation and speed preferences.");
+                throw new NotSupportedException("This setting is unavailable in the FFVII menu.");
             }
             if (action.SubjectId is "Battle policy" or "Random encounters")
             {

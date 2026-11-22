@@ -20,8 +20,8 @@ internal sealed partial class Ff7Scene
             {
                 Id = "config",
                 Title = "Config",
-                Help = "Shared presentation and control preferences.",
-                Entries = menu => [.. menu.ConfigEntries().Where(entry => entry.Id is "config-graphics" or "config-audio" or "config-interface" or "config-controls"), new("config-speed", "Speed", "Movement and fast-forward preferences.", "config-speed")]
+                Help = "Shared presentation, control and autosave preferences.",
+                Entries = menu => [.. menu.ConfigEntries().Where(entry => entry.Id is "config-graphics" or "config-audio" or "config-interface" or "config-controls"), new("config-speed", "Speed", "Movement and fast-forward preferences.", "config-speed"), new("config-exploration", "Exploration and saving", "Automatic save preferences.", "config-exploration")]
             });
         }
         titleConfigMenu.Presentation = PresentationPreferences.MenuPresentation;
@@ -41,7 +41,7 @@ internal sealed partial class Ff7Scene
     {
         if (action.Kind != "config" || !TitlePreferenceKeys.Contains(action.SubjectId))
         {
-            throw new NotSupportedException("The FFVII title exposes shared presentation and control preferences.");
+            throw new NotSupportedException("This setting is unavailable in the FFVII title menu.");
         }
         UiPreferences current = dialoguePreferences?.Invoke() ?? new UiPreferences();
         UiPreferences updated = current.WithSetting(action.SubjectId, action.Value);

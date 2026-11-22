@@ -98,6 +98,11 @@ internal sealed class PlayerSaveMenu
 
     internal string SlotLabel(int slot)
     {
+        if (PlayerSaveStore.GetAutoSaveKind(slot) is { } autoSaveKind)
+        {
+            string id = autoSaveKind == AutoSaveKind.Location ? "save.slot.autosave-location" : "save.slot.autosave-interval";
+            return SystemText(id, store.SlotLabel(slot));
+        }
         if (slot <= 0)
         {
             return SystemText("save.slot.quick", "Quick Save");
@@ -170,7 +175,7 @@ internal sealed class PlayerSaveMenu
         {
             Selection = 0;
             Page = 0;
-            SetSystemMessage(() => Mode == PlayerSaveMenuMode.QuickLoad && Entries.Count == 0 ? SystemText("save.open.no.quick.saves", "No quick saves.") : null);
+            SetSystemMessage(() => Mode == PlayerSaveMenuMode.QuickLoad && Entries.Count == 0 ? SystemText("save.open.no.quick.saves", "No quick saves or autosaves.") : null);
         }
         else
         {
@@ -206,7 +211,7 @@ internal sealed class PlayerSaveMenu
         {
             throw new ArgumentOutOfRangeException(nameof(bank));
         }
-        if (IsTransferring && (bank == 0) == (PlayerSaveStore.GetBank(TransferSource!.Value) == 0))
+        if (IsTransferring && (bank > 0) == store.IsOriginalSlot(TransferSource!.Value))
         {
             SetSystemMessage(() => SystemText("save.selectbank.choose.a.bank.of.the.other.save", "Choose a bank of the other save type."));
             SoundRequested?.Invoke(MenuSound.Cancel);
@@ -365,7 +370,7 @@ internal sealed class PlayerSaveMenu
         }
         if (Entries.Count == 0)
         {
-            SetSystemMessage(() => SystemText("save.update.no.quick.saves", "No quick saves."));
+            SetSystemMessage(() => SystemText("save.update.no.quick.saves", "No quick saves or autosaves."));
             SoundRequested?.Invoke(MenuSound.Cancel);
             return;
         }
@@ -551,7 +556,7 @@ internal sealed class PlayerSaveMenu
         {
             PlayerSaveMenuMode.CompletedSource => store.ReadCompletedEntries(),
             PlayerSaveMenuMode.SaveCompleted => store.ReadEntries(0, false),
-            PlayerSaveMenuMode.QuickLoad => store.ReadQuickEntries(),
+            PlayerSaveMenuMode.QuickLoad => store.ReadRecentEntries(),
             PlayerSaveMenuMode.QuickSave => [new PlayerSaveEntry(0, "New Quick Save", null, "Create a rotating quick save.", false) { DetailsSystemId = "save.slot.create-quick" }],
             _ => store.ReadEntries(Bank, Mode == PlayerSaveMenuMode.Load && !IsTransferring)
         });

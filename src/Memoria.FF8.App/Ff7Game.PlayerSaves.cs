@@ -42,6 +42,7 @@ internal sealed partial class Ff7Game
         playerSaves.SetQuickSaveCount(scene.PresentationPreferences.QuickSaveCount);
         saveMenu = new PlayerSaveMenu(playerSaves) { BeforeBankChange = EnsureOriginalPlayerSaveBank };
         scene.PlayerSaveRequested += input => HandlePlayerSaveInput(input);
+        scene.WriteAutoSave = playerSaves.SaveAutoFf7;
         scene.SaveRequested += _ => OpenPlayerSaveMenu(PlayerSaveMenuMode.Save);
         scene.ContinueRequested += () => OpenPlayerSaveMenu(PlayerSaveMenuMode.Load);
     }

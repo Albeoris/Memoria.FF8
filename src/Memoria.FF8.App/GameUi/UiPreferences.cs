@@ -29,6 +29,17 @@ internal sealed record UiPreferences
     public int VoiceVolume { get; init; } = 100;
     public int TextScale { get; init; } = 100;
     public int QuickSaveCount { get; init; } = 9;
+    public bool AutoSaveEnabled { get; init; } = true;
+    public int AutoSaveCount { get; init; } = DefaultAutoSaveCount;
+    public bool AutoSaveOnLocationEntry { get; init; } = true;
+    public int AutoSaveIntervalMinutes { get; init; } = DefaultAutoSaveIntervalMinutes;
+
+    internal const int DefaultAutoSaveCount = 3;
+    internal const int DefaultAutoSaveIntervalMinutes = 10;
+    internal const int MaximumAutoSaveCount = 999;
+    internal const int MaximumAutoSaveIntervalMinutes = 999;
+    internal static readonly string[] AutoSaveSettingKeys = ["Autosaves", "Autosaves to keep", "Autosave on location entry", "Autosave interval"];
+
     private static readonly IMenuPresentation ClassicFontDefaults = new ClassicMenuPresentation();
     private static readonly IMenuPresentation VectorFontDefaults = new VectorMenuPresentation();
     private string legacyUiFontFamily = SystemFontCatalog.DefaultFamily;
@@ -283,6 +294,32 @@ internal sealed record UiPreferences
                 throw new ArgumentException("Quick saves must be a positive integer.");
             }
             return this with { QuickSaveCount = count };
+        }
+        if (key is "Autosaves" or "Autosave on location entry")
+        {
+            bool enabled = value switch
+            {
+                "On" => true,
+                "Off" => false,
+                _ => throw new ArgumentException($"{key} requires On or Off.")
+            };
+            return key == "Autosaves" ? this with { AutoSaveEnabled = enabled } : this with { AutoSaveOnLocationEntry = enabled };
+        }
+        if (key == "Autosaves to keep")
+        {
+            if (!int.TryParse(value, System.Globalization.CultureInfo.InvariantCulture, out int count) || count is < 1 or > MaximumAutoSaveCount)
+            {
+                throw new ArgumentException($"Autosaves to keep must be between 1 and {MaximumAutoSaveCount}.");
+            }
+            return this with { AutoSaveCount = count };
+        }
+        if (key == "Autosave interval")
+        {
+            if (!int.TryParse(value, System.Globalization.CultureInfo.InvariantCulture, out int minutes) || minutes is < 0 or > MaximumAutoSaveIntervalMinutes)
+            {
+                throw new ArgumentException($"Autosave interval must be between 0 and {MaximumAutoSaveIntervalMinutes} minutes.");
+            }
+            return this with { AutoSaveIntervalMinutes = minutes };
         }
         if (key == "Cursor")
         {
@@ -539,6 +576,10 @@ internal sealed record UiPreferences
         if (WindowWidth < 1 || WindowHeight < 1)
         {
             throw new InvalidDataException("Window dimensions must be positive.");
+        }
+        if (AutoSaveCount is < 1 or > MaximumAutoSaveCount || AutoSaveIntervalMinutes is < 0 or > MaximumAutoSaveIntervalMinutes)
+        {
+            throw new InvalidDataException("Autosave preferences are outside their supported ranges.");
         }
         if (!Enum.IsDefined(MenuPresentation) || QuickSaveCount < 1 || FieldFps is not (30 or 60) || WorldFps is not (30 or 60) || BattleFps is not (15 or 60) || !ValidFps(MenuFps) || MusicVolume is < 0 or > 100 || SoundVolume is < 0 or > 100 || VoiceVolume is < 0 or > 100 || TextScale is not (100 or 125 or 150) || FieldMessageSpeed is < 1 or > 5 || UiFontSize is < 6 or > 48 || DialogueFontSize is < 6 or > 48 || string.IsNullOrWhiteSpace(LegacyUiFontFamily) || ClassicUiFontFamily is not null && string.IsNullOrWhiteSpace(ClassicUiFontFamily) || VectorUiFontFamily is not null && string.IsNullOrWhiteSpace(VectorUiFontFamily) || string.IsNullOrWhiteSpace(DialogueFontFamily) || !Enum.IsDefined(Difficulty) || !Enum.IsDefined(AtbMode) || !Enum.IsDefined(GunbladeMode) || BattlePolicy is not ("ResearchInstantVictory" or "NewGameFullCombat"))
         {

@@ -10,6 +10,29 @@ public sealed class WorldSaveIsolationTests : IDisposable
     private readonly string directory = Path.Combine(Path.GetTempPath(), "memoria-world-save-isolation-" + Guid.NewGuid().ToString("N"));
 
     [Fact]
+    public void FF7_autosaves_keep_the_combined_envelope_and_do_not_appear_in_FF8()
+    {
+        PlayerSaveStore ff7 = Store(SessionGame.Ff7);
+        byte[] payload = [2, 3, 5, 7];
+        Ff7SessionSave original = Ff7Fixture();
+        CombinedSessionSave save = new() { ActiveGame = SessionGame.Ff7, Ff7 = original, Ff8Payload = payload, Ff8PayloadFormat = CrossoverSaveAdapter.Ff8Codec };
+        ff7.SaveAutoFf7(AutoSaveKind.Location, 1, save);
+        ff7.SaveAutoFf7(AutoSaveKind.Interval, 1, save);
+        ff7.SaveAutoFf7(AutoSaveKind.Location, 1, save with { Ff7 = original with { Progress = original.Progress with { Gil = 543 } } });
+
+        PlayerSaveMenu menu = new(Store(SessionGame.Ff7));
+        menu.Open(PlayerSaveMenuMode.QuickLoad);
+        PlayerSaveEntry location = Assert.Single(menu.Entries, entry => PlayerSaveStore.GetAutoSaveKind(entry.Slot) == AutoSaveKind.Location);
+        PlayerSaveEntry interval = Assert.Single(menu.Entries, entry => PlayerSaveStore.GetAutoSaveKind(entry.Slot) == AutoSaveKind.Interval);
+        Assert.All(menu.Entries, entry => Assert.True(entry.CanLoad));
+        Assert.Equal(543u, ff7.LoadFf7(location.Slot).Ff7!.Progress.Gil);
+        Assert.Equal(original.Progress.Gil, ff7.LoadFf7(interval.Slot).Ff7!.Progress.Gil);
+        Assert.Equal(payload, ff7.LoadFf7(location.Slot).Ff8Payload);
+        Assert.Empty(Store(SessionGame.Ff8).ReadRecentEntries());
+        Assert.Empty(ff7.ReadQuickEntries());
+    }
+
+    [Fact]
     public void Legacy_FF7_slots_remain_readable_and_visible_without_mutating_them_in_FF8()
     {
         PlayerSaveStore ff8 = Store(SessionGame.Ff8);

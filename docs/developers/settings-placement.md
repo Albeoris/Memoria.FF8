@@ -24,6 +24,10 @@ Player rows have one canonical Config editor; developer rows have one Debug edit
 | Sound | Hidden | Placeholder | Excluded · no live editor | Unsupported native placeholder |
 | Controller | Hidden | Placeholder | Excluded · no live editor | Unsupported native mapping placeholder |
 | Quick saves | Config / Interface | Scalar | Player · Gameplay / Exploration and saving | UI preferences plus player save store / Global |
+| Autosaves | — | Toggle, default On | Player · Gameplay / Exploration and saving | UI preferences / Global |
+| Autosaves to keep | — | Per-category limit, 1–999, default 3 | Player · Gameplay / Exploration and saving | UI preferences / Global |
+| Autosave on location entry | — | Toggle, default On | Player · Gameplay / Exploration and saving | UI preferences / Global |
+| Autosave interval | — | Minutes, 0–999, default 10 | Player · Gameplay / Exploration and saving | UI preferences / Global |
 | Cursor | Config / Interface | Scalar | Player · Interface | UI preferences / Global |
 | ATB | Fixture Config / Gameplay | Placeholder | Fixture only | Unsupported native placeholder |
 | Chocobo World | New Game; Config / Gameplay / Chocobo World | Enum and explicit reward actions | Player · Gameplay / Chocobo World | Gameplay preferences and acquisition ledger / Game, edition-aware Title session |

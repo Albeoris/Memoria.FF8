@@ -80,6 +80,7 @@ internal sealed partial class RecreateGame : GamePresentationHost
         physicalInput = new(options.AcceptsPhysicalInput, HasPhysicalInputFocus, Keyboard.GetState, () => controller?.Read() ?? default, Mouse.GetState);
         globalSettings = new GlobalSettingsPaths(isolatedDirectory: options.SettingsDirectory);
         this.session = session;
+        autoSave.Reset(ReadAutoSaveLocation(session.State));
         achievementToolSession = !playerSession || options.IsAchievementToolSession;
         updateSave = new UpdateSaveHandoff(CaptureUpdateState, ValidatePlayerState, EnsureUpdateSaveIsSafe, writeGameplay: WritePlayerGameplaySave);
         startup = new StartupSequence(StartupSequence.ShouldPlay(options));
@@ -454,6 +455,7 @@ internal sealed partial class RecreateGame : GamePresentationHost
         {
             fieldAudio?.PlayTitleMusic();
         }
+        UpdateAutoSaveRequest(gameTime.ElapsedGameTime);
         UpdateNativeFontPresentation();
         if (UpdateLocalizationAuthoring(gameTime.ElapsedGameTime))
         {
@@ -485,6 +487,10 @@ internal sealed partial class RecreateGame : GamePresentationHost
             base.Update(gameTime);
             metrics.Update(updateStarted);
             return;
+        }
+        if (!BattleModalBlocksGameplay)
+        {
+            TryAutoSave();
         }
         TimeSpan gameplayElapsed = gameplayClock.Advance(gameTime.ElapsedGameTime, session.State.Scene, events?.RequiresRealTimeFieldInput == true, ActiveBattle is not null);
         world?.AdvanceDebug(gameplayElapsed);
@@ -1067,7 +1073,7 @@ internal sealed partial class RecreateGame : GamePresentationHost
                 }
                 else
                 {
-                    if (world is null || session.State.Scene == SceneKind.Title || fieldFaulted || fieldRenderFaulted || events?.LastFault is not null)
+                    if (world is null || session.State.Scene == SceneKind.Title || PlayerSaveFaulted)
                     {
                         throw new InvalidOperationException("Start or load a running game before saving.");
                     }
@@ -1092,9 +1098,11 @@ internal sealed partial class RecreateGame : GamePresentationHost
         saveMenu.Open(mode);
     }
 
+    private bool PlayerSaveFaulted => fieldFaulted || fieldRenderFaulted || events?.LastFault is not null;
+
     private void PreparePlayerSlotSave()
     {
-        if (fieldFaulted)
+        if (PlayerSaveFaulted)
         {
             throw new InvalidOperationException("The game stopped at a script or rendering fault. Load a running save before saving.");
         }
@@ -1236,6 +1244,7 @@ internal sealed partial class RecreateGame : GamePresentationHost
         session.StateChanged -= LogSessionState;
         session.CaptureAchievementOwner = null;
         session = replacement;
+        autoSave.Reset(ReadAutoSaveLocation(session.State));
         session.StateChanged += LogSessionState;
         if (achievements is not null)
         {
@@ -1309,6 +1318,7 @@ internal sealed partial class RecreateGame : GamePresentationHost
         fresh.SetGameplayPreferences(newGameMagicPreferences with { BattleAllyCount = uiPreferences.BattleAllyCount, AdditionalEnemies = uiPreferences.AdditionalEnemies, ChocoboWorldMode = newGameMagicPreferences.ChocoboWorldMode ?? DefaultChocoboWorldMode, WeaponMagazineRequired = uiPreferences.WeaponMagazineRequired, WeaponUpgradeOrder = uiPreferences.WeaponUpgradeOrder, CardModOnce = uiPreferences.CardModOnce, LimitOncePerTurn = uiPreferences.LimitOncePerTurn, SelphieCardSlots = uiPreferences.SelphieCardSlots, DrawOncePerSpell = uiPreferences.DrawOncePerSpell, Difficulty = uiPreferences.Difficulty, AtbMode = uiPreferences.AtbMode, GunbladeMode = uiPreferences.GunbladeMode, TripleTriad = uiPreferences.TripleTriad, GuardianFormsEnabled = uiPreferences.GuardianFormsEnabled });
         StopAutoPlayForPlayerSession();
         ReplacePlayerSession(fresh);
+        autoSave.Reset();
         BattleInput[] battleSettingsInputs = uiPreferences.CreateBattleSettingsInputs();
         if (battleSettingsInputs.Length > 0)
         {

@@ -183,6 +183,7 @@ internal sealed partial class RecreateGame
             ConfigureFf7Presentation(scene);
             scene.ConfigureSharedControls(keyboard, gameplayClock, profile => profile.Save(new GlobalSettingsPaths(isolatedDirectory: options.SettingsDirectory).ControlsPreferencesPath));
             scene.PlayerSaveRequested += input => UpdatePlayerSaves(input);
+            scene.WriteAutoSave = ff7PlayerSaves.SaveAutoFf7;
             scene.ContinueRequested += () => OpenPlayerSaveMenu(PlayerSaveMenuMode.Load);
             scene.RenderLimit = options.WorldRenderLimit;
             scene.InterpolatePresentation = !options.ControlStep;

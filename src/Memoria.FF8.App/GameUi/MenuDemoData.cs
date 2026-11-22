@@ -115,6 +115,8 @@ public static class MenuDemoData
         data.Settings["Triple Triad assistance"] = "Off";
         data.Settings["Triple Triad modified Same/Plus"] = "Off";
         data.Settings["Quick saves"] = "9";
+        data.Settings["Autosaves to keep"] = UiPreferences.DefaultAutoSaveCount.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        data.Settings["Autosave interval"] = UiPreferences.DefaultAutoSaveIntervalMinutes.ToString(System.Globalization.CultureInfo.InvariantCulture);
         data.Settings["World movement speed"] = "100%";
         data.Settings["Field movement speed"] = "100%";
         data.Settings["Battle speed"] = "100%";
@@ -214,6 +216,10 @@ public static class MenuSettings
         new("Sound", "Original stereo / mono output setting.", ["Stereo", "Mono"]),
         new("Controller", "Original normal / custom control mapping.", ["Normal", "Customize"]),
         new("Quick saves", "Number of rotating quick saves to retain. Shared by every save on this installation.", Enumerable.Range(1, 999).Select(value => value.ToString(System.Globalization.CultureInfo.InvariantCulture)).ToArray()),
+        new("Autosaves", "Save automatically at supported gameplay boundaries. This preference is shared across saves.", ["On", "Off"]),
+        new("Autosaves to keep", "Number of autosaves to keep per category. The next autosave in that category applies the limit.", Enumerable.Range(1, UiPreferences.MaximumAutoSaveCount).Select(value => value.ToString(System.Globalization.CultureInfo.InvariantCulture)).ToArray()),
+        new("Autosave on location entry", "Save after arriving at a different location when gameplay allows saving.", ["On", "Off"]),
+        new("Autosave interval", "Minutes of play between timed autosaves. Set to 0 to turn timed autosaves off.", Enumerable.Range(0, UiPreferences.MaximumAutoSaveIntervalMinutes + 1).Select(value => value.ToString(System.Globalization.CultureInfo.InvariantCulture)).ToArray()),
         new("Cursor", "Battle only: Initial resets battle cursors. Memory remembers each character's accepted command, action, target and Draw Stock/Cast choice during the current battle.", ["Initial", "Memory"]),
         new("ATB", "Original battle timing mode.", ["Active", "Wait"]),
         new("Selphie card Slots", "Choose one of a finite set of native Slot results shown as cards. Some cards begin hidden. Saved with this game; change outside battles only. Required on Hardcore. Title sets the new-game default.", ["Off", "On"]),

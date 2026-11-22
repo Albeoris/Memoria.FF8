@@ -59,7 +59,7 @@ public sealed class QuickSaveMenuTests : IDisposable
         menu.Update(new InputFrame(0, 0, false, false, false, false, MenuVertical: 1, MenuPage: 1), _ => Assert.Fail(), _ => Assert.Fail());
         menu.Update(new InputFrame(0, 0, true, false, false, false), _ => Assert.Fail(), _ => Assert.Fail());
         Assert.True(menu.IsOpen);
-        Assert.Equal("No quick saves.", menu.Message);
+        Assert.Equal("No quick saves or autosaves.", menu.Message);
         Assert.Equal((0, 0), (menu.Selection, menu.Page));
         menu.Update(new InputFrame(0, 0, false, true, false, false), _ => Assert.Fail(), _ => Assert.Fail());
         Assert.False(menu.IsOpen);

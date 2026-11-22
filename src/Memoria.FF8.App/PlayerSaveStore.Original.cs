@@ -51,28 +51,30 @@ internal sealed partial class PlayerSaveStore
         {
             throw new InvalidOperationException("Choose a different destination slot.");
         }
-        if (sourceSlot <= MemoriaSlotCount && destinationSlot > MemoriaSlotCount)
+        bool originalSource = IsOriginalSlot(sourceSlot);
+        bool originalDestination = IsOriginalSlot(destinationSlot);
+        if (!originalSource && originalDestination)
         {
             CrossoverSaveAdapter.EnsureOriginalExportAllowed(source);
         }
-        if (sourceSlot > MemoriaSlotCount && destinationSlot > MemoriaSlotCount)
+        if (originalSource && originalDestination)
         {
             SaveOriginal(destination, File.ReadAllBytes(source), validateContinuation);
         }
         else
         {
-            if (reviewedSource is not null && (sourceSlot > MemoriaSlotCount || destinationSlot <= MemoriaSlotCount))
+            if (reviewedSource is not null && (originalSource || !originalDestination))
             {
                 throw new InvalidOperationException("A reviewed conversion state is supported only when copying a Memoria save to original FF8.");
             }
-            if (sourceSlot <= MemoriaSlotCount && destinationSlot <= MemoriaSlotCount)
+            if (!originalSource && !originalDestination)
             {
                 CopyMemoria(source, destination, validateContinuation);
             }
             else
             {
                 GameState state = reviewedSource ?? Load(sourceSlot);
-                if (destinationSlot <= MemoriaSlotCount && writeGameplay is not null)
+                if (!originalDestination && writeGameplay is not null)
                 {
                     WriteMemoria(destination, new GameSession(state), validateContinuation, null, (path, validate, timestamp) => writeGameplay(state, path, validate));
                 }

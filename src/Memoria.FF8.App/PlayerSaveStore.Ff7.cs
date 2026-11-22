@@ -10,6 +10,8 @@ internal sealed partial class PlayerSaveStore
     private readonly string? legacyDirectory;
     internal SessionGame Game { get; }
     internal int MaximumSlot => Game == SessionGame.Ff7 ? MemoriaSlotCount + 150 : TotalSlotCount;
+    internal bool IsOriginalSlot(int slot) => slot > MemoriaSlotCount && slot <= MaximumSlot;
+
     internal int BankSize(int bank)
     {
         ValidateBank(bank);
@@ -24,6 +26,10 @@ internal sealed partial class PlayerSaveStore
 
     internal string SlotLabel(int slot)
     {
+        if (GetAutoSaveKind(slot) is { } kind)
+        {
+            return AutoSaveLabel(kind);
+        }
         if (Game != SessionGame.Ff7)
         {
             return GetLabel(slot);
@@ -65,7 +71,7 @@ internal sealed partial class PlayerSaveStore
     {
         EnsureFf7();
         string path = GetPath(slot);
-        if (slot > MemoriaSlotCount)
+        if (IsOriginalSlot(slot))
         {
             Ff7NativeSaveSlot native = Ff7NativeSaveBank.Decode(File.ReadAllBytes(path)).GetSlot((slot - MemoriaSlotCount - 1) % 15);
             return new CombinedSessionSave { ActiveGame = SessionGame.Ff7, Ff7 = Ff7NativeSaveCodec.Import(native, Ff7Installation) };
@@ -80,12 +86,7 @@ internal sealed partial class PlayerSaveStore
 
     internal void SaveFf7(int slot, CombinedSessionSave saved)
     {
-        EnsureFf7();
-        saved.Validate();
-        if (saved.ActiveGame != SessionGame.Ff7 || saved.Ff7 is null)
-        {
-            throw new InvalidDataException("Only the current FFVII world can be saved in the FFVII bank.");
-        }
+        Ff7SessionSave state = ValidateFf7Save(saved);
         if (slot < 0 || slot > MaximumSlot)
         {
             throw new ArgumentOutOfRangeException(nameof(slot));
@@ -94,7 +95,7 @@ internal sealed partial class PlayerSaveStore
         {
             string path = GetPath(slot);
             Ff7NativeSaveBank bank = File.Exists(path) ? Ff7NativeSaveBank.Decode(File.ReadAllBytes(path)) : Ff7NativeSaveBank.Create();
-            Ff7NativeSaveSlot native = Ff7NativeSaveCodec.Export(saved.Ff7, Ff7Installation);
+            Ff7NativeSaveSlot native = Ff7NativeSaveCodec.Export(state, Ff7Installation);
             byte[] bytes = bank.WithSlot((slot - MemoriaSlotCount - 1) % 15, native).Encode();
             WriteFf7Bank(path, bytes);
             return;
@@ -142,7 +143,7 @@ internal sealed partial class PlayerSaveStore
         {
             throw new InvalidOperationException("Choose a different destination slot.");
         }
-        if (source > MemoriaSlotCount && destination > MemoriaSlotCount)
+        if (IsOriginalSlot(source) && IsOriginalSlot(destination))
         {
             Ff7NativeSaveSlot native = Ff7NativeSaveBank.Decode(File.ReadAllBytes(GetPath(source))).GetSlot((source - MemoriaSlotCount - 1) % 15);
             if (native.IsEmpty || !native.ChecksumValid)
@@ -224,6 +225,17 @@ internal sealed partial class PlayerSaveStore
         {
             throw new InvalidOperationException("Switch to the FFVII world before accessing its save bank.");
         }
+    }
+
+    private Ff7SessionSave ValidateFf7Save(CombinedSessionSave saved)
+    {
+        EnsureFf7();
+        saved.Validate();
+        if (saved.ActiveGame != SessionGame.Ff7 || saved.Ff7 is null)
+        {
+            throw new InvalidDataException("Only the current FFVII world can be saved in the FFVII bank.");
+        }
+        return saved.Ff7;
     }
 
     private string ResolveMemoriaReadPath(string name)

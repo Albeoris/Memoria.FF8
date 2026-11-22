@@ -26,6 +26,35 @@ internal sealed partial class GameWorld
         return GameplaySaveSessionWriter.Write(path, document, assets.GameDirectory, assets, resources, modelOverrides, readGameplayPolicy, validateContinuation, savedAtUtc, prepareDefinitions);
     }
 
+    internal bool CanCaptureGameplaySave => battle is null && !session.HasActiveBattle && (session.State.Scene switch
+    {
+        SceneKind.Field => IsImportedGameplayField ? CanCaptureImportedGameplayField() : CanCaptureCurrentGameplayField(),
+        SceneKind.WorldMap => CanCaptureGameplayWorld() && session.State.World is { } current && IsSupportedGameplayWorld(current, session.State),
+        _ => false
+    });
+
+    private bool IsImportedGameplayField => Events.Frame == 0 && session.State.FieldLoadContext?.Origin == NativeFieldLoadOrigin.OriginalSave;
+
+    private bool CanCaptureGameplayWorld()
+    {
+        return !diagnosticAllocationFaulted && worldScene is { IsPresentationDeferred: false } && !HasPendingBattle && ActiveTripleTriad is null && PendingEntityName is null && Events.Scene.NativeTutorial is null && Events.Scene.NativeMenuTutorial is null && Events.LastFault is null;
+    }
+
+    private bool CanCaptureCurrentGameplayField()
+    {
+        return !diagnosticAllocationFaulted && HasCurrentFieldAllocation && !HasPendingBattle && ActiveTripleTriad is null && PendingEntityName is null && Events.Scene.NativeTutorial is null && Events.Scene.NativeMenuTutorial is null && Events.LastFault is null && (Events.CanAcceptMovementInput || Events.HasSupportedGameplayScriptMenu || Events.HasSupportedGameplayDialogueBoundary);
+    }
+
+    private bool CanCaptureImportedGameplayField()
+    {
+        return !diagnosticAllocationFaulted && Events.LastFault is null && HasCurrentFieldAllocation && IsImportedGameplayField && Events.Scene.NativeFieldInitialization is { Stage: NativeFieldInitializationStage.Allocated } && session.State.FieldLoadContext!.FieldId == session.State.FieldId && session.State.OriginalSave is not null && session.State.FieldArrival?.FieldId == session.State.FieldId;
+    }
+
+    private static bool IsSupportedGameplayWorld(WorldState current, GameState state)
+    {
+        return current.NativeScriptedRuntime is null && current.NativeTrainRuntime is null && current.NativeGardenRuntime?.Transfer is not { Counter: < 31 } && current.NativeRagnarokRuntime?.Transfer is null && current.EventUi is not { ScriptMode: not (0 or 14) } && state.MoviePlayback is not { IsPlaying: true } && state.PendingEntityNames is not { Length: > 0 };
+    }
+
     /// <summary>Captures supported durable progress and the current resume authority from this live host.</summary>
     internal GameplaySaveComponentDocument CaptureGameplaySave()
     {
@@ -35,19 +64,19 @@ internal sealed partial class GameWorld
         }
         if (session.State.Scene == SceneKind.Field)
         {
-            return Events.Frame == 0 && session.State.FieldLoadContext?.Origin == NativeFieldLoadOrigin.OriginalSave ? CaptureImportedGameplayField() : CaptureCurrentGameplayField();
+            return IsImportedGameplayField ? CaptureImportedGameplayField() : CaptureCurrentGameplayField();
         }
         if (session.State.Scene != SceneKind.WorldMap)
         {
             throw new NotSupportedException("Gameplay capture of an active field requires its logical script continuation adapter.");
         }
-        if (diagnosticAllocationFaulted || worldScene is null || worldScene.IsPresentationDeferred || battle is not null || HasPendingBattle || ActiveTripleTriad is not null || PendingEntityName is not null || Events.Scene.NativeTutorial is not null || Events.Scene.NativeMenuTutorial is not null || Events.LastFault is not null)
+        if (!CanCaptureGameplayWorld())
         {
             throw new InvalidOperationException("Gameplay capture requires an allocated playable world without a pending interaction, battle or fault.");
         }
         GameState state = session.PrepareSnapshot();
         WorldState current = state.World ?? throw new InvalidOperationException("Gameplay world capture requires a current world position.");
-        if (current.NativeScriptedRuntime is not null || current.NativeTrainRuntime is not null || current.NativeGardenRuntime?.Transfer is { Counter: < 31 } || current.NativeRagnarokRuntime?.Transfer is not null || current.EventUi is { ScriptMode: not (0 or 14) } || state.MoviePlayback is { IsPlaying: true } || state.PendingEntityNames is { Length: > 0 })
+        if (!IsSupportedGameplayWorld(current, state))
         {
             throw new NotSupportedException("Gameplay world capture requires a completed ordinary exploration boundary.");
         }
@@ -67,8 +96,7 @@ internal sealed partial class GameWorld
 
     private GameplaySaveComponentDocument CaptureCurrentGameplayField()
     {
-        bool supportedBoundary = Events.CanAcceptMovementInput || Events.HasSupportedGameplayScriptMenu || Events.HasSupportedGameplayDialogueBoundary;
-        if (diagnosticAllocationFaulted || !HasCurrentFieldAllocation || battle is not null || HasPendingBattle || ActiveTripleTriad is not null || PendingEntityName is not null || Events.Scene.NativeTutorial is not null || Events.Scene.NativeMenuTutorial is not null || Events.LastFault is not null || !supportedBoundary)
+        if (!CanCaptureCurrentGameplayField())
         {
             throw new InvalidOperationException("Gameplay field capture requires player control, a supported dialogue or script menu without a pending battle or fault.");
         }
@@ -83,10 +111,12 @@ internal sealed partial class GameWorld
 
     private GameplaySaveComponentDocument CaptureImportedGameplayField()
     {
-        if (diagnosticAllocationFaulted || Events.LastFault is not null || !HasCurrentFieldAllocation || Events.Frame != 0 || Events.Scene.NativeFieldInitialization is not { Stage: NativeFieldInitializationStage.Allocated } || session.State.FieldLoadContext is not { Origin: NativeFieldLoadOrigin.OriginalSave } context || context.FieldId != session.State.FieldId || session.State.OriginalSave is not { } original || session.State.FieldArrival is not { } arrival || arrival.FieldId != session.State.FieldId)
+        if (!CanCaptureImportedGameplayField())
         {
             throw new NotSupportedException("Gameplay capture of an active field requires its logical script continuation adapter.");
         }
+        NativePcSaveData original = session.State.OriginalSave!;
+        FieldTransition arrival = session.State.FieldArrival!;
         GameState state = session.PrepareSnapshot();
         GameplaySaveResumeDescriptor resume = new(1, GameplaySaveResumeKind.Field, state.FieldId, state.PreviousFieldId, new(arrival.X, arrival.Y, arrival.Triangle, checked((byte)arrival.Direction)), null);
         GameplaySaveComponentDocument document = CaptureGameplayDocument(state, resume);

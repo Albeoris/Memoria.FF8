@@ -83,7 +83,7 @@ internal sealed partial class RecreateGame
             playerSaves.TransferFf7(source, destination);
             return;
         }
-        if (source <= PlayerSaveStore.MemoriaSlotCount && destination > PlayerSaveStore.MemoriaSlotCount)
+        if (!playerSaves.IsOriginalSlot(source) && playerSaves.IsOriginalSlot(destination))
         {
             CrossoverSaveAdapter.EnsureOriginalExportAllowed(playerSaves.GetPath(source));
             GameState candidate = playerSaves.Load(source);

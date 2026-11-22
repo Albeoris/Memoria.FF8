@@ -119,6 +119,12 @@ internal sealed partial class PlayerSaveStore
 
     public string GetPath(int slot)
     {
+        if (GetAutoSaveKind(slot) is { } kind)
+        {
+            string autoSavePath = AutoSavePath(kind, slot);
+            ValidatePath(autoSavePath);
+            return autoSavePath;
+        }
         if (slot > MaximumSlot)
         {
             throw new ArgumentOutOfRangeException(nameof(slot));
@@ -137,6 +143,10 @@ internal sealed partial class PlayerSaveStore
 
     public static string GetLabel(int slot)
     {
+        if (GetAutoSaveKind(slot) is { } kind)
+        {
+            return AutoSaveLabel(kind);
+        }
         if (slot > TotalSlotCount)
         {
             throw new ArgumentOutOfRangeException(nameof(slot));
@@ -272,7 +282,7 @@ internal sealed partial class PlayerSaveStore
             throw new InvalidOperationException("Use the FFVII load contract in the FFVII world.");
         }
         string path = GetPath(slot);
-        return slot > MemoriaSlotCount ? LoadOriginal(path) : LoadPath(path);
+        return IsOriginalSlot(slot) ? LoadOriginal(path) : LoadPath(path);
     }
 
     public IReadOnlyList<PlayerSaveEntry> ReadQuickEntries()
@@ -298,7 +308,7 @@ internal sealed partial class PlayerSaveStore
         int firstSlot = FirstSlot(bank);
         if (includeQuick && bank == 0)
         {
-            entries.AddRange(ReadQuickEntries());
+            entries.AddRange(ReadRecentEntries());
         }
         for (int slot = firstSlot; slot < firstSlot + BankSize(bank); slot++)
         {
@@ -317,7 +327,8 @@ internal sealed partial class PlayerSaveStore
     private PlayerSaveEntry ReadEntry(int slot, string path, DateTime? savedAt)
     {
         string label = SlotLabel(slot);
-        if (Game == SessionGame.Ff7 && slot > MemoriaSlotCount)
+        bool original = IsOriginalSlot(slot);
+        if (Game == SessionGame.Ff7 && original)
         {
             return ReadFf7Entry(slot, path, savedAt);
         }
@@ -341,14 +352,14 @@ internal sealed partial class PlayerSaveStore
             SaveSummary? summary = null;
             try
             {
-                CombinedSessionSave? combined = slot <= MemoriaSlotCount ? CrossoverSaveAdapter.ReadEnvelope(path) : null;
+                CombinedSessionSave? combined = original ? null : CrossoverSaveAdapter.ReadEnvelope(path);
                 if (combined?.ActiveGame == SessionGame.Ff7 && (Game == SessionGame.Ff7 || !CrossoverSaveAdapter.HasCompletedFf8(combined)))
                 {
                     entry = ReadFf7Summary(slot, label, path, savedAt, combined);
                 }
                 else
                 {
-                    summary = slot > MemoriaSlotCount ? ReadOriginalSummary(path) : CrossoverSaveAdapter.ReadSummary(path);
+                    summary = original ? ReadOriginalSummary(path) : CrossoverSaveAdapter.ReadSummary(path);
                     GameState state = summary?.ToLocationState() ?? (Game == SessionGame.Ff8 ? LoadPath(path) : GameSession.Load(path));
                     if (state.Scene == SceneKind.Title && state.CompletedGame is null && summary?.IsCompletedGame != true)
                     {
@@ -433,10 +444,15 @@ internal sealed partial class PlayerSaveStore
 
     private void ValidatePath(string path)
     {
-        if (path.Equals(researchCheckpoint, StringComparison.OrdinalIgnoreCase) || (path + ".tmp").Equals(researchCheckpoint, StringComparison.OrdinalIgnoreCase))
+        if (IsCheckpointPath(path))
         {
             throw new InvalidOperationException("This player slot conflicts with the configured checkpoint. Choose another slot.");
         }
+    }
+
+    private bool IsCheckpointPath(string path)
+    {
+        return path.Equals(researchCheckpoint, StringComparison.OrdinalIgnoreCase) || (path + ".tmp").Equals(researchCheckpoint, StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsUnavailable(Exception exception)

@@ -238,6 +238,7 @@ internal sealed partial class Ff7Scene : IDisposable
                 }
                 return;
             }
+            UpdateAutoSave(gameTime.ElapsedGameTime, Session);
             if (Session.Battle is { } battle)
             {
                 UpdateBattle(gameTime, battle);
@@ -465,6 +466,7 @@ internal sealed partial class Ff7Scene : IDisposable
         preparedMovieSource = null;
         preparedMovieIdentity = null;
         Session = session;
+        autoSave.Reset(restoring ? ReadAutoSaveLocation(session) : null);
         AttachEnemyIntegration();
         session.PartyChanged += RefreshMappedFieldCombat;
         restoredNativeBattle = session.Battle is { GuestVitalsBindings.Count: 0 } nativeBattle ? nativeBattle : null;

@@ -44,8 +44,8 @@ internal static class SettingsPlacement
             ["Draw once per spell", "Shared magic stock", "Infinite magic", "GF Transformations"]),
         ["config-triple-triad"] = new("Triple Triad", "Rules apply to this game; Title sets new-game defaults. Rare-card markers are shared across saves.",
             [.. UiPreferences.TripleTriadSettingKeys, "Rare card markers"]),
-        ["config-exploration"] = new("Exploration and saving", "Exploration item rules and rotating quick-save retention.",
-            ["Card Mod once", "Weapon magazine required", "Weapon upgrade order", "Quick saves"])
+        ["config-exploration"] = new("Exploration and saving", "Exploration item rules, quick-save retention and autosave preferences.",
+            ["Card Mod once", "Weapon magazine required", "Weapon upgrade order", "Quick saves", .. UiPreferences.AutoSaveSettingKeys])
     };
 
     internal static readonly IReadOnlyList<SettingPlacement> All = Create();
@@ -69,6 +69,10 @@ internal static class SettingsPlacement
             ["Sound"] = "native-sound",
             ["Controller"] = "native-controller",
             ["Quick saves"] = "quick-save-retention",
+            ["Autosaves"] = "autosaves",
+            ["Autosaves to keep"] = "autosave-retention",
+            ["Autosave on location entry"] = "autosave-on-location-entry",
+            ["Autosave interval"] = "autosave-interval",
             ["Cursor"] = "cursor-memory",
             ["ATB"] = "native-atb",
             ["Limit once per turn"] = "limit-once-per-turn",
@@ -165,6 +169,10 @@ internal static class SettingsPlacement
                 "Battle speed" => "UiPreferences.BattleSpeedPercent",
                 "Fast-forward multiplier" => "UiPreferences.FastForwardMultiplier",
                 "Quick saves" => "UiPreferences.QuickSaveCount",
+                "Autosaves" => "UiPreferences.AutoSaveEnabled",
+                "Autosaves to keep" => "UiPreferences.AutoSaveCount",
+                "Autosave on location entry" => "UiPreferences.AutoSaveOnLocationEntry",
+                "Autosave interval" => "UiPreferences.AutoSaveIntervalMinutes",
                 "Cursor" => "UiPreferences.CursorMemory",
                 "Limit once per turn" => "GameplayPreferences.LimitOncePerTurn",
                 "Selphie card Slots" => "GameplayPreferences.SelphieCardSlots",
@@ -208,7 +216,7 @@ internal static class SettingsPlacement
                 _ when audience is SettingsAudience.Fixture or SettingsAudience.Excluded => "Fixture." + identity,
                 _ => throw new InvalidOperationException($"Setting '{setting.Id}' has no explicit command owner.")
             };
-            result.Add(new(identity, setting.Id, audience, page, page == "config-text" ? setting.Id.StartsWith("Dialogue", StringComparison.Ordinal) || setting.Id == "Field message" ? "Dialogue" : "Menus" : page == "config-exploration" ? setting.Id == "Quick saves" ? "Saving" : "Exploration" : "", placement.Value is null ? 0 : Array.IndexOf(placement.Value.Items, setting.Id), target, scope));
+            result.Add(new(identity, setting.Id, audience, page, page == "config-text" ? setting.Id.StartsWith("Dialogue", StringComparison.Ordinal) || setting.Id == "Field message" ? "Dialogue" : "Menus" : page == "config-exploration" ? setting.Id == "Quick saves" || UiPreferences.AutoSaveSettingKeys.Contains(setting.Id) ? "Saving" : "Exploration" : "", placement.Value is null ? 0 : Array.IndexOf(placement.Value.Items, setting.Id), target, scope));
         }
         return result;
     }

@@ -47,7 +47,7 @@ internal sealed partial class PlayerSaveView
             float rowHeight = Math.Max(0, Bounds.Height - 12) / 2;
             UiRect label = new(textLeft, Bounds.Y + 6, Math.Max(0, Bounds.Right - textLeft - 10), rowHeight);
             string name = menu?.IsFf7 == true ? menu.BankLabel(bank) : bank == 0 ? SystemText("save.bank.memoria", "Memoria") : SystemText("save.bank.original", "Original");
-            string details = (active ? SystemText("save.bank.active", "ACTIVE  ·  ") : "") + (quick ? SystemText("save.bank.quick", "Quick saves") : FormatSystemText("save.bank.slots", "{0} slots", (menu?.BankSize(bank) ?? PlayerSaveStore.GetBankSlotCount(bank))));
+            string details = (active ? SystemText("save.bank.active", "ACTIVE  ·  ") : "") + (quick ? QuickDetails() : FormatSystemText("save.bank.slots", "{0} slots", (menu?.BankSize(bank) ?? PlayerSaveStore.GetBankSlotCount(bank))));
             if (menu?.IsCompletedMode == true)
             {
                 details = menu.Mode == PlayerSaveMenuMode.CompletedSource ? SystemText("ngplus.completed-sources", "Completed Game saves") : FormatSystemText("save.bank.slots", "{0} slots", PlayerSaveStore.MemoriaSlotCount);
@@ -59,6 +59,11 @@ internal sealed partial class PlayerSaveView
             {
                 canvas.Fill(new UiRect(Bounds.X + 4, Bounds.Bottom - 6, Bounds.Width - 8, 3), new UiColor(222, 228, 239));
             }
+        }
+
+        private string QuickDetails()
+        {
+            return menu?.Mode == PlayerSaveMenuMode.QuickLoad ? SystemText("save.bank.quick-load", "Quick saves and autosaves") : SystemText("save.bank.quick", "Quick saves");
         }
     }
 }

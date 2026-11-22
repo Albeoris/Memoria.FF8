@@ -182,6 +182,7 @@ internal sealed partial class RecreateGame
         data.Settings["Achievement progress"] = uiPreferences.ShowAchievementProgress ? "On" : "Off";
         data.SupportedActions.Add("config:Achievement progress");
         data.SupportedActions.Add("config:Quick saves");
+        gameMenus?.PopulateHostSettingValues(data, UiPreferences.AutoSaveSettingKeys);
         data.Settings["Field message"] = uiPreferences.FieldMessageSpeed.ToString();
         data.Settings["Vibration"] = keyboard.Profile.VibrationEnabled ? "On" : "Off";
         data.Settings["Effect volume"] = uiPreferences.SoundVolume + "%";
