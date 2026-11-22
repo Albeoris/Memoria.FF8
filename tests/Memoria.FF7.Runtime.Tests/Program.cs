@@ -3,6 +3,18 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-trigger-arrow-tail-only", StringComparer.Ordinal))
+{
+    NativeTriggerArrowTailTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-trigger-tail-original-only", StringComparer.Ordinal))
+{
+    NativeTriggerTailOriginalTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-transfer-host-wait-only", StringComparer.Ordinal))
 {
     NativeTransferHostWaitTests.Run();

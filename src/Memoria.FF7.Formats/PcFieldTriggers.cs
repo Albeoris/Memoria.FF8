@@ -45,14 +45,18 @@ public sealed record PcFieldTriggers(string Name, byte ControlDirection, short C
         {
             triggers[i] = new PcFieldTrigger(cursor.Vector16(), cursor.Vector16(), cursor.U8(), cursor.U8(), cursor.U8(), cursor.U8());
         }
-        for (int i = 0; i < gateways.Length; i++)
+        PcFieldArrow[] arrows = [];
+        if (cursor.Remaining != 0)
         {
-            gateways[i] = gateways[i] with { ShowArrow = cursor.U8() };
-        }
-        PcFieldArrow[] arrows = new PcFieldArrow[12];
-        for (int i = 0; i < arrows.Length; i++)
-        {
-            arrows[i] = new PcFieldArrow(cursor.Vector32(), cursor.I32());
+            for (int i = 0; i < gateways.Length; i++)
+            {
+                gateways[i] = gateways[i] with { ShowArrow = cursor.U8() };
+            }
+            arrows = new PcFieldArrow[12];
+            for (int i = 0; i < arrows.Length; i++)
+            {
+                arrows[i] = new PcFieldArrow(cursor.Vector32(), cursor.I32());
+            }
         }
         if (cursor.Remaining != 0)
         {
