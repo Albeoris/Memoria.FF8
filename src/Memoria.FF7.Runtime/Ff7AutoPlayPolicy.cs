@@ -38,6 +38,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         choices = new(session, planner, State, writeChoiceCheckpoint);
         choices.RecoverLostRestoredChoiceObservation();
         ObservePendingMinigameChoice();
+        ObserveOwnedFieldTransitionChoice();
         scriptedInput = new(session);
         session.NativeInteractionScriptRequested += ObserveEffectAliasAdmission;
         session.InteractionScriptRequested += ObserveInteraction;
@@ -1018,13 +1019,15 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
     private void ObserveTick(Ff7NativeTickObservation observation)
     {
         ObserveNativeRouteBoundary();
-        ObserveFieldDestinationArrival();
         if (ObserveCompletedSynchronousActivation(observation))
         {
+            ObserveFieldDestinationArrival();
             return;
         }
         if (State.Active is not { } active || active.Generation != observation.Generation)
         {
+            ObserveOwnedFieldTransitionChoice();
+            ObserveFieldDestinationArrival();
             return;
         }
         bool spatialChanged = false;
@@ -1042,11 +1045,27 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         bool returned = active.SpatialOwner is null && active.DirectEffectOwner is null && active.Accepted && (active.ExecutionProvenance?.RootReturned ?? observation.ScriptReturns.Any(owner => owner.Entity == active.Entity && owner.Priority == 1));
         bool transition = IsOwnedTransition(observation, active);
         bool minigameCommitted = ObservePendingMinigameChoice();
-        if (returned || transition || spatialChanged || provenanceChanged || minigameCommitted)
+        State.Active = active with { Returned = active.Returned || returned, TransitionOwned = active.TransitionOwned || transition };
+        bool navigationCommitted = ObserveOwnedFieldTransitionChoice();
+        ObserveFieldDestinationArrival();
+        if (returned || transition || spatialChanged || provenanceChanged || minigameCommitted || navigationCommitted)
         {
-            State.Active = active with { Returned = active.Returned || returned, TransitionOwned = active.TransitionOwned || transition };
             Publish();
         }
+    }
+
+    private bool ObserveOwnedFieldTransitionChoice()
+    {
+        if (session.World is not null || State.Active is not { Accepted: true, TransitionOwned: true, ExecutionProvenance.AcceptedTransition.Command: FieldTransitionCommand } || State.Choice is null)
+        {
+            return false;
+        }
+        bool uncommitted = false;
+        for (Ff7AutoPlayChoiceState? choice = State.Choice; choice is not null; choice = choice.Parent)
+        {
+            uncommitted |= choice.NativeExecutionCommitted != true;
+        }
+        return uncommitted && Ff7AutoPlayChoiceWorkflow.ObserveOwnedFieldTransitionChoice(session.Capture(), State, session.MapId);
     }
 
     private bool ObservePendingMinigameChoice()

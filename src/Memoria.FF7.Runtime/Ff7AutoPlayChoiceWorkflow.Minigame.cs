@@ -51,11 +51,16 @@ public sealed partial class Ff7AutoPlayChoiceWorkflow
         {
             return false;
         }
+        return CommitOwnedSourceChoices(state, active, source.FieldGeneration, source.Vm.ProgramIdentity);
+    }
+
+    private static bool CommitOwnedSourceChoices(Ff7AutoPlayState state, Ff7AutoPlayActiveEvent active, long generation, string programIdentity, Func<Ff7AutoPlayChoiceState, bool>? eligible = null)
+    {
         List<Ff7AutoPlayChoiceState> chain = [];
         for (Ff7AutoPlayChoiceState? choice = state.Choice; choice is not null; choice = choice.Parent)
         {
             var coverage = state.Coverage.Choices.SingleOrDefault(item => item.Key == choice.Key);
-            if (!MatchesChoiceSource(choice, active) || choice.NativeOwner is not { } owner || owner.Generation != source.FieldGeneration || owner.ProgramIdentity != source.Vm.ProgramIdentity || coverage?.ActiveOption is not int option || option < coverage.FirstOption || option >= coverage.FirstOption + coverage.OptionCount)
+            if (!MatchesChoiceSource(choice, active) || choice.NativeOwner is not { } owner || owner.Generation != generation || owner.ProgramIdentity != programIdentity || eligible?.Invoke(choice) == false || coverage?.ActiveOption is not int option || option < coverage.FirstOption || option >= coverage.FirstOption + coverage.OptionCount)
             {
                 return false;
             }

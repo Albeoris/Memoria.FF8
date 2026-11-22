@@ -11,6 +11,8 @@ public sealed record Ff7AutoPlayChoiceState(string Key, Ff7AutoPlayActiveEvent? 
     public bool? NativeSourceOwned { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public bool? NativeExecutionCommitted { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public bool? NativeNavigationRequested { get; init; }
 }
 public sealed record Ff7AutoPlayRestoreRequest(string Path, string[]? RetiredPaths = null);
 
@@ -153,6 +155,7 @@ public sealed partial class Ff7AutoPlayChoiceWorkflow
             current = new(key, state.Active, current, OwnerIdentity: owner, BeforeStory: ReadStory(before))
             {
                 NativeOwner = ReadNativeChoiceOwner(before, dialogue),
+                NativeNavigationRequested = state.DestinationField is not null || state.SourceGoal is { Completed: false } || state.Active?.TravelRoute is not null,
                 NativeSourceOwned = before.World is null ? state.Active is { } source && ReadOwnedServicePrompt(before, source, dialogue.RequestId) is not null : null
             };
             state.Choice = current;
@@ -227,7 +230,8 @@ public sealed partial class Ff7AutoPlayChoiceWorkflow
         }
         Ff7SessionSave current = capture();
         bool executionCommitted = choice.NativeExecutionCommitted == true;
-        if (executionCommitted && !HasCompletedCommittedSource(state) && (current.World is not null || current.Battle is not null || current.Process.GlobalCommand != Ff7GlobalCommand.None || current.Process.PlayerLocked || current.Process.MenuDisabled || current.Process.Transition is not null || current.Process.Join is not null || current.Process.Movie is { Playing: true } || current.Process.Dialogues.Any(dialogue => !dialogue.Completed)))
+        bool navigationReturned = executionCommitted && state.Active?.ExecutionProvenance?.AcceptedTransition?.Command is FieldTransitionCommand transition && CanSettleOwnedNavigationChoice(current, state, nativeSession?.MapId ?? transition.Map);
+        if (executionCommitted && !HasCompletedCommittedSource(state) && (current.World is not null || current.Battle is not null || current.Process.GlobalCommand != Ff7GlobalCommand.None || current.Process.PlayerLocked || current.Process.MenuDisabled && !navigationReturned || current.Process.Menu is { Completed: false } || current.Process.Transition is not null || current.Process.Join is not null || current.Process.Movie is { Playing: true } || current.Process.Dialogues.Any(dialogue => !dialogue.Completed)))
         {
             return false;
         }
@@ -264,7 +268,7 @@ public sealed partial class Ff7AutoPlayChoiceWorkflow
             }
             planner.FinishChoice(choice.Key);
             state.Choice = choice.Parent;
-            state.Status = executionCommitted ? "The owned native minigame returned control; preserving the actual gameplay continuation." : icicleReturned ? "The owned native icicle route completed; preserving its actual battle outcome and selected room." : rockReturned ? "The native rock mechanism returned control; preserving its actual obstacle clearance." : glacierMapReturned ? "The native Glacier Map award returned control; preserving its actual acquired key item." : tutorialReturned || holzoffReturned ? "The native tutorial returned control; continuing from its actual selected exit." : navigationAdvanced ? "Optional choice alternatives were deferred after the owned native navigation returned control; continuing from the current native state." : "Optional choice alternatives were deferred after native story progress; continuing from the current native state.";
+            state.Status = executionCommitted ? "The owned native execution returned control; preserving the actual gameplay continuation." : icicleReturned ? "The owned native icicle route completed; preserving its actual battle outcome and selected room." : rockReturned ? "The native rock mechanism returned control; preserving its actual obstacle clearance." : glacierMapReturned ? "The native Glacier Map award returned control; preserving its actual acquired key item." : tutorialReturned || holzoffReturned ? "The native tutorial returned control; continuing from its actual selected exit." : navigationAdvanced ? "Optional choice alternatives were deferred after the owned native navigation returned control; continuing from the current native state." : "Optional choice alternatives were deferred after native story progress; continuing from the current native state.";
             return CompleteAtControlReturn();
         }
         AutoPlayChoiceStep next = planner.PlanChoice(choice.Key);
