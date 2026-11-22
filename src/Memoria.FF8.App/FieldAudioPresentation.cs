@@ -43,9 +43,13 @@ internal sealed partial class FieldAudioPresentation(string gameDirectory, strin
         {
             TryOutput(() =>
             {
-                voice.Primary.Tempo(speed);
-                voice.Loop?.Tempo(speed);
-                voice.Clock.SetSpeed(speed);
+                if (!voice.IsAmbient)
+                {
+                    voice.Primary.Tempo(speed);
+                    voice.Loop?.Tempo(speed);
+                    voice.Clock.SetSpeed(speed);
+                }
+                // Scripted gain and pan transitions follow gameplay, including on ambient loops.
                 voice.VolumeRamp?.SetSpeed(speed);
                 voice.PanRamp?.SetSpeed(speed);
             });
@@ -142,7 +146,7 @@ internal sealed partial class FieldAudioPresentation(string gameDirectory, strin
             switch (command)
             {
                 case GameplayLoopSoundPlayback ambient:
-                    PlaySoundSample(ambient.Resource.SampleIndex, ambient.Sound.Voice, ambient.Sound.Volume, ambient.Sound.Pan, ambient.Resource.LoopPolicy);
+                    PlaySoundSample(ambient.Resource.SampleIndex, ambient.Sound.Voice, ambient.Sound.Volume, ambient.Sound.Pan, ambient.Resource.LoopPolicy, isAmbient: true);
                     break;
                 case NativeBattleMusicEntryReceipt entry:
                     ExecuteBattleMusicEntry(entry);
@@ -221,7 +225,8 @@ internal sealed partial class FieldAudioPresentation(string gameDirectory, strin
 
     private void PlaySound(GlobalSoundRequest request)
     {
-        PlaySoundSample(request.Resource.SampleIndex, request.Voice, request.Volume, request.EffectivePan, request.Resource.LoopPolicy);
+        GlobalSoundLoopPolicy policy = request.Resource.LoopPolicy;
+        PlaySoundSample(request.Resource.SampleIndex, request.Voice, request.Volume, request.EffectivePan, policy, isAmbient: policy.IsLooping());
     }
 
     internal static (int SampleIndex, int Voice, uint Volume, uint EffectivePan) ResolveFootstepPlayback(NativeFootstepSound footstep)
@@ -245,7 +250,7 @@ internal sealed partial class FieldAudioPresentation(string gameDirectory, strin
         PlaySoundSample(sample, voice, volume, pan, resource.LoopPolicy);
     }
 
-    private void PlaySoundSample(int index, int voiceId, uint volume, uint effectivePan, GlobalSoundLoopPolicy policy, GameplaySaveAudioPosition? presentationPosition = null)
+    private void PlaySoundSample(int index, int voiceId, uint volume, uint effectivePan, GlobalSoundLoopPolicy policy, GameplaySaveAudioPosition? presentationPosition = null, bool isAmbient = false)
     {
         if (!samples.TryGetValue(index, out PcmAudio? pcm))
         {
@@ -264,15 +269,16 @@ internal sealed partial class FieldAudioPresentation(string gameDirectory, strin
             }
             int gain = OutputGain(Catalog.SoundVolume((int)volume), soundPreference);
             int pan = Catalog.SoundPan((int)effectivePan);
-            primary.Tempo(soundSpeed);
-            loop?.Tempo(soundSpeed);
+            double tempo = isAmbient ? 1 : soundSpeed;
+            primary.Tempo(tempo);
+            loop?.Tempo(tempo);
             primary.Volume(gain);
             primary.Pan(pan);
             loop?.Volume(gain);
             loop?.Pan(pan);
             StopVoice(voiceId);
-            var voice = new Voice(index, primary, loop, volume, effectivePan, policy.LoopTransitionDelayMilliseconds, SoundTimeProvider);
-            voice.Clock.SetSpeed(soundSpeed);
+            var voice = new Voice(index, primary, loop, volume, effectivePan, policy.LoopTransitionDelayMilliseconds, SoundTimeProvider, isAmbient);
+            voice.Clock.SetSpeed(tempo);
             voices.Add(voiceId, voice);
             int loopStart = checked((int)policy.LoopStartPcmByte);
             int loopEnd = loop is null ? pcm.Bytes.Length : checked((int)policy.LoopEndPcmByte);
@@ -365,7 +371,7 @@ internal sealed partial class FieldAudioPresentation(string gameDirectory, strin
         return sound.ReadCommittedVoice();
     }
 
-    private void PlayPresentationSound(uint effect, int voice, uint pan = 64, uint volume = 127)
+    private void PlayPresentationSound(uint effect, int voice, uint pan = 64, uint volume = 127, bool isAmbient = false)
     {
         //4699A0 rejects these unsigned operands; the original request remains recorded even when output is rejected.
         if (volume > 127 || pan > 127)
@@ -374,7 +380,7 @@ internal sealed partial class FieldAudioPresentation(string gameDirectory, strin
         }
         int sample = EventEngine.MapGlobalSoundSample(effect);
         GlobalSoundResource resource = GameWorld.CreateMutedGlobalSoundResource(GlobalAudioFormat.Read(gameFiles.Resources, sample)) ?? throw new NotSupportedException($"Presentation sound {effect} requires an unsupported audio format.");
-        PlaySoundSample(sample, voice, volume, pan, resource.LoopPolicy);
+        PlaySoundSample(sample, voice, volume, pan, resource.LoopPolicy, isAmbient: isAmbient);
     }
 
     internal void PlayMusic(int track, int slot, int? volume, int fieldId, int startPoint = 0, bool forceRestart = false, bool identityResolved = false, bool noIntro = false)
@@ -677,9 +683,10 @@ internal sealed partial class FieldAudioPresentation(string gameDirectory, strin
         gameFiles.Dispose();
     }
 
-    private sealed class Voice(int sampleIndex, PcmAudioOutput.Buffer primary, PcmAudioOutput.Buffer? loop, float volume, float pan, int? loopDelay, TimeProvider timeProvider)
+    private sealed class Voice(int sampleIndex, PcmAudioOutput.Buffer primary, PcmAudioOutput.Buffer? loop, float volume, float pan, int? loopDelay, TimeProvider timeProvider, bool isAmbient)
     {
         public int SampleIndex { get; } = sampleIndex;
+        public bool IsAmbient { get; } = isAmbient;
         public Func<int, GameplaySaveAudioPosition>? PlaybackPosition { get; set; }
         public PcmAudioOutput.Buffer Primary { get; } = primary;
         public PcmAudioOutput.Buffer? Loop { get; } = loop;

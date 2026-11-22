@@ -7,11 +7,6 @@ public sealed record GameplayLoopSoundPlayback(GameplaySaveFieldLoopSound Sound,
 
 public sealed partial class EventEngine
 {
-    private static bool IsLoopingSound(GlobalSoundResource resource)
-    {
-        return resource.LoopPolicy.LoopStartPcmByte != 0 || (resource.LoopPolicy.PlaybackFlags & 1) != 0;
-    }
-
     private void TrackGameplayLoopSounds(object command)
     {
         ImmutableDictionary<int, GameplaySaveFieldLoopSound> loops = Scene.GameplayLoopSounds ?? ImmutableDictionary<int, GameplaySaveFieldLoopSound>.Empty;
@@ -32,7 +27,7 @@ public sealed partial class EventEngine
         switch (command)
         {
             case GlobalSoundRequest request when request.Resource.BackendStatus != GlobalSoundBackendStatus.Failed:
-                loops = IsLoopingSound(request.Resource) ? loops.SetItem(request.Voice, new(request.Voice, request.OriginalEffectId, checked((byte)request.Volume), checked((byte)request.EffectivePan))) : loops.Remove(request.Voice);
+                loops = request.Resource.LoopPolicy.IsLooping() ? loops.SetItem(request.Voice, new(request.Voice, request.OriginalEffectId, checked((byte)request.Volume), checked((byte)request.EffectivePan))) : loops.Remove(request.Voice);
                 break;
             case NativeSoundStop stop:
                 loops = loops.RemoveRange(stop.Voices);
@@ -121,7 +116,7 @@ public sealed partial class EventEngine
         foreach (GameplaySaveFieldLoopSound sound in CaptureGameplayLoopSounds())
         {
             GlobalSoundResource resource = ResolveGameplayLoopSound(sound);
-            if (resource.BackendStatus != GlobalSoundBackendStatus.Failed && IsLoopingSound(resource))
+            if (resource.BackendStatus != GlobalSoundBackendStatus.Failed && resource.LoopPolicy.IsLooping())
             {
                 AudioCommandExecuted?.Invoke(new GameplayLoopSoundPlayback(sound, resource));
             }

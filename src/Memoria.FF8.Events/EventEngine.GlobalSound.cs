@@ -9,7 +9,10 @@ public enum GlobalSoundBackendStatus
     Failed
 }
 
-public sealed record GlobalSoundLoopPolicy(uint PlaybackFlags, uint LoopStartPcmByte, uint LoopEndPcmByte, uint SampleRate, int DecodedBitsPerSample, int Channels, int? LoopTransitionDelayMilliseconds);
+public sealed record GlobalSoundLoopPolicy(uint PlaybackFlags, uint LoopStartPcmByte, uint LoopEndPcmByte, uint SampleRate, int DecodedBitsPerSample, int Channels, int? LoopTransitionDelayMilliseconds)
+{
+    public bool IsLooping() => LoopStartPcmByte != 0 || (PlaybackFlags & 1) != 0;
+}
 public sealed record GlobalSoundResource(int SampleIndex, GlobalSoundBackendStatus BackendStatus, GlobalSoundLoopPolicy LoopPolicy);
 public sealed record GlobalSoundRequest(uint OriginalEffectId, uint RawChannelMask, uint ChannelMask, int Voice, uint RawPan, uint EffectivePan, uint Volume, int PitchPercent, GlobalSoundResource Resource, [property: System.Text.Json.Serialization.JsonRequired] NativeGlobalSoundAllocation? Allocation = null);
 public sealed record PreparedGlobalSoundEmission(GlobalSoundRequest Request, NativeGlobalSoundProcess Process);

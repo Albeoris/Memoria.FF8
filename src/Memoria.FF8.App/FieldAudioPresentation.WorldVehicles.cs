@@ -34,7 +34,7 @@ internal sealed partial class FieldAudioPresentation
         }
         if (!voices.TryGetValue(voice, out Voice? active))
         {
-            PlayPresentationSound(effect, voice, 64, (uint)volume.Value);
+            PlayPresentationSound(effect, voice, volume: (uint)volume.Value, isAmbient: true);
             return;
         }
         active.Volume = volume.Value;
