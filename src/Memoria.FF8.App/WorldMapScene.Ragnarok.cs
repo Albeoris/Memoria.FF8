@@ -121,6 +121,7 @@ internal sealed partial class WorldMapScene
             models.AddRange(ReadBackgroundRailModels(background));
         }
         List<NativeWorldAnimatedModelDraw> animated = [];
+        List<NativeWorldShadowDraw> shadows = [];
         for (int index = 0; index < runtime.Objects.Length; index++)
         {
             NativeRagnarokWorldObject item = runtime.Objects[index];
@@ -142,8 +143,12 @@ internal sealed partial class WorldMapScene
                 NativeWorldPathNodeProjection ship = projection.ProjectNode(item.Position) ?? throw new NotSupportedException(projection.UnsupportedReason);
                 if (ship.Visible)
                 {
+                    Vector3 anchor = projection.CanonicalModelAnchor(ship);
+                    WorldRenderObjectId id = new(WorldRenderObjectKind.Allocation, index);
                     // Native type50 lowers the projected model root by 146 before applying all body angles.
-                    animated.Add(new(assets.GetRagnarokModel(), projection.CanonicalModelAnchor(ship) + new Vector3(0, 146, 0), item.Yaw * MathF.Tau / 4096, 0, 0) { ObjectId = new(WorldRenderObjectKind.Allocation, index), NativePitch = item.Pitch * MathF.Tau / 4096, NativeRoll = item.Roll * MathF.Tau / 4096 });
+                    animated.Add(new(assets.GetRagnarokModel(), anchor + new Vector3(0, 146, 0), item.Yaw * MathF.Tau / 4096, 0, 0) { ObjectId = id, NativePitch = item.Pitch * MathF.Tau / 4096, NativeRoll = item.Roll * MathF.Tau / 4096 });
+                    float ground = foot is null && index == runtime.Allocation.RagnarokIndex ? -(runtime.DrawGroundHeight ?? runtime.CurrentGroundHeight!.Value) : anchor.Y;
+                    shadows.Add(new(item.ShapeId, anchor, item.Yaw, ground) { ObjectId = id });
                 }
                 continue;
             }
@@ -163,6 +168,6 @@ internal sealed partial class WorldMapScene
         camera = camera with { ParticleProjection = projection };
         WorldSky sky = WorldTerrainSelection.SelectSky(assets.Skies, state.X, state.Z, storyByte);
         bool avatarVisible = foot is not null && (state.GroundType is null or > 5);
-        return new WorldRenderFrame(new Vector3(state.X, -state.NativeHeight, state.Z), state.BodyYaw * MathF.Tau / 4096, foot is null ? 0 : state.AnimationId, foot is null ? 0 : state.AnimationCounter >> 4, camera, sky, avatarVisible, AvatarModel: foot is null ? assets.GetRagnarokModel() : assets.GetFootModel(foot.EntityType), StaticModels: models, Forest: foot?.Forest ?? runtime.Forest, AnimatedModels: animated);
+        return new WorldRenderFrame(new Vector3(state.X, -state.NativeHeight, state.Z), state.BodyYaw * MathF.Tau / 4096, foot is null ? 0 : state.AnimationId, foot is null ? 0 : state.AnimationCounter >> 4, camera, sky, avatarVisible, AvatarModel: foot is null ? assets.GetRagnarokModel() : assets.GetFootModel(foot.EntityType), StaticModels: models, Forest: foot?.Forest ?? runtime.Forest, AnimatedModels: animated) { Shadows = shadows };
     }
 }

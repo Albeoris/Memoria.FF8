@@ -51,7 +51,7 @@ internal sealed partial class WorldMapScene
             NativeWorldPathPosition previousMotion = runtime.PreviousParticleMotion ?? new(0, 0, 0);
             NativeWorldPathPosition follow = new(previousMotion.X, before.NativeHeight - previousHeight, previousMotion.Z);
             forest = forest.AdvanceRagnarok(before.GroundType ?? throw new InvalidDataException("Ragnarok particle update lost its current native ground type."), drawBody, runtime.CurrentGroundHeight!.Value, priorGraphicsSpeed, follow, scriptMode, assets.ForestTables.RagnarokThrustOffsets, assets.ForestTables.Random, assets.ForestTables.Effects);
-            runtime = runtime with { DrawBody = drawBody };
+            runtime = runtime with { DrawBody = drawBody, DrawGroundHeight = runtime.CurrentGroundHeight };
         }
         forest = forest with { CameraPitch = motor.State.CameraPitch };
         runtime = runtime with { Motor = motor.State, Forest = forest, PreviousParticleNativeHeight = before.NativeHeight, PreviousButtons = buttons, ProjectionCurveThreshold = runtime.TransferCamera?.CurveThreshold ?? 6144, ProjectionCamera = new(before.X, before.Z, before.NativeHeight, targetX, targetZ, targetHeight, motor.State.CameraYaw, motor.State.CameraPitch, oldCamera.OffsetY, runtime.TransferCamera?.OffsetZ ?? oldCamera.OffsetZ) };

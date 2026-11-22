@@ -15,11 +15,6 @@ internal sealed partial class WorldMapScene
             byte shape = WorldAssets.NativeGardenEntityShape(foot.EntityType);
             result.Add(new(shape, frame.Position, checked((short)state.BodyYaw), -unchecked((short)(state.NativeHeight - (state.GroundType is <= 5 ? 320 : 0)))) { ObjectId = new(WorldRenderObjectKind.Avatar, 0) });
         }
-        else if (frame.AvatarVisible && state.NativeRagnarokRuntime is { } ship)
-        {
-            short ground = ship.CurrentGroundHeight ?? throw new NotSupportedException("Ragnarok shadow requires its retained selected ground height.");
-            result.Add(new(1, frame.Position, checked((short)state.BodyYaw), -ground) { ObjectId = new(WorldRenderObjectKind.Avatar, 0) });
-        }
         foreach (NativeWorldStaticModelDraw model in frame.StaticModels ?? [])
         {
             byte shape = model.Model.ShapeId;
@@ -46,13 +41,7 @@ internal sealed partial class WorldMapScene
             }
             result.Add(new(shape, model.Pose.Anchor, yaw, ground, scale) { ObjectId = model.ObjectId });
         }
-        foreach (NativeWorldAnimatedModelDraw model in frame.AnimatedModels ?? [])
-        {
-            if (state.NativeRagnarokRuntime is { } ship && model.ObjectId is { Kind: WorldRenderObjectKind.Allocation } id && id.Index == ship.Allocation.RagnarokIndex)
-            {
-                result.Add(new(1, model.Position, unchecked((short)MathF.Round(model.Heading * 4096 / MathF.Tau)), model.Position.Y) { ObjectId = model.ObjectId });
-            }
-        }
+        result.AddRange(frame.Shadows ?? []);
         return result.AsReadOnly();
     }
 }

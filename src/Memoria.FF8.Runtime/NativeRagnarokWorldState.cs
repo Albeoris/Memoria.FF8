@@ -136,6 +136,8 @@ public sealed record NativeRagnarokWorldRuntimeState([property: JsonRequired] Na
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeRagnarokWorldObject? DrawBody { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public short? DrawGroundHeight { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeWorldPathPosition? PreviousParticleMotion { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public short? GroundYaw { get; init; }

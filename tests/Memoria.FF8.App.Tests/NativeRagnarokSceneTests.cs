@@ -13,6 +13,38 @@ public sealed class NativeRagnarokSceneTests
     private static string GameDirectory => TestResources.GameDirectory;
 
     [Theory]
+    [InlineData(null)]
+    [InlineData(320)]
+    public void FlightShadowUsesGroundFromTheDrawCallbackAfterRestore(int? drawGroundHeight)
+    {
+        GameSession session = Fixture();
+        using (WorldMapScene scene = new(session, GameDirectory))
+        {
+            Assert.True(scene.Apply(new(PlayerActionKind.Wait, Frames: 24)).Accepted);
+        }
+        WorldState state = session.State.World!;
+        NativeRagnarokWorldRuntimeState runtime = state.NativeRagnarokRuntime!;
+        runtime = runtime with { CurrentGroundHeight = 180, DrawGroundHeight = (short?)drawGroundHeight };
+        session.SetWorldState(state with { NativeRagnarokRuntime = runtime });
+        GameSession restored = new(JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!);
+        using WorldMapScene flight = new(restored, GameDirectory);
+        Assert.NotEmpty(flight.Render(320, 224));
+
+        WorldPresentation history = (WorldPresentation)typeof(WorldMapScene).GetField("presentation", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(flight)!;
+        WorldRenderObjectId id = new(WorldRenderObjectKind.Allocation, runtime.Allocation.RagnarokIndex);
+        NativeWorldAnimatedModelDraw body = Assert.Single(history.Current!.AnimatedModels!, draw => draw.ObjectId == id);
+        NativeWorldShadowDraw shadow = Assert.Single(history.Current!.Shadows!, draw => draw.ObjectId == id);
+        Assert.Equal(body.Position.X, shadow.Anchor.X);
+        Assert.Equal(body.Position.Z, shadow.Anchor.Z);
+        Assert.Equal(runtime.DrawBody!.Yaw, shadow.NativeYaw);
+        Assert.Equal(-(drawGroundHeight ?? 180), shadow.GroundHeight);
+        Assert.NotEqual(body.Position.Y, shadow.GroundHeight);
+
+        Assert.True(flight.Apply(new(PlayerActionKind.Wait)).Accepted);
+        Assert.Equal(runtime.CurrentGroundHeight, flight.State.NativeRagnarokRuntime!.DrawGroundHeight);
+    }
+
+    [Theory]
     [InlineData(33, 15)]
     [InlineData(9, 20)]
     public void FlightRendersTheSharedSurfaceSprayAndThrustPoolAcrossRestore(byte groundType, byte sprayType)
