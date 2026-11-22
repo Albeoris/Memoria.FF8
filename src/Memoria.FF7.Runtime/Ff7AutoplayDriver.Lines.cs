@@ -87,7 +87,7 @@ public sealed partial class Ff7AutoplayDriver
                 return crossing with { Run = run };
             }
             int side = Ff7Session.Side(a, b, current);
-            var opposite = contacts.Where(candidate => side == 0 ? Ff7Session.Side(a, b, candidate.Point) != 0 : (long)side * Ff7Session.Side(a, b, candidate.Point) <= 0).OrderBy(candidate => Vector3.DistanceSquared(current, candidate.Point)).ThenBy(candidate => candidate.Triangle).ToArray();
+            var opposite = contacts.Where(candidate => side == 0 ? Ff7Session.Side(a, b, candidate.Point) != 0 : (long)side * Ff7Session.Side(a, b, candidate.Point) <= 0).OrderBy(candidate => Ff7Session.Side(a, b, candidate.Point) == 0).ThenBy(candidate => Vector3.DistanceSquared(current, candidate.Point)).ThenBy(candidate => candidate.Triangle).ToArray();
             if (opposite.Length == 0)
             {
                 throw new Ff7AutoPlayNavigationUnavailableException(entity, "FFVII LINE crossing has no reachable floor contact on the opposite segment side.");

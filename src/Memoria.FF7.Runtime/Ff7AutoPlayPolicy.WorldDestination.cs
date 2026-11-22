@@ -110,8 +110,23 @@ public sealed partial class Ff7AutoPlayPolicy
     {
         ushort destination = State.DestinationField!.Value;
         Ff7AutoPlayWorldEntranceSource[] sources = session.ReadAutoPlayWorldEntranceSources(world.Resources.World).Where(source => source.Destination == destination).ToArray();
+        bool EntersDestination(WorldScriptAnalysis analysis)
+        {
+            return analysis.Transitions.Any(transition => transition.Operation == WorldOperation.FieldTransition && transition.Selector is ushort selector && world.ResolveFieldEntry(selector).Map == destination);
+        }
+
+        HashSet<string> ReadModelSources()
+        {
+            return worldModelCatalog.Values.Where(source => source.Complete && EntersDestination(source.Analysis)).Select(source => source.Id).ToHashSet(StringComparer.Ordinal);
+        }
+
         if (sources.Length == 0)
         {
+            HashSet<string> modelSources = ReadModelSources();
+            if (modelSources.Count != 0)
+            {
+                return (observation, modelSources);
+            }
             throw new NotSupportedException($"The current native world program has no proved field-entry source for destination {destination}.");
         }
         bool added = false;
@@ -131,7 +146,7 @@ public sealed partial class Ff7AutoPlayPolicy
         }
         observation = ObserveWorldPlanner(world);
         HashSet<string> sourceIds = sources.Select(source => source.EventId).ToHashSet(StringComparer.Ordinal);
-        HashSet<string> targets = [];
+        HashSet<string> targets = ReadModelSources();
         string? incomplete = null;
         foreach (Ff7AutoPlayWorldScriptObservation target in worldCatalogs.Values.SelectMany(catalog => catalog.Scripts).Where(target => sourceIds.Contains(target.Id)))
         {
@@ -141,7 +156,7 @@ public sealed partial class Ff7AutoPlayPolicy
                 incomplete ??= target.Reason ?? entry.Reason;
                 continue;
             }
-            if (entry.Transitions.Any(transition => transition.Operation == WorldOperation.FieldTransition && transition.Selector is ushort selector && world.ResolveFieldEntry(selector).Map == destination))
+            if (EntersDestination(entry))
             {
                 targets.Add(target.Id);
             }
