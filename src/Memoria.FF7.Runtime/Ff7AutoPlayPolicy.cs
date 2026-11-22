@@ -20,6 +20,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
     private readonly Ff7AutoPlayNativeReadiness synchronousTriangleSetup = new();
     private readonly Ff7AutoPlayNativeReadiness synchronousHostCompletion = new();
     private readonly Ff7AutoPlayNativeReadiness excavationContinuation = new();
+    private readonly Ff7AutoPlayNativeReadiness autonomousFadeCompletion = new();
     private string? movementEvent;
     private string? ordinaryLegIdentity;
     private (int X, int Y, int Z)? ordinaryLegStart;
@@ -257,6 +258,14 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             return warmth;
         }
         FieldVmSnapshot dialogueVm = session.Machine.Capture();
+        if (autonomousFadeCompletion.ShouldWaitForAutonomousFadeCompletion(session.FieldGeneration, session.Field.Name, dialogueVm, session.Host.Process, session.Field.Scripts.Data.Span, (entity, pc) => session.Machine.AnalyzeScriptAtProgramCounter(entity, pc)))
+        {
+            CancelNativePlanning("native-autonomous-fade-completion");
+            driver.BeginPlanningStep();
+            State.Status = "Waiting for owned native fade completion";
+            Publish();
+            return default;
+        }
         if (Ff7AutoPlayNativeReadiness.HasAdvancingDialoguePresentation(dialogueVm, session.Host.Process) || Ff7AutoPlayNativeReadiness.HasOwnedDialogueWait(dialogueVm, session.Host.Process) && nativeReadiness.ShouldWait(session.FieldGeneration, $"dialogue:{session.Field.Name}", dialogueVm, session.Host.Process, session.Field.Scripts.Data.Span, session.Machine.ReadCurrentInputDemands()))
         {
             CancelNativePlanning("native-dialogue-presentation");

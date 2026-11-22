@@ -6,6 +6,32 @@ namespace Memoria.FF7.Runtime;
 /// <summary>Bounds neutral continuation of already admitted native work when no physical frontier is currently available.</summary>
 internal sealed class Ff7AutoPlayNativeReadiness
 {
+    internal bool ShouldWaitForAutonomousFadeCompletion(long generation, string navigationKey, FieldVmSnapshot vm, Ff7FieldProcess process, ReadOnlySpan<byte> script, Func<int, int, FieldScriptAnalysis> analyze)
+    {
+        if (process.FadeState is not { } fade || !fade.Completed && !(fade.Type is 1 or 2 or 5 or 6 or 7 or 8 or 9 or 10 && fade.Speed > 0))
+        {
+            return false;
+        }
+        HashSet<int> work = [];
+        foreach (FieldHostRequest request in vm.PendingRequests ?? [])
+        {
+            if (request.Command is not FieldFadeCommand { Wait: true } || (uint)request.Entity >= vm.Entities.Length)
+            {
+                continue;
+            }
+            FieldEntitySnapshot owner = vm.Entities[request.Entity];
+            if (!HasAdmittedContinuation(owner, script) || owner.Priority != request.Priority || owner.ProgramCounter != request.ProgramCounter || script[owner.ProgramCounter] != 0x6C)
+            {
+                continue;
+            }
+            if (IsAutonomousSynchronousContinuation(analyze(request.Entity, owner.ProgramCounter), vm.Entities.Length, script, request.Entity, owner.ProgramCounter))
+            {
+                work.Add(request.Entity);
+            }
+        }
+        return work.Count != 0 && ObserveWork(generation, $"{navigationKey}:autonomous-fade", vm, process, work, includeCamera: true);
+    }
+
     internal static bool HasOwnedDialogueWait(FieldVmSnapshot vm, Ff7FieldProcess process)
     {
         return (vm.PendingRequests ?? []).Any(request => ReadOwnedDialogue(vm, process, request) is not null);

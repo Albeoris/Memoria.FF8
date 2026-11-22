@@ -3,6 +3,18 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-autonomous-fade-only", StringComparer.Ordinal))
+{
+    NativeAutonomousFadeReadinessTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-autonomous-fade-original-only", StringComparer.Ordinal))
+{
+    NativeAutonomousFadeOriginalTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-dialogue-presentation-only", StringComparer.Ordinal))
 {
     NativeDialoguePresentationReadinessTests.Run();
