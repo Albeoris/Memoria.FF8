@@ -27,7 +27,7 @@ public sealed class InnerReaderBoundsTests
         Assert.Equal(104, Assert.Single(scripts.Entities).ScriptOffsets[31]);
         Assert.Equal(new byte[] { 33 }, Assert.Single(scripts.Texts).ToArray());
         bytes[110] = 0;
-        Assert.Throws<InvalidDataException>(() => PcFieldScripts.Read(bytes));
+        Assert.Throws<InvalidDataException>(() => PcFieldScripts.Read(bytes).Texts[0]);
         bytes[110] = 255;
         U16(bytes, 40, 103);
         Assert.Throws<InvalidDataException>(() => PcFieldScripts.Read(bytes));

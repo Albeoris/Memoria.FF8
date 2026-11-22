@@ -12,7 +12,7 @@ public sealed class FieldTextBoundaryTests
         PcFieldScripts scripts = PcFieldScripts.Read(source);
         Assert.Equal(new byte[] { 0x21, 0x41, 0x4B, 0x41, 0x4F }, scripts.Texts[0].ToArray());
         source[^1] = 0;
-        Assert.Throws<InvalidDataException>(() => PcFieldScripts.Read(source));
+        Assert.Throws<InvalidDataException>(() => PcFieldScripts.Read(source).Texts[0]);
     }
 
     [Fact]

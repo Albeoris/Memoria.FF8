@@ -3,6 +3,18 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-deferred-field-text-only", StringComparer.Ordinal))
+{
+    NativeDeferredFieldTextTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-field-text-original-only", StringComparer.Ordinal))
+{
+    NativeFieldTextOriginalTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-idle-npc-only", StringComparer.Ordinal))
 {
     NativeIdleNpcYieldTests.Run();

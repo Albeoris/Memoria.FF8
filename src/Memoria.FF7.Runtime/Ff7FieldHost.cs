@@ -235,6 +235,7 @@ public sealed partial class Ff7FieldHost : IFieldHost
                     {
                         throw new InvalidDataException("The FFVII message index is outside the field text table.");
                     }
+                    _ = field.Scripts.Texts[dialogue.Text];
                     active = new Ff7Dialogue(request.Id, dialogue.Window, dialogue.Text, dialogue.FirstChoice, dialogue.LastChoice, dialogue.Selected, Presentation: new(0, 0, 0));
                     Process = Process with { Dialogues = [.. Process.Dialogues, active] };
                 }

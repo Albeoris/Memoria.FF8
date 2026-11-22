@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Collections;
 
 namespace Memoria.FF7.Formats;
 
@@ -6,7 +7,7 @@ public sealed record PcFieldEntity(string Name, IReadOnlyList<ushort> ScriptOffs
 
 public sealed class PcFieldScripts
 {
-    private PcFieldScripts(byte[] data, byte modelCount, short scale, ushort textOffset, string creator, string name, PcFieldEntity[] entities, uint[] akaoOffsets, ReadOnlyMemory<byte>[] texts)
+    private PcFieldScripts(byte[] data, byte modelCount, short scale, ushort textOffset, string creator, string name, PcFieldEntity[] entities, uint[] akaoOffsets, IReadOnlyList<ReadOnlyMemory<byte>> texts)
     {
         Data = data;
         ModelCount = modelCount;
@@ -16,7 +17,7 @@ public sealed class PcFieldScripts
         Name = name;
         Entities = Array.AsReadOnly(entities);
         AkaoOffsets = Array.AsReadOnly(akaoOffsets);
-        Texts = Array.AsReadOnly(texts);
+        Texts = texts;
     }
     public ReadOnlyMemory<byte> Data { get; }
     public byte ModelCount { get; }
@@ -90,20 +91,41 @@ public sealed class PcFieldScripts
         {
             throw new InvalidDataException("FF7 text directory exceeds its section.");
         }
-        ReadOnlyMemory<byte>[] texts = new ReadOnlyMemory<byte>[textCount];
+        int[] textStarts = new int[textCount];
         int minimumTextOffset = 2 + textCount * 2;
-        int textEnd = akao.Where(offset => offset > textOffset).Select(offset => (int)offset).DefaultIfEmpty(source.Length).Min();
-        for (int i = 0; i < texts.Length; i++)
+        for (int i = 0; i < textStarts.Length; i++)
         {
             int relative = cursor.U16();
             int start = textOffset + relative;
-            if (relative < minimumTextOffset || start >= textEnd)
+            if (relative < minimumTextOffset || start >= source.Length)
             {
                 throw new InvalidDataException($"FF7 text {i} offset is invalid.");
             }
-            int terminator = FieldText.FindTerminatedLength(source[start..]);
-            texts[i] = data.AsMemory(start, terminator);
+            textStarts[i] = start;
         }
-        return new PcFieldScripts(data, models, scale, textOffset, creator, name, entities, akao, texts);
+        return new PcFieldScripts(data, models, scale, textOffset, creator, name, entities, akao, new TextDirectory(data, textStarts));
+    }
+
+    private sealed class TextDirectory : IReadOnlyList<ReadOnlyMemory<byte>>
+    {
+        private readonly Lazy<ReadOnlyMemory<byte>>[] texts;
+
+        internal TextDirectory(byte[] data, int[] starts)
+        {
+            texts = starts.Select(start => new Lazy<ReadOnlyMemory<byte>>(() => data.AsMemory(start, FieldText.FindTerminatedLength(data.AsSpan(start))))).ToArray();
+        }
+
+        public int Count => texts.Length;
+        public ReadOnlyMemory<byte> this[int index] => texts[index].Value;
+
+        public IEnumerator<ReadOnlyMemory<byte>> GetEnumerator()
+        {
+            foreach (Lazy<ReadOnlyMemory<byte>> text in texts)
+            {
+                yield return text.Value;
+            }
+        }
+
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
     }
 }
