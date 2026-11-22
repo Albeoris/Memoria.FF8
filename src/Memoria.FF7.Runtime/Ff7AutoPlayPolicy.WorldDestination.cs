@@ -166,11 +166,11 @@ public sealed partial class Ff7AutoPlayPolicy
         }
     }
 
-    internal static HashSet<string> ResolveWorldDestinationGoal(Ff7AutoPlayState state, Ff7AutoPlayObservation observation, IReadOnlySet<string> candidates, Func<AutoPlayEvent, AutoPlayEventAvailability?> readAvailability)
+    internal static HashSet<string> ResolveWorldDestinationGoal(Ff7AutoPlayState state, Ff7AutoPlayObservation observation, IReadOnlySet<string> candidates, Func<AutoPlayEvent, AutoPlayEventAvailability?> readAvailability, Func<string, bool>? reusableMode = null)
     {
         ushort destination = state.DestinationField ?? throw new InvalidOperationException("A requested world destination is required.");
         AutoPlayVisitCoverage<Ff7AutoPlayDeferral> visit = state.Coverage.Visits.Single(visit => visit.Visit.Key == observation.VisitId);
-        AutoPlayEventCoverage<Ff7AutoPlayDeferral>[] admitted = visit.Events.Where(item => candidates.Contains(item.Event.Id) && item.Available && item.BlockedReason is null && !item.PolicyDeferred && readAvailability(item.Event)?.Unavailable != true).Where(item => !HasConsumedWorldEntry(item, item.Event.ConditionSignature) || item.Routes.Any(route => route.ConditionSignature == item.Event.ConditionSignature && ReadVisitField(route.DestinationVisitKey) == destination)).ToArray();
+        AutoPlayEventCoverage<Ff7AutoPlayDeferral>[] admitted = visit.Events.Where(item => candidates.Contains(item.Event.Id) && item.Available && item.BlockedReason is null && !item.PolicyDeferred && readAvailability(item.Event)?.Unavailable != true).Where(item => !HasConsumedWorldEntry(item, item.Event.ConditionSignature) || IsReusableWorldModeEvent(item.Event) && reusableMode?.Invoke(item.Event.Id) == true || item.Routes.Any(route => route.ConditionSignature == item.Event.ConditionSignature && ReadVisitField(route.DestinationVisitKey) == destination)).ToArray();
         AutoPlayEventCoverage<Ff7AutoPlayDeferral>? selected = admitted.FirstOrDefault(item => state.NavigationGoal is { } goal && goal.NavigationKey == observation.NavigationKey && goal.EventId == item.Event.Id && goal.Conditions == item.Event.ConditionSignature) ?? admitted.FirstOrDefault();
         if (selected is null)
         {

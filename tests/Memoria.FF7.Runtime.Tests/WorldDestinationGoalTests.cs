@@ -87,6 +87,41 @@ internal static class WorldDestinationGoalTests
         Console.WriteLine($"PASS original world destination source/prerequisite {selected}; retained destination {destination}; {policy.Status}; source unchanged");
     }
 
+    internal static void RunOriginalMode()
+    {
+        string game = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR") ?? throw new InvalidOperationException("Select original resources.");
+        string path = Environment.GetEnvironmentVariable("MEMORIA_FF7_WORLD_DESTINATION_SAVE") ?? throw new InvalidOperationException("Select an external world destination fixture.");
+        byte[] bytes = File.ReadAllBytes(path);
+        using MemoryStream input = new(bytes);
+        Ff7SessionSave saved = CombinedSessionCodec.Read(input).Ff7!;
+        var consumed = saved.AutoPlay!.Coverage.Visits.SelectMany(visit => visit.Events.Select(item => new { Visit = visit.Visit.Key, item.Event.Id, item.Completed, Entries = item.Conditions?.ConsumedEntries.ToArray() ?? [] })).ToArray();
+        using Ff7Session session = Ff7Session.Restore(Ff7Installation.Discover(game), saved);
+        int transport = session.World!.ControlledModel;
+        int rider = session.World.ReadAutoPlaySurfaceVehicleRider() ?? throw new InvalidOperationException("The original mode fixture has no mounted rider.");
+        using Ff7AutoPlayPolicy policy = new(session, (_, _) => throw new InvalidOperationException("Unexpected choice during the native requested mode continuation."));
+        ushort destination = policy.State.DestinationField!.Value;
+        Ff7AutoPlayController controller = new(session, policy.ChooseInput, chooseDialogueSelection: policy.ChooseDialogueSelection, readPlanningProgress: () => policy.WorkProgress);
+        controller.Start();
+        var timer = System.Diagnostics.Stopwatch.StartNew();
+        int polls = 0;
+        while (controller.Running && controller.Error is null && session.World is { } world && world.ControlledModel != rider && session.Battle is null && controller.Steps < 2000 && polls < 50000 && timer.Elapsed.TotalSeconds < 30)
+        {
+            controller.Advance(1);
+            polls++;
+        }
+        bool riderReturned = session.World?.ControlledModel == rider;
+        bool nativeBoundary = session.Battle is not null || session.MapId == destination && session.World is null;
+        Console.WriteLine($"Original requested mode: polls={polls}, callbacks={controller.Steps}, seconds={timer.Elapsed.TotalSeconds:F3}, model={session.World?.ControlledModel}, originalTransport={transport}, rider={rider}, worldTick={session.World?.Process.Tick}, flight={session.World?.Process.Vehicle?.FlightState}, dismount={session.World?.Process.Vehicle?.DismountPhase}, battle={session.Battle?.Formation.FormationId}, status={policy.State.Status}, error={controller.Error}.");
+        Check(controller.Error is null && (riderReturned || nativeBoundary), "The original consumed native mode did not progress to its actual rider or native battle/field boundary.");
+        foreach (var before in consumed)
+        {
+            var current = policy.State.Coverage.Visits.Single(visit => visit.Visit.Key == before.Visit).Events.Single(item => item.Event.Id == before.Id);
+            Check((!before.Completed || current.Completed) && before.Entries.All(entry => current.Conditions?.ConsumedEntries.Contains(entry) == true), "Reusable mode continuation erased actual source completion or consumption history.");
+        }
+        Check(policy.State.DestinationField == destination && bytes.AsSpan().SequenceEqual(File.ReadAllBytes(path)), "Native mode continuation changed its explicit destination or original standalone save.");
+        Console.WriteLine("PASS actual requested native mode continuation; prior completion/consumption retained; source unchanged.");
+    }
+
     private static void ExpectUnsupported(Action action, string message)
     {
         try

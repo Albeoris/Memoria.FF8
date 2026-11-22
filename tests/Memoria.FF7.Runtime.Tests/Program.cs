@@ -3,6 +3,12 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-reusable-world-mode-only", StringComparer.Ordinal))
+{
+    NativeReusableWorldModeTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-mine-gateway-progress-only", StringComparer.Ordinal))
 {
     NativeMineGatewayProgressTests.Run();
@@ -1953,6 +1959,12 @@ if (args.Contains("--world-landing-continuation-original-only", StringComparer.O
 if (args.Contains("--world-destination-goal-only", StringComparer.Ordinal))
 {
     WorldDestinationGoalTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-reusable-world-mode-original-only", StringComparer.Ordinal))
+{
+    WorldDestinationGoalTests.RunOriginalMode();
     return 0;
 }
 

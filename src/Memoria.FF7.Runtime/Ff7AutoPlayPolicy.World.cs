@@ -202,7 +202,7 @@ public sealed partial class Ff7AutoPlayPolicy
                 var coverage = State.Coverage.Visits.Single(visit => visit.Visit.Key == navigation.VisitKey).Events.Single(item => item.Event.Id == target.Id);
                 return ReadWorldSemanticAvailability(coverage, target, AutoPlayPlanner<Ff7AutoPlayDeferral>.ReadAvailability(coverage, physicalGuards));
             }
-            HashSet<string>? avoid = destinationTargets is null ? null : ResolveWorldDestinationGoal(State, observation, destinationTargets, target => ReadAvailability(State.Coverage.NavigationVisits.Single(visit => visit.Key == observation.NavigationKey), target));
+            HashSet<string>? avoid = destinationTargets is null ? null : ResolveWorldDestinationGoal(State, observation, destinationTargets, target => ReadAvailability(State.Coverage.NavigationVisits.Single(visit => visit.Key == observation.NavigationKey), target), id => IsRequestedWorldModeNeeded(world, id));
             AutoPlayPlanStep? next = planner.PlanNavigation(observation.NavigationKey, needsRefresh: destinationTargets is null ? NeedsVisitRefresh : null, preferredGoal: State.NavigationGoal, avoidFirstEvents: avoid, readAvailability: ReadAvailability);
             string? selectedBoarding = next is { IsTravel: false } && worldModelCatalog.TryGetValue(next.Event.Id, out var contact) && contact.Analysis.Transitions.Any(transition => transition.Operation == WorldOperation.BoardTransport && transition.Model is not null) ? contact.Id : null;
             AutoPlayPlanStep? prerequisite = PlanWorldBoardingPrerequisite(world, observation, driver, candidate => ReadAvailability(State.Coverage.NavigationVisits.Single(visit => visit.Key == observation.NavigationKey), candidate), selectedBoarding);

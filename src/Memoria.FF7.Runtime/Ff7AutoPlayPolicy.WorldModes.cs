@@ -1,4 +1,5 @@
 using Memoria.AutoPlay;
+using Memoria.FF7.Events;
 
 namespace Memoria.FF7.Runtime;
 
@@ -276,7 +277,7 @@ public sealed partial class Ff7AutoPlayPolicy
         {
             AutoPlayEvent current = new(entry.Key, AutoPlayEventKind.Interaction, ConditionSignature: WorldCondition(entry.Value.Target) + ":rider:" + entry.Value.Goal.RiderModel);
             AutoPlayEventCoverage<Ff7AutoPlayDeferral>? coverage = State.Coverage.Visits.SingleOrDefault(visit => visit.Visit.Key == visitKey)?.Events.SingleOrDefault(item => item.Event.Id == entry.Key);
-            return IsWorldModeActionable(coverage, current, modeFacts);
+            return IsWorldModeActionable(coverage, current, modeFacts, IsRequestedWorldModeNeeded(world, entry.Key));
         });
         WorldModeCandidate? candidate = SelectWorldModePrerequisite(State.Active, worldModePrerequisites, actionable, queued);
         if (candidate is not null)
@@ -334,7 +335,27 @@ public sealed partial class Ff7AutoPlayPolicy
         return guide is null && search is { HasPendingWork: true };
     }
 
-    internal static bool IsWorldModeActionable(AutoPlayEventCoverage<Ff7AutoPlayDeferral>? coverage, AutoPlayEvent current, IReadOnlyDictionary<string, string> facts)
+    internal static bool IsRequestedWorldModeNeeded(ushort? destination, Ff7AutoPlayWorldModeGoal goal, int controlledModel, int? surfaceRider, Ff7AutoPlayWorldModeGuide? guide, WorldScriptAnalysis current, WorldScriptAnalysis rider, Func<ushort, int> resolveField)
+    {
+        if (destination is null || controlledModel == goal.RiderModel || surfaceRider != goal.RiderModel || guide is not { Limited: false, LandingSource: not null, RiderLanding: not null } || guide.RiderModel != goal.RiderModel || guide.TransportGuide.Faces.Length == 0 || guide.RiderGuide.Faces.Length == 0 || !guide.RiderReachableFaces.Contains(guide.RiderLanding) || !RequiresWorldRiderPrerequisite(current, rider))
+        {
+            return false;
+        }
+        return rider.Transitions.Any(transition => transition.Operation == WorldOperation.FieldTransition && transition.Selector is ushort selector && resolveField(selector) == destination.Value);
+    }
+
+    private bool IsRequestedWorldModeNeeded(Ff7WorldRuntime world, string id)
+    {
+        if (!worldModeCatalog.TryGetValue(id, out WorldModeCandidate? candidate) || candidate.Target.Id != candidate.Goal.TargetEventId)
+        {
+            return false;
+        }
+        return IsRequestedWorldModeNeeded(State.DestinationField, candidate.Goal, world.ControlledModel, world.ReadAutoPlaySurfaceVehicleRider(), candidate.Guide, world.ReadAutoPlayMeshEntryForModel(candidate.Target, world.ControlledModel), world.ReadAutoPlayMeshEntryForModel(candidate.Target, candidate.Goal.RiderModel), selector => world.ResolveFieldEntry(selector).Map);
+    }
+
+    private static bool IsReusableWorldModeEvent(AutoPlayEvent current) => current.Kind == AutoPlayEventKind.Interaction && current.Id.StartsWith("mode:surface-rider:", StringComparison.Ordinal);
+
+    internal static bool IsWorldModeActionable(AutoPlayEventCoverage<Ff7AutoPlayDeferral>? coverage, AutoPlayEvent current, IReadOnlyDictionary<string, string> facts, bool reusableMode = false)
     {
         if (coverage is null)
         {
@@ -356,7 +377,7 @@ public sealed partial class Ff7AutoPlayPolicy
         };
         AutoPlayEventAvailability availability = ReadWorldSemanticAvailability(projected, current, AutoPlayPlanner<Ff7AutoPlayDeferral>.ReadAvailability(projected, facts));
         projected.AvailabilityFingerprint = availability.Fingerprint;
-        return !availability.Unavailable && AutoPlayPlanner<Ff7AutoPlayDeferral>.NeedsExecution(projected);
+        return !availability.Unavailable && (reusableMode && IsReusableWorldModeEvent(current) || AutoPlayPlanner<Ff7AutoPlayDeferral>.NeedsExecution(projected));
     }
 
     internal static WorldModeCandidate? SelectWorldModePrerequisite(Ff7AutoPlayActiveEvent? active, IReadOnlyDictionary<string, WorldModeCandidate> prerequisites, int actionableCount, WorldModeCandidate? queued)
