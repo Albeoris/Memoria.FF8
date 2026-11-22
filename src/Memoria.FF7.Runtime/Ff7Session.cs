@@ -70,7 +70,7 @@ public sealed partial class Ff7Session : IDisposable
 
     public bool CanSave => Battle is null && (World?.CanSave ?? (!HasPendingTick && !tickTailInProgress && Machine.Initialized && (Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 29) & 2) != 0 && (Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 31) & 2) == 0 && Host.Process.GlobalCommand == Ff7GlobalCommand.None && !Host.Process.MenuDisabled && !Host.Process.PlayerLocked && Host.Process.Join is null && Host.Process.Transition is null && Host.Process.Movie is not { Playing: true } && Host.Process.Dialogues.All(dialogue => dialogue.Completed || !Host.CanConfirmDialogue(dialogue.RequestId))));
 
-    public bool CanSaveMemoria => Battle is null && (World is not null ? World.CanSave : !fieldLoadIncomplete && !HasPendingTick && !tickTailInProgress && Machine.Initialized && (ChocoboRace is not null || Condor is not null || (Host.Process.GlobalCommand is Ff7GlobalCommand.None or Ff7GlobalCommand.Movie || Host.Process.Menu is { Mode: 14, Completed: false })));
+    public bool CanSaveMemoria => Battle is null && (World is not null ? World.CanSave : !fieldLoadIncomplete && !HasPendingTick && !tickTailInProgress && Machine.Initialized && (ChocoboRace is not null || Condor is not null || Submarine is not null || (Host.Process.GlobalCommand is Ff7GlobalCommand.None or Ff7GlobalCommand.Movie || Host.Process.Menu is { Mode: 14, Completed: false })));
 
     public static Ff7Session NewGame(Ff7Installation installation)
     {
@@ -192,6 +192,7 @@ public sealed partial class Ff7Session : IDisposable
             }
             session.RestoreChocobo(save);
             session.RestoreCondor(save);
+            session.RestoreSubmarine(save);
             return session;
         }
         catch
@@ -378,7 +379,7 @@ public sealed partial class Ff7Session : IDisposable
         {
             vm = vm with { PersistentVariables = World.Machine.CopyPersistent() };
         }
-        return new Ff7SessionSave { GatewayDeparture = GatewayDeparture, NativeSaveData = nativeSaveData?.ToArray(), ResourceProfile = installation.Layout.ToString(), Language = installation.Language, FieldName = Field.Name, FieldGeneration = FieldGeneration, Progress = Progress, Vm = vm, Process = Host.Capture(), TickContinuation = tickContinuation is null ? null : tickContinuation with { ScriptReturns = tickContinuation.ScriptReturns?.ToArray() }, World = World?.Process, WorldPartyMenuPending = World is null ? null : worldPartyMenuPending, EventCoverage = !includeObservations || EventCoverage is null ? null : new Memoria.AutoPlay.AutoPlayEventCoverageLedger(EventCoverage).Capture(), AutoPlay = includeObservations ? AutoPlayState : null, Battle = Battle?.Capture(), ChocoboRace = ChocoboRace?.Capture(), ChocoboCarry = chocoboCarry, Condor = Condor?.Capture(), BattleBigShotChargeRotation = Battle?.BigShotChargeRotation ?? battleBigShotChargeRotation, BattleBigShotCounterRotation = Battle?.BigShotCounterRotation ?? battleBigShotCounterRotation, BattleSearchScopeScaleCounter = Battle?.SearchScopeScaleCounter ?? battleSearchScopeScaleCounter, BattleSilkDirection = Battle?.SilkDirection ?? battleSilkDirection, BattleCameraPresentationCounter = Battle?.CameraPresentationCounter ?? battleCameraPresentationCounter };
+        return new Ff7SessionSave { GatewayDeparture = GatewayDeparture, NativeSaveData = nativeSaveData?.ToArray(), ResourceProfile = installation.Layout.ToString(), Language = installation.Language, FieldName = Field.Name, FieldGeneration = FieldGeneration, Progress = Progress, Vm = vm, Process = Host.Capture(), TickContinuation = tickContinuation is null ? null : tickContinuation with { ScriptReturns = tickContinuation.ScriptReturns?.ToArray() }, World = World?.Process, WorldPartyMenuPending = World is null ? null : worldPartyMenuPending, EventCoverage = !includeObservations || EventCoverage is null ? null : new Memoria.AutoPlay.AutoPlayEventCoverageLedger(EventCoverage).Capture(), AutoPlay = includeObservations ? AutoPlayState : null, Battle = Battle?.Capture(), ChocoboRace = ChocoboRace?.Capture(), ChocoboCarry = chocoboCarry, Condor = Condor?.Capture(), Submarine = Submarine?.Capture(), BattleBigShotChargeRotation = Battle?.BigShotChargeRotation ?? battleBigShotChargeRotation, BattleBigShotCounterRotation = Battle?.BigShotCounterRotation ?? battleBigShotCounterRotation, BattleSearchScopeScaleCounter = Battle?.SearchScopeScaleCounter ?? battleSearchScopeScaleCounter, BattleSilkDirection = Battle?.SilkDirection ?? battleSilkDirection, BattleCameraPresentationCounter = Battle?.CameraPresentationCounter ?? battleCameraPresentationCounter };
     }
 
     private bool fieldLoadIncomplete;

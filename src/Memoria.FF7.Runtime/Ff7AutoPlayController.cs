@@ -140,6 +140,37 @@ public sealed partial class Ff7AutoPlayController(Ff7Session session, Func<Ff7Au
                     }
                     return;
                 }
+                if (session.Submarine is not null || session.Host.PendingMinigame?.Command is Memoria.FF7.Events.FieldMinigameCommand { Game: 4 })
+                {
+                    present?.Invoke();
+                    lastSafe = session.Capture();
+                    if (session.Submarine is { } submarine)
+                    {
+                        ObserveProgress("submarine:" + submarine.NativeProgress);
+                        ushort held = Ff7SubmarineAutoPlay.ChooseInput(submarine);
+                        session.SetSubmarineInput(held, (ushort)(held & ~submarine.PreviousInput));
+                    }
+                    else
+                    {
+                        ObserveProgress("submarine:pending");
+                    }
+                    long generation = session.FieldGeneration;
+                    if (advanceTick is null)
+                    {
+                        session.AdvanceTick();
+                    }
+                    else
+                    {
+                        advanceTick();
+                    }
+                    Steps++;
+                    semanticWatchdog.NativeAdvanced();
+                    if (session.FieldGeneration != generation)
+                    {
+                        CaptureCheckpoint();
+                    }
+                    return;
+                }
                 if (session.Condor is not null || session.Host.PendingMinigame?.Command is Memoria.FF7.Events.FieldMinigameCommand { Game: 3 })
                 {
                     present?.Invoke();

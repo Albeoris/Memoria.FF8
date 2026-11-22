@@ -3,6 +3,30 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-submarine-original-only", StringComparer.Ordinal))
+{
+    NativeSubmarineOriginalTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-submarine-resources-only", StringComparer.Ordinal))
+{
+    NativeSubmarineResourceTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-submarine-simulation-only", StringComparer.Ordinal))
+{
+    NativeSubmarineSimulationTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-minigame-return-only", StringComparer.Ordinal))
+{
+    NativeMinigameReturnOwnershipTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-submarine-manual-only", StringComparer.Ordinal))
 {
     NativeSubmarineManualChoiceTests.Run();

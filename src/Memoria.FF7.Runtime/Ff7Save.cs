@@ -111,6 +111,8 @@ public sealed record Ff7SessionSave
     public Ff7ChocoboCarryState? ChocoboCarry { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Ff7CondorSnapshot? Condor { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Ff7SubmarineSnapshot? Submarine { get; init; }
 
     public void Validate()
     {
@@ -129,6 +131,10 @@ public sealed record Ff7SessionSave
             throw new InvalidDataException("The native gateway departure receipt does not match its pending source transition.");
         }
         ChocoboCarry?.Validate();
+        if (Submarine is { } submarine && (Process.GlobalCommand != Ff7GlobalCommand.Minigame || Process.GlobalRequestId != submarine.Request.Id || submarine.Request.Command is not FieldMinigameCommand { Game: 4 } || Vm.PendingRequests?.Contains(submarine.Request) != true || submarine.Mission != Vm.PersistentVariables[0x300 + 0x5D]))
+        {
+            throw new InvalidDataException("The FFVII submarine snapshot requires its actual unfinished native departure and mission parameter.");
+        }
         if (Condor is { } condor && (Process.GlobalCommand != Ff7GlobalCommand.Minigame || Process.GlobalRequestId != condor.Request.Id || condor.Request.Command is not FieldMinigameCommand { Game: 3 } || Vm.PendingRequests?.Contains(condor.Request) != true || condor.Attack != Vm.PersistentVariables[0xA9] || condor.Funds != Progress.Gil))
         {
             throw new InvalidDataException("The FFVII Condor snapshot requires its actual unfinished field departure and native parameters.");

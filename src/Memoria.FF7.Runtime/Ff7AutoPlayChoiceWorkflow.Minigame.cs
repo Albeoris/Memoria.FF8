@@ -16,7 +16,7 @@ public sealed partial class Ff7AutoPlayChoiceWorkflow
             return false;
         }
         FieldHostRequest request = receipt.Request;
-        if ((uint)request.Entity >= source.Vm.Entities.Length || source.Vm.Entities[request.Entity].Priority != request.Priority || source.Vm.Entities[request.Entity].ProgramCounter != request.ProgramCounter || !active.ExecutionProvenance!.Owners.Any(owner => !owner.Queued && owner.Entity == request.Entity && owner.Priority == request.Priority) || !Ff7AutoPlayScriptedInput.ReadInteractionOwners(source.Vm, active, source.FieldGeneration).TryGetValue(request.Entity, out int priority) || priority != request.Priority || source.Condor is { } condor && condor.Request != request)
+        if ((uint)request.Entity >= source.Vm.Entities.Length || source.Vm.Entities[request.Entity].Priority != request.Priority || source.Vm.Entities[request.Entity].ProgramCounter != request.ProgramCounter || !active.ExecutionProvenance!.Owners.Any(owner => !owner.Queued && owner.Entity == request.Entity && owner.Priority == request.Priority) || !Ff7AutoPlayScriptedInput.ReadInteractionOwners(source.Vm, active, source.FieldGeneration).TryGetValue(request.Entity, out int priority) || priority != request.Priority || source.Condor is { } condor && condor.Request != request || source.Submarine is { } submarine && submarine.Request != request)
         {
             return false;
         }
