@@ -3,6 +3,18 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-boarding-suffix-only", StringComparer.Ordinal))
+{
+    NativeBoardingSuffixTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-boarding-suffix-original-only", StringComparer.Ordinal))
+{
+    NativeBoardingSuffixOriginalTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-deferred-planning-only", StringComparer.Ordinal))
 {
     NativeDeferredPlanningWatchdogTests.Run();

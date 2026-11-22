@@ -1,5 +1,7 @@
 using Memoria.AutoPlay;
 using Memoria.FF7.Events;
+using System.Security.Cryptography;
+using System.Text.Json;
 
 namespace Memoria.FF7.Runtime;
 
@@ -8,6 +10,32 @@ public sealed partial class Ff7AutoPlayPolicy
     private Ff7WorldRuntime? destinationBoardingOwner;
     private readonly Dictionary<string, bool> destinationBoardingAdvice = new(StringComparer.Ordinal);
     private readonly Dictionary<string, Ff7WorldModeTopologyCursor> destinationBoardingSearches = new(StringComparer.Ordinal);
+    private string? destinationBoardingSuffix;
+
+    internal static string ReadBoardingSuffixFingerprint(Ff7WorldProcess world, Ff7AutoPlayWorldModelScriptObservation contact, Ff7AutoPlayWorldScriptObservation destination)
+    {
+        Ff7WorldEntity rider = world.Entities.Single(entity => entity.Model == world.ControlledModel);
+        int[] receivers = contact.Analysis.Transitions.Where(transition => transition.Operation == WorldOperation.BoardTransport && transition.Model is not null).Select(transition => transition.Model!.Value).Distinct().ToArray();
+        HashSet<int> resident = world.Vm.Models.Where(model => !model.Detached).Select(model => model.Model).ToHashSet();
+        return Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new
+        {
+            world.Vm.ProgramIdentity,
+            world.WorldId,
+            world.WorldMapState,
+            world.ViewMode,
+            world.Initialized,
+            world.MovementEnabled,
+            world.ControlLock,
+            world.MainState,
+            BridgeDeformation = world.Input?.Bridge?.Deformation,
+            Rider = new { rider.Model, rider.AttachedModel, Airborne = rider.Flags & 128 },
+            world.Vehicle,
+            Contact = new { contact.Id, contact.Analysis.Entry, Condition = WorldModelCondition(contact) },
+            Destination = new { destination.Id, destination.Analysis.Entry, Condition = WorldCondition(destination) },
+            Receivers = world.Entities.Where(entity => receivers.Contains(entity.Model)).Select(entity => new { entity.Model, entity.X, entity.Y, entity.Z, entity.Direction, entity.TargetDirection, entity.TurnOffset, entity.Speed, Airborne = entity.Flags & 128, entity.Terrain, entity.TerrainResolved, entity.GroundHeight, entity.AttachedModel }),
+            Colliders = world.Entities.Where(entity => entity.Model != rider.Model && !receivers.Contains(entity.Model) && resident.Contains(entity.Model) && entity.Model < 26 && entity.Model is not (21 or 22 or 23)).Select(entity => new { entity.Model, entity.X, entity.Z, Airborne = entity.Flags & 128 })
+        })));
+    }
 
     private void CancelDestinationBoardingSearches()
     {
@@ -24,6 +52,7 @@ public sealed partial class Ff7AutoPlayPolicy
         {
             destinationBoardingAdvice.Clear();
             CancelDestinationBoardingSearches();
+            destinationBoardingSuffix = null;
             destinationBoardingOwner = world;
         }
         var coverage = State.Coverage.Visits.Single(visit => visit.Visit.Key == worldVisit);
@@ -37,7 +66,18 @@ public sealed partial class Ff7AutoPlayPolicy
         {
             foreach (Ff7AutoPlayWorldScriptObservation destination in destinations)
             {
-                string key = WorldModelCondition(contact) + ":destination:" + WorldCondition(destination) + ":context:" + world.ReadAutoPlayNavigationContext() + ":source:" + Ff7AutoplayDriver.WorldMovementKey(world.CaptureAutoPlayMovementState());
+                string navigationContext = world.ReadAutoPlayNavigationContext();
+                string suffix = ReadBoardingSuffixFingerprint(world.Process, contact, destination);
+                string key = WorldModelCondition(contact) + ":destination:" + WorldCondition(destination) + ":context:" + navigationContext + ":source:" + Ff7AutoplayDriver.WorldMovementKey(world.CaptureAutoPlayMovementState());
+                if (destinationBoardingSuffix == suffix)
+                {
+                    AutoPlayEvent entry = coverage.Events.Single(item => item.Event.Id == contact.Id).Event;
+                    if (readAvailability(entry)?.Unavailable != true && world.ReadAutoPlayModelNavigationGuide(contact).Faces.Length != 0)
+                    {
+                        targets.Add(contact.Id);
+                    }
+                    continue;
+                }
                 if (!destinationBoardingAdvice.TryGetValue(key, out bool connected))
                 {
                     if (!destinationBoardingSearches.TryGetValue(key, out Ff7WorldModeTopologyCursor? search))
@@ -57,6 +97,7 @@ public sealed partial class Ff7AutoPlayPolicy
                 }
                 if (connected)
                 {
+                    destinationBoardingSuffix = suffix;
                     targets.Add(contact.Id);
                     break;
                 }
