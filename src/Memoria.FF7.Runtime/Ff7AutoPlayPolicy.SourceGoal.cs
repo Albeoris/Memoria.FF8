@@ -4,6 +4,15 @@ namespace Memoria.FF7.Runtime;
 
 public sealed partial class Ff7AutoPlayPolicy
 {
+    internal static Ff7AutoPlayActiveEvent? ReadSourceActivation(Ff7AutoPlayActiveEvent active, Ff7NativeTickObservation observation)
+    {
+        if (observation.SourceActivation is not { ExecutionProvenance: { } provenance } tracked || active.ExecutionProvenance is not { } original || observation.Generation != active.Generation || provenance.RootDispatchTick != original.RootDispatchTick || !Ff7AutoPlayExecutionOwners.Matches(tracked, active.Generation, original.ProgramIdentity) || tracked with { ExecutionProvenance = original } != active)
+        {
+            return null;
+        }
+        return tracked;
+    }
+
     public void SetSourceGoal(string? eventId)
     {
         if (State.Active is { Accepted: true } || State.Choice is not null || State.PendingRestore is not null)

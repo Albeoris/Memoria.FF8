@@ -1016,7 +1016,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             return;
         }
         bool spatialChanged = false;
-        Ff7AutoPlayActiveEvent tracked = Ff7AutoPlayExecutionOwners.Observe(active, observation.Generation, session.Machine.ProgramIdentity, observation.Tick, observation.ScriptActivity ?? [], (entity, script) => session.Field.Scripts.Entities[entity].ScriptOffsets[script]);
+        Ff7AutoPlayActiveEvent tracked = ReadSourceActivation(active, observation) ?? Ff7AutoPlayExecutionOwners.Observe(active, observation.Generation, session.Machine.ProgramIdentity, observation.Tick, observation.ScriptActivity ?? [], (entity, script) => session.Field.Scripts.Entities[entity].ScriptOffsets[script]);
         bool provenanceChanged = !ReferenceEquals(active, tracked);
         active = tracked;
         State.Active = active;

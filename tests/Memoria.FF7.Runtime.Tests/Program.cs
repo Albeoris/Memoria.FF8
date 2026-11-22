@@ -3,6 +3,18 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-source-transition-only", StringComparer.Ordinal))
+{
+    NativeSourceGoalTransitionTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-source-transition-original-only", StringComparer.Ordinal))
+{
+    NativeSourceGoalTransitionOriginalTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-palette-rotate-only", StringComparer.Ordinal))
 {
     NativePaletteRotateTests.Run();
