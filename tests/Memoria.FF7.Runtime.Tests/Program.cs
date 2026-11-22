@@ -3,6 +3,18 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-dialogue-presentation-only", StringComparer.Ordinal))
+{
+    NativeDialoguePresentationReadinessTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-dialogue-presentation-original-only", StringComparer.Ordinal))
+{
+    NativeDialoguePresentationOriginalTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-trigger-arrow-tail-only", StringComparer.Ordinal))
 {
     NativeTriggerArrowTailTests.Run();

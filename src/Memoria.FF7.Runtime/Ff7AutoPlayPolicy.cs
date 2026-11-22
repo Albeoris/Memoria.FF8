@@ -256,6 +256,15 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             State.Status = "Warming through the current native cliff input worker";
             return warmth;
         }
+        FieldVmSnapshot dialogueVm = session.Machine.Capture();
+        if (Ff7AutoPlayNativeReadiness.HasAdvancingDialoguePresentation(dialogueVm, session.Host.Process) || Ff7AutoPlayNativeReadiness.HasOwnedDialogueWait(dialogueVm, session.Host.Process) && nativeReadiness.ShouldWait(session.FieldGeneration, $"dialogue:{session.Field.Name}", dialogueVm, session.Host.Process, session.Field.Scripts.Data.Span, session.Machine.ReadCurrentInputDemands()))
+        {
+            CancelNativePlanning("native-dialogue-presentation");
+            driver.BeginPlanningStep();
+            State.Status = "Waiting for owned native dialogue presentation";
+            Publish();
+            return default;
+        }
         if (State.NativeRoute is not null && resumedNativePlan is null)
         {
             controllable = true;

@@ -6,6 +6,43 @@ namespace Memoria.FF7.Runtime;
 /// <summary>Bounds neutral continuation of already admitted native work when no physical frontier is currently available.</summary>
 internal sealed class Ff7AutoPlayNativeReadiness
 {
+    internal static bool HasOwnedDialogueWait(FieldVmSnapshot vm, Ff7FieldProcess process)
+    {
+        return (vm.PendingRequests ?? []).Any(request => ReadOwnedDialogue(vm, process, request) is not null);
+    }
+
+    internal static bool HasAdvancingDialoguePresentation(FieldVmSnapshot vm, Ff7FieldProcess process)
+    {
+        foreach (FieldHostRequest request in vm.PendingRequests ?? [])
+        {
+            if (ReadOwnedDialogue(vm, process, request) is not { Presentation: { } presentation } dialogue)
+            {
+                continue;
+            }
+            bool confirmedInput = dialogue.AwaitingInput && presentation.ConfirmPending && (presentation.NativeState is 4 or 6 or 13 or 14) && process.Windows.Any(window => window.Id == dialogue.Window && (window.Flags & 1) == 0);
+            if (confirmedInput || !dialogue.AwaitingInput && (presentation.NativeState is 0 or 1 or 2 or 5 or 7 or 8 || presentation.NativeState == 3 && dialogue.WaitTicks > 0))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static Ff7Dialogue? ReadOwnedDialogue(FieldVmSnapshot vm, Ff7FieldProcess process, FieldHostRequest request)
+    {
+        if (request.Command is not FieldDialogueCommand command || (uint)request.Entity >= vm.Entities.Length)
+        {
+            return null;
+        }
+        FieldEntitySnapshot owner = vm.Entities[request.Entity];
+        if (owner.Priority != request.Priority || owner.ProgramCounter != request.ProgramCounter)
+        {
+            return null;
+        }
+        Ff7Dialogue? dialogue = process.Dialogues.SingleOrDefault(dialogue => dialogue.RequestId == request.Id);
+        return dialogue is { Completed: false } && dialogue.Window == command.Window && dialogue.Text == command.Text && dialogue.FirstChoice == command.FirstChoice && dialogue.LastChoice == command.LastChoice && process.Windows.Any(window => window.Id == dialogue.Window) ? dialogue : null;
+    }
+
     internal const int RepeatedObservationLimit = 64;
     internal const int ObservationLimit = 4096;
     private string? context;
