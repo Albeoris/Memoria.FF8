@@ -457,6 +457,7 @@ internal static class NativeModelEffectTests
         Throws<NotSupportedException>(() => presentation.ResolveModelScale(0, "oops"));
         PcFieldModelDescriptor raw = new("model", 0, "model.hrc", "9999", [], 0, []);
         Throws<NotSupportedException>(() => Ff7NativeFieldPoseMath.ReadModelScale(raw));
+        Check(Ff7NativeFieldPoseMath.ModelBasis(raw) == Matrix4x4.CreateRotationX(-MathF.PI / 2) * Matrix4x4.CreateScale(9999f / 4096f * 30.43090057373047f), "Synthetic world descriptors lost their existing direct geometry-scale contract.");
         PcFieldModelDescriptor resolved = raw with { NativeRenderScale = presentation.ResolveModelScale(1, raw.Scale) };
         Check(resolved.Scale == "9999" && Ff7NativeFieldPoseMath.ReadModelScale(resolved) == 4096, "Resolving the render owner changed original descriptor text or lost its scale word.");
         Check(Ff7NativeFieldPoseMath.ModelBasis(resolved) == Ff7NativeFieldPoseMath.ModelBasis(raw with { Scale = "4096" }), "Geometry and procedural colors disagree on the native render-record scale.");

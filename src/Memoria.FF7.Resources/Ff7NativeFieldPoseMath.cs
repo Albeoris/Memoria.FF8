@@ -53,7 +53,7 @@ public static class Ff7NativeFieldPoseMath
 
     public static Matrix4x4 ModelBasis(PcFieldModelDescriptor descriptor)
     {
-        float scale = ReadModelScale(descriptor) / 4096f * 30.43090057373047f;
+        float scale = (descriptor.NativeRenderScale ?? float.Parse(descriptor.Scale, CultureInfo.InvariantCulture)) / 4096f * 30.43090057373047f;
         if (!float.IsFinite(scale) || scale <= 0)
         {
             throw new InvalidDataException("FFVII model scale must be finite and positive.");
