@@ -468,6 +468,17 @@ public sealed partial class Ff7FieldRenderer
                     image[x, y] = new Rgba32(Expand(index >> 11 & 31), (byte)((green << 2) | (green >> 4)), Expand(index & 31), index == 0 ? (byte)0 : (byte)255);
                     continue;
                 }
+                if (tile.PaletteId == palettes.Palettes.Count || tile.PaletteId == palettes.Palettes.Count + 1)
+                {
+                    // The native background texture constructor appends opaque black and half-alpha white RGBA palettes.
+                    // These rows include index zero and do not use the resource RGB555 transparency exchange.
+                    image[x, y] = tile.PaletteId == palettes.Palettes.Count ? new Rgba32(0, 0, 0, 255) : new Rgba32(255, 255, 255, 128);
+                    continue;
+                }
+                if (tile.PaletteId < 0 || tile.PaletteId >= palettes.Palettes.Count)
+                {
+                    throw new InvalidDataException("FFVII background tile selects a palette outside the native texture palette bank.");
+                }
                 ushort color = palettes.Palettes[tile.PaletteId][index];
                 if (!paletteRowsUseCachedIndices && page.Depth != 2 && background.PaletteHasTransparentColor[tile.PaletteId] != 0)
                 {
