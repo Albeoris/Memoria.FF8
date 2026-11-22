@@ -3,6 +3,12 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-source-pipeline-only", StringComparer.Ordinal))
+{
+    NativeSourceGoalPipelineTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-source-transition-only", StringComparer.Ordinal))
 {
     NativeSourceGoalTransitionTests.Run();

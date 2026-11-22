@@ -6,11 +6,11 @@ public sealed partial class Ff7AutoPlayPolicy
 {
     internal static Ff7AutoPlayActiveEvent? ReadSourceActivation(Ff7AutoPlayActiveEvent active, Ff7NativeTickObservation observation)
     {
-        if (observation.SourceActivation is not { ExecutionProvenance: { } provenance } tracked || active.ExecutionProvenance is not { } original || observation.Generation != active.Generation || provenance.RootDispatchTick != original.RootDispatchTick || !Ff7AutoPlayExecutionOwners.Matches(tracked, active.Generation, original.ProgramIdentity) || tracked with { ExecutionProvenance = original } != active)
+        if (observation.SourceActivation is not { ExecutionProvenance: { } provenance } tracked || active.ExecutionProvenance is not { } original || observation.Generation != active.Generation || provenance.RootDispatchTick != original.RootDispatchTick || !Ff7AutoPlayExecutionOwners.Matches(tracked, active.Generation, original.ProgramIdentity) || tracked.VisitId != active.VisitId || tracked.NavigationKey != active.NavigationKey || tracked.EventId != active.EventId || tracked.ConditionFingerprint != active.ConditionFingerprint || tracked.Kind != active.Kind || tracked.Entity != active.Entity || tracked.Script != active.Script)
         {
             return null;
         }
-        return tracked;
+        return active with { ExecutionProvenance = provenance };
     }
 
     public void SetSourceGoal(string? eventId)

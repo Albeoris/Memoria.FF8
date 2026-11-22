@@ -6,18 +6,23 @@ internal static class NativeSourceGoalTransitionTests
 {
     internal static void Run()
     {
-        Ff7AutoPlayActiveEvent active = new("source-visit", "actor:0:script:1", "source-condition", 3, 0, 1, Ff7AutoPlayTargetKind.ActorTalk, null, 0, "before", Accepted: true, NavigationKey: "source-nav");
+        Ff7AutoPlayActiveEvent active = new("source-visit", "actor:0:script:1", "source-condition", 3, 0, 1, Ff7AutoPlayTargetKind.ActorTalk, null, 0, "before", Accepted: true, NavigationKey: "source-nav", SpatialDestinations: [324], TravelSelections: [new("choice", 2)], EntryGuardFingerprints: new Dictionary<string, string> { ["native-guard"] = "exact" });
         active = active with { ExecutionProvenance = Ff7AutoPlayExecutionOwners.Begin(active, "source-program", 20, 5) };
         FieldHostRequest map = new(7, 1, 6, 44, new FieldTransitionCommand(324, 10, 20, 2, 64));
         Ff7NativeScriptActivity dispatch = new(Dispatch: new(0, 1, 22, 1, 2, 6, 1, true, false, 10));
         Ff7NativeScriptActivity completedMap = new(HostOperation: new(map, new(true)));
         int Entry(int entity, int script) => entity == 0 && script == 1 ? 20 : entity == 1 && script == 2 ? 40 : throw new InvalidOperationException("Unexpected native source entry lookup.");
-        Ff7AutoPlayActiveEvent tracked = Ff7AutoPlayExecutionOwners.Observe(active, 3, "source-program", 10, [dispatch, completedMap], Entry);
+        Ff7AutoPlayActiveEvent sourceClone = JsonSerializer.Deserialize<Ff7AutoPlayActiveEvent>(JsonSerializer.Serialize(active))!;
+        Check(!ReferenceEquals(sourceClone.EntryGuardFingerprints, active.EntryGuardFingerprints) && !ReferenceEquals(sourceClone.SpatialDestinations, active.SpatialDestinations) && !ReferenceEquals(sourceClone.TravelSelections, active.TravelSelections), "The fixture did not reproduce publication's deep-cloned source metadata.");
+        Ff7AutoPlayActiveEvent tracked = Ff7AutoPlayExecutionOwners.Observe(sourceClone, 3, "source-program", 10, [dispatch, completedMap], Entry);
         Ff7NativeTickObservation observation = new("source-field", 3, 10, [], (FieldTransitionCommand)map.Command, "source-witness", map, new(0, 1, 1, 6), [dispatch, completedMap]) { SourceActivation = tracked };
         string before = JsonSerializer.Serialize(new { active, tracked, observation });
         Check(!active.Returned && tracked.ExecutionProvenance!.AcceptedTransition == map && tracked.ExecutionProvenance.AcceptedTransitionTick == 10, "The fixture did not record its real child MAP before root RET.");
-        Ff7AutoPlayActiveEvent? adopted = Ff7AutoPlayPolicy.ReadSourceActivation(active, observation);
-        Check(ReferenceEquals(adopted, tracked), "A source-captured MAP owner was lost after the consumer installed another field program.");
+        Ff7AutoPlayActiveEvent adopted = Ff7AutoPlayPolicy.ReadSourceActivation(active, observation) ?? throw new InvalidOperationException("The source-captured activation was lost across cloned publication metadata.");
+        Check(adopted.ExecutionProvenance == tracked.ExecutionProvenance && adopted.EventId == active.EventId && adopted.Generation == active.Generation && adopted.ConditionFingerprint == active.ConditionFingerprint, "A source-captured MAP owner was lost after the consumer installed another field program.");
+        Check(ReferenceEquals(adopted.EntryGuardFingerprints, active.EntryGuardFingerprints) && ReferenceEquals(adopted.SpatialDestinations, active.SpatialDestinations) && ReferenceEquals(adopted.TravelSelections, active.TravelSelections), "Adopting source provenance installed cloned route, guard or planning collections.");
+        Ff7AutoPlayActiveEvent afterDestination = Ff7AutoPlayExecutionOwners.Observe(adopted, 4, "destination-program", 1, [], (_, _) => 0);
+        Check(afterDestination.ExecutionProvenance!.AcceptedTransition == map && ReferenceEquals(afterDestination.EntryGuardFingerprints, active.EntryGuardFingerprints), "A later unrelated destination observation erased the accepted source MAP or replaced live metadata.");
         Check(Ff7AutoPlayExecutionOwners.Observe(active, 4, "destination-program", 1, [dispatch, completedMap], (_, _) => 0).ExecutionProvenance!.AcceptedTransition is null, "The fixture did not distinguish the incorrect destination-epoch replay.");
         Ff7AutoPlaySourceGoal goal = new("source-visit", "source-program", 3, "source-nav", active.EventId, active.ConditionFingerprint, active.Kind, 0, 1, 20, AcceptedEntry: 20);
         Ff7AutoPlayState state = new() { SourceGoal = goal };
