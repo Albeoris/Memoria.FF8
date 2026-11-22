@@ -9,6 +9,7 @@ public sealed partial class BattlePresentationProcess
     {
         NativeBattleGraphicsModel actor = graphics.ActorModels.Get(index);
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
+        NativeBattleModelTextureOwner? material = SelectNativeModelMaterial(graphics, index);
         NativeBattleCameraProjection projection = NativeCamera!.Projection!;
         NativeBattleActionMatrix view = projection.View!;
         if ((actor.Flags0 & 0x20) == 0)
@@ -51,7 +52,7 @@ public sealed partial class BattlePresentationProcess
                 if (ResetAndEnterNativeModelRenderer5099D0(actor.Color40!.Value))
                 {
                     ImmutableArray<NativeBattleActionMatrix> cameraBones = linkedBones.Select(matrix => NativeBattleGfMatrices.Compose56C2F0(view, matrix)).ToImmutableArray();
-                    ImmutableArray<NativeBattleGeometryPrimitive> packets = NativeBattleRawGeometryPackets.Emit5099D0(linked, cameraBones, projection, actor.Color40.Value, uint.MaxValue, null, 17, 4, resource.GeometryRelocated507550 ? null : actor.LinkedTextureSlots, this.resources.NativeGraphics!.Rules.SummonColors, PublishNativeBodyProjectionScratch, pilotIdentity: pilotIdentity is { } linkedIdentity ? linkedIdentity with { Primitive = unchecked(linkedIdentity.Primitive * 65537 + 0x20000), ResourceGeneration = NativeBattlePilotVisualLifetimes.EpochFor(resource) } : null);
+                    ImmutableArray<NativeBattleGeometryPrimitive> packets = NativeBattleRawGeometryPackets.Emit5099D0(linked, cameraBones, projection, actor.Color40.Value, uint.MaxValue, null, 17, 4, resource.GeometryRelocated507550 ? null : actor.LinkedTextureSlots, this.resources.NativeGraphics!.Rules.SummonColors, PublishNativeBodyProjectionScratch, pilotIdentity: pilotIdentity is { } linkedIdentity ? linkedIdentity with { Primitive = unchecked(linkedIdentity.Primitive * 65537 + 0x20000), ResourceGeneration = NativeBattlePilotVisualLifetimes.EpochFor(resource) } : null, material: material);
                     Common(NativeActorPrimitiveBatch(packets));
                 }
             }
@@ -87,7 +88,7 @@ public sealed partial class BattlePresentationProcess
                 NativeFileStaging = (NativeFileStaging ?? throw new NotSupportedException("Native Bomb actor drawing requires its canonical shared vertex owner.")).Write(address + (uint)(vertex * 8), output.AsSpan(vertex * 8, stored));
             }
             ImmutableArray<NativeBattleRawPolygon> polygons = alreadyRelocated ? mesh.Polygons : mesh.Polygons.Select(polygon => polygon with { Bytes = NativeBattleRawGeometryPackets.Relocate507550(polygon, texture) }).ToImmutableArray();
-            Common(NativeBattleBombActorPackets.Emit(polygons, output.ToImmutableArray(), view, projection, actor.Color40!.Value, overlayColor, scroll, textured, zsf3, zsf4, pilotIdentity is { } identity ? identity with { Primitive = unchecked(identity.Primitive * 65537 + meshIndex), ResourceGeneration = NativeBattlePilotVisualLifetimes.EpochFor(resource) } : null));
+            Common(NativeBattleBombActorPackets.Emit(polygons, output.ToImmutableArray(), view, projection, actor.Color40!.Value, overlayColor, scroll, textured, zsf3, zsf4, pilotIdentity is { } identity ? identity with { Primitive = unchecked(identity.Primitive * 65537 + meshIndex), ResourceGeneration = NativeBattlePilotVisualLifetimes.EpochFor(resource) } : null, material));
         }
         void Common(NativeBattleGfGeometryBatch batch)
         {

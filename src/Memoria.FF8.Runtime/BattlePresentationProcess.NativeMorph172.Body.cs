@@ -7,6 +7,7 @@ public sealed partial class BattlePresentationProcess
     private (NativeBattleMorph172Frame Frame, NativeBattleGraphicsState Graphics) DrawNativeMorph172Body(NativeBattleMorph172Frame frame, NativeBattleGraphicsState graphics, BattleModelOwner actor, uint temporaryAddress, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actor);
+        NativeBattleModelTextureOwner? material = SelectNativeModelMaterial(graphics, actor, frame.Memory.Textures);
         NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Morph172 target requires its current skeleton.");
         NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Morph172 target requires its current camera.");
         NativeBattleCameraProjection projection = camera.Projection ?? throw new NotSupportedException("Morph172 target requires its published projection.");
@@ -72,7 +73,7 @@ public sealed partial class BattlePresentationProcess
             NativeBattleModelGeometrySource geometrySource = NativeBattleModelGeometrySource.Open(cpu, current.Staging, pointer, Read);
             ImmutableArray<NativeBattlePackedMatrix32> bones = matrices.Select(matrix => NativeBattlePackedMatrix32.FromMatrix(matrix, null)).ToImmutableArray();
             NativeBattleEffectArena scratch = NativeMorph172View(current.Staging, scratchAddress, scratchLength);
-            NativeBattleMorph172ModelStep drawn = NativeBattleMorph172ModelDrawing.DrawBody(current.Memory, current.Temporary220, scratch, geometrySource, bones, packedCamera, projection, current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Morph172 target requires its current depth controls."), scratchAddress, scratchLength, this.resources.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Morph172 body requires its current color arithmetic."), pilotIdentity: NativeBattleMorph172Presentation.Domain(pilotIdentity, geometrySource.PresentationIdentity, 0));
+            NativeBattleMorph172ModelStep drawn = NativeBattleMorph172ModelDrawing.DrawBody(current.Memory, current.Temporary220, scratch, geometrySource, bones, packedCamera, projection, current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Morph172 target requires its current depth controls."), scratchAddress, scratchLength, this.resources.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Morph172 body requires its current color arithmetic."), pilotIdentity: NativeBattleMorph172Presentation.Domain(pilotIdentity, geometrySource.PresentationIdentity, 0), material: material);
             current = current with { Memory = drawn.Memory, Temporary220 = drawn.Temporary220, Staging = NativeBattleTemporaryMemory.PublishView(current.Staging, scratchAddress, drawn.VertexScratch, scratchLength) };
             current = current with { Staging = NativeBattleTemporaryMemory.PublishResourceView(current.Staging, temporaryAddress, current.Temporary220, 220) };
             return AppendCommon(current, drawn.Batch);
@@ -104,7 +105,7 @@ public sealed partial class BattlePresentationProcess
             {
                 current = current with { Staging = current.Staging.Write(scratchAddress, drawn.ProjectedScratch.AsSpan().Slice(0, drawn.ProjectedBytesWritten)) };
             }
-            current = AppendCommon(current with { Memory = current.Memory with { PrimitiveProcess = process } }, drawn.Packets);
+            current = AppendCommon(current with { Memory = current.Memory with { PrimitiveProcess = process } }, BindNativeModelMaterial(drawn.Packets, material));
             process = current.Memory.PrimitiveProcess!;
             uint bank = process.PacketBank switch { "off_B6D070" => 0x1901018u, "off_B6D094" => 0x199B018u, _ => throw new NotSupportedException("Morph172 linked body requires its actual COMMON packet bank.") };
             uint cursor = checked(bank + (uint)process.PacketBuffer * (uint)process.CommonPacketNominalCapacity + (uint)(process.ByteCursor ?? throw new NotSupportedException("Morph172 linked body requires its current COMMON cursor.")));

@@ -25,6 +25,7 @@ public sealed partial class BattlePresentationProcess
             return (frame with { Memory = frame.Memory with { PrimitiveProcess = written.Process } }, graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } });
         }
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actor);
+        NativeBattleModelTextureOwner? material = SelectNativeModelMaterial(graphics, actor, frame.Memory.Textures);
         NativeBattleModelCpuResources cpu = NativeModelCpuResources ?? throw new NotSupportedException("Native Lion Heart echo requires its actual CPU model resource owner.");
         ushort maximum = cpu.ScratchMaximum ?? throw new NotSupportedException("Native Lion Heart echo requires the actual507010 maximum WORD.");
         uint vertices = checked(0x196B018u - (uint)maximum * 8);
@@ -93,7 +94,7 @@ public sealed partial class BattlePresentationProcess
                 NativeBattleLionHeart165EchoDraw drawn = NativeBattleLionHeart165Controller.DrawEchoMesh5EF0C0(frame, temporary, vertices, geometrySource.Cursor(polygons[index]), mesh, matrices, view, projection, plane, selectors, color, table, packetAddress, registers.Zsf3 ?? throw new NotSupportedException("Native Lion Heart echo requires ZSF3."), registers.Zsf4 ?? throw new NotSupportedException("Native Lion Heart echo requires ZSF4."), registers.Dqa, registers.Dqb, binding, pilotIdentity: pilotIdentity with { Primitive = unchecked((int)sourceIdentity * 397 + index) });
                 frame = drawn.Frame;
                 NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Lion Heart echo requires its initialized ordering table.");
-                NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(process, primitive.Pending, drawn.Batch);
+                NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(process, primitive.Pending, BindNativeModelMaterial(drawn.Batch, material));
                 graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
                 frame = frame with { Memory = frame.Memory with { PrimitiveProcess = written.Process } };
                 if (CommonAddress(written.Process) != drawn.PacketCursor)

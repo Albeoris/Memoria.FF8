@@ -161,13 +161,9 @@ public sealed partial class BattlePresentationProcess
                 NativeBattleChoco100SecondarySettings settings = secondary.Settings ?? throw new NotSupportedException("Native Choco actor drawing requires its executed shared settings.");
                 int offset = checked((int)(settings.WorkAddress() - NativeBattleEffectNodeMemory.ArenaAddress));
                 NativeBattleChoco100Wave wave = new(unchecked((short)drawnTask.ReadWord(0xC2)), drawnTask.ReadWord(0xC4), drawnTask.ReadWord(0xC6), drawnTask.ReadWord(0xC8), drawnTask.ReadWord(0xC0));
-                NativeBattleModelTextureOwner? material = null;
-                if (!resource.ActorSurfaces.IsDefaultOrEmpty)
-                {
-                    NativeEffectMemory = current.Memory;
-                    material = PrepareActorSurfaceMaterials(graphics, owner, resource);
-                    current = current with { Memory = NativeEffectMemory! };
-                }
+                NativeEffectMemory = current.Memory;
+                NativeBattleModelTextureOwner? material = PrepareNativeActorMaterials(graphics, owner, resource);
+                current = current with { Memory = NativeEffectMemory! };
                 foreach (NativeBattleCureActorGeometry geometry in NativeBattleCureActorAssembly.SelectGeometry8D7110(actor, resource, sequence.MeshMask124, material))
                 {
                     NativeBattleChoco100ActorDraw drawn = NativeBattleChoco100ActorPackets.Emit716DD0(geometry, bones, camera, projection, actor.Color40 ?? throw new NotSupportedException("Native Choco actor drawing requires its actual body color."), wave, current.Memory.Arena ?? throw new NotSupportedException("Native Choco actor drawing requires its current TIM work arena."), offset, NativeBattlePilotVisualLifetimes.Identity(100, task, checked(2 + geometry.AuthoredMesh)) with { ModelOwner = owner, ResourceGeneration = unchecked(NativeBattlePilotVisualLifetimes.EpochFor(resource) * 397 + geometry.AuthoredMesh) });

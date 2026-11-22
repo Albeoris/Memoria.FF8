@@ -400,7 +400,7 @@ public sealed partial class BattlePresentationProcess
             ImmutableArray<NativeBattleActionMatrix> bones = NativeBattleBodyBoneMatrices.Require(actor, source);
             short zsf3 = NativeEffectMemory!.ScriptedGraphics!.Zsf3 ?? throw new NotSupportedException("Native Dark Mist requires its current ZSF3.");
             short zsf4 = NativeEffectMemory.ScriptedGraphics.Zsf4 ?? throw new NotSupportedException("Native Dark Mist requires its current ZSF4.");
-            NativeBattleModelTextureOwner? material = PrepareActorSurfaceMaterials(graphics, owner, resource);
+            NativeBattleModelTextureOwner? material = PrepareNativeActorMaterials(graphics, owner, resource);
             foreach (NativeBattleCureActorGeometry geometry in NativeBattleCureActorAssembly.SelectGeometry8D7110(actor, resource, actor.SequenceState!.MeshMask124, material))
             {
                 if (geometry.Mesh.Vertices.Length * 16 > 0x2580)

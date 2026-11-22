@@ -7,6 +7,7 @@ public sealed partial class BattlePresentationProcess
     private NativeBattleGraphicsState DrawNativeBreak117Body(NativeBattleGraphicsState graphics, BattleModelOwner actor, int level, ImmutableArray<byte> dither, NativeBattlePilotVisualIdentity identity)
     {
         NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
+        NativeBattleModelTextureOwner? material = SelectNativeModelMaterial(graphics, actor);
         NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native Break requires its published projection.");
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native Break requires its retained view matrix.");
         graphics = SubmitNativeShadowPackets5088A0(graphics, actor, model, projection, 4112, false);
@@ -55,7 +56,7 @@ public sealed partial class BattlePresentationProcess
 
         void Submit(NativeBattleRawMesh mesh, ImmutableArray<NativeBattleActionMatrix> bones, NativeBattleModelTextureBinding? binding, int visualMesh)
         {
-            NativeBattleBreak117BodyResult batch = NativeBattleBreak117Body.Draw([mesh], bones, projection, color, 1, dither, level, binding, ditherIndex, identity with { Primitive = unchecked(0x40000000 + visualMesh) });
+            NativeBattleBreak117BodyResult batch = NativeBattleBreak117Body.Draw([mesh], bones, projection, color, 1, dither, level, binding, ditherIndex, identity with { Primitive = unchecked(0x40000000 + visualMesh) }, material);
             ditherIndex = batch.DitherIndex;
             int capacity = checked((NativeModelCpuResources?.ScratchMaximum ?? throw new NotSupportedException("Native Break requires its current physical projection capacity.")) * 8);
             if (batch.Projected.Length > capacity)

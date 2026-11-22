@@ -12,7 +12,7 @@ public static partial class NativeBattlePoisonGas171ModelDrawing
         return DrawBody(memory, temporary176, vertexScratch, NativeBattleModelGeometrySource.FromNumeric(geometryAddress, readGeometry), bones, camera, projection, controls, scratchAddress, scratchLength, tableBaseBucket, depthShift, pilotIdentity);
     }
 
-    public static NativeBattlePoisonGas171ModelStep DrawBody(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary176, NativeBattleEffectArena vertexScratch, NativeBattleModelGeometrySource geometrySource, ImmutableArray<NativeBattlePackedMatrix32> bones, NativeBattlePackedMatrix32 camera, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls, uint scratchAddress, int scratchLength, int tableBaseBucket = 17, byte depthShift = 2, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    public static NativeBattlePoisonGas171ModelStep DrawBody(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary176, NativeBattleEffectArena vertexScratch, NativeBattleModelGeometrySource geometrySource, ImmutableArray<NativeBattlePackedMatrix32> bones, NativeBattlePackedMatrix32 camera, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls, uint scratchAddress, int scratchLength, int tableBaseBucket = 17, byte depthShift = 2, NativeBattlePilotVisualIdentity? pilotIdentity = null, NativeBattleModelTextureOwner? material = null)
     {
         if (scratchLength < 0 || depthShift > 31 || U32(temporary176, 4) != scratchAddress)
         {
@@ -87,6 +87,10 @@ public static partial class NativeBattlePoisonGas171ModelDrawing
                     temporary176 = drawn.Temporary;
                     registers = drawn.Registers;
                     NativeBattleGfGeometryAttempt attempt = drawn.Attempt;
+                    if (material is not null && attempt.Primitive is { } primitive)
+                    {
+                        attempt = attempt with { Primitive = primitive with { ModelTextureOwner = material } };
+                    }
                     attempts.Add(attempt);
                     if (attempt.Primitive is not null)
                     {

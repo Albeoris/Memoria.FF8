@@ -47,6 +47,7 @@ public sealed partial class BattlePresentationProcess
         frame = frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(frame.Staging!, 0x78) };
         (graphics, frame) = ApplyNativeEffect64Pose(graphics, frame, actor, offsetAddress);
         NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
+        NativeBattleModelTextureOwner? material = SelectNativeModelMaterial(graphics, actor, frame.Memory.Textures);
         NativeBattleBodyBoneMatrices bones = model.CurrentBodyBoneMatrices ?? throw new NotSupportedException("Effect64 requires its just-published current offset pose.");
         bones.Validate();
         NativeBattleActionMatrix world = model.GeometryWorldMatrix ?? throw new NotSupportedException("Effect64 requires its actual current world matrix.");
@@ -70,7 +71,7 @@ public sealed partial class BattlePresentationProcess
         NativeBattleEffect64BodyStep drawn = NativeBattleEffect64BodyDrawing.DrawBody(frame.Memory, temporary, NativeDeformedBodyView(frame.Staging!, scratchAddress, scratchLength), geometrySource, NativeBattleBodyBoneMatrices.Require(model, pose).Select(matrix => NativeBattlePackedMatrix32.FromMatrix(matrix, null)).ToImmutableArray(), offsets, projection, frame.Memory.ScriptedGraphics!, scratchAddress, scratchLength, pilotIdentity: identity with { ResourceGeneration = geometrySource.PresentationIdentity });
         NativeBattleFileStaging staging = NativeBattleTemporaryMemory.PublishView(frame.Staging!, scratchAddress, drawn.VertexScratch, scratchLength);
         staging = NativeBattleTemporaryMemory.PublishResourceView(staging, allocation.Address, drawn.Temporary152, 152);
-        frame = deliver(frame with { Memory = drawn.Memory, Staging = staging }, drawn.Batch, 0x1D8E054, 0);
+        frame = deliver(frame with { Memory = drawn.Memory, Staging = staging }, BindNativeModelMaterial(drawn.Batch, material), 0x1D8E054, 0);
         (graphics, frame) = ApplyNativeEffect64Pose(graphics, frame, actor, offsetAddress);
         frame = frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(frame.Staging!, 152) };
         return (graphics, frame);

@@ -172,7 +172,8 @@ public sealed partial class BattlePresentationProcess
             uint rgb = resources.EchoColors[echo.Geometry];
             NativeBattleRawModelBodyDraw draw = NativeBattleRawModelBodyDrawing.Draw5099D0(meshes, bones, projection, rgb, uint.MaxValue, new byte[length].ToImmutableArray(), colors, 4, new(0, 0, 320, 216), 17, null, pilotIdentity: NativeBattleShotVisualLifetimes.Resource(echo.PilotIdentity, unchecked((uint)(0x10000 + echo.Geometry))));
             current = current with { Memory = current.Memory with { PrimitiveProcess = gate.Process.PublishModelColor(rgb) } };
-            return AppendMesh(current, draw.Packets, true);
+            NativeBattleModelTextureOwner? material = SelectNativeModelMaterial(graphics, echo.Actor, current.Memory.Textures);
+            return AppendMesh(current, BindNativeModelMaterial(draw.Packets, material), true);
         }
 
         NativeBattleShot192Frame AppendMesh(NativeBattleShot192Frame current, NativeBattleGfGeometryBatch batch, bool common)

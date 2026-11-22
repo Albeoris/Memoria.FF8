@@ -370,6 +370,7 @@ public sealed partial class BattlePresentationProcess
         {
             NativeBattleGraphicsModel actor = graphics.ActorModels.Get(target);
             NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, target);
+            NativeBattleModelTextureOwner? material = SelectNativeModelMaterial(graphics, target);
             graphics = SubmitNativeShadowPackets5088A0(graphics, target, actor, projection, 4121, false, callerPilotIdentity: NativeBattlePilotVisualLifetimes.Identity(169, task, 0x5088A0));
             NativeBattlePoseSource source = resource.PoseSource!;
             NativeBattleActionMatrix identity = NativeBattleCuragaMatrices.Identity8DD770();
@@ -401,14 +402,15 @@ public sealed partial class BattlePresentationProcess
                 NativeFileStaging = NativeFileStaging!.Write(address, output);
                 NativeBattleModelTextureBinding texture = shared && index == 1 ? actor.LinkedTextureSlots! : actor.BodyTextureSlots!;
                 ImmutableArray<NativeBattleRawPolygon> polygons = resource.GeometryRelocated507550 ? mesh.Polygons : mesh.Polygons.Select(polygon => polygon with { Bytes = NativeBattleRawGeometryPackets.Relocate507550(polygon, texture) }).ToImmutableArray();
-                Common(Tint5DF540(polygons, output.ToImmutableArray(), view, projection, JuiceVector(task, 16), actor.Color40!.Value, frame, colors, NativeBattlePilotVisualLifetimes.Identity(169, task, 0x10000 + index) with { ResourceGeneration = shared && index == 1 ? 1 : 0 }));
+                NativeBattleGfGeometryBatch tinted = Tint5DF540(polygons, output.ToImmutableArray(), view, projection, JuiceVector(task, 16), actor.Color40!.Value, frame, colors, NativeBattlePilotVisualLifetimes.Identity(169, task, 0x10000 + index) with { ResourceGeneration = shared && index == 1 ? 1 : 0 }, material);
+                Common(tinted);
             }
             if (!shared && !linked.IsEmpty && (actor.Flags0 & 0x200) == 0 && ResetAndEnterNativeModelRenderer5099D0(actor.Color40!.Value))
             {
                 ImmutableArray<NativeBattleActionMatrix> bones = NativeBattlePoseMatrices.LinkedGeometryMatrices502D40(actor, resource.LinkedPoseSource!, view);
                 ImmutableArray<NativeBattleRawMesh> geometry = linked.Select(mesh => resource.GeometryRelocated507550 ? mesh : mesh with { Polygons = mesh.Polygons.Select(polygon => polygon with { Bytes = NativeBattleRawGeometryPackets.Relocate507550(polygon, actor.LinkedTextureSlots!) }).ToImmutableArray() }).ToImmutableArray();
                 ImmutableArray<NativeBattleGeometryPrimitive> primitives = NativeBattleRawGeometryPackets.Emit5099D0(geometry, bones, projection, actor.Color40!.Value, uint.MaxValue, null, 17, 4, null, colors, PublishNativeBodyProjectionScratch, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(169, task, 0x20000));
-                Common(NativeActorPrimitiveBatch(primitives));
+                Common(NativeActorPrimitiveBatch(BindNativeModelMaterial(primitives, material)));
             }
         }
 

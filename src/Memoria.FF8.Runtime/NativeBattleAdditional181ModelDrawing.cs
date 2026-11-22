@@ -12,7 +12,7 @@ public static partial class NativeBattleAdditional181ModelDrawing
         return DrawBody(memory, temporary128, vertexScratch, NativeBattleModelGeometrySource.FromNumeric(geometryAddress, readGeometry), bones, camera, projection, controls, scratchAddress, scratchLength, tableBaseBucket, depthShift, pilotIdentity);
     }
 
-    public static NativeBattleAdditional181ModelStep DrawBody(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary128, NativeBattleEffectArena vertexScratch, NativeBattleModelGeometrySource geometrySource, ImmutableArray<NativeBattlePackedMatrix32> bones, NativeBattlePackedMatrix32 camera, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls, uint scratchAddress, int scratchLength, int tableBaseBucket = 17, byte depthShift = 2, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    public static NativeBattleAdditional181ModelStep DrawBody(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary128, NativeBattleEffectArena vertexScratch, NativeBattleModelGeometrySource geometrySource, ImmutableArray<NativeBattlePackedMatrix32> bones, NativeBattlePackedMatrix32 camera, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls, uint scratchAddress, int scratchLength, int tableBaseBucket = 17, byte depthShift = 2, NativeBattlePilotVisualIdentity? pilotIdentity = null, NativeBattleModelTextureOwner? material = null)
     {
         if (scratchLength < 0 || depthShift > 31 || U32(temporary128, 4) != scratchAddress)
         {
@@ -90,6 +90,10 @@ public static partial class NativeBattleAdditional181ModelDrawing
                     {
                         var depths = primitive.VertexPayload4;
                         attempt = attempt with { Primitive = primitive with { PilotGeometry = geometry with { SourceDepths = new(depths[0], depths[1], depths[2], depths[3]), UseSourceDepths = true } } };
+                    }
+                    if (attempt.Primitive is { } basePrimitive && material is not null)
+                    {
+                        attempt = attempt with { Primitive = basePrimitive with { ModelTextureOwner = material } };
                     }
                     attempts.Add(attempt);
                     if (attempt.Primitive is not null)

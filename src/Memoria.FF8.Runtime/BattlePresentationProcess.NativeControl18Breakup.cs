@@ -16,6 +16,7 @@ public sealed partial class BattlePresentationProcess
         visualIdentity = visualIdentity with { ModelOwner = actorIndex };
         NativeBattleGraphicsModel actor = graphics.ActorModels.Get(actorIndex);
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actorIndex);
+        NativeBattleModelTextureOwner? actorMaterial = SelectNativeModelMaterial(graphics, actorIndex);
         NativeBattlePoseSource pose = resource.PoseSource ?? throw new NotSupportedException("Native breakup drawing requires its current body rig.");
         NativeBattleModelCpuResources cpu = NativeModelCpuResources ?? throw new NotSupportedException("Native breakup drawing requires its physical CPU resources.");
         NativeBattleFileStaging staging = NativeFileStaging ?? throw new NotSupportedException("Native breakup drawing requires its current shared staging owner.");
@@ -387,7 +388,7 @@ public sealed partial class BattlePresentationProcess
         void Append(NativeBattleGfGeometryBatch batch)
         {
             uint output = CoreDword(frame, manager + 0x7C);
-            var appended = AppendNativeCinematicPackets(frame, output, null, NativeBattleCinematicActorPresentation.NativeDepths(batch), graphics);
+            var appended = AppendNativeCinematicPackets(frame, output, null, BindNativeModelMaterial(NativeBattleCinematicActorPresentation.NativeDepths(batch), actorMaterial), graphics);
             frame = WriteCoreDword(appended.Frame, manager + 0x7C, unchecked(output + (uint)batch.AllocationBytes));
             graphics = appended.Graphics;
         }

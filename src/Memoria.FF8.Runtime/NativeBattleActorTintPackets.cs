@@ -6,7 +6,7 @@ namespace Memoria.FF8.Runtime;
 /// <summary>Shared plain actor faces followed by a per-corner radial tint at the adjacent ordering bucket.</summary>
 public static class NativeBattleActorTintPackets
 {
-    public static NativeBattleGfGeometryBatch Emit(ImmutableArray<NativeBattleRawPolygon> polygons, ImmutableArray<byte> worldVertices, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, uint modelColor, uint tint, NativeBattleSummonColors colors, Func<IReadOnlyList<NativeBattleVector>, short[], bool> writeFactors, short zsf3 = 0x155, short zsf4 = 0x100, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    public static NativeBattleGfGeometryBatch Emit(ImmutableArray<NativeBattleRawPolygon> polygons, ImmutableArray<byte> worldVertices, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, uint modelColor, uint tint, NativeBattleSummonColors colors, Func<IReadOnlyList<NativeBattleVector>, short[], bool> writeFactors, short zsf3 = 0x155, short zsf4 = 0x100, NativeBattlePilotVisualIdentity? pilotIdentity = null, NativeBattleModelTextureOwner? material = null)
     {
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         int allocated = 0;
@@ -64,7 +64,8 @@ public static class NativeBattleActorTintPackets
             uint average = unchecked((uint)projected.Sum(corner => (int)corner.Depth) * unchecked((uint)(polygon.Quad ? zsf4 : zsf3))) >> 12;
             int bucket = checked(17 + (int)(average >> 2));
             ImmutableArray<int> depths = polygon.Quad ? projected.Select(corner => (int)corner.Depth).ToImmutableArray() : [projected[0].Depth, projected[1].Depth, projected[2].Depth, 0];
-            attempts.Add(packet.Attempt(Capture(new(bucket, packet.Words(), depths), 0)));
+            NativeBattleGeometryPrimitive body = new(bucket, packet.Words(), depths) { ModelTextureOwner = material };
+            attempts.Add(packet.Attempt(Capture(body, 0)));
             allocated += length;
             bool near = writeFactors(positions, ratios);
             if (!near)

@@ -426,7 +426,7 @@ public sealed partial class BattlePresentationProcess
             ImmutableArray<NativeBattleRawMesh> body = resource.Geometry!.Value;
             ImmutableArray<NativeBattleRawMesh> linked = resource.LinkedGeometry!.Value;
             bool shared = !linked.IsEmpty && (resource.LinkedGeometryUsesBodySkeleton ?? throw new NotSupportedException("Native Bad Breath requires linked skeleton ownership."));
-            NativeBattleModelTextureOwner? actorMaterial = PrepareActorSurfaceMaterials(graphics, actorIndex, resource);
+            NativeBattleModelTextureOwner? actorMaterial = PrepareNativeActorMaterials(graphics, actorIndex, resource);
             for (int index = 0; index < body.Length; index++)
             {
                 if ((actor.SequenceState!.MeshMask124 & (1u << (index & 31))) != 0)

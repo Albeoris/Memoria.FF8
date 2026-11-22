@@ -12,13 +12,16 @@ public sealed class NativeBattleBlizzagaModelBandTests
         BinaryPrimitives.WriteUInt16LittleEndian(source.AsSpan(10), 0x3D14);
         BinaryPrimitives.WriteUInt16LittleEndian(source.AsSpan(14), 0xBA);
         NativeBattleProjectedVertex[] vertices = Vertices();
-        NativeBattleGeometryPrimitive body = NativeBattleBlizzagaModelBand.EmitPolygon(source.ToImmutableArray(), false, vertices, 0x808080)!;
+        NativeBattleModelTextureOwner material = new("party-0");
+        NativeBattleGeometryPrimitive body = NativeBattleBlizzagaModelBand.EmitPolygon(source.ToImmutableArray(), false, vertices, 0x808080, material)!;
         vertices[0] = vertices[0] with { DepthAndClip = vertices[0].DepthAndClip | 0x1000000 };
-        NativeBattleGeometryPrimitive band = NativeBattleBlizzagaModelBand.EmitPolygon(source.ToImmutableArray(), false, vertices, 0x808080)!;
+        NativeBattleGeometryPrimitive band = NativeBattleBlizzagaModelBand.EmitPolygon(source.ToImmutableArray(), false, vertices, 0x808080, material)!;
         Assert.Equal(body.Words, band.Words);
         Assert.Equal(body.VertexPayload4, band.VertexPayload4);
         Assert.True(body.UsesModelMaterial);
         Assert.False(band.UsesModelMaterial);
+        Assert.Equal(material, body.ModelTextureOwner);
+        Assert.Null(band.ModelTextureOwner);
     }
 
     [Theory]

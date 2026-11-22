@@ -7,6 +7,7 @@ public sealed partial class BattlePresentationProcess
     private (NativeBattleGraphicsState Graphics, NativeBattleEffect70Frame Frame) DrawNativeEffect70Actor(NativeBattleGraphicsState graphics, NativeBattleEffect70Frame frame, NativeBattleEffect70DrawActor693170 draw, NativeBattleSummonColors colors, Func<NativeBattleEffect70Frame, NativeBattleGfGeometryBatch, NativeBattleEffect70Frame> deliver)
     {
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, draw.Actor);
+        NativeBattleModelTextureOwner? material = SelectNativeModelMaterial(graphics, draw.Actor, frame.Memory.Textures);
         NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Effect70 body requires its current skeleton.");
         NativeBattleGraphicsModel model = graphics.ActorModels.Get(draw.Actor);
         NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Effect70 body requires its current camera.");
@@ -50,7 +51,7 @@ public sealed partial class BattlePresentationProcess
             temporary = NativeBattleModelContext44.CopyContext(drawn.Context44, 0, temporary, 0x30);
             frame = frame with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(frame.Staging!, scratchAddress, drawn.ProjectedScratch, scratchLength) };
             frame = frame with { Staging = NativeBattleModelContext44.PublishTemporary(frame.Staging!, temporaryAddress, temporary) };
-            frame = deliver(frame, drawn.Batch);
+            frame = deliver(frame, BindNativeModelMaterial(drawn.Batch, material));
         }
 
         void Restore(bool linked)

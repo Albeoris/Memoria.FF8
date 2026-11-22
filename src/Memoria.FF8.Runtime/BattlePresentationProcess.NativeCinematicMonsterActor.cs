@@ -20,6 +20,7 @@ public sealed partial class BattlePresentationProcess
         uint header = CoreDword(frame, 0x279744C);
         NativeBattleModelAliases aliases = graphics.NativeBindings.CaptureAliases(graphics.ActorModels);
         bool embedded = !glow && (clone == 0 ? (Word(payload) & 1) != 0 : (Word(SlotDword(0xC0) + 2) & 1) != 0);
+        NativeBattleModelTextureOwner? actorMaterial = embedded ? null : SelectNativeModelMaterial(graphics, actorIndex);
         if (clone == 0)
         {
             if (!glow)
@@ -202,7 +203,7 @@ public sealed partial class BattlePresentationProcess
                 batch = NativeBattleCinematicMonsterPackets.Pack(NativeBattleRawGeometryPackets.EmitProjected5099D0(item.Mesh.Polygons, projected, Dword(clone + 0x5C), OtBucket(frame.ReadTemporaryDword(0x14C)), 4, unchecked((short)Word(clone + 0x64)), null, this.resources.NativeGraphics!.Rules.SummonColors, pilotWorldVertices: worldVertices, pilotIdentity: meshIdentity));
             }
             uint output = CoreDword(frame, manager + 0x7C);
-            var written = AppendNativeCinematicPackets(frame, output, null, NativeBattleCinematicActorPresentation.NativeDepths(batch), graphics);
+            var written = AppendNativeCinematicPackets(frame, output, null, BindNativeModelMaterial(NativeBattleCinematicActorPresentation.NativeDepths(batch), actorMaterial), graphics);
             frame = WriteCoreDword(written.Frame, manager + 0x7C, unchecked(output + (uint)batch.AllocationBytes));
             graphics = written.Graphics;
             drawn++;

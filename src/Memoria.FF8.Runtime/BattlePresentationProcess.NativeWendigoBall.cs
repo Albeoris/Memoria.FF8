@@ -14,6 +14,7 @@ public sealed partial class BattlePresentationProcess
         }
         NativeBattleGraphicsModel actor = graphics.ActorModels.Get(index);
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
+        NativeBattleModelTextureOwner? material = SelectNativeModelMaterial(graphics, index);
         NativeBattlePoseSource pose = resource.PoseSource ?? throw new NotSupportedException("Native ball renderer requires its original body rig.");
         NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native ball renderer requires its published camera.");
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native ball renderer requires its published view matrix.");
@@ -85,7 +86,8 @@ public sealed partial class BattlePresentationProcess
                 }
                 NativeBattleModelTextureBinding texture = linkedGeometry || resource.LinkedGeometryUsesBodySkeleton == true && meshIndex == 1 ? actor.LinkedTextureSlots! : actor.BodyTextureSlots!;
                 ImmutableArray<NativeBattleRawPolygon> polygons = alreadyRelocated ? mesh.Polygons : mesh.Polygons.Select(polygon => polygon with { Bytes = NativeBattleRawGeometryPackets.Relocate507550(polygon, texture) }).ToImmutableArray();
-                Append(NativeBattleWendigoBallGeometry.Packets(polygons, projected.ToImmutable(), actor.Color40!.Value, worldVertices, pilotIdentity is { } identity ? identity with { Primitive = (linkedGeometry ? 0x10000 : 0) + meshIndex } : null));
+                NativeBattleGfGeometryBatch batch = NativeBattleWendigoBallGeometry.Packets(polygons, projected.ToImmutable(), actor.Color40!.Value, worldVertices, pilotIdentity is { } identity ? identity with { Primitive = (linkedGeometry ? 0x10000 : 0) + meshIndex } : null);
+                Append(BindNativeModelMaterial(batch, material));
             }
         }
 

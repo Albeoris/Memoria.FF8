@@ -14,6 +14,7 @@ public sealed partial class BattlePresentationProcess
         }
         NativeBattleGraphicsModel actor = graphics.ActorModels.Get(index);
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
+        NativeBattleModelTextureOwner? material = SelectNativeModelMaterial(graphics, index, current.Memory.Textures);
         NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Raldo ball requires its current original body rig.");
         NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Raldo ball requires its current camera.");
         NativeBattleCameraProjection projection = camera.Projection ?? throw new NotSupportedException("Raldo ball requires its published projection.");
@@ -54,7 +55,7 @@ public sealed partial class BattlePresentationProcess
             Release(address, drawn.TemporaryA8, 0xA8);
             registers = drawn.Registers;
             current = current with { State = current.State with { VertexScratch = drawn.VertexScratch }, Memory = current.Memory with { ScriptedLighting = drawn.Lighting } };
-            Append(drawn.Batch);
+            Append(BindNativeModelMaterial(drawn.Batch, material));
         }
 
         void Shadow()

@@ -14,6 +14,7 @@ public sealed partial class BattlePresentationProcess
             return (AppendNativePrimitivePackets(graphics, batch.Primitives), batch.Minimum, batch.Maximum);
         }
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, owner);
+        NativeBattleModelTextureOwner? material = SelectNativeModelMaterial(graphics, owner);
         NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native Blizzaga requires its published projection.");
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native Blizzaga requires its retained view matrix.");
         graphics = SubmitNativeShadowPackets5088A0(graphics, owner, model, projection, 4112, false);
@@ -57,7 +58,7 @@ public sealed partial class BattlePresentationProcess
 
         void Submit(NativeBattleRawMesh mesh, ImmutableArray<NativeBattleActionMatrix> bones, NativeBattleModelTextureBinding? binding, int meshIdentity)
         {
-            NativeBattleBlizzagaModelBandResult batch = NativeBattleBlizzagaModelBand.Emit6D8D80([mesh], bones, projection, color, 1, low, high, binding, minimum, maximum, NativePilotModelIdentity(0x6D8D80, owner, meshIdentity));
+            NativeBattleBlizzagaModelBandResult batch = NativeBattleBlizzagaModelBand.Emit6D8D80([mesh], bones, projection, color, 1, low, high, binding, minimum, maximum, NativePilotModelIdentity(0x6D8D80, owner, meshIdentity), material);
             minimum = batch.Minimum;
             maximum = batch.Maximum;
             graphics = AppendNativePrimitivePackets(graphics, batch.Primitives);

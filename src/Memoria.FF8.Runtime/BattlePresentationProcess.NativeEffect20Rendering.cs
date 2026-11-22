@@ -103,6 +103,7 @@ public sealed partial class BattlePresentationProcess
             }
             var cpu = NativeModelCpuResources ?? throw new NotSupportedException("Effect20 body requires its actual CPU resource bank.");
             NativeBattleResourcePointer pointer = GeometryPointer().Pin(cpu);
+            NativeBattleModelTextureOwner? material = SelectNativeModelMaterial(graphics, index, pointer, current.Memory.Textures);
             NativeBattleModelGeometrySource geometry = NativeBattleModelGeometrySource.Open(cpu, NativeFileStaging!, pointer, Read);
             Dictionary<int, (ImmutableArray<ushort> Counts, int First, int End)> metadata = [];
             ImmutableArray<NativeBattleRawMesh> meshes = NativeBattleRawGeometryReader.Read(geometry.Read, source.BoneCount, (mesh, counts, first, end) => metadata.Add(mesh, (counts, first, end)));
@@ -141,7 +142,7 @@ public sealed partial class BattlePresentationProcess
                     NativeFileStaging = NativeFileStaging.Write(scratch, drawn.ProjectedScratch.AsSpan().Slice(0, drawn.ProjectedBytesWritten));
                 }
                 NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Effect20 body requires its ordering table.");
-                NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(current.Memory.PrimitiveProcess!, primitive.Pending, drawn.Packets);
+                NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(current.Memory.PrimitiveProcess!, primitive.Pending, BindNativeModelMaterial(drawn.Packets, material));
                 graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
                 current = current with { Memory = current.Memory with { PrimitiveProcess = written.Process.PublishModelSource50FDF0(NativeEffect20CommonAddress(written.Process), geometry.Cursor(data.End)) } };
             }

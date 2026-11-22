@@ -16,8 +16,23 @@ public sealed partial class BattlePresentationProcess
         uint scratchAddress = checked(0x196B018u - (uint)scratchLength);
         NativeBattleFileStaging staging = frame.Staging ?? throw new NotSupportedException("Poison Gas171 target requires its addressed temporary owner.");
         NativeBattleEffectArena primitiveFlags = NativePoisonGas171View(staging, 0x1D969A8, 4);
-        bool linked = graphics.ActorModels.Get(actor).LinkedTransform is not null;
-        NativeBattlePoisonGas171ModelFrame body = new(frame.Memory, staging, graphics.ActorModels.Get(actor), NativePoisonGas171View(staging, temporaryAddress, 176));
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
+        bool linked = model.LinkedTransform is not null;
+        NativeBattleResourcePointer? bodyGeometry = null;
+        NativeBattleResourcePointer? linkedGeometry = null;
+        NativeBattleModelTextureOwner? bodyMaterial = null;
+        NativeBattleModelTextureOwner? linkedMaterial = null;
+        if (frame.Memory.Textures is { PresentationTextures: not null } textures)
+        {
+            bodyGeometry = NativeDeformedGeometryPointer(model, frame.Memory, frame.Effect, staging, false);
+            bodyMaterial = SelectNativeModelMaterial(graphics, actor, bodyGeometry, textures);
+            if (linked && (model.Flags0 & 0x200) == 0)
+            {
+                linkedGeometry = NativeDeformedGeometryPointer(model, frame.Memory, frame.Effect, staging, true);
+                linkedMaterial = SelectNativeModelMaterial(graphics, actor, linkedGeometry, textures);
+            }
+        }
+        NativeBattlePoisonGas171ModelFrame body = new(frame.Memory, staging, model, NativePoisonGas171View(staging, temporaryAddress, 176));
         NativeBattlePoisonGas171ModelServices services = new(Shadow, Compose, DrawBody, Restore, DrawLinked);
         body = NativeBattlePoisonGas171ModelDrawing.DrawOuter(body, packedCamera, scratchAddress, primitiveFlags, linked, services);
         graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, body.Model) };
@@ -36,7 +51,7 @@ public sealed partial class BattlePresentationProcess
 
         NativeBattlePoisonGas171ModelFrame DrawBody(NativeBattlePoisonGas171ModelFrame current)
         {
-            NativeBattleResourcePointer pointer = NativeDeformedGeometryPointer(Bridge(current), false);
+            NativeBattleResourcePointer pointer = bodyGeometry ?? NativeDeformedGeometryPointer(Bridge(current), false);
             return DrawSource(current, pointer, NativeBattleBodyBoneMatrices.Require(current.Model, source));
         }
 
@@ -57,7 +72,7 @@ public sealed partial class BattlePresentationProcess
             NativeBattleActionMatrix world = new NativeBattlePackedMatrix32(matrixBytes.ToImmutableArray(), matrixKnown.ToImmutableArray()).ReadMatrix();
             ImmutableArray<NativeBattleActionMatrix> composed = NativeBattlePoseMatrices.ComposeStageCamera(local.Matrices, world, 0);
             current = current with { Model = current.Model with { CurrentLinkedBoneMatrices = local with { Matrices = composed } } };
-            current = DrawLinkedSource(current, NativeDeformedGeometryPointer(Bridge(current), true), composed, linkedSource.BoneCount);
+            current = DrawLinkedSource(current, linkedGeometry ?? NativeDeformedGeometryPointer(Bridge(current), true), composed, linkedSource.BoneCount);
             NativeBattleSequenceState sequence = current.Model.SequenceState ?? throw new NotSupportedException("Poison Gas171 linked target requires its decoded pose.");
             NativeBattleDecodedPose decoded = NativeBattlePoseMatrices.ReadLinkedDecodedPose(sequence, linkedSource);
             ImmutableArray<NativeBattleActionMatrix> restored = NativeBattlePoseMatrices.StageBoneMatrices(linkedSource, decoded);
@@ -72,7 +87,7 @@ public sealed partial class BattlePresentationProcess
             NativeBattleModelGeometrySource geometrySource = NativeBattleModelGeometrySource.Open(cpu, current.Staging, pointer, Read);
             ImmutableArray<NativeBattlePackedMatrix32> bones = matrices.Select(matrix => NativeBattlePackedMatrix32.FromMatrix(matrix, null)).ToImmutableArray();
             NativeBattleEffectArena scratch = NativePoisonGas171View(current.Staging, scratchAddress, scratchLength);
-            NativeBattlePoisonGas171ModelStep drawn = NativeBattlePoisonGas171ModelDrawing.DrawBody(current.Memory, current.Temporary176, scratch, geometrySource, bones, packedCamera, projection, current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Poison Gas171 target requires its current depth controls."), scratchAddress, scratchLength, pilotIdentity: pilotIdentity is { } bodyIdentity ? bodyIdentity with { ResourceGeneration = geometrySource.PresentationIdentity } : null);
+            NativeBattlePoisonGas171ModelStep drawn = NativeBattlePoisonGas171ModelDrawing.DrawBody(current.Memory, current.Temporary176, scratch, geometrySource, bones, packedCamera, projection, current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Poison Gas171 target requires its current depth controls."), scratchAddress, scratchLength, pilotIdentity: pilotIdentity is { } bodyIdentity ? bodyIdentity with { ResourceGeneration = geometrySource.PresentationIdentity } : null, material: bodyMaterial);
             current = current with { Memory = drawn.Memory, Temporary176 = drawn.Temporary176, Staging = NativeBattleTemporaryMemory.PublishView(current.Staging, scratchAddress, drawn.VertexScratch, scratchLength) };
             current = current with { Staging = NativeBattleTemporaryMemory.PublishResourceView(current.Staging, temporaryAddress, current.Temporary176, 176) };
             return AppendCommon(current, drawn.Batch);
@@ -104,7 +119,7 @@ public sealed partial class BattlePresentationProcess
             {
                 current = current with { Staging = current.Staging.Write(scratchAddress, drawn.ProjectedScratch.AsSpan().Slice(0, drawn.ProjectedBytesWritten)) };
             }
-            current = AppendCommon(current with { Memory = current.Memory with { PrimitiveProcess = process } }, drawn.Packets);
+            current = AppendCommon(current with { Memory = current.Memory with { PrimitiveProcess = process } }, BindNativeModelMaterial(drawn.Packets, linkedMaterial));
             process = current.Memory.PrimitiveProcess!;
             uint bank = process.PacketBank switch { "off_B6D070" => 0x1901018u, "off_B6D094" => 0x199B018u, _ => throw new NotSupportedException("Poison Gas171 linked body requires its actual COMMON packet bank.") };
             uint cursor = checked(bank + (uint)process.PacketBuffer * (uint)process.CommonPacketNominalCapacity + (uint)(process.ByteCursor ?? throw new NotSupportedException("Poison Gas171 linked body requires its current COMMON cursor.")));

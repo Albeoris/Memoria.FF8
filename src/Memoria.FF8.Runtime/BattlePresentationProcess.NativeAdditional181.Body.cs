@@ -7,6 +7,7 @@ public sealed partial class BattlePresentationProcess
     private (NativeBattleAdditional181Frame Frame, NativeBattleGraphicsState Graphics) DrawNativeAdditional181Body(NativeBattleAdditional181Frame frame, NativeBattleGraphicsState graphics, BattleModelOwner actor, uint temporaryAddress, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actor);
+        NativeBattleModelTextureOwner? material = SelectNativeModelMaterial(graphics, actor, frame.Memory.Textures);
         NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Additional effect181 target requires its current skeleton.");
         NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Additional effect181 target requires its current camera.");
         NativeBattleCameraProjection projection = camera.Projection ?? throw new NotSupportedException("Additional effect181 target requires its published projection.");
@@ -72,7 +73,7 @@ public sealed partial class BattlePresentationProcess
             NativeBattleModelGeometrySource geometrySource = NativeBattleModelGeometrySource.Open(cpu, current.Staging, pointer, Read);
             ImmutableArray<NativeBattlePackedMatrix32> bones = matrices.Select(matrix => NativeBattlePackedMatrix32.FromMatrix(matrix, null)).ToImmutableArray();
             NativeBattleEffectArena scratch = NativeAdditional181View(current.Staging, scratchAddress, scratchLength);
-            NativeBattleAdditional181ModelStep drawn = NativeBattleAdditional181ModelDrawing.DrawBody(current.Memory, current.Temporary128, scratch, geometrySource, bones, packedCamera, projection, current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Additional effect181 target requires its current depth controls."), scratchAddress, scratchLength, pilotIdentity: pilotIdentity is { } bodyIdentity ? bodyIdentity with { ResourceGeneration = geometrySource.PresentationIdentity } : null);
+            NativeBattleAdditional181ModelStep drawn = NativeBattleAdditional181ModelDrawing.DrawBody(current.Memory, current.Temporary128, scratch, geometrySource, bones, packedCamera, projection, current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Additional effect181 target requires its current depth controls."), scratchAddress, scratchLength, pilotIdentity: pilotIdentity is { } bodyIdentity ? bodyIdentity with { ResourceGeneration = geometrySource.PresentationIdentity } : null, material: material);
             current = current with { Memory = drawn.Memory, Temporary128 = drawn.Temporary128, Staging = NativeBattleTemporaryMemory.PublishView(current.Staging, scratchAddress, drawn.VertexScratch, scratchLength) };
             current = current with { Staging = NativeBattleTemporaryMemory.PublishResourceView(current.Staging, temporaryAddress, current.Temporary128, 128) };
             return AppendCommon(current, drawn.Batch);

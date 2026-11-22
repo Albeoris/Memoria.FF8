@@ -15,6 +15,7 @@ public sealed partial class BattlePresentationProcess
             ? NativeBattleCinematicActorAccess.ReadSlotActor(frame)
             : frame.Arena.ReadExecutionReference<BattleExecutionReference.Model>(ArenaOffset(existing + 0xC, 4), 4).Owner;
         NativeBattleGraphicsModel actor = graphics.ActorModels.Get(actorIndex);
+        NativeBattleModelTextureOwner? actorMaterial = SelectNativeModelMaterial(graphics, actorIndex);
         NativeBattleResourcePointer[]? fields = null;
         NativeBattleCinematicModelServices modelServices = new((_, _) => throw new NotSupportedException("Native actor animation uses its copied physical resource row, not an embedded shape."), (_, address) =>
         {
@@ -156,7 +157,7 @@ public sealed partial class BattlePresentationProcess
                 }
                 current = current with { Arena = geometry.WriteCursor(current.Arena, ArenaOffset(clone + 0x40, 4), lastPayload).Write(ArenaOffset(clone + 0x48, 8), counts) };
             }
-            var written = AppendNativeCinematicPackets(current, output, null, draw.Packets, graphics);
+            var written = AppendNativeCinematicPackets(current, output, null, BindNativeModelMaterial(draw.Packets, actorMaterial), graphics);
             graphics = written.Graphics;
             uint cursor = unchecked(output + (uint)draw.Packets.AllocationBytes);
             if (!lastCounts.IsDefault)

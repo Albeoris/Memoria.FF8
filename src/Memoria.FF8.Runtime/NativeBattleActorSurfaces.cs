@@ -46,17 +46,21 @@ public sealed partial record NativeBattleGraphicsResource
 
 public sealed partial class BattlePresentationProcess
 {
-    private NativeBattleModelTextureOwner? PrepareActorSurfaceMaterials(NativeBattleGraphicsState graphics, BattleModelOwner owner, NativeBattleGraphicsResource resource)
+    private NativeBattleModelTextureOwner? PrepareNativeActorMaterials(NativeBattleGraphicsState graphics, BattleModelOwner owner, NativeBattleGraphicsResource resource)
     {
-        if (resource.ActorSurfaces.IsDefaultOrEmpty)
+        NativeBattleModelTextureOwner? material = SelectNativeModelMaterial(graphics, owner);
+        if (!resource.ActorSurfaces.IsDefaultOrEmpty)
         {
-            return null;
+            if (material is null)
+            {
+                throw new NotSupportedException("Actor surfaces require their actor's native presentation material namespace.");
+            }
+            foreach (NativeBattleActorSurface surface in resource.ActorSurfaces)
+            {
+                _ = PrepareActorSurfaceMaterial(owner, surface);
+            }
         }
-        foreach (NativeBattleActorSurface surface in resource.ActorSurfaces)
-        {
-            _ = PrepareActorSurfaceMaterial(owner, surface);
-        }
-        return SelectNativeModelMaterial(graphics, owner) ?? throw new NotSupportedException("Actor surfaces require their actor's native presentation material namespace.");
+        return material;
     }
 
     private (NativeBattleModelTextureBinding Binding, NativeBattleModelTextureOwner Material) PrepareActorSurfaceMaterial(BattleModelOwner owner, NativeBattleActorSurface surface)

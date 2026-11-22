@@ -17,6 +17,7 @@ public sealed partial class BattlePresentationProcess
         BattleModelOwner actorIndex = NativeBattleCinematicActorAccess.ReadSlotActor(frame);
         NativeBattleModelAliases aliases = graphics.NativeBindings.CaptureAliases(graphics.ActorModels);
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actorIndex);
+        NativeBattleModelTextureOwner? actorMaterial = SelectNativeModelMaterial(graphics, actorIndex);
         NativeBattlePoseSource pose = resource.PoseSource ?? throw new NotSupportedException("Native actor glow requires its current physical rig.");
         NativeBattleResourcePointer[] fields = Enumerable.Range(0, 4).Select(ReadResource).ToArray();
         NativeBattleResourcePointer skeleton = fields[0];
@@ -124,7 +125,8 @@ public sealed partial class BattlePresentationProcess
                 return new NativeBattleProjectedVertex(Dword(address), Dword(address + 4));
             }).ToArray();
             NativeBattleCinematicVertexColors colors = NativeBattleCinematicActorVertexColor20.ReadObjectColors(frame, state, colorBase, objectIndex, mesh.Vertices.Length);
-            Append(NativeBattleCinematicMonsterPackets.Glow(mesh, projected, colors.Colors, OtBucket(frame.ReadTemporaryDword(0x14C)), colors.HighKnown, worldVertices, NativeBattleCinematicActorPresentation.Object(visualIdentity, clone, objectIndex, false, geometrySource.PresentationIdentity)));
+            NativeBattleGfGeometryBatch batch = NativeBattleCinematicMonsterPackets.Glow(mesh, projected, colors.Colors, OtBucket(frame.ReadTemporaryDword(0x14C)), colors.HighKnown, worldVertices, NativeBattleCinematicActorPresentation.Object(visualIdentity, clone, objectIndex, false, geometrySource.PresentationIdentity));
+            Append(BindNativeModelMaterial(batch, actorMaterial));
         }
         Shadow();
         NativeModelCpuResources = cpu;

@@ -79,9 +79,12 @@ public sealed class NativeBattleRemainingStatusPresentationTests
             return true;
         }
         NativeBattleGfGeometryBatch plain = NativeBattleActorTintPackets.Emit(polygons, vertices.ToImmutableArray(), view, projection, 0x808080, 0x08B0A0, colors, Factors);
-        NativeBattleGfGeometryBatch captured = NativeBattleActorTintPackets.Emit(polygons, vertices.ToImmutableArray(), view, projection, 0x808080, 0x08B0A0, colors, Factors, pilotIdentity: new(145, 0x24AAAC0, 3, 7, 32));
+        NativeBattleModelTextureOwner material = new("party-0");
+        NativeBattleGfGeometryBatch captured = NativeBattleActorTintPackets.Emit(polygons, vertices.ToImmutableArray(), view, projection, 0x808080, 0x08B0A0, colors, Factors, pilotIdentity: new(145, 0x24AAAC0, 3, 7, 32), material: material);
         Assert.Equal(2, captured.Attempts.Length);
         AssertPacketParity(plain, captured);
+        Assert.Equal(material, captured.Attempts[0].Primitive!.ModelTextureOwner);
+        Assert.Null(captured.Attempts[1].Primitive!.ModelTextureOwner);
         NativeBattlePilotVisualGeometry first = captured.Attempts[0].Primitive!.PilotGeometry!;
         NativeBattlePilotVisualGeometry tint = captured.Attempts[1].Primitive!.PilotGeometry!;
         Assert.Equal(new Vector3(100, 0, 0), first.B);

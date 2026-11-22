@@ -10,6 +10,7 @@ public sealed partial class BattlePresentationProcess
     {
         NativeBattleGraphicsState currentGraphics = graphics;
         BattleModelOwner actor = operation.Model;
+        NativeBattleModelTextureOwner? material = SelectNativeModelMaterial(graphics, actor, frame.Memory.Textures);
         NativeFileStaging = frame.Staging ?? throw new NotSupportedException("Effect308 requires its current addressed memory.");
         NativeBattlePoseSource source = inputs.ReadPoseSource(operation.Model);
         NativeBattleEffectArena offsets = ReadBytes(frame, operation.OffsetRowsAddress, checked(source.BoneCount * 16));
@@ -47,7 +48,7 @@ public sealed partial class BattlePresentationProcess
             NativeBattleEffect298BodyStep drawn = NativeBattleEffect298BodyDrawing.DrawBody(selected.Memory, selected.Temporary152, scratch, geometry, bones, offsets, inputs.ReadProjection(current), selected.Memory.ScriptedGraphics ?? throw new NotSupportedException("Effect308 requires its current projection controls."), scratchAddress, scratchLength, 17, 0, operation.PilotIdentity);
             NativeBattleFileStaging staged = NativeBattleTemporaryMemory.PublishView(selected.Staging, scratchAddress, drawn.VertexScratch, scratchLength);
             staged = NativeBattleOffsetBodyContextMemory.Publish(staged, allocation.Address, drawn.Temporary152, 152);
-            NativeBattleEffect308Frame delivered = DeliverNativeEffect308Batch(ref currentGraphics, current with { Memory = drawn.Memory, Staging = staged }, drawn.Batch, 0x1D8E054);
+            NativeBattleEffect308Frame delivered = DeliverNativeEffect308Batch(ref currentGraphics, current with { Memory = drawn.Memory, Staging = staged }, BindNativeModelMaterial(drawn.Batch, material), 0x1D8E054);
             frame = frame with { Effect = delivered.Effect };
             return selected with { Memory = delivered.Memory, Staging = delivered.Staging!, Temporary152 = drawn.Temporary152 };
         }

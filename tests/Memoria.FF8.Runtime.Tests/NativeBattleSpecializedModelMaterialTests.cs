@@ -10,6 +10,9 @@ public sealed class NativeBattleSpecializedModelMaterialTests
     private const string Group = "SubmitNativeModelGroup50F190";
     private const string Pandemona = "DrawNativePandemona291Actor";
     private const string Diablos = "DrawNativeDiablosRecipient657CB0";
+    private const string Bomb = "DrawNativeBombActor";
+    private const string Break = "DrawNativeBreak117Body";
+    private const string PoisonGas = "DrawNativePoisonGas171Body";
     private static readonly BindingFlags PrivateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
     private static readonly NativeBattleActionMatrix Identity = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096);
     private static readonly NativeBattleVector UnitScale = new(4096, 4096, 4096);
@@ -41,6 +44,93 @@ public sealed class NativeBattleSpecializedModelMaterialTests
         NativeBattleLogicalCommand[] shadows = commands.Where(command => command.Opcode is 0x32 or 0xE1).ToArray();
         Assert.Equal(method == Group ? 0 : 10, shadows.Length);
         Assert.All(shadows, command => Assert.Null(command.ModelTextureOwner));
+    }
+
+    [Theory]
+    [InlineData(true, true, "hosted")]
+    [InlineData(true, false, "hosted")]
+    [InlineData(false, true, "hosted")]
+    [InlineData(false, false, "hosted")]
+    [InlineData(true, false, "legacy")]
+    [InlineData(false, false, "legacy")]
+    public void Bomb_actor_texture_is_bound_only_to_the_original_body_and_linked_passes(bool scrolling, bool shared, string ownership)
+    {
+        var (session, graphics, _) = Fixture(ownership, shared);
+        BattleModelOwner actor = session.ReadPresentationModelOwner("selected");
+        graphics = (NativeBattleGraphicsState)Invoke(Bomb, session, graphics, actor, 0x123456u, 72, scrolling, null, null);
+
+        NativeBattleOrderingList<NativeBattleLogicalPacket> packets = graphics.PrimitiveFrame!.Pending.Packets;
+        NativeBattleLogicalPacket[] originals = packets.Where(packet => packet.Words[1] >> 24 == 0x24).ToArray();
+        Assert.Equal(new[] { 0x80u, 0x81u }, originals.Select(packet => packet.Words[5] >> 16).Order().ToArray());
+        Assert.All(originals, packet => Assert.Equal(ownership == "hosted" ? "selected" : null, packet.ModelTextureOwner?.RequireActorId()));
+        NativeBattleLogicalPacket[] overlays = packets.Where(packet => packet.Words[1] >> 24 == (scrolling ? 0xE2u : 0x22u)).ToArray();
+        Assert.Equal(scrolling && !shared ? 1 : 2, overlays.Length);
+        Assert.All(overlays, overlay =>
+        {
+            Assert.Null(overlay.ModelTextureOwner);
+            if (scrolling)
+            {
+                Assert.Equal(0x3F54u, overlay.Words[4] >> 16);
+                Assert.Equal(0xBAu, overlay.Words[6] >> 16);
+            }
+        });
+        Assert.All(packets.Except(originals), packet => Assert.Null(packet.ModelTextureOwner));
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Break_dither_keeps_the_stone_texture_global_and_binds_the_remaining_actor_texture(bool shared)
+    {
+        var (session, graphics, _) = Fixture("hosted", shared);
+        BattleModelOwner actor = session.ReadPresentationModelOwner("selected");
+        byte[] dither = new byte[512];
+        BinaryPrimitives.WriteUInt16LittleEndian(dither.AsSpan(2), ushort.MaxValue);
+        graphics = (NativeBattleGraphicsState)Invoke(Break, session, graphics, actor, 100, dither.ToImmutableArray(), NativeBattlePilotVisualIdentity.ForModel(117, 0x6C3440, actor));
+
+        NativeBattleLogicalCommand[] draws = Commands(graphics).Where(command => command.Opcode == 0x24).ToArray();
+        Assert.Equal(2, draws.Length);
+        NativeBattleLogicalCommand stone = Assert.Single(draws, command => command.Words[4] >> 16 == 0xB8);
+        Assert.Equal(0x3D54u, stone.Words[2] >> 16);
+        Assert.Null(stone.ModelTextureOwner);
+        NativeBattleLogicalCommand original = Assert.Single(draws, command => command.Words[4] >> 16 == 0x81);
+        Assert.Equal("selected", original.ModelTextureOwner?.RequireActorId());
+    }
+
+    [Fact]
+    public void Poison_Gas_binds_the_actor_body_and_linked_texture_and_keeps_the_compound_overlay_global()
+    {
+        var (session, graphics, _) = Fixture("hosted", shared: false);
+        BattleModelOwner actor = session.ReadPresentationModelOwner("selected");
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor) with { Flags0 = 0x22, Alpha7 = 128, GeometryWorldMatrix = Identity with { Z = 1000 }, ActiveResourceRow100 = 0, LinkedTextureResourceIndex = 1 };
+        model = NativeBattleBodyBoneMatrices.Publish508F60(model, Pose, Pose);
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model) };
+        NativeBattleModelCpuResources cpu = NativeBattleModelCpuResources.FromColdProcess() with { ScratchMaximum = 3 };
+        NativeBattleModelCpuBank bank = cpu.Cpu.GetBank(0);
+        for (int row = 0; row < 2; row++)
+        {
+            byte[] geometry = PackGeometry(Mesh((ushort)(0x80 + row)));
+            bank = bank.Write(row * 128, geometry);
+            NativeBattleModelCpuResourceRow resourceRow = cpu.Rows[row].Set(16, new(0, row * 128));
+            cpu = cpu with { Rows = cpu.Rows.SetItem(row, resourceRow with { Lengths = resourceRow.Lengths.SetItem(16, geometry.Length) }) };
+        }
+        Set(session, nameof(BattlePresentationProcess.NativeModelCpuResources), cpu with { Cpu = cpu.Cpu.WithBank(0, bank) });
+        NativeBattleTemporaryAllocation temporary = NativeBattleTemporaryMemory.Allocate5082B0(NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.FromColdProcess()), 176);
+        uint address = temporary.Address;
+        NativeBattleFileStaging staging = temporary.Staging.Write(0x1D969A8, new byte[4]).Write(address, new byte[176]).Write(address + 0x38, [64, 0, 64, 0]);
+        NativeBattleEffectMemory memory = session.Presentation!.Memory;
+        NativeBattlePoisonGas171Frame frame = new(memory with { ScriptedGraphics = memory.ScriptedGraphics!.InitializeGeom56BAA0() }, Effect(171), new(1), NativeBattlePoisonGas171State.FromColdProcess()) { Staging = staging };
+
+        var (_, drawn) = ((NativeBattlePoisonGas171Frame, NativeBattleGraphicsState))Invoke(PoisonGas, session, frame, graphics, actor, address, null);
+
+        NativeBattleOrderingList<NativeBattleLogicalPacket> packets = drawn.PrimitiveFrame!.Pending.Packets;
+        NativeBattleLogicalPacket[] originals = packets.Where(packet => packet.Words[1] >> 24 == 0x24).ToArray();
+        Assert.Equal(new[] { 0x80u, 0x81u }, originals.Select(packet => packet.Words[5] >> 16).Order().ToArray());
+        Assert.All(originals, packet => Assert.Equal("selected", packet.ModelTextureOwner?.RequireActorId()));
+        NativeBattleLogicalPacket overlay = Assert.Single(packets, packet => packet.Words[1] >> 24 == 0xE2);
+        Assert.Null(overlay.ModelTextureOwner);
+        Assert.Equal(0x3F54u, overlay.Words[4] >> 16);
+        Assert.Equal(0xB9u, overlay.Words[6] >> 16);
     }
 
     [Theory]
@@ -183,6 +273,25 @@ public sealed class NativeBattleSpecializedModelMaterialTests
         BinaryPrimitives.WriteUInt16LittleEndian(polygon.AsSpan(4), 2);
         BinaryPrimitives.WriteUInt16LittleEndian(polygon.AsSpan(14), page);
         return new([new(new(-10, -10, 1000), 0), new(new(10, -10, 1000), 0), new(new(0, 10, 1000), 0)], [new(false, polygon.ToImmutableArray())]);
+    }
+
+    private static byte[] PackGeometry(NativeBattleRawMesh mesh)
+    {
+        byte[] data = new byte[60];
+        BinaryPrimitives.WriteInt32LittleEndian(data, 1);
+        BinaryPrimitives.WriteInt32LittleEndian(data.AsSpan(4), 8);
+        BinaryPrimitives.WriteUInt16LittleEndian(data.AsSpan(8), 1);
+        BinaryPrimitives.WriteUInt16LittleEndian(data.AsSpan(12), checked((ushort)mesh.Vertices.Length));
+        for (int index = 0; index < mesh.Vertices.Length; index++)
+        {
+            NativeBattleVector point = mesh.Vertices[index].Position;
+            BinaryPrimitives.WriteInt16LittleEndian(data.AsSpan(14 + index * 6), point.X);
+            BinaryPrimitives.WriteInt16LittleEndian(data.AsSpan(16 + index * 6), point.Y);
+            BinaryPrimitives.WriteInt16LittleEndian(data.AsSpan(18 + index * 6), point.Z);
+        }
+        BinaryPrimitives.WriteUInt16LittleEndian(data.AsSpan(32), 1);
+        mesh.Polygons[0].Bytes.AsSpan().CopyTo(data.AsSpan(44));
+        return data;
     }
 
     private static NativeBattlePrimitiveTables CreateTables()

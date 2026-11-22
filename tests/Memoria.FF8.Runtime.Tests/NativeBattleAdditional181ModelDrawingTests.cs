@@ -23,13 +23,18 @@ public sealed class NativeBattleAdditional181ModelDrawingTests
     [Fact]
     public void Paired_FT3_F3_and_FT4_F4_use_literal_sizes_screens_UV_and_current_depth_sidecars()
     {
-        var result = Draw(Geometry(true), Context(0), 2000);
+        NativeBattleModelTextureOwner actorMaterial = new("actor-test");
+        var result = Draw(Geometry(true), Context(0), 2000, material: actorMaterial);
         Assert.Equal(116, result.Batch.AllocationBytes);
         Assert.Equal(4, result.Batch.Attempts.Length);
         var tri = result.Batch.Attempts[0].Primitive!;
         var triOverlay = result.Batch.Attempts[1].Primitive!;
         var quad = result.Batch.Attempts[2].Primitive!;
         var quadOverlay = result.Batch.Attempts[3].Primitive!;
+        Assert.Equal(actorMaterial, tri.ModelTextureOwner);
+        Assert.Equal(actorMaterial, quad.ModelTextureOwner);
+        Assert.Null(triOverlay.ModelTextureOwner);
+        Assert.Null(quadOverlay.ModelTextureOwner);
         Assert.Equal(new int[] { 32, 20, 40, 24 }, result.Batch.Attempts.Select(attempt => attempt.PacketLength));
         Assert.Equal(new int[] { 0, 32, 52, 92 }, result.Batch.Attempts.Select(attempt => attempt.ByteOffsetRelative));
         Assert.Equal(0x26112233u, tri.Words[1]);
@@ -200,12 +205,13 @@ public sealed class NativeBattleAdditional181ModelDrawingTests
 
     private static NativeBattleEffectMemory Memory() => NativeBattleEffectMemory.FromColdProcess() with { GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess() with { Zsf3 = 0x155, Zsf4 = 0x100 } };
 
-    private static NativeBattleAdditional181ModelStep Draw(byte[] geometry, NativeBattleEffectArena context, int boneZ, int length = 32, NativeBattleEffectMemory? memory = null, NativeBattleEffectArena? scratch = null, NativeBattlePilotVisualIdentity? pilotIdentity = null, NativeBattleModelGeometrySource? resourceSource = null)
+    private static NativeBattleAdditional181ModelStep Draw(byte[] geometry, NativeBattleEffectArena context, int boneZ, int length = 32, NativeBattleEffectMemory? memory = null, NativeBattleEffectArena? scratch = null, NativeBattlePilotVisualIdentity? pilotIdentity = null, NativeBattleModelGeometrySource? resourceSource = null, NativeBattleModelTextureOwner? material = null)
     {
         memory ??= Memory();
-        if (resourceSource is { } selected)
+        if (resourceSource is not null || material is not null)
         {
-            return NativeBattleAdditional181ModelDrawing.DrawBody(memory, context, scratch ?? NativeBattleEffectArena.Clear().Write(0, Enumerable.Repeat((byte)0xCC, 40).ToArray()), selected, [NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { Z = boneZ }, null)], NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), pilotIdentity.HasValue ? Projection with { View = NativeBattleCuragaMatrices.Identity8DD770() } : Projection, memory.ScriptedGraphics!, 0x196B000, length, pilotIdentity: pilotIdentity);
+            NativeBattleModelGeometrySource selected = resourceSource ?? NativeBattleModelGeometrySource.FromNumeric(0x1000000, (offset, count) => geometry.AsSpan(offset, count).ToArray());
+            return NativeBattleAdditional181ModelDrawing.DrawBody(memory, context, scratch ?? NativeBattleEffectArena.Clear().Write(0, Enumerable.Repeat((byte)0xCC, 40).ToArray()), selected, [NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { Z = boneZ }, null)], NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), pilotIdentity.HasValue ? Projection with { View = NativeBattleCuragaMatrices.Identity8DD770() } : Projection, memory.ScriptedGraphics!, 0x196B000, length, pilotIdentity: pilotIdentity, material: material);
         }
         return NativeBattleAdditional181ModelDrawing.DrawBody(memory, context, scratch ?? NativeBattleEffectArena.Clear().Write(0, Enumerable.Repeat((byte)0xCC, 40).ToArray()), (offset, count) => geometry.AsSpan(offset, count).ToArray(), 0x1000000, [NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { Z = boneZ }, null)], NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), pilotIdentity.HasValue ? Projection with { View = NativeBattleCuragaMatrices.Identity8DD770() } : Projection, memory.ScriptedGraphics!, 0x196B000, length, pilotIdentity: pilotIdentity);
     }

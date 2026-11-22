@@ -89,7 +89,7 @@ public sealed partial class BattlePresentationProcess
                     {
                         graphics = SubmitNativeShadowPackets5088A0(graphics, context.Target, target, projection, 4112, false);
                         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, context.Target);
-                        NativeBattleModelTextureOwner? material = PrepareActorSurfaceMaterials(graphics, context.Target, resource);
+                        NativeBattleModelTextureOwner? material = PrepareNativeActorMaterials(graphics, context.Target, resource);
                         batch = NativeBattleCureActorAssembly.Emit88BDA0(target, resource, view, projection, actor.Center, actor.VerticalOffset, contextF4, actor.PilotIdentity, material);
                     }
                     foreach (NativeBattleCureAllocatedPrimitive allocation in batch.Primitives)

@@ -11,6 +11,7 @@ public sealed partial class BattlePresentationProcess
             return DrawNativeForeignAcid170Body(frame, graphics, actor, temporaryAddress, foreign, pilotIdentity);
         }
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actor);
+        NativeBattleModelTextureOwner? material = SelectNativeModelMaterial(graphics, actor, frame.Memory.Textures);
         NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Acid170 target requires its current skeleton.");
         NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Acid170 target requires its current camera.");
         NativeBattleCameraProjection projection = camera.Projection ?? throw new NotSupportedException("Acid170 target requires its published projection.");
@@ -78,7 +79,7 @@ public sealed partial class BattlePresentationProcess
             NativeBattleAcid170ModelStep drawn = NativeBattleAcid170ModelDrawing.DrawBody(current.Memory, current.Temporary172, scratch, geometrySource, bones, packedCamera, projection, current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Acid170 target requires its current depth controls."), scratchAddress, scratchLength, pilotIdentity: pilotIdentity is { } identity ? identity with { Primitive = linkedSource ? 1 : 0, ResourceGeneration = geometrySource.PresentationIdentity } : null);
             current = current with { Memory = drawn.Memory, Temporary172 = drawn.Temporary172, Staging = NativeBattleTemporaryMemory.PublishView(current.Staging, scratchAddress, drawn.VertexScratch, scratchLength) };
             current = current with { Staging = NativeBattleTemporaryMemory.PublishResourceView(current.Staging, temporaryAddress, current.Temporary172, 172) };
-            return AppendCommon(current, drawn.Batch);
+            return AppendCommon(current, BindNativeModelMaterial(drawn.Batch, material));
 
             byte[] Read(int offset, int length)
             {

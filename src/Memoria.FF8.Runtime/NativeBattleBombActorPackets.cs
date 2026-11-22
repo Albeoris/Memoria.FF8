@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleBombActorPackets
 {
-    public static NativeBattleGfGeometryBatch Emit(ImmutableArray<NativeBattleRawPolygon> polygons, ImmutableArray<byte> vertices, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, uint modelColor, uint overlayColor, int scroll, bool textured, short zsf3, short zsf4, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    public static NativeBattleGfGeometryBatch Emit(ImmutableArray<NativeBattleRawPolygon> polygons, ImmutableArray<byte> vertices, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, uint modelColor, uint overlayColor, int scroll, bool textured, short zsf3, short zsf4, NativeBattlePilotVisualIdentity? pilotIdentity = null, NativeBattleModelTextureOwner? material = null)
     {
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         int allocation = 0;
@@ -64,7 +64,7 @@ public static class NativeBattleBombActorPackets
             int depth = (int)(average >> 2);
             int bucket = 17 + depth;
             ImmutableArray<int> payload = polygon.Quad ? projected.Select(vertex => (int)vertex.Depth).ToImmutableArray() : [projected[0].Depth, projected[1].Depth, projected[2].Depth, 0];
-            attempts.Add(packet.Attempt(Capture(new(bucket, packet.Words(), payload), 0)));
+            attempts.Add(packet.Attempt(Capture(new(bucket, packet.Words(), payload) { ModelTextureOwner = material }, 0)));
             allocation += length;
             int overlayLength = textured ? polygon.Quad ? 48 : 40 : polygon.Quad ? 24 : 20;
             SkinWrites overlay = new(overlayLength, allocation);

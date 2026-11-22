@@ -23,6 +23,7 @@ public sealed partial class BattlePresentationProcess
         BattleModelOwner index = NativeBattleZantetsukenTasks.ReadActor(task);
         NativeBattleGraphicsModel actor = graphics.ActorModels.Get(index);
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
+        NativeBattleModelTextureOwner? material = SelectNativeModelMaterial(graphics, index, frame.Memory.Textures);
         NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Zantetsuken body requires its actual current skeleton.");
         NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Zantetsuken body requires its retained camera.");
         NativeBattleCameraProjection projection = camera.Projection ?? throw new NotSupportedException("Zantetsuken body requires its current projection.");
@@ -55,7 +56,7 @@ public sealed partial class BattlePresentationProcess
         NativeBattleZantetsukenRenderStep drawn = NativeBattleZantetsukenRendering.DrawBody(frame.Memory, temporary, scratch, objects, inputs, mask, actor.Color40 ?? throw new NotSupportedException("Zantetsuken body requires its current actor color."));
         frame = frame with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, scratchAddress, drawn.VertexScratch, scratchLength) };
         frame = PublishNativeZantetsukenTemporary(frame, RequireNativeZantetsukenStaging(frame), temporaryAddress, drawn.Temporary1D8, 472, false);
-        frame = AppendNativeZantetsukenPackets(ref graphics, frame, drawn.Batch);
+        frame = AppendNativeZantetsukenPackets(ref graphics, frame, BindNativeModelMaterial(drawn.Batch, material));
         NativeBattleTemporaryAllocation boneTemporary = NativeBattleTemporaryMemory.Allocate5082B0(RequireNativeZantetsukenStaging(frame), 88);
         NativeBattleBodyBonePreparation restored = NativeBattleBodyBoneTemporary.Prepare508C90(actor, source, NativeBattleTemporaryMemory.ReadView(boneTemporary.Staging, boneTemporary.Address, 88));
         graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, restored.Model) };

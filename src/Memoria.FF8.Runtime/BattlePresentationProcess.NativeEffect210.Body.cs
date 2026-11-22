@@ -10,6 +10,7 @@ public sealed partial class BattlePresentationProcess
         NativeFileStaging = frame.Staging ?? throw new NotSupportedException("Effect210 body requires its current temporary memory.");
         BattleModelOwner actor = operation.Actor;
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actor);
+        NativeBattleModelTextureOwner? material = SelectNativeModelMaterial(graphics, actor, frame.Memory.Textures);
         NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Effect210 body requires its current skeleton.");
         NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Effect210 body requires its current camera.");
         NativeBattleCameraProjection projection = camera.Projection ?? throw new NotSupportedException("Effect210 body requires its current projection.");
@@ -61,7 +62,7 @@ public sealed partial class BattlePresentationProcess
             NativeBattleModelContext44Step drawn = NativeBattleModelContext44.Draw(current.Memory, context44, matrices.Select(matrix => NativeBattlePackedMatrix32.FromMatrix(matrix, null)).ToImmutableArray(), geometry, NativeDeformedBodyView(current.Staging, scratch, capacity), capacity, projection, colors, this.resources.NativeGraphics?.PrimitiveCapabilities?.HardwareEnabled ?? throw new NotSupportedException("Effect210 body requires its renderer capability."), 17, 4, cursor, pilotIdentity: operation.PilotIdentity is { } identity ? identity with { Primitive = unchecked(identity.Primitive * 2 + (linked ? 1 : 0)), ResourceGeneration = geometry.PresentationIdentity } : null);
             current = current with { Memory = drawn.Memory, Temporary = NativeBattleModelContext44.CopyContext(drawn.Context44, 0, current.Temporary, 0x30), Staging = NativeBattleTemporaryMemory.PublishView(current.Staging, scratch, drawn.ProjectedScratch, capacity) };
             NativeBattlePrimitiveFrame primitive = current.Graphics.PrimitiveFrame ?? throw new NotSupportedException("Effect210 body requires its COMMON ordering table.");
-            NativeBattleCommonPacketWrite written = NativeBattleCommonPacketDelivery.Deliver(current.Memory.PrimitiveProcess!, primitive.Pending, drawn.Batch);
+            NativeBattleCommonPacketWrite written = NativeBattleCommonPacketDelivery.Deliver(current.Memory.PrimitiveProcess!, primitive.Pending, BindNativeModelMaterial(drawn.Batch, material));
             current = current with { Memory = current.Memory with { PrimitiveProcess = written.Process }, Graphics = current.Graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } } };
             return current with { Staging = NativeBattleModelContext44.PublishTemporary(current.Staging, current.TemporaryAddress, current.Temporary) };
         }

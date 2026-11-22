@@ -8,7 +8,7 @@ public sealed record NativeBattleBlizzagaModelBandResult(short Minimum, short Ma
 /// <summary>Blizzaga's posed body model-band projection and explicit-depth FT3/FT4 packets.</summary>
 public static class NativeBattleBlizzagaModelBand
 {
-    public static NativeBattleBlizzagaModelBandResult Emit6D8D80(ImmutableArray<NativeBattleRawMesh> meshes, IReadOnlyList<NativeBattleActionMatrix> matrices, NativeBattleCameraProjection projection, uint color40, uint meshMask124, short lowY, short highY, NativeBattleModelTextureBinding? textureBinding = null, short priorMinimum = 32767, short priorMaximum = -32767, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    public static NativeBattleBlizzagaModelBandResult Emit6D8D80(ImmutableArray<NativeBattleRawMesh> meshes, IReadOnlyList<NativeBattleActionMatrix> matrices, NativeBattleCameraProjection projection, uint color40, uint meshMask124, short lowY, short highY, NativeBattleModelTextureBinding? textureBinding = null, short priorMinimum = 32767, short priorMaximum = -32767, NativeBattlePilotVisualIdentity? pilotIdentity = null, NativeBattleModelTextureOwner? material = null)
     {
         if (meshes.IsDefault)
         {
@@ -71,7 +71,7 @@ public static class NativeBattleBlizzagaModelBand
             {
                 NativeBattleRawPolygon polygon = mesh.Polygons[polygonIndex];
                 ImmutableArray<byte> source = textureBinding is null ? polygon.Bytes : NativeBattleRawGeometryPackets.Relocate507550(polygon, textureBinding);
-                NativeBattleGeometryPrimitive? primitive = EmitPolygon(source, polygon.Quad, projected, color40);
+                NativeBattleGeometryPrimitive? primitive = EmitPolygon(source, polygon.Quad, projected, color40, material);
                 if (primitive is not null)
                 {
                     if (pilotIdentity is { } identity && world is not null)
@@ -86,7 +86,7 @@ public static class NativeBattleBlizzagaModelBand
         return new(minimum, maximum, scratch.ToImmutable(), primitives.ToImmutable());
     }
 
-    public static NativeBattleGeometryPrimitive? EmitPolygon(ImmutableArray<byte> source, bool quad, IReadOnlyList<NativeBattleProjectedVertex> projected, uint color40)
+    public static NativeBattleGeometryPrimitive? EmitPolygon(ImmutableArray<byte> source, bool quad, IReadOnlyList<NativeBattleProjectedVertex> projected, uint color40, NativeBattleModelTextureOwner? material = null)
     {
         if (source.IsDefault || source.Length != (quad ? 20 : 16))
         {
@@ -156,7 +156,7 @@ public static class NativeBattleBlizzagaModelBand
         {
             proxies = proxies.Add(0);
         }
-        return new(checked(17 + (int)average), writes.Words(), proxies) { PhysicalWriteMask = writes.Attempt(null).WriteMask, UsesModelMaterial = !band };
+        return new(checked(17 + (int)average), writes.Words(), proxies) { PhysicalWriteMask = writes.Attempt(null).WriteMask, UsesModelMaterial = !band, ModelTextureOwner = band ? null : material };
 
         ushort U16(int offset) => BinaryPrimitives.ReadUInt16LittleEndian(source.AsSpan().Slice(offset, 2));
     }

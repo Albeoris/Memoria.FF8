@@ -89,7 +89,7 @@ public sealed partial class BattlePresentationProcess
                     graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
                     return current with { Memory = written.Memory, State = current.State with { DrawCursor = written.Cursor } };
                 case NativeBattleXatmDeath276Packets packets:
-                    (graphics, current) = AppendNativeXatmDeath276Packets(graphics, current, packets.Batch);
+                    (graphics, current) = AppendNativeXatmDeath276Packets(graphics, current, BindNativeModelMaterial(packets.Batch, SelectNativeModelMaterial(graphics, caster, current.Memory.Textures)));
                     return current;
                 case NativeBattleXatmDeath276White white:
                     (graphics, current) = AppendNativeXatmDeath276Packets(graphics, current, CaptureWhite(NativeBattleXatmDeath276Body.White7040B0(255, 255, 255, white.Level), current), 1);
@@ -189,7 +189,7 @@ public sealed partial class BattlePresentationProcess
                 NativeFileStaging = staging.Write(address, projected.Bytes.AsSpan());
                 NativeBattleScriptedGraphicsMemory registers = current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Native685750 requires its current GTE depth registers.");
                 NativeBattleGfGeometryBatch batch = NativeBattleXatmDeath276Body.CapturedPackets6859D0(mesh.Polygons, projected, actor.Color40 ?? throw new NotSupportedException("Native685750 requires its entity color DWORD40."), Resource().GeometryRelocated507550 ? null : actor.BodyTextureSlots ?? throw new NotSupportedException("Native685750 requires body materials."), registers.Zsf3 ?? throw new NotSupportedException("Native685750 requires ZSF3."), registers.Zsf4 ?? throw new NotSupportedException("Native685750 requires ZSF4."), NativeBattleSelectedProgrammeVisuals.Resource(NativeBattlePilotVisualLifetimes.Identity(276, current.Effect.Pools[0].Slots[0], index + 10), ReadModelAddress(), checked((uint)index)));
-                (graphics, current) = AppendNativeXatmDeath276FramePackets(graphics, current, batch);
+                (graphics, current) = AppendNativeXatmDeath276FramePackets(graphics, current, BindNativeModelMaterial(batch, SelectNativeModelMaterial(graphics, caster, current.Memory.Textures)));
             }
             actor = NativeBattleBodyBoneMatrices.Publish508C90(graphics.ActorModels.Get(caster), Pose());
             graphics = graphics with { ActorModels = graphics.ActorModels.Set(caster, actor) };

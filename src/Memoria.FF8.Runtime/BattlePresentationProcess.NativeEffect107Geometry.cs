@@ -20,6 +20,7 @@ public sealed partial class BattlePresentationProcess
             return (graphics with { PrimitiveFrame = graphics.PrimitiveFrame with { Pending = written.Ordering } }, maximum);
         }
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, model);
+        NativeBattleModelTextureOwner? material = SelectNativeModelMaterial(graphics, model);
         NativeBattleEffect107Resources resources = graphics.OriginalEffect?.Binding.Effect107Resources ?? throw new NotSupportedException("Native6D19A0 requires its original effect107 lookup tables.");
         NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native6D19A0 requires its prior camera registers.");
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native6D19A0 requires its prior camera matrix.");
@@ -72,7 +73,7 @@ public sealed partial class BattlePresentationProcess
             NativeBattleGfGeometryBatch batch = NativeBattleEffect107Geometry.Emit6BCB50(mesh.Polygons, projected, color, binding, pilotIdentity: pilotIdentity is { } identity ? identity with { Primitive = unchecked(identity.Primitive * 397 + meshIndex) } : null);
             NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native6D19A0 requires its retained packet memory.");
             NativeBattlePrimitiveFrame frame = current.PrimitiveFrame ?? throw new NotSupportedException("Native6D19A0 requires its initialized OT.");
-            NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(memory.PrimitiveProcess ?? throw new NotSupportedException("Native6D19A0 requires its actual common packet cursor."), frame.Pending, batch);
+            NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(memory.PrimitiveProcess ?? throw new NotSupportedException("Native6D19A0 requires its actual common packet cursor."), frame.Pending, BindNativeModelMaterial(batch, material));
             NativeEffectMemory = memory with { PrimitiveProcess = written.Process };
             return current with { PrimitiveFrame = frame with { Pending = written.Ordering } };
         }

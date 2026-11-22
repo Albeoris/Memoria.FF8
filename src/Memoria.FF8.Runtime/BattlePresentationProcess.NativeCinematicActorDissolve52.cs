@@ -16,6 +16,7 @@ public sealed partial class BattlePresentationProcess
         NativeBattleModelAliases aliases = graphics.NativeBindings.CaptureAliases(graphics.ActorModels);
         NativeBattleGraphicsModel actor = graphics.ActorModels.Get(actorIndex);
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actorIndex);
+        NativeBattleModelTextureOwner? actorMaterial = SelectNativeModelMaterial(graphics, actorIndex);
         NativeBattlePoseSource pose = resource.PoseSource ?? throw new NotSupportedException("Native actor dissolve requires its current body rig.");
         NativeBattleModelCpuResources cpu = NativeModelCpuResources ?? throw new NotSupportedException("Native actor dissolve requires its physical CPU resources.");
         NativeBattleFileStaging staging = NativeFileStaging ?? throw new NotSupportedException("Native actor dissolve requires its current staging owner.");
@@ -183,7 +184,7 @@ public sealed partial class BattlePresentationProcess
                     NativeBattlePilotVisualGeometry pilotGeometry = new(visualIdentity with { Primitive = unchecked(meshIndex * 65537 + faceIndex) }, worldVertices[indices[0]], worldVertices[indices[1]], worldVertices[indices[2]], face.Quad ? worldVertices[indices[3]] : default, checked((byte)indices.Length));
                     captured = emitted.Packets with { Attempts = emitted.Packets.Attempts.Select(attempt => attempt.Primitive is { } primitive ? attempt with { Primitive = primitive with { PilotGeometry = pilotGeometry } } : attempt).ToImmutableArray() };
                 }
-                var appended = AppendNativeCinematicPackets(frame, output, emitted.OrderingAddress, captured, graphics);
+                var appended = AppendNativeCinematicPackets(frame, output, emitted.OrderingAddress, BindNativeModelMaterial(captured, actorMaterial), graphics);
                 frame = appended.Frame;
                 graphics = appended.Graphics;
                 output = unchecked(output + (uint)emitted.Packets.AllocationBytes);

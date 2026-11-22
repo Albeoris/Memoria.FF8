@@ -81,6 +81,7 @@ public sealed partial class BattlePresentationProcess
                 return new(hostWritten.Frame, unchecked(hostOutput + (uint)hostDraw.Packets.AllocationBytes));
             }
             NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
+            NativeBattleModelTextureOwner? actorMaterial = SelectNativeModelMaterial(graphics, index);
             NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Native actor clone requires its current physical rig.");
             _ = NativeBattleBodyBoneMatrices.Require(actor, source);
             actor = NativeBattleBodyBoneMatrices.Compose5095B0(actor, basis);
@@ -124,7 +125,7 @@ public sealed partial class BattlePresentationProcess
                 }
                 current = current with { Arena = current.Arena.MarkUnknown(ArenaOffset(clone + 0x40, 4), 4).Write(ArenaOffset(clone + 0x48, 8), counts) };
             }
-            var written = AppendNativeCinematicPackets(current, output, null, draw.Packets, graphics);
+            var written = AppendNativeCinematicPackets(current, output, null, BindNativeModelMaterial(draw.Packets, actorMaterial), graphics);
             current = written.Frame;
             graphics = written.Graphics;
             uint end = unchecked(output + (uint)draw.Packets.AllocationBytes);

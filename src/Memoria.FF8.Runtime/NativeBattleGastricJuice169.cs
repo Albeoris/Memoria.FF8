@@ -107,7 +107,7 @@ public static class NativeBattleGastricJuice169
         }
     }
 
-    public static NativeBattleGfGeometryBatch Tint5DF540(ImmutableArray<NativeBattleRawPolygon> polygons, ImmutableArray<byte> worldVertices, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleVector center, uint modelColor, int frame, NativeBattleSummonColors colors, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    public static NativeBattleGfGeometryBatch Tint5DF540(ImmutableArray<NativeBattleRawPolygon> polygons, ImmutableArray<byte> worldVertices, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleVector center, uint modelColor, int frame, NativeBattleSummonColors colors, NativeBattlePilotVisualIdentity? pilotIdentity = null, NativeBattleModelTextureOwner? material = null)
     {
         uint tint = colors.Interpolate(0x28C098, TintFade(frame), 0);
         return NativeBattleActorTintPackets.Emit(polygons, worldVertices, view, projection, modelColor, tint, colors, (positions, ratios) =>
@@ -126,6 +126,6 @@ public static class NativeBattleGastricJuice169
                 }
             }
             return near;
-        }, pilotIdentity: pilotIdentity);
+        }, pilotIdentity: pilotIdentity, material: material);
     }
 }

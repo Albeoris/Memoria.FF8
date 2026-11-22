@@ -17,6 +17,7 @@ public sealed partial class BattlePresentationProcess
         }
         BattleModelOwner actor = frame.State.ReadModelReference(checked(bodyAddress + 0x64), 4);
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actor);
+        NativeBattleModelTextureOwner? material = SelectNativeModelMaterial(graphics, actor, frame.Memory.Textures);
         NativeBattlePoseSource pose = resource.PoseSource ?? throw new NotSupportedException("Effect80 requires its current target skeleton.");
         _ = resource.LinkedGeometry ?? throw new NotSupportedException("Effect80 requires observed linked geometry presence.");
         NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Effect80 requires its camera.");
@@ -75,7 +76,7 @@ public sealed partial class BattlePresentationProcess
             NativeBattleEffect79BodyDrawingStep drawn = NativeBattleEffect79BodyDrawing.Draw(frame.Memory, context, temporary, geometrySource, matrices.Select(matrix => NativeBattlePackedMatrix32.FromMatrix(matrix, null)).ToImmutableArray(), color, mask, camera.Projection ?? throw new NotSupportedException("Effect80 requires its projection."), frame.Memory.ScriptedGraphics ?? throw new NotSupportedException("Effect80 requires depth controls."), frame.State.ReadView(RowsAddress, RowsLength), RowsLength, this.resources.NativeGraphics!.Rules.SummonColors ?? throw new NotSupportedException("Effect80 requires its arithmetic constants."), depthFieldOffset: 0xC0, pilotIdentity: pilotIdentity is { } identity ? identity with { ModelOwner = actor, Primitive = linked ? 1 : 0, ResourceGeneration = geometrySource.PresentationIdentity } : null);
             NativeBattleFileStaging staged = NativeBattleTemporaryMemory.PublishResourceView(allocated.Staging, allocated.Address, drawn.Temporary168, 168);
             frame = frame with { Memory = drawn.Memory, State = frame.State.WriteView(RowsAddress, drawn.Rows, RowsLength), Staging = NativeBattleTemporaryMemory.Release5082D0(staged, 168) };
-            frame = deliver(frame, drawn.Batch, 0x1D8E054, 0);
+            frame = deliver(frame, BindNativeModelMaterial(drawn.Batch, material), 0x1D8E054, 0);
 
         }
     }

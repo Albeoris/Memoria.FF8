@@ -12,6 +12,7 @@ public sealed partial class BattlePresentationProcess
             return DrawNativeShockwavePulsar260ForeignBody(frame, graphics, draw, colors, foreign);
         }
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, draw.Actor);
+        NativeBattleModelTextureOwner? material = SelectNativeModelMaterial(graphics, draw.Actor, frame.Memory.Textures);
         NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Shockwave Pulsar requires its current body skeleton.");
         NativeBattleGraphicsModel model = graphics.ActorModels.Get(draw.Actor);
         NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Shockwave Pulsar requires its current camera.");
@@ -57,7 +58,7 @@ public sealed partial class BattlePresentationProcess
             staging = NativeBattleTemporaryMemory.PublishView(staging, scratchAddress, drawn.ProjectedScratch, scratchLength);
             staging = NativeBattleModelContext44.PublishTemporary(staging, allocation.Address, temporary);
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Shockwave Pulsar requires its COMMON ordering table.");
-            NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(drawn.Memory.PrimitiveProcess!, primitive.Pending, drawn.Batch);
+            NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(drawn.Memory.PrimitiveProcess!, primitive.Pending, BindNativeModelMaterial(drawn.Batch, material));
             frame = frame with { Memory = drawn.Memory with { PrimitiveProcess = written.Process } };
             graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
         }
