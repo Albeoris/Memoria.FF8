@@ -158,6 +158,11 @@ public sealed partial class Ff7AutoPlayPolicy
 
     internal static Ff7NativeSiblingCandidate[] ReadNativeSiblingCandidates(Ff7AutoPlayState state, AutoPlayPlanner<Ff7AutoPlayDeferral> sharedPlanner, Ff7AutoPlayObservation observation, Func<AutoPlayVisit, bool>? needsRefresh = null, bool sourceGoalPending = false)
     {
+        // An alternative first event cannot leave and revisit the current navigation node.
+        if (OwnsLocalSourceGoal(state, observation, state.Active))
+        {
+            return [];
+        }
         bool committedGoal = CanContinueOwnedTravel(state, observation, sourceGoalPending);
         var retained = CreateRetainedNavigationAvailabilityReader(state);
         List<Ff7NativeSiblingCandidate> candidates = [];
@@ -178,7 +183,7 @@ public sealed partial class Ff7AutoPlayPolicy
                 Ff7AutoPlayTarget? target = observation.Events.SingleOrDefault(item => item.Id == plan.Event.Id && item.ConditionFingerprint == plan.Event.ConditionSignature && item.AnalysisComplete);
                 bool sourceMatches = debt is null || plan.RefreshVisitKey == debt.NavigationKey && plan.Goal is { EventId: null } refreshGoal && refreshGoal.NavigationKey == debt.NavigationKey;
                 bool meaningful = guarded is null || IsNativeContinuationGoalPending(state, plan.Goal, observation.NavigationKey, guarded.Id) || debt is not null && plan.Goal is { EventId: null } sourceGoal && sourceGoal.NavigationKey == debt.NavigationKey;
-                if (target is not null && target.Id != state.Active?.EventId && MatchesCommittedNativeSibling(state, observation, plan, sourceGoalPending) && (guarded is null || target.Id == guarded.Id) && !candidates.Any(item => item.Target.Id == target.Id && item.Revalidation == debt && item.Guarded == (guarded is not null) && MatchesNativePlan(item.Plan, plan)) && Ff7AutoplayDriver.SupportsNativeRouteTarget(target) && IsDestinationPlan(state, plan, observation.NavigationKey) && meaningful && sourceMatches)
+                if (target is not null && target.Id != state.Active?.EventId && MatchesCommittedNativeSibling(state, observation, plan, sourceGoalPending) && (guarded is null || target.Id == guarded.Id) && !candidates.Any(item => item.Target.Id == target.Id && item.Revalidation == debt && item.Guarded == (guarded is not null) && MatchesNativePlan(item.Plan, plan)) && Ff7AutoplayDriver.SupportsNativeRouteTarget(target) && IsAllowedAlternativePlan(state, plan, observation.NavigationKey) && meaningful && sourceMatches)
                 {
                     candidates.Add(new(target, plan, previous, debt, guarded is not null));
                 }
@@ -275,7 +280,7 @@ public sealed partial class Ff7AutoPlayPolicy
         {
             return false;
         }
-        if (state.Active != expected || expected.Accepted || expected.VisitId != observation.VisitId || expected.NavigationKey != observation.NavigationKey || expected.Generation != observation.Generation || state.NavigationGoal != expectedGoal || state.NativeRoute is not null || state.PendingRestore is not null || target.Id == expected.EventId || !Ff7AutoplayDriver.SupportsNativeRouteTarget(target) || sibling.Revalidation is { } requiredDebt && !ReadPendingSourceRevalidations(state, observation).Contains(requiredDebt) || sibling.Guarded && !IsMeaningfulGuardedSibling(state, observation, sibling.Target, fresh, sibling.Revalidation) || !MatchesNativePlan(sibling.Plan, fresh) || !IsDestinationPlan(state, fresh, observation.NavigationKey) || availability.Unavailable || !observation.Events.Any(item => item.Id == target.Id && item.ConditionFingerprint == target.ConditionFingerprint && item.Entity == target.Entity && item.Script == target.Script && item.Kind == target.Kind && item.DestinationField == target.DestinationField) || proof.EventId != target.Id || proof.ConditionFingerprint != target.ConditionFingerprint || proof.Generation != observation.Generation || proof.Cursor != 0 || proof.Steps.Length == 0 || proof.Steps[0].Before != source)
+        if (state.Active != expected || expected.Accepted || expected.VisitId != observation.VisitId || expected.NavigationKey != observation.NavigationKey || expected.Generation != observation.Generation || state.NavigationGoal != expectedGoal || state.NativeRoute is not null || state.PendingRestore is not null || target.Id == expected.EventId || !Ff7AutoplayDriver.SupportsNativeRouteTarget(target) || sibling.Revalidation is { } requiredDebt && !ReadPendingSourceRevalidations(state, observation).Contains(requiredDebt) || sibling.Guarded && !IsMeaningfulGuardedSibling(state, observation, sibling.Target, fresh, sibling.Revalidation) || !MatchesNativePlan(sibling.Plan, fresh) || !IsAllowedAlternativePlan(state, fresh, observation.NavigationKey) || availability.Unavailable || !observation.Events.Any(item => item.Id == target.Id && item.ConditionFingerprint == target.ConditionFingerprint && item.Entity == target.Entity && item.Script == target.Script && item.Kind == target.Kind && item.DestinationField == target.DestinationField) || proof.EventId != target.Id || proof.ConditionFingerprint != target.ConditionFingerprint || proof.Generation != observation.Generation || proof.Cursor != 0 || proof.Steps.Length == 0 || proof.Steps[0].Before != source)
         {
             return false;
         }

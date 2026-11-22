@@ -82,7 +82,7 @@ public sealed partial class Ff7AutoPlayPolicy
             return false;
         }
         // The local goal is the excluded first event, and navigation paths never revisit their origin.
-        if (CanSkipOwnedLocalAlternativeScan(State, observation, expected))
+        if (OwnsLocalSourceGoal(State, observation, expected) || CanSkipOwnedLocalAlternativeScan(State, observation, expected))
         {
             return false;
         }
@@ -153,7 +153,7 @@ public sealed partial class Ff7AutoPlayPolicy
                 }
                 Ff7AutoPlayTarget? target = observation.Events.SingleOrDefault(item => item.Id == plan.Event.Id && item.ConditionFingerprint == plan.Event.ConditionSignature && item.AnalysisComplete);
                 bool equivalentTransport = target is not null && IsCertifiedEquivalentTransport(State, expected, expectedGoal, observation, target, plan);
-                if (target is null || committedGoal && !MatchesOwnedTravelPlan(expectedGoal!, plan, observation.NavigationKey) || !IsDestinationPlan(State, plan, observation.NavigationKey) || local && plan.IsTravel && !equivalentTransport || ordinaryAlternativeFailures.Contains(target.Id))
+                if (target is null || committedGoal && !MatchesOwnedTravelPlan(expectedGoal!, plan, observation.NavigationKey) || !IsAllowedAlternativePlan(State, plan, observation.NavigationKey) || local && plan.IsTravel && !equivalentTransport || ordinaryAlternativeFailures.Contains(target.Id))
                 {
                     continue;
                 }
@@ -270,7 +270,7 @@ public sealed partial class Ff7AutoPlayPolicy
 
     internal static bool TryAdoptOrdinaryAlternative(Ff7AutoPlayState state, Ff7AutoPlayActiveEvent expected, AutoPlayTravelGoal? expectedGoal, Ff7AutoPlayObservation observation, Ff7AutoPlayTarget target, AutoPlayPlanStep plan, AutoPlayPlanStep? fresh, AutoPlayEventAvailability availability, IReadOnlyDictionary<string, string> facts, int story, string witness, int linePhase = 0)
     {
-        if (state.Active != expected || expected.Accepted || expected.VisitId != observation.VisitId || expected.NavigationKey != observation.NavigationKey || expected.Generation != observation.Generation || state.NavigationGoal != expectedGoal || state.NativeRoute is not null || state.PendingRestore is not null || target.Id == expected.EventId || plan.Event.Id != target.Id || plan.Event.ConditionSignature != target.ConditionFingerprint || !MatchesNativePlan(plan, fresh) || !IsDestinationPlan(state, fresh, observation.NavigationKey) || availability.Unavailable || !observation.Events.Any(item => item == target && item.AnalysisComplete))
+        if (state.Active != expected || expected.Accepted || expected.VisitId != observation.VisitId || expected.NavigationKey != observation.NavigationKey || expected.Generation != observation.Generation || state.NavigationGoal != expectedGoal || state.NativeRoute is not null || state.PendingRestore is not null || target.Id == expected.EventId || plan.Event.Id != target.Id || plan.Event.ConditionSignature != target.ConditionFingerprint || !MatchesNativePlan(plan, fresh) || !IsAllowedAlternativePlan(state, fresh, observation.NavigationKey) || availability.Unavailable || !observation.Events.Any(item => item == target && item.AnalysisComplete))
         {
             return false;
         }

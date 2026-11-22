@@ -75,6 +75,11 @@ public sealed partial class Ff7AutoPlayPolicy
         return !goal.Completed && observation.CanAcceptInput && observation.Generation == goal.Generation && observation.VisitId == goal.VisitId && observation.ProgramIdentity == goal.ProgramIdentity && observation.NavigationKey == goal.NavigationKey && observation.Events.Contains(target) && target.AnalysisComplete && target.Id == goal.EventId && (target.ConditionFingerprint == goal.ExecutionConditionFingerprint || goal.AcceptedEntry is null && goal.EntryGuardFingerprint is not null && target.EntryGuardFingerprint == goal.EntryGuardFingerprint) && target.Kind == goal.Kind && target.Entity == goal.Entity && target.Script == goal.Script;
     }
 
+    private static bool OwnsLocalSourceGoal(Ff7AutoPlayState state, Ff7AutoPlayObservation observation, Ff7AutoPlayActiveEvent? active)
+    {
+        return state.SourceGoal is { Completed: false } goal && active is { Accepted: false } && goal.VisitId == observation.VisitId && goal.Generation == observation.Generation && goal.NavigationKey == observation.NavigationKey && active.VisitId == goal.VisitId && active.Generation == goal.Generation && active.NavigationKey == goal.NavigationKey && active.EventId == goal.EventId && active.ConditionFingerprint == goal.ExecutionConditionFingerprint;
+    }
+
     internal static bool IsSourceGoalPlan(Ff7AutoPlayState state, AutoPlayPlanStep? next)
     {
         if (state.SourceGoal is not { Completed: false } goal)

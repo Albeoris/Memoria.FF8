@@ -10,6 +10,7 @@ internal static class OrdinaryAlternativeTests
         CheckUnknownContactTravelSibling();
         CheckAdoption(false);
         CheckAdoption(true);
+        CheckAdoption(false, explicitSource: true);
         CheckDeferredLeafDoesNotCreateTransportCycle();
         Console.WriteLine("PASS ordinary alternative shared selection, atomic owner/goal adoption, stale-plan refusal and unconsumed history.");
     }
@@ -92,7 +93,7 @@ internal static class OrdinaryAlternativeTests
         Check(before == JsonSerializer.Serialize(state), "A scheduling deferral persisted a false impossibility or changed native coverage.");
     }
 
-    private static void CheckAdoption(bool stale)
+    private static void CheckAdoption(bool stale, bool explicitSource = false)
     {
         Ff7AutoPlayState state = new();
         var planner = Ff7AutoPlayPolicy.CreatePlanner(state);
@@ -106,12 +107,20 @@ internal static class OrdinaryAlternativeTests
         Ff7AutoPlayTarget next = new(walk.Id, 35, 1, Ff7AutoPlayTargetKind.ActorTalk, walk.ConditionSignature!, false, default);
         Ff7AutoPlayObservation observation = new("visit", "program", 1, [new(remote.Id, 18, 2, Ff7AutoPlayTargetKind.LinePush, remote.ConditionSignature!, false, default), next], true, true) { NavigationKey = "component" };
         AutoPlayPlanStep plan = planner.PlanNavigation("component", avoidFirstEvents: new HashSet<string> { remote.Id }, preferredGoal: state.NavigationGoal) ?? throw new InvalidOperationException("The deferred optional contact hid an ordinary shared alternative.");
+        if (explicitSource)
+        {
+            state.SourceGoal = Ff7AutoPlayPolicy.CreateSourceGoal(observation, observation.Events[0], 100);
+            state.NavigationGoal = null;
+            Ff7AutoPlayPolicy.RetainDestinationGoal(state, new("visit", remote, false), "component", remote.ConditionSignature!);
+            Check(state.NavigationGoal == new AutoPlayTravelGoal("component", remote.Id, remote.ConditionSignature), "Selecting the exact local source cleared its pending navigation goal.");
+            state.NavigationGoal = null;
+        }
         string before = JsonSerializer.Serialize(state);
         AutoPlayPlanStep fresh = stale ? plan with { Goal = new("changed") } : plan;
         bool adopted = Ff7AutoPlayPolicy.TryAdoptOrdinaryAlternative(state, state.Active, state.NavigationGoal, observation, next, plan, fresh, new(false, [], "entry"), new Dictionary<string, string>(), 1, "source");
-        if (stale)
+        if (stale || explicitSource)
         {
-            Check(!adopted && before == JsonSerializer.Serialize(state), "A stale ordinary plan modified its owner or coverage.");
+            Check(!adopted && before == JsonSerializer.Serialize(state), "A stale or unrelated ordinary plan modified its owner or coverage.");
             return;
         }
         Check(adopted && state.Active is { EventId: "walk", Accepted: false } && state.NavigationGoal == plan.Goal && state.NativeRoute is null, "An ordinary leg required a complete native route or lost its exact semantic owner.");

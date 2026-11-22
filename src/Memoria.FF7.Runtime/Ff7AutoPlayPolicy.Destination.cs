@@ -12,6 +12,11 @@ public sealed partial class Ff7AutoPlayPolicy
 
     internal static void RetainDestinationGoal(Ff7AutoPlayState state, AutoPlayPlanStep next, string navigationKey, string condition)
     {
+        if (state.SourceGoal is { Completed: false } source && IsSourceGoalPlan(state, next))
+        {
+            state.NavigationGoal = new(source.NavigationKey, source.EventId, source.ExecutionConditionFingerprint);
+            return;
+        }
         AutoPlayTravelGoal? retained = state.DestinationField is not null && state.NavigationGoal is { EventId: not null } goal && goal.EventId == next.Event.Id && goal.NavigationKey == navigationKey && (goal.Conditions is null || goal.Conditions == condition) ? goal : null;
         state.NavigationGoal = next.Goal ?? retained;
     }
@@ -320,6 +325,11 @@ public sealed partial class Ff7AutoPlayPolicy
             }
         }
         return (null, pending.Count != 0);
+    }
+
+    private static bool IsAllowedAlternativePlan(Ff7AutoPlayState state, AutoPlayPlanStep? plan, string navigationKey)
+    {
+        return IsSourceGoalPlan(state, plan) && IsDestinationPlan(state, plan, navigationKey);
     }
 
     internal static bool IsDestinationPlan(Ff7AutoPlayState state, AutoPlayPlanStep? next, string navigationKey)
