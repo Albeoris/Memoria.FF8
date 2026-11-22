@@ -264,6 +264,11 @@ internal sealed partial class Ff7Scene : IDisposable
                 UpdateCondor(gameTime);
                 return;
             }
+            if (Session.Submarine is not null)
+            {
+                UpdateSubmarine(gameTime);
+                return;
+            }
             if (TryAdvanceAutoPlayPartyMenu())
             {
                 return;
@@ -317,7 +322,7 @@ internal sealed partial class Ff7Scene : IDisposable
                 }
                 RememberReportCheckpoint();
                 UpdateAudio();
-                if (IsShopMenuPresentation || Session.Battle is not null || Session.Highway is not null || Session.ChocoboRace is not null || Session.Snowboard is not null || Session.Condor is not null)
+                if (IsShopMenuPresentation || Session.Battle is not null || Session.Highway is not null || Session.ChocoboRace is not null || Session.Snowboard is not null || Session.Condor is not null || Session.Submarine is not null)
                 {
                     tickRemainder = 0;
                     return false;
@@ -375,6 +380,10 @@ internal sealed partial class Ff7Scene : IDisposable
                 {
                     RenderCondor(renderBounds);
                 }
+                else if (Session.Submarine is not null)
+                {
+                    RenderSubmarine(renderBounds);
+                }
                 else
                 {
                     RenderField(renderBounds);
@@ -394,11 +403,11 @@ internal sealed partial class Ff7Scene : IDisposable
                 {
                     batch.Draw(pixel, windowBounds, Color.Black);
                 }
-                if (Session.World is null && Session.Battle is null && Session.Highway is null && Session.ChocoboRace is null && Session.Snowboard is null && Session.Condor is null)
+                if (Session.World is null && Session.Battle is null && Session.Highway is null && Session.ChocoboRace is null && Session.Snowboard is null && Session.Condor is null && Session.Submarine is null)
                 {
                     DrawMovie(batch, bounds);
                 }
-                if (!bufferingMovie && (renderer is not null || Session.World is not null || Session.Battle is not null || Session.Highway is not null || Session.ChocoboRace is not null || Session.Snowboard is not null || Session.Condor is not null) && error is null)
+                if (!bufferingMovie && (renderer is not null || Session.World is not null || Session.Battle is not null || Session.Highway is not null || Session.ChocoboRace is not null || Session.Snowboard is not null || Session.Condor is not null || Session.Submarine is not null) && error is null)
                 {
                     PixelBounds fieldFit = ViewportLayout.Fit(triangles.Target.Width, triangles.Target.Height, windowBounds.Width, windowBounds.Height);
                     sceneBounds = new(windowBounds.X + fieldFit.X, windowBounds.Y + fieldFit.Y, fieldFit.Width, fieldFit.Height);
@@ -417,6 +426,10 @@ internal sealed partial class Ff7Scene : IDisposable
                     else if (Session.Condor is { } condor)
                     {
                         DrawCondor(batch, sceneBounds, condor.Frame);
+                    }
+                    else if (Session.Submarine is { } submarine)
+                    {
+                        DrawSubmarine(batch, sceneBounds, submarine.Frame);
                     }
                     else if (Session.ChocoboRace is null && Session.Snowboard is null)
                     {

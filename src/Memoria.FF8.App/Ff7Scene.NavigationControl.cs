@@ -40,6 +40,7 @@ internal sealed partial class Ff7Scene
             BattleInput = battle is null ? null : new { Owner = battleInputOwner, Category = highlightedBattleCategory?.Name, Page = battleCommandPage?.Name, Argument = highlightedBattleArgument, TargetSlot = highlightedBattleTarget?.Slot, TargetIdentity = highlightedBattleTarget?.Identity, Selected = selectedBattleCommand, Unavailable = unavailableBattleCommand, Group = battleTargetGroup },
             World = world is null ? null : new { world.WorldId, world.Tick, world.ControlledModel, world.MovementEnabled, world.ControlLock, world.MainState, Player = world.Entities.Where(entity => entity.Model == world.ControlledModel).Select(entity => new { entity.Model, entity.X, entity.Y, entity.Z, entity.Direction }).FirstOrDefault() },
             Condor = session.Condor?.Frame,
+            Submarine = session.Submarine is { } submarine ? new { submarine.Tick, submarine.Frame } : null,
             StoryProgress,
             Party = session.Progress.Party.Where(identity => identity != 255).Select(identity =>
             {

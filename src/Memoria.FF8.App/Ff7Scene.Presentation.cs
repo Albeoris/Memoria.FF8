@@ -21,7 +21,7 @@ internal sealed partial class Ff7Scene
             ResetInterpolationPresentation();
             worldHistory.Reset();
         }
-        else if (session.Condor is not null)
+        else if (session.Condor is not null || session.Submarine is not null)
         {
             ResetInterpolationPresentation();
             worldHistory.Reset();
