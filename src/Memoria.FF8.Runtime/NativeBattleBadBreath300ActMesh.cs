@@ -57,7 +57,9 @@ public static class NativeBattleBadBreath300ActMesh
             selectedAddress = checked(source.Address + (uint)selected);
         }
         NativeBattleActionMatrix matrix = NativeBattleGfMatrices.Euler701310(node.Vector16);
-        bool scaleBase = Dword(context28, 0x14) != 0;
+        (byte[] scaleGate, bool[] scaleGateKnown) = context28.ReadSnapshot(0x14, 4);
+        // TODO(TD-035): Apply the target's explicit scale when the original stack gate has no known writer.
+        bool scaleBase = !scaleGateKnown.All(known => known) || BinaryPrimitives.ReadUInt32LittleEndian(scaleGate) != 0;
         NativeBattleVector point = node.Vector8;
         if (scaleBase)
         {

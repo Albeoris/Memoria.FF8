@@ -46,9 +46,14 @@ public sealed class NativeBattleBadBreath300ActMeshTests
     }
 
     [Fact]
-    public void Unknown_reached_stack_gate_fails_instead_of_inventing_a_scaling_policy()
+    public void Unknown_stack_gate_uses_published_target_scale_without_marking_stack_bytes_known()
     {
-        Assert.Throws<NotSupportedException>(() => Draw(Node(0), Context(0).MarkUnknown(0x14, 4)));
+        NativeBattleEffectArena context = Context(0).Write(8, BitConverter.GetBytes(8192)).MarkUnknown(0x14, 4);
+        NativeBattleBadBreath300ActMeshStep result = Draw(Node(100), context);
+        Assert.Equal(200, result.Registers.Geometry.Translation[0]);
+        Assert.Equal((byte?)32, result.Registers.Geometry.Rotation20[1]);
+        Assert.Throws<NotSupportedException>(() => context.Read(0x14, 4));
+        Assert.Throws<NotSupportedException>(() => Draw(Node(100), context.MarkUnknown(8, 4)));
     }
 
     [Fact]
