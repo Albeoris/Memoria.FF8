@@ -1849,6 +1849,12 @@ if (args.Contains("--navigation-mode-scheduling-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--autoplay-state-clone-only", StringComparer.Ordinal))
+{
+    AutoPlayStateCloneTests.Run();
+    return 0;
+}
+
 if (args.Contains("--physical-search-continuation-only", StringComparer.Ordinal))
 {
     PhysicalSearchContinuationTests.Run();

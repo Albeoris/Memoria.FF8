@@ -77,7 +77,11 @@ public sealed class Ff7AutoPlayState
 
     public Ff7AutoPlayState Clone()
     {
-        return JsonSerializer.Deserialize<Ff7AutoPlayState>(JsonSerializer.Serialize(this)) ?? throw new InvalidDataException("Automatic play state could not be restored.");
+        Ff7AutoPlayState detached = (Ff7AutoPlayState)MemberwiseClone();
+        detached.Coverage = null!;
+        Ff7AutoPlayState copy = JsonSerializer.Deserialize<Ff7AutoPlayState>(JsonSerializer.Serialize(detached)) ?? throw new InvalidDataException("Automatic play state could not be restored.");
+        copy.Coverage = AutoPlayPlannerStateClone.Clone(Coverage, deferral => deferral with { Selections = deferral.Selections.ToArray() });
+        return copy;
     }
 
     public void Validate()
