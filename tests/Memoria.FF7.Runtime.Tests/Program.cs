@@ -3,6 +3,12 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-world-hop-push-original-only", StringComparer.Ordinal))
+{
+    NativeWorldHopPushOriginalTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-ordered-push-original-only", StringComparer.Ordinal))
 {
     NativeOrderedPushOriginalTests.Run();

@@ -42,7 +42,7 @@ public sealed partial class Ff7AutoPlayPolicy
 
     private static bool IsCurrentDestinationPrerequisiteGoal(Ff7AutoPlayState state, Ff7AutoPlayObservation observation, AutoPlayTravelGoal goal, bool provedIntermediateHop = false)
     {
-        return state.DestinationField is ushort destination && goal.NavigationKey == observation.NavigationKey && observation.Events.Any(target => target.Id == goal.EventId && target.ConditionFingerprint == goal.Conditions && target.AnalysisComplete && (TargetDestinations(target).Contains(destination) || target is { Kind: Ff7AutoPlayTargetKind.Gateway, GatewayIndex: not null, DestinationField: > 64 and < short.MaxValue } && (provedIntermediateHop || state.Active?.NavigationPrerequisiteGoal == goal)));
+        return state.DestinationField is ushort destination && goal.NavigationKey == observation.NavigationKey && observation.Events.Any(target => target.Id == goal.EventId && target.ConditionFingerprint == goal.Conditions && target.AnalysisComplete && (TargetDestinations(target).Contains(destination) || target is { Kind: Ff7AutoPlayTargetKind.Gateway, GatewayIndex: not null, DestinationField: > 0 and < short.MaxValue } && (provedIntermediateHop || state.Active?.NavigationPrerequisiteGoal == goal)));
     }
 
     internal static bool IsCurrentBlockingNavigationLine(Ff7AutoPlayState state, Ff7AutoPlayObservation observation, Ff7AutoPlayTarget goal, Ff7AutoPlayTarget candidate, IReadOnlyCollection<int> blockingLines, bool provedIntermediateHop = false)
@@ -67,7 +67,9 @@ public sealed partial class Ff7AutoPlayPolicy
         if (lines.Length != 0 && qualification.DestinationField is ushort destination && goal.Kind == Ff7AutoPlayTargetKind.Gateway && !TargetDestinations(goal).Contains(destination))
         {
             Ff7Actor player = session.Host.Process.Actors.Single(actor => actor.PlayerControlled);
-            var (hop, _) = FindFieldEntryDestinationAdvice(qualification, observation with { Events = [goal] }, destination, player, session.Host.Process.BlockedTriangles, field => session.IsKnownAutoPlayDestination(field) ? session.ReadAutoPlayFieldTopology(field) : null, candidate => candidate == goal);
+            var (hop, _) = goal.DestinationField is >= 1 and <= 64
+                ? FindFieldDestinationAdvice(qualification, observation with { Events = [goal] }, destination, field => field is >= 1 and <= 64 ? session.ReadAutoPlayWorldConnections(field) : session.ReadAutoPlayFieldConnections(field), candidate => candidate == goal)
+                : FindFieldEntryDestinationAdvice(qualification, observation with { Events = [goal] }, destination, player, session.Host.Process.BlockedTriangles, field => session.IsKnownAutoPlayDestination(field) ? session.ReadAutoPlayFieldTopology(field) : null, candidate => candidate == goal);
             provedIntermediateHop = hop == goal;
         }
         Ff7AutoPlayTarget[] linePrerequisites = lines.SelectMany(entity => observation.Events.Where(candidate => candidate.Entity == entity && IsCurrentBlockingNavigationLine(qualification, observation, goal, candidate, lines, provedIntermediateHop))).ToArray();

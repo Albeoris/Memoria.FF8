@@ -64,7 +64,31 @@ internal static class NativeIntermediatePushPrerequisiteTests
             Check(Ff7AutoPlayPolicy.IsOwnedNavigationPrerequisiteCompletion(source.State, completed, source.Observation), "A real completed intermediate prerequisite lost its previously authorized intent.");
             Check(!Ff7AutoPlayPolicy.IsOwnedNavigationPrerequisiteCompletion(source.State, completed with { Returned = false }, source.Observation) && !Ff7AutoPlayPolicy.IsOwnedNavigationPrerequisiteCompletion(source.State, completed with { NavigationPrerequisiteGoal = null }, source.Observation), "An unreturned or unauthorized activation fabricated prerequisite completion.");
         }
+        CheckWorldSelectorHop();
         Console.WriteLine("Intermediate native gateway prerequisites require a proved current hop and preserve actual Touch/Push ownership.");
+    }
+
+    private static void CheckWorldSelectorHop()
+    {
+        Fixture source = Create(Ff7AutoPlayTargetKind.LinePush);
+        source.State.DestinationField = 353;
+        source.State.Active = source.State.Active! with { DestinationField = 14 };
+        source = source with { Goal = source.Goal with { DestinationField = 14 } };
+        source = source with { Observation = source.Observation with { Events = [source.Goal, source.Candidate] } };
+        string before = JsonSerializer.Serialize(source);
+        Check(!Eligible(source), "An unproved world-selector gateway inferred downstream physical reachability.");
+        Check(Eligible(source, proved: true), "A separately proved native world-selector hop could not retain its actual blocking Push prerequisite.");
+        foreach (Ff7AutoPlayTarget invalidGoal in new[] { source.Goal with { DestinationField = 0 }, source.Goal with { DestinationField = short.MaxValue }, source.Goal with { GatewayIndex = null }, source.Goal with { ConditionFingerprint = "changed" } })
+        {
+            Fixture invalid = source with { Goal = invalidGoal, Observation = source.Observation with { Events = [invalidGoal, source.Candidate] } };
+            Check(!Eligible(invalid, proved: true), "An absent, invalid or stale native gateway acquired world-hop prerequisite authority.");
+        }
+        Check(!Eligible(source with { Observation = source.Observation with { Generation = 2 } }, proved: true), "Another native generation borrowed the world-hop prerequisite proof.");
+        Check(before == JsonSerializer.Serialize(source), "World-hop qualification changed native source identity, destination intent or history.");
+        Ff7AutoPlayActiveEvent completed = new("visit", source.Candidate.Id, source.Candidate.ConditionFingerprint, 1, source.Candidate.Entity, source.Candidate.Script, source.Candidate.Kind, null, 0, "before", NavigationKey: "local", Accepted: true, Returned: true) { NavigationPrerequisiteGoal = source.State.NavigationGoal };
+        source.State.Active = completed;
+        Check(Ff7AutoPlayPolicy.IsOwnedNavigationPrerequisiteCompletion(source.State, completed, source.Observation), "An actually returned world-hop prerequisite lost its previously authorized native intent.");
+        Check(!Ff7AutoPlayPolicy.IsOwnedNavigationPrerequisiteCompletion(source.State, completed with { Returned = false }, source.Observation), "A live native prerequisite was credited merely because its world hop was proved.");
     }
 
     private static Fixture Create(Ff7AutoPlayTargetKind kind, bool direct = false)
