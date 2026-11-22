@@ -143,8 +143,10 @@ internal static class NativeInputCounterOriginalTests
             }
         };
         Stopwatch timer = Stopwatch.StartNew();
+        bool awardOnly = Environment.GetEnvironmentVariable("MEMORIA_FF7_COUNTER_INPUT_AWARD_ONLY") == "1";
+        bool Awarded() => session.Machine.Variables.ReadByte(FieldBank.MapByte, 9) == 4 && (session.Machine.Variables.ReadByte(FieldBank.Persistent1Byte, 0x86) & 0x80) != 0 && (session.Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 0x42) & 0x80) != 0 && (session.Machine.Variables.ReadByte(FieldBank.Persistent3Byte, 0x52) & 0x80) != 0 && (session.Machine.Variables.ReadByte(FieldBank.Persistent3Byte, 0x61) & 1) != 0;
         int boundSteps = int.TryParse(Environment.GetEnvironmentVariable("MEMORIA_FF7_COUNTER_INPUT_STEPS"), out int maximum) ? maximum : 5000;
-        while (controller.Error is null && !controller.Paused && controller.Steps < boundSteps && timer.Elapsed.TotalSeconds < 90)
+        while (controller.Error is null && !controller.Paused && !(awardOnly && Awarded()) && controller.Steps < boundSteps && timer.Elapsed.TotalSeconds < 90)
         {
             controller.Advance(1);
             Heartbeat("Native console");
@@ -158,12 +160,15 @@ internal static class NativeInputCounterOriginalTests
         bool materiaAward = (session.Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 0x42) & 0x80) != 0 && (session.Machine.Variables.ReadByte(FieldBank.Persistent3Byte, 0x52) & 0x80) != 0 && (session.Machine.Variables.ReadByte(FieldBank.Persistent3Byte, 0x61) & 1) != 0;
         Ff7Actor? player = session.Host.Process.Actors.SingleOrDefault(actor => actor.PlayerControlled);
         Console.WriteLine($"Original counter input: steps={controller.Steps}, seconds={timer.Elapsed.TotalSeconds:F3}, counter={counter}, presses={string.Join(',', presses.Select(value => value.ToString("X4")))}, award={award:X2}, source={policy.State.SourceGoal?.Completed}/{policy.State.SourceGoal?.AcceptedEntry}, active={policy.State.Active?.Accepted}/{policy.State.Active?.LinePhase}, pose={player?.X4096},{player?.Y4096},{player?.Triangle}, pending={session.HasPendingTick}, locks={session.Host.Process.PlayerLocked}/{session.Host.Process.MenuDisabled}, status={policy.Status}, error={controller.Error}.");
-        if (controller.Error is not null || counter != 4 || (award & 0x80) == 0 || !materiaAward || timerStarted || session.Host.Process.PlayerLocked || session.Host.Process.MenuDisabled || policy.State.SourceGoal is not { Completed: true } || !controller.Paused || !bytes.AsSpan().SequenceEqual(File.ReadAllBytes(path)))
+        if (controller.Error is not null || counter != 4 || (award & 0x80) == 0 || !materiaAward || timerStarted || !awardOnly && (session.Host.Process.PlayerLocked || session.Host.Process.MenuDisabled || policy.State.SourceGoal is not { Completed: true } || !controller.Paused) || !bytes.AsSpan().SequenceEqual(File.ReadAllBytes(path)))
         {
             Console.WriteLine(string.Join(Environment.NewLine, recent));
             SaveProgress();
             throw new InvalidOperationException("The native finite counter sequence did not earn its actual award and return its owned source.", controller.Failure);
         }
+        if (awardOnly)
+        {
+            Console.WriteLine("Native four-input equality and actual Materia award verified; owned control return remains an actual-host check with real choice anchors.");
+        }
     }
 }
-

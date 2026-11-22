@@ -5,6 +5,13 @@ public sealed partial class FieldMachine
     /// <summary>Finds the current input that advances a finite local-counter sequence toward its native equality guard.</summary>
     public FieldScriptInputDemand? ReadCurrentCounterProgressInput(int entity, int priority, int instructionBudget = 256, int? window = null)
     {
+        return ReadCurrentCounterProgressInput(entity, priority, out _, instructionBudget, window);
+    }
+
+    /// <summary>Reports a recognized sequence whose current counter can no longer reach its native equality target.</summary>
+    public FieldScriptInputDemand? ReadCurrentCounterProgressInput(int entity, int priority, out bool unreachable, int instructionBudget = 256, int? window = null)
+    {
+        unreachable = false;
         if (instructionBudget is < 1 or > 1024)
         {
             throw new ArgumentOutOfRangeException(nameof(instructionBudget));
@@ -52,25 +59,39 @@ public sealed partial class FieldMachine
                 if (opcode is 0x14 or 0x15)
                 {
                     int expected = program.Read(pc + 3);
-                    return closesWindow && first is not null && program.Read(pc + 1) == ((int)FieldBank.MapByte << 4) && program.Read(pc + 2) == counter && program.Read(pc + 4) == 0 && expected == Variables.ReadByte(FieldBank.MapByte, (byte)counter) + stages && expected <= byte.MaxValue ? first : null;
+                    if (!closesWindow || first is null || program.Read(pc + 1) != ((int)FieldBank.MapByte << 4) || program.Read(pc + 2) != counter || program.Read(pc + 4) != 0)
+                    {
+                        return null;
+                    }
+                    unreachable = expected != Variables.ReadByte(FieldBank.MapByte, (byte)counter) + stages;
+                    return unreachable ? null : first;
                 }
-                if (opcode is not (>= 0x30 and <= 0x32))
+                if (opcode is not (>= 0x30 and <= 0x32 or 0x12 or 0x13))
                 {
                     return null;
                 }
+                int current = pc;
+                int? header = ReadCounterPollHeader(current, ref remaining);
+                if (header is null)
+                {
+                    return null;
+                }
+                pc = header.Value;
                 int start = pc;
                 int join = -1;
                 byte[]? sharedCall = null;
                 FieldScriptInputDemand? progress = null;
                 ushort masks = 0;
                 int alternatives = 0;
+                bool includesCurrent = false;
                 while (remaining-- > 0)
                 {
+                    includesCurrent |= pc == current;
                     opcode = program.Read(pc);
                     if (opcode is 0x12 or 0x13)
                     {
                         int distance = program.Read(pc + 1) | (opcode == 0x13 ? program.Read(pc + 2) << 8 : 0);
-                        if (pc - distance != start || alternatives < 2 || progress is null || join <= pc)
+                        if (pc - distance != start || alternatives < 2 || progress is null || join <= pc || !includesCurrent)
                         {
                             return null;
                         }
@@ -129,13 +150,42 @@ public sealed partial class FieldMachine
                 {
                     return null;
                 }
-                first ??= progress;
+                first ??= progress! with { DelayTicks = current > progress!.ProgramCounter ? 1 : 0 };
                 stages++;
                 pc = join;
             }
         }
         catch (Exception error) when (error is InvalidDataException or NotSupportedException or ArgumentException or IndexOutOfRangeException)
         {
+        }
+        return null;
+    }
+
+    private int? ReadCounterPollHeader(int current, ref int remaining)
+    {
+        int pc = current;
+        HashSet<int> visited = [];
+        while (remaining-- > 0 && visited.Add(pc))
+        {
+            byte opcode = program.Read(pc);
+            if (opcode is >= 0x30 and <= 0x32)
+            {
+                int next = pc + 3 + program.Read(pc + 3);
+                if (next <= pc)
+                {
+                    return null;
+                }
+                pc = next;
+            }
+            else if (opcode is 0x12 or 0x13)
+            {
+                int header = pc - (program.Read(pc + 1) | (opcode == 0x13 ? program.Read(pc + 2) << 8 : 0));
+                return header <= current && header >= 0 ? header : null;
+            }
+            else
+            {
+                return null;
+            }
         }
         return null;
     }

@@ -31,10 +31,16 @@ public sealed partial class Ff7AutoPlayScriptedInput
                 }
                 window = dialogues[0].Window;
             }
-            if (session.Machine.ReadCurrentCounterProgressInput(entity, priority, window: window) is FieldScriptInputDemand progress && session.Machine.ReadCurrentInputDemands().SingleOrDefault(demand => demand.Identity == progress.Identity && demand.AwaitingInput) is FieldScriptInputDemand selected)
+            FieldScriptInputDemand? progress = session.Machine.ReadCurrentCounterProgressInput(entity, priority, out bool unreachable, window: window);
+            if (unreachable)
             {
-                CurrentDemand = selected;
-                return SelectInput(selected, session.Machine.Input);
+                throw new NotSupportedException("The owned native input counter can no longer reach its proved equality target from this stage.");
+            }
+            if (progress is not null)
+            {
+                FieldScriptInputDemand? selected = session.Machine.ReadCurrentInputDemands().SingleOrDefault(demand => demand.Identity == progress.Identity && demand.AwaitingInput);
+                CurrentDemand = selected is null ? progress : selected with { DelayTicks = Math.Max(selected.DelayTicks, progress.DelayTicks) };
+                return selected is null ? new(Held: 0, Run: false) : SelectInput(CurrentDemand, session.Machine.Input);
             }
         }
         return null;
