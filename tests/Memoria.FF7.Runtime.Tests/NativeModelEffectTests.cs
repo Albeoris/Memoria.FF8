@@ -8,6 +8,7 @@ internal static class NativeModelEffectTests
 {
     public static void Run()
     {
+        RunNativeScale();
         int[] counts = [16, 42, 16, 33];
         Ff7NativeModelEffectState requested = Ff7NativeModelEffect.Request(null, 0, counts);
         Check(Enumerable.Range(0, 4).All(part => Ff7NativeModelEffect.PartVisible(requested, part)), "An unprocessed request hid the native model.");
@@ -92,7 +93,7 @@ internal static class NativeModelEffectTests
         Check(defaultSingle.Profile == Ff7NativeModelEffect.SinglePartDefaultProfile, "The reached one-part34 topology selected the wrong native defaults.");
         Check(Ff7NativeModelEffect.Request(null, 0, [37]).Profile == defaultSingle.Profile, "An asymmetric nonexception topology did not select native defaults.");
         Check(Ff7NativeModelEffect.Request(null, 0, [112], partPolygonCounts: [63]).Profile == defaultSingle.Profile, "A conditional exception's nonmatching polygon count did not retain native defaults.");
-        Throws<NotSupportedException>(() => Ff7NativeModelEffect.Request(null, 0, [112], partPolygonCounts: [64]));
+        Check(Ff7NativeModelEffect.Request(null, 0, [112], partPolygonCounts: [64]).Profile == Ff7NativeModelEffect.SinglePart224Profile, "The native112/64 exception did not select its compact orbit.");
         Throws<NotSupportedException>(() => Ff7NativeModelEffect.Request(null, 0, [112]));
         Throws<InvalidDataException>(() => Ff7NativeModelEffect.Request(null, 0, [0]));
         Check(Ff7NativeModelEffect.OrbitPoint(defaultSingle, 0, table) == new Vector3(256, 0, 0), "The one-part34 default orbit start changed.");
@@ -438,7 +439,82 @@ internal static class NativeModelEffectTests
     public static void RunReachedCheckpoint()
     {
         string root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR") ?? throw new InvalidOperationException("Configure MEMORIA_FF7_GAME_DIR.");
-        RunInstalledCheckpoint(Ff7Installation.Discover(root));
+        Ff7Installation installation = Ff7Installation.Discover(root);
+        if (Environment.GetEnvironmentVariable("MEMORIA_FF7_MODEL_SCALE_SAVE") is string path)
+        {
+            RunReachedScaleCheckpoint(installation, path);
+            return;
+        }
+        RunInstalledCheckpoint(installation);
+    }
+
+    internal static void RunNativeScale()
+    {
+        Ff7PcFieldPresentationData presentation = new([[new(0, 0, 1)], [new(0, 0, 1)]], new Dictionary<string, int>(), [], [50, 50]) { ModelScales = new short[] { 512, 4096 } };
+        Check(presentation.ResolveModelScale(1, "9999") == 4096 && presentation.ResolveModelScale(0, "9999") == 512, "The native large descriptor must select the current field's signed scale word.");
+        Check(presentation.ResolveModelScale(0, "4096") == 4096 && presentation.ResolveModelScale(1, "512") == 512 && presentation.ResolveModelScale(1, "-1") == -1, "The signed descriptor threshold or ordinary direct scale changed.");
+        Throws<NotSupportedException>(() => presentation.ResolveModelScale(2, "9999"));
+        Throws<NotSupportedException>(() => presentation.ResolveModelScale(0, "oops"));
+        PcFieldModelDescriptor raw = new("model", 0, "model.hrc", "9999", [], 0, []);
+        Throws<NotSupportedException>(() => Ff7NativeFieldPoseMath.ReadModelScale(raw));
+        PcFieldModelDescriptor resolved = raw with { NativeRenderScale = presentation.ResolveModelScale(1, raw.Scale) };
+        Check(resolved.Scale == "9999" && Ff7NativeFieldPoseMath.ReadModelScale(resolved) == 4096, "Resolving the render owner changed original descriptor text or lost its scale word.");
+        Check(Ff7NativeFieldPoseMath.ModelBasis(resolved) == Ff7NativeFieldPoseMath.ModelBasis(raw with { Scale = "4096" }), "Geometry and procedural colors disagree on the native render-record scale.");
+        short[] table = new short[512];
+        table[1] = 4096;
+        Ff7NativeModelEffectState state = Ff7NativeModelEffect.Request(null, 0, [34], Ff7NativeFieldPoseMath.ReadModelScale(resolved));
+        Check(state.NativeScale == 4096 && Ff7NativeModelEffect.OrbitPoint(state, 0, table) == new Vector3(2048, 0, 0), "KAWAI13 did not retain the resolved native scale multiplier eight.");
+        foreach ((int vertices, int polygons) in new[] { (112, 64), (109, 64), (94, 64), (95, 62) })
+        {
+            Check(Ff7NativeModelEffect.Request(null, 0, [vertices], 4096, [polygons]).Profile == Ff7NativeModelEffect.SinglePart224Profile, "A native shared radius224 predicate lost its exact topology ownership.");
+            Check(Ff7NativeModelEffect.Request(null, 0, [vertices], 4096, [polygons - 1]).Profile == Ff7NativeModelEffect.SinglePartDefaultProfile, "An unmatched polygon count incorrectly acquired the compact profile.");
+            Throws<NotSupportedException>(() => Ff7NativeModelEffect.Request(null, 0, [vertices], 4096));
+        }
+        state = Ff7NativeModelEffect.Request(null, 0, [95], 4096, [62]);
+        table[128] = 4096;
+        Check(Ff7NativeModelEffect.OrbitPoint(state, 0, table) == new Vector3(512, 0, 0) && Ff7NativeModelEffect.OrbitPoint(state, 4, table) == new Vector3(0, -512, 256), "The native compact profile lost shifts6/6/7, zero offset or resolved scale multiplier.");
+        Check(Ff7NativeModelEffect.ShadeVertex(state, 0, table, new(-1400, 0, 0), Vector3.UnitX, 0x7FFFFFFF, Matrix4x4.Identity) == 0x7FC0C0C0, "The native compact light radius224 or original alpha changed.");
+        Ff7NativeModelEffectState baseline = Ff7NativeModelEffect.Request(null, 0, [34], 4096);
+        for (int callback = 0; callback < 320; callback++)
+        {
+            bool eligible = callback % 17 != 0;
+            Ff7NativeModelEffectState cold = JsonSerializer.Deserialize<Ff7NativeModelEffectState>(JsonSerializer.Serialize(state))!;
+            Check(Ff7NativeModelEffect.Advance(state, eligible) == Ff7NativeModelEffect.Advance(cold, eligible), "The compact profile changed gated independent cold continuation.");
+            state = Ff7NativeModelEffect.Advance(state, eligible);
+            baseline = Ff7NativeModelEffect.Advance(baseline, eligible);
+            Check(state.Phase == baseline.Phase && state.Stage == baseline.Stage && state.Counter == baseline.Counter && state.SampleFrame == baseline.SampleFrame && Ff7NativeModelEffect.PartVisible(state, 0) == Ff7NativeModelEffect.PartVisible(baseline, 0), "The compact radius profile changed the shared native hold, phase, cache or visibility clock.");
+        }
+        state = Ff7NativeModelEffect.Advance(Ff7NativeModelEffect.Request(state, 2, [95], 4096, [62]), true);
+        Check(state.Restored && !state.Completed && Ff7NativeModelEffect.PartVisible(state, 0) && Ff7NativeModelEffect.Advance(state, true).Completed, "The compact profile lost its two-callback native reset contract.");
+        Console.WriteLine("PASS native signed descriptor threshold, field-table scale ownership and shared geometry/effect scale.");
+    }
+
+    private static void RunReachedScaleCheckpoint(Ff7Installation installation, string path)
+    {
+        byte[] bytes = File.ReadAllBytes(path);
+        using MemoryStream input = new(bytes, writable: false);
+        Ff7SessionSave saved = CombinedSessionCodec.Read(input).Ff7 ?? throw new InvalidDataException("The scale fixture has no native FFVII session.");
+        using Ff7Session warm = Ff7Session.Restore(installation, saved);
+        using Ff7Session cold = Ff7Session.Restore(installation, JsonSerializer.Deserialize<Ff7SessionSave>(JsonSerializer.Serialize(saved))!);
+        Ff7Actor sourceActor = warm.Host.Process.Actors.Single(actor => actor.EntityBound && actor.Entity == 14);
+        PcFieldModelDescriptor descriptor = warm.Field.Models.Models[sourceActor.Model];
+        Ff7PcExecutableData native = Ff7PcExecutableData.Load(installation);
+        short scale = native.NativePresentation.ResolveModelScale(warm.MapId, descriptor.Scale);
+        Check(descriptor.NativeRenderScale == scale && scale == 4096, "The external scale fixture did not resolve its original field-table owner.");
+        for (int callback = 0; callback < 3; callback++)
+        {
+            warm.AdvanceTick(advanceClock: false);
+            cold.AdvanceTick(advanceClock: false);
+            Check(JsonSerializer.Serialize(warm.Capture()) == JsonSerializer.Serialize(cold.Capture()), "Native scale initialization changed independent cold continuation.");
+        }
+        Ff7Actor actor = warm.Host.Process.Actors.Single(actor => actor.Entity == sourceActor.Entity && actor.EntityBound);
+        Check(actor.ModelEffect is { Initialized: true, Applied: true, Profile: Ff7NativeModelEffect.SinglePart224Profile } effect && effect.NativeScale == scale, "The actual KAWAI13 initializer did not use the model's native render-record owner and topology.");
+        using LgpArchive characters = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.CharacterArchive).Path);
+        Ff7FieldModelResources model = Ff7FieldModelResources.Load(characters, descriptor);
+        Check(model.Geometry.Count == 1 && model.Geometry[0].Polygon.Vertices.Count == 95 && model.Geometry[0].Polygon.Polygons.Count == 62, "The external fixture's original geometry no longer selects its native compact profile.");
+        CheckInstalledPulse(model, native, scale);
+        Check(bytes.AsSpan().SequenceEqual(File.ReadAllBytes(path)), "Scale initialization changed the external source save.");
+        Console.WriteLine($"PASS original model scale: entity={actor.Entity}, slot={actor.Slot}, model={actor.Model}, raw={descriptor.Scale}, native={scale}, profile={actor.ModelEffect!.Profile}, tick={saved.Process.Tick}->{warm.Host.Process.Tick}, cold=exact, source=unchanged.");
     }
 
     private static void RunInstalledCheckpoint(Ff7Installation installation)

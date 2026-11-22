@@ -404,6 +404,10 @@ public sealed partial class Ff7Session : IDisposable
         }
         bool sameField = resourceSource?.Field.Name == mapList[map];
         Ff7FieldResources loadedField = sameField ? resourceSource!.Field : Ff7FieldResources.Load(fields, mapList[map]);
+        if (!sameField)
+        {
+            loadedField = loadedField with { Models = loadedField.Models with { Models = loadedField.Models.Models.Select(model => model with { NativeRenderScale = executable.NativePresentation.ResolveModelScale(map, model.Scale) }).ToArray() } };
+        }
         Ff7FieldModelResources[] loadedModels = sameField ? resourceSource!.models.ToArray() : loadedField.Models.Models.Select(model => Ff7FieldModelResources.Load(characters, model, executable, fields)).ToArray();
         IReadOnlyList<PcFieldEncounterTable> loadedEncounterTables = PcFieldEncounterTable.Read(loadedField.Container.GetSection(PcFieldSectionKind.Encounters).Span);
         Ff7FieldHost loadedHost = new(loadedField, (model, animation) => loadedModels[model].Animations[Path.ChangeExtension(loadedField.Models.Models[model].Animations[animation], ".a")].Frames.Count, process, map)

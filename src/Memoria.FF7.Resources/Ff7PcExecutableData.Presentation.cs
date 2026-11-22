@@ -10,6 +10,25 @@ public sealed record Ff7NativePartyPresentationFilter(int LastSlotInclusive);
 
 public sealed class Ff7PcFieldPresentationData(Ff7NativeModelPresentation[][] fields, IReadOnlyDictionary<string, int> roles, IReadOnlyList<Ff7NativeEyeProfile> eyes, IReadOnlyList<float> nearPlanes, IReadOnlyDictionary<int, Ff7NativePartyPresentationFilter>? partyFilters = null)
 {
+    public IReadOnlyList<short>? ModelScales { get; init; }
+
+    public short ResolveModelScale(int field, string descriptorScale)
+    {
+        if (!short.TryParse(descriptorScale, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out short scale))
+        {
+            throw new NotSupportedException("Native field model scale requires its signed descriptor word.");
+        }
+        if (scale <= 4096)
+        {
+            return scale;
+        }
+        if ((uint)field >= fields.Length || ModelScales is null || ModelScales.Count != fields.Length)
+        {
+            throw new NotSupportedException("Native field model scale requires its original field-table owner.");
+        }
+        return ModelScales[field];
+    }
+
     public Ff7NativePartyPresentationFilter? PartyFilter(int field)
     {
         if ((uint)field >= fields.Length)
@@ -219,6 +238,7 @@ public sealed partial class Ff7PcExecutableData
             throw new InvalidDataException("The native party presentation field or allocated-slot bounds are unsupported.");
         }
         Dictionary<int, Ff7NativePartyPresentationFilter> partyFilters = new() { [partyField] = new(lastPartySlot) };
-        return new(fields, new System.Collections.ObjectModel.ReadOnlyDictionary<string, int>(roles), Array.AsReadOnly(eyes), Array.AsReadOnly(nearPlanes), new System.Collections.ObjectModel.ReadOnlyDictionary<int, Ff7NativePartyPresentationFilter>(partyFilters));
+        short[] modelScales = Enumerable.Range(0, count).Select(field => BinaryPrimitives.ReadInt16LittleEndian(ReadVirtual(stream, pe, 0x906C68 + checked((uint)field * 4), 2))).ToArray();
+        return new(fields, new System.Collections.ObjectModel.ReadOnlyDictionary<string, int>(roles), Array.AsReadOnly(eyes), Array.AsReadOnly(nearPlanes), new System.Collections.ObjectModel.ReadOnlyDictionary<int, Ff7NativePartyPresentationFilter>(partyFilters)) { ModelScales = Array.AsReadOnly(modelScales) };
     }
 }

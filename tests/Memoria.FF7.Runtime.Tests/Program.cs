@@ -2272,6 +2272,12 @@ if (args.Contains("--native-model-effect-original-only", StringComparer.Ordinal)
     return 0;
 }
 
+if (args.Contains("--native-model-scale-only", StringComparer.Ordinal))
+{
+    NativeModelEffectTests.RunNativeScale();
+    return 0;
+}
+
 if (args.Contains("--native-model-completion-only", StringComparer.Ordinal))
 {
     NativeModelCompletionTests.Run();

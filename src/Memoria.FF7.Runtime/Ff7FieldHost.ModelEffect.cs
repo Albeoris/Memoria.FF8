@@ -229,10 +229,7 @@ public sealed partial class Ff7FieldHost
             throw new NotSupportedException("Procedural colors replacing native color offsets require their shared original-color cache contract.");
         }
         IReadOnlyList<int> parts = ModelPartVertexCounts?.Invoke(actor.Model) ?? throw new NotSupportedException("FFVII KAWAI13 requires native model topology.");
-        if (!short.TryParse(field.Models.Models[actor.Model].Scale, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out short nativeScale) || nativeScale > 4096)
-        {
-            throw new NotSupportedException("FFVII KAWAI13 model scale requires its native render-record owner.");
-        }
+        short nativeScale = Ff7NativeFieldPoseMath.ReadModelScale(field.Models.Models[actor.Model]);
         byte mode = command.Mode ?? throw new InvalidDataException("Native procedural colors require their original mode byte.");
         Ff7NativeModelEffectState state = Ff7NativeModelEffect.Request(actor.ModelEffect, mode, parts, nativeScale, ModelPartPolygonCounts?.Invoke(actor.Model));
         SetActor(entity, current => current with { ModelEffect = state, NativeEyeControlPending = false });

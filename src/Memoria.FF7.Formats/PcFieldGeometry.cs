@@ -55,7 +55,10 @@ public static class PcFieldWalkmesh
 }
 
 public sealed record PcFieldLight(uint ColorRgb, Vector3 Position);
-public sealed record PcFieldModelDescriptor(string Name, ushort Attribute, string Hrc, string Scale, IReadOnlyList<PcFieldLight> Lights, uint AmbientRgb, IReadOnlyList<string> Animations);
+public sealed record PcFieldModelDescriptor(string Name, ushort Attribute, string Hrc, string Scale, IReadOnlyList<PcFieldLight> Lights, uint AmbientRgb, IReadOnlyList<string> Animations)
+{
+    public short? NativeRenderScale { get; init; }
+}
 public sealed record PcFieldModels(short Reserved, short ModelScale, IReadOnlyList<PcFieldModelDescriptor> Models)
 {
     public static PcFieldModels Read(ReadOnlySpan<byte> source)

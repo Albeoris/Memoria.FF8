@@ -53,12 +53,25 @@ public static class Ff7NativeFieldPoseMath
 
     public static Matrix4x4 ModelBasis(PcFieldModelDescriptor descriptor)
     {
-        float scale = float.Parse(descriptor.Scale, CultureInfo.InvariantCulture) / 4096 * 30.43090057373047f;
+        float scale = ReadModelScale(descriptor) / 4096f * 30.43090057373047f;
         if (!float.IsFinite(scale) || scale <= 0)
         {
             throw new InvalidDataException("FFVII model scale must be finite and positive.");
         }
         return Matrix4x4.CreateRotationX(-MathF.PI / 2) * Matrix4x4.CreateScale(scale);
+    }
+
+    public static short ReadModelScale(PcFieldModelDescriptor descriptor)
+    {
+        if (descriptor.NativeRenderScale is short resolved)
+        {
+            return resolved;
+        }
+        if (!short.TryParse(descriptor.Scale, NumberStyles.Integer, CultureInfo.InvariantCulture, out short scale) || scale > 4096)
+        {
+            throw new NotSupportedException("Native field model scale requires its original render-record owner.");
+        }
+        return scale;
     }
 
     public static Matrix4x4 Rotate(Vector3 degrees)
