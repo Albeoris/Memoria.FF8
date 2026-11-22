@@ -46,6 +46,12 @@ if (args.Contains("--native-navigation-choice-original-only", StringComparer.Ord
     return 0;
 }
 
+if (args.Contains("--native-world-navigation-choice-original-only", StringComparer.Ordinal))
+{
+    NativeWorldNavigationChoiceOriginalTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-navigation-choice-commit-only", StringComparer.Ordinal))
 {
     NativeNavigationChoiceCommitTests.Run();

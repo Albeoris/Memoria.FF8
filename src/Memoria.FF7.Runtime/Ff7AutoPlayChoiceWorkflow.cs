@@ -231,7 +231,8 @@ public sealed partial class Ff7AutoPlayChoiceWorkflow
         Ff7SessionSave current = capture();
         bool executionCommitted = choice.NativeExecutionCommitted == true;
         bool navigationReturned = executionCommitted && state.Active?.ExecutionProvenance?.AcceptedTransition?.Command is FieldTransitionCommand transition && CanSettleOwnedNavigationChoice(current, state, nativeSession?.MapId ?? transition.Map);
-        if (executionCommitted && !HasCompletedCommittedSource(state) && (current.World is not null || current.Battle is not null || current.Process.GlobalCommand != Ff7GlobalCommand.None || current.Process.PlayerLocked || current.Process.MenuDisabled && !navigationReturned || current.Process.Menu is { Completed: false } || current.Process.Transition is not null || current.Process.Join is not null || current.Process.Movie is { Playing: true } || current.Process.Dialogues.Any(dialogue => !dialogue.Completed)))
+        bool worldNavigationReturned = navigationReturned && current.World is not null;
+        if (executionCommitted && !HasCompletedCommittedSource(state) && (current.Battle is not null || !worldNavigationReturned && (current.World is not null || current.Process.GlobalCommand != Ff7GlobalCommand.None || current.Process.PlayerLocked || current.Process.MenuDisabled && !navigationReturned || current.Process.Menu is { Completed: false } || current.Process.Transition is not null || current.Process.Join is not null || current.Process.Movie is { Playing: true } || current.Process.Dialogues.Any(dialogue => !dialogue.Completed))))
         {
             return false;
         }

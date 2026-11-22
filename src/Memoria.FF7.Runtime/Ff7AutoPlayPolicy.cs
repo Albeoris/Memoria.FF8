@@ -1072,7 +1072,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
 
     private bool ObserveOwnedFieldTransitionChoice()
     {
-        if (session.World is not null || State.Active is not { Accepted: true, TransitionOwned: true, ExecutionProvenance.AcceptedTransition.Command: FieldTransitionCommand } || State.Choice is null)
+        if (State.Active is not { Accepted: true, TransitionOwned: true, ExecutionProvenance.AcceptedTransition.Command: FieldTransitionCommand } || State.Choice is null)
         {
             return false;
         }

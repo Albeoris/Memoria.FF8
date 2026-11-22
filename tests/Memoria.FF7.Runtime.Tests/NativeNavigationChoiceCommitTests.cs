@@ -59,6 +59,7 @@ internal static class NativeNavigationChoiceCommitTests
         Check(!Observe(unpaid), "A zero-cost or mismatched transport marker acquired legacy paid-route authority.");
         CheckControlReturn(source);
         CheckMenuDisabledNavigationReturn();
+        CheckWorldNavigationReturn();
         Console.WriteLine("Requested owned field-transition choices retain the current native continuation without replaying paid travel.");
     }
 
@@ -151,6 +152,95 @@ internal static class NativeNavigationChoiceCommitTests
         Ff7AutoPlayChoiceState parent = new("parent", before) { NativeSourceOwned = true, NativeOwner = owner, NativeNavigationRequested = marker };
         state.Choice = new("choice", before, parent) { NativeSourceOwned = true, NativeOwner = owner with { RequestId = 7 }, NativeNavigationRequested = marker };
         return new(current, state);
+    }
+
+    private static Fixture CreateWorld()
+    {
+        Fixture source = Create();
+        Ff7AutoPlayActiveEvent before = source.State.Choice!.BeforeActive!;
+        FieldHostRequest map = new(8, before.Entity, 1, 20, new FieldTransitionCommand(45, 0, 0, 0, 0));
+        Ff7AutoPlayActiveEvent active = Ff7AutoPlayExecutionOwners.Observe(before, 1, "source-program", 30, [new(HostOperation: new(map, new(true)))], (_, _) => 10) with { TransitionOwned = true };
+        source.State.Active = active;
+        FieldEntitySnapshot owner = new(20, 1, 0, new int[8], new FieldSyncState[8], Enumerable.Repeat(-1, 8).ToArray());
+        FieldVmSnapshot field = source.Current.Vm with { ProgramIdentity = "source-program", Tick = 30, Entities = [owner], PendingRequests = [map], NextRequestId = 9 };
+        WorldEntitySnapshot idle = new(-1, 0, 0, 0, false, 0, []);
+        WorldSnapshot execution = new(1, "world-program", 0, 1, false, new byte[64], [], idle, []);
+        Ff7WorldProcess world = new(0, 0, 45, execution, [], 0, true, 0, 0, null, [], -1, new(), 0, 1);
+        Ff7FieldProcess process = source.Current.Process with { GlobalCommand = Ff7GlobalCommand.Transition, GlobalRequestId = map.Id, Transition = (FieldTransitionCommand)map.Command, Receipts = [new(map, new(true))], PlayerLocked = true, MenuDisabled = true };
+        return source with { Current = source.Current with { FieldName = "source", FieldGeneration = 1, Vm = field, World = world, Process = process } };
+    }
+
+    private static bool ObserveWorld(Fixture source)
+    {
+        return Ff7AutoPlayChoiceWorkflow.ObserveOwnedFieldTransitionChoice(source.Current, source.State, 72);
+    }
+
+    private static void CheckWorldNavigationReturn()
+    {
+        Fixture source = CreateWorld();
+        Check(source.State.SourceGoal is null && source.Current.World is { MainState: -15, EntrySelector: 45 } && source.Current.FieldGeneration == source.State.Active!.Generation, "The World fixture did not preserve an initializing allocation and its cached source field.");
+        string native = JsonSerializer.Serialize(source.Current);
+        string history = JsonSerializer.Serialize(source.State.Coverage);
+        Check(ObserveWorld(source) && source.State.Choice is { NativeExecutionCommitted: true, Parent.NativeExecutionCommitted: true }, "A completed requested same-generation World handoff did not commit its actual nested choices.");
+        Check(native == JsonSerializer.Serialize(source.Current) && history == JsonSerializer.Serialize(source.State.Coverage), "World commitment mutated native facts or credited a choice option.");
+        Check(!Ff7AutoPlayChoiceWorkflow.CanSettleOwnedNavigationChoice(source.Current, source.State, 72), "An unaccounted source handoff settled a World choice.");
+        source.State.Active = source.State.Active! with { CompletionRecorded = true };
+        Check(Ff7AutoPlayChoiceWorkflow.CanSettleOwnedNavigationChoice(source.Current, source.State, 72), "Cached source locks or MAP ownership prevented actual World-choice settlement.");
+        foreach (var choice in source.State.Coverage.Choices)
+        {
+            choice.BeforeCheckpoint = "before";
+            choice.ContinuationCheckpoint = "historical-primary";
+            choice.CompletedOptions.Add(1);
+        }
+        string eventHistory = JsonSerializer.Serialize(new { source.State.Coverage.Visits, source.State.Coverage.NavigationRoutes });
+        int writes = 0;
+        Ff7AutoPlayChoiceWorkflow workflow = new(() => source.Current, Ff7AutoPlayPolicy.CreatePlanner(source.State), source.State, (_, save) =>
+        {
+            Check(save.World == source.Current.World && save.Vm == source.Current.Vm && save.Process == source.Current.Process && save.Progress == source.Current.Progress, "The World continuation writer received restored or replaced native state.");
+            return "live-world-" + ++writes;
+        }, _ => true, _ => 1299);
+        workflow.CompleteAtControlReturn();
+        Check(source.State.Choice is null && source.State.PendingRestore is null && writes == 2, "An actual World handoff restored the historical field choice instead of retaining live World state.");
+        Check(source.State.Coverage.Choices.All(choice => choice.CompletedOptions.ToHashSet().SetEquals([1, 2]) && choice.PolicyDeferredOptions.Contains(3)), "World completion credited an unexecuted option or lost actual parent coverage.");
+        Check(eventHistory == JsonSerializer.Serialize(new { source.State.Coverage.Visits, source.State.Coverage.NavigationRoutes }) && native == JsonSerializer.Serialize(source.Current), "World choice settlement rewrote event/route history or native facts.");
+        foreach (Func<Fixture, Fixture> invalidate in new Func<Fixture, Fixture>[]
+        {
+            value => value with { Current = value.Current with { World = null } },
+            value => value with { Current = value.Current with { World = value.Current.World! with { WorldId = 1 } } },
+            value => value with { Current = value.Current with { World = value.Current.World! with { EntrySelector = 46 } } },
+            value => value with { Current = value.Current with { FieldGeneration = 2 } },
+            value => value with { Current = value.Current with { Vm = value.Current.Vm with { ProgramIdentity = "foreign" } } },
+            value => value with { Current = value.Current with { Vm = value.Current.Vm with { PendingRequests = [] } } },
+            value => value with { Current = value.Current with { Vm = value.Current.Vm with { Entities = [value.Current.Vm.Entities[0] with { Priority = 6 }] } } },
+            value => value with { Current = value.Current with { Vm = value.Current.Vm with { Entities = [value.Current.Vm.Entities[0] with { ProgramCounter = 21 }] } } },
+            value => value with { Current = value.Current with { Process = value.Current.Process with { Receipts = [] } } },
+            value => value with { Current = value.Current with { Process = value.Current.Process with { Receipts = [new(value.Current.Process.Receipts[0].Request, new(false))] } } },
+            value => value with { Current = value.Current with { Process = value.Current.Process with { GlobalRequestId = 9 } } },
+            value => value with { Current = value.Current with { Process = value.Current.Process with { Transition = new(46, 0, 0, 0, 0) } } }
+        })
+        {
+            Fixture invalid = invalidate(CreateWorld());
+            string unchanged = JsonSerializer.Serialize(invalid.State);
+            Check(!ObserveWorld(invalid) && unchanged == JsonSerializer.Serialize(invalid.State), "An incomplete, unallocated, foreign or mismatched World handoff committed source choices.");
+        }
+        foreach (Action<Fixture> invalidate in new Action<Fixture>[]
+        {
+            value => value.State.Active = value.State.Active! with { ExecutionProvenance = null },
+            value => value.State.Active = value.State.Active! with { ConditionFingerprint = "foreign" },
+            value => value.State.Choice = value.State.Choice! with { NativeNavigationRequested = false },
+            value => value.State.Choice = value.State.Choice! with { NativeNavigationRequested = null },
+            value => value.State.Choice = value.State.Choice! with { NativeOwner = null },
+            value => value.State.Choice = value.State.Choice! with { NativeOwner = value.State.Choice!.NativeOwner! with { ProgramIdentity = "foreign" } },
+            value => value.State.Choice = value.State.Choice! with { NativeOwner = value.State.Choice!.NativeOwner! with { Generation = 2 } },
+            value => value.State.Choice = value.State.Choice! with { Parent = value.State.Choice!.Parent! with { NativeNavigationRequested = false } },
+            value => value.State.Choice = value.State.Choice! with { BeforeActive = value.State.Choice!.BeforeActive! with { EventId = "another-ASK-source" } }
+        })
+        {
+            Fixture invalid = CreateWorld();
+            invalidate(invalid);
+            string unchanged = JsonSerializer.Serialize(invalid.State);
+            Check(!ObserveWorld(invalid) && unchanged == JsonSerializer.Serialize(invalid.State), "An unrelated exploratory choice or foreign ASK source acquired World commitment.");
+        }
     }
 
     private static bool Observe(Fixture source) => Ff7AutoPlayChoiceWorkflow.ObserveOwnedFieldTransitionChoice(source.Current, source.State, 324);
