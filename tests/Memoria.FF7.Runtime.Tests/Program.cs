@@ -3,6 +3,12 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-mine-gateway-progress-only", StringComparer.Ordinal))
+{
+    NativeMineGatewayProgressTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-submarine-original-only", StringComparer.Ordinal))
 {
     NativeSubmarineOriginalTests.Run();

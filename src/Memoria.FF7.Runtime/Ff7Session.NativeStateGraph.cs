@@ -425,6 +425,7 @@ public sealed partial class Ff7AutoplayDriver
         driver.ConfigureSpatialBoundaries(targets, goal);
         int[] ahead = goal.Kind == Ff7AutoPlayTargetKind.Gateway ? ReadAheadNavigationLinePrerequisites(branch.Field.Walkmesh, branch.Host.Process.BlockedTriangles, player, contact.Point, contact.Triangle, targets, branch.Host.Process.Lines) : [];
         HashSet<int> blocked = [];
+        bool ordinaryProgress = false;
         try
         {
             driver.ChooseTargetInput(goal, targets, _ =>
@@ -439,8 +440,13 @@ public sealed partial class Ff7AutoplayDriver
                         driver.navigationLineTalk = false;
                         Ff7Actor controlled = player with { MoveSpeed = unchecked((ushort)branch.GetPlayerMovementSpeed(run)) };
                         Ff7NativeMoveResult move = branch.Host.Movement!.StepDirection(controlled, unchecked((byte)(direction.Direction + branch.Field.Triggers.ControlDirection)), branch.Host.Process.Actors, branch.Host.Process.BlockedTriangles, false, branch.Host.Process.LineBlocked);
-                        if (!move.Moved || distance[move.Actor.Triangle] > distance[player.Triangle] || distance[move.Actor.Triangle] == distance[player.Triangle] && Vector3.DistanceSquared(Position3D(move.Actor), waypoint) >= Vector3.DistanceSquared(Position3D(player), waypoint) || driver.ProbePlannedMove(controlled, move))
+                        if (!move.Moved || distance[move.Actor.Triangle] < 0 || distance[move.Actor.Triangle] > distance[player.Triangle] || distance[move.Actor.Triangle] == distance[player.Triangle] && Vector3.DistanceSquared(Position3D(move.Actor), waypoint) >= Vector3.DistanceSquared(Position3D(player), waypoint))
                         {
+                            continue;
+                        }
+                        if (driver.ProbePlannedMove(controlled, move))
+                        {
+                            ordinaryProgress = true;
                             continue;
                         }
                         foreach (int entity in protectedTargets.Where(target => (target.Kind is Ff7AutoPlayTargetKind.LineTouch or Ff7AutoPlayTargetKind.LinePush) && target.AnalysisComplete).Select(target => target.Entity).Distinct())
@@ -466,7 +472,9 @@ public sealed partial class Ff7AutoplayDriver
         catch (Ff7AutoPlayNavigationUnavailableException) when (blocked.Count != 0 || ahead.Length != 0)
         {
         }
-        return blocked.Order().Concat(ahead).Distinct().ToArray();
+        // A rejected direction does not establish a required script edge when
+        // another ordinary native-admitted pulse advances along the same route.
+        return (ordinaryProgress ? Enumerable.Empty<int>() : blocked.Order()).Concat(ahead).Distinct().ToArray();
     }
 
     private static Ff7AutoplayInput ChooseNativeGraphInput(Ff7Session branch, Ff7AutoplayDriver driver, Ff7NativeGraphEdge edge, Ff7AutoPlayTarget goal, Ff7AutoPlayTarget[] events, NativeGraphOwnership ownership)

@@ -288,6 +288,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         }
         if (session.Host.Process.Actors.SingleOrDefault(actor => actor.PlayerControlled) is { Ladder.Completed: false } climbing)
         {
+            State.Status = $"Native ladder {climbing.Ladder.Step}/{climbing.Ladder.Steps}, direction {climbing.Direction}";
             controllable = true;
             return driver.Steer(new(climbing.X4096 / 4096f, climbing.Y4096 / 4096f, climbing.Z4096 / 4096f));
         }
