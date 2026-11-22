@@ -3,6 +3,18 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-party-spatial-only", StringComparer.Ordinal))
+{
+    NativePartySpatialPredicateTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-roof-exit-original-only", StringComparer.Ordinal))
+{
+    NativeRoofExitOriginalTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-committed-minigame-choice-only", StringComparer.Ordinal))
 {
     NativeCommittedMinigameChoiceTests.Run();
