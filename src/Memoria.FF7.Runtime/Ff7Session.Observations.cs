@@ -23,6 +23,8 @@ public sealed record Ff7NativeTickObservation(string Field, long Generation, lon
 
 public sealed partial class Ff7Session
 {
+    private readonly Ff7EventProgressWitnessMemo eventProgressWitnessMemo = new();
+
     public event Action<Ff7NativeTickObservation>? NativeTickCompleted;
     public event Action<int, int, bool>? InteractionScriptRequested;
     internal event Action<FieldExternalScriptAdmission>? NativeInteractionScriptRequested;
@@ -215,7 +217,13 @@ public sealed partial class Ff7Session
     {
         byte[] persistent = Machine.Variables.CopyPersistent();
         Array.Clear(persistent, 16, 8);
+        if (eventProgressWitnessMemo.TryRead(persistent, Progress, out string witness))
+        {
+            return witness;
+        }
         byte[] bytes = JsonSerializer.SerializeToUtf8Bytes(new { Persistent = persistent, Progress.Inventory, Progress.Materia, Progress.Gil, Characters = Progress.Characters.Select(character => new { character.Id, character.Level, character.Experience, character.HitPoints, character.MagicPoints }), Progress.Party, Progress.AvailableCharacters, Progress.LockedCharacters, Progress.CompletedBattles });
-        return Convert.ToHexString(SHA256.HashData(bytes));
+        witness = Convert.ToHexString(SHA256.HashData(bytes));
+        eventProgressWitnessMemo.Remember(persistent, Progress, witness);
+        return witness;
     }
 }

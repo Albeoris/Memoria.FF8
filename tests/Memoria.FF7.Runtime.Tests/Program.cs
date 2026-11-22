@@ -3,6 +3,12 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-event-progress-witness-only", StringComparer.Ordinal))
+{
+    NativeEventProgressWitnessTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-source-goal-guard-only", StringComparer.Ordinal))
 {
     NativeSourceGoalGuardTests.Run();
