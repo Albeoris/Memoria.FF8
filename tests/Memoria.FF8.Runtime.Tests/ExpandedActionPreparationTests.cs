@@ -31,6 +31,30 @@ public sealed class ExpandedActionPreparationTests
     }
 
     [Fact]
+    public void Hosted_attack_prepares_while_its_own_damage_callback_is_queued()
+    {
+        const BindingFlags privateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
+        BattleSession battle = Create(gunblade: true);
+        battle.QueueAttack("caster", "enemy");
+        BattleAttackCommand attack = Assert.Single(battle.QueuedActions);
+        BattleCombatant caster = battle.Combatants.Single(actor => actor.Id == "caster");
+        typeof(BattleSession).GetMethod("QueueExpandedAiCallback", privateInstance)!.Invoke(battle, [caster, 2, null]);
+        typeof(BattleSession).GetMethod("DispatchAction", privateInstance)!.Invoke(battle, null);
+        Assert.Equal(BattleActionPhase.Windup, battle.ActiveAction?.Phase);
+        BattleSnapshot snapshot = battle.Capture();
+        BattleExpandedAiCallbackRequest callback = Assert.IsType<BattleExpandedAiCallbackRequest>(Assert.Single(snapshot.QueuedActions).ExpandedAiCallback);
+
+        BattleSession restored = battle.ForkForContinuation();
+
+        Assert.Equal(new BattleExpandedAiCallbackRequest(new BattlePartyActorReference("caster"), 2), callback);
+        Assert.True(restored.Combatants.Single(actor => actor.Id == "caster").IsBusy);
+        (_, NativeBattleActionHeaderPreparation header) = StageHostedInvocation(restored);
+        Assert.Equal((byte)1, header.Command);
+        Assert.Equal(callback, Assert.Single(restored.QueuedActions).ExpandedAiCallback);
+        Assert.Throws<InvalidDataException>(() => BattleSession.Restore(snapshot with { QueuedActions = [.. snapshot.QueuedActions, attack] }));
+    }
+
+    [Fact]
     public void Hosted_candidate_preserves_original_attack_and_only_prepares_the_Gunblade_placeholder()
     {
         BattleSession candidate = Create(gunblade: true);

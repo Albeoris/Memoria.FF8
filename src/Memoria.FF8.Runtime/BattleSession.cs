@@ -1310,6 +1310,7 @@ public sealed partial class BattleSession
         RestoreNativeBattleClock(snapshot.NativeClock);
         ValidateNativeSupportEntryOwner();
         HashSet<string> busy = new(StringComparer.Ordinal);
+        HashSet<string>? queuedCallbackOwners = null;
         foreach (BattleAttackCommand command in snapshot.QueuedActions)
         {
             if (command.ExpandedAiCallback is { } callback)
@@ -1319,7 +1320,7 @@ public sealed partial class BattleSession
                 {
                     throw new InvalidDataException("Queued expanded AI callback has no current eligible actor.");
                 }
-                busy.Add(owner.Id);
+                (queuedCallbackOwners ??= new(StringComparer.Ordinal)).Add(owner.Id);
                 actions.Enqueue(command);
                 continue;
             }
@@ -1370,6 +1371,11 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Invalid saved gunblade trigger input.");
             }
+        }
+        // A native callback can wait in the FIFO behind the same actor's selected command.
+        if (queuedCallbackOwners is not null)
+        {
+            busy.UnionWith(queuedCallbackOwners);
         }
         nativeReactionOrder = snapshot.NativeReactionOrder;
         ActiveAction = snapshot.ActiveAction;
