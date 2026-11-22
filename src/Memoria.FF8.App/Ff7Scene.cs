@@ -30,7 +30,7 @@ internal sealed partial class Ff7Scene : IDisposable
     private readonly Ff7Installation installation;
     private readonly string mediaToolsDirectory;
     private readonly Ff7ProjectionDepth projection;
-    private readonly Func<int, Ff7MovieSource> resolveMovie;
+    private readonly Func<int, Ff7MovieSource>? resolveMovie;
     private IFf7ActorAppearance? appearance;
     private readonly Ff7FontRenderer font;
     private readonly Texture2D pixel;
@@ -51,7 +51,7 @@ internal sealed partial class Ff7Scene : IDisposable
     private string? error;
     private bool focusPaused;
 
-    public Ff7Scene(GraphicsDevice device, Ff7Installation installation, string mediaToolsDirectory, Ff7ProjectionDepth projection, Func<int, Ff7MovieSource> resolveMovie, CombinedSessionSave? envelope = null, IFf7ActorAppearance? appearance = null, bool audioEnabled = true, PcmAudioOutput? audioOutput = null)
+    public Ff7Scene(GraphicsDevice device, Ff7Installation installation, string mediaToolsDirectory, Ff7ProjectionDepth projection, Func<int, Ff7MovieSource>? resolveMovie, CombinedSessionSave? envelope = null, IFf7ActorAppearance? appearance = null, bool audioEnabled = true, PcmAudioOutput? audioOutput = null)
     {
         this.device = device;
         this.audioEnabled = audioEnabled;

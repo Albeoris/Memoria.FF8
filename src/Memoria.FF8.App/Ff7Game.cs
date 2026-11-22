@@ -15,7 +15,7 @@ internal sealed partial class Ff7Game : GamePresentationHost
     private readonly string mediaToolsDirectory;
     private readonly string savePath;
     private readonly Ff7ProjectionDepth projection;
-    private readonly Func<int, Ff7MovieSource> resolveMovie;
+    private readonly Func<int, Ff7MovieSource>? resolveMovie;
     private readonly IFf7ActorAppearance? appearance;
     private readonly CombinedSessionSave? initialEnvelope;
     private readonly LaunchOptions? launchOptions;
@@ -32,7 +32,7 @@ internal sealed partial class Ff7Game : GamePresentationHost
     private Texture2D? transferPixel;
     private GameResourceHost? originResources;
 
-    public Ff7Game(Ff7Installation installation, string mediaToolsDirectory, string savePath, Ff7ProjectionDepth projection, Func<int, Ff7MovieSource> resolveMovie, CombinedSessionSave? envelope = null, IFf7ActorAppearance? appearance = null, LaunchOptions? launchOptions = null)
+    public Ff7Game(Ff7Installation installation, string mediaToolsDirectory, string savePath, Ff7ProjectionDepth projection, Func<int, Ff7MovieSource>? resolveMovie, CombinedSessionSave? envelope = null, IFf7ActorAppearance? appearance = null, LaunchOptions? launchOptions = null)
     {
         this.installation = installation;
         this.mediaToolsDirectory = mediaToolsDirectory;

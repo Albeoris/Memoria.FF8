@@ -9,6 +9,7 @@ internal static class NativeDestinationReadinessTests
         CheckAmbientWork();
         CheckAdmittedWork();
         CheckSynchronousWork();
+        CheckMovieTailTransfer();
         Console.WriteLine("Destination readiness excludes ambient motion and wait loops while preserving admitted native work.");
     }
 
@@ -73,6 +74,17 @@ internal static class NativeDestinationReadinessTests
         Check(Wait(Vm(caller, done), new(), script), "A real completed-child acknowledgment could not resume its caller.");
         done.SyncOwners[6] = 1;
         Check(!Wait(Vm(caller, done), new(), script), "An unrelated saved sync owner invented destination setup work.");
+    }
+
+    private static void CheckMovieTailTransfer()
+    {
+        byte[] script = [0x24, 10, 0, 0x60, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        FieldVmSnapshot vm = Vm(Entity(0, 7) with { WaitCounter = 10 });
+        Ff7FieldProcess process = new() { Movie = new(58, false, 110, true, null) };
+        FieldScriptAnalysis transfer = new(true, null, "movie tail", false, [], [0, 3], [1]) { InstructionSites = [new(0, 0), new(0, 3)] };
+        bool WaitFor(FieldScriptAnalysis continuation, Ff7FieldProcess actual) => new Ff7AutoPlayNativeReadiness().ShouldWaitForDestinationSetup(1, "component", vm, actual, script, [], analyzeTransfer: (_, _) => continuation);
+        Check(WaitFor(transfer, process), "A finite movie tail with an autonomous MAP could not finish.");
+        Check(!WaitFor(transfer with { DestinationFields = [] }, process) && !WaitFor(transfer with { Complete = false }, process) && !WaitFor(transfer, new()), "An unproved transfer inherited movie-tail readiness.");
     }
 
     private static void Check(bool condition, string message)

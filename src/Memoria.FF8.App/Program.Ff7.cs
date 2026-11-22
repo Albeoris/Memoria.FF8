@@ -38,7 +38,7 @@ internal static partial class Program
         }
         using GameAssets? appearanceAssets = envelope?.Mappings.Length > 0 ? new GameAssets(options.GameDirectory) : null;
         IFf7ActorAppearance? appearance = Ff7AppearanceSelection.Create(envelope?.Mappings ?? [], installation, appearanceAssets);
-        using Ff7Game game = new(installation, mediaTools, options.ControlExclusive ? options.SavePath : options.CrossoverSavePath, new Ff7ProjectionDepth(native.FieldNearPlane, native.FieldFarPlane), movie => Ff7Scene.ResolveMovie(installation, mediaTools, movie), envelope, appearance, options);
+        using Ff7Game game = new(installation, mediaTools, options.ControlExclusive ? options.SavePath : options.CrossoverSavePath, new Ff7ProjectionDepth(native.FieldNearPlane, native.FieldFarPlane), null, envelope, appearance, options);
         game.Run();
         return 0;
     }

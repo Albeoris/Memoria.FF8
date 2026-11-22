@@ -603,9 +603,9 @@ internal sealed class Ff7AutoPlayNativeReadiness
         return ShouldWait(generation, navigationKey, vm, process, script, inputDemands, admittedSetupOnly: false);
     }
 
-    internal bool ShouldWaitForDestinationSetup(long generation, string navigationKey, FieldVmSnapshot vm, Ff7FieldProcess process, ReadOnlySpan<byte> script, IReadOnlyList<FieldScriptInputDemand> inputDemands, Func<int, int, FieldScriptAnalysis>? analyzeContinuation = null)
+    internal bool ShouldWaitForDestinationSetup(long generation, string navigationKey, FieldVmSnapshot vm, Ff7FieldProcess process, ReadOnlySpan<byte> script, IReadOnlyList<FieldScriptInputDemand> inputDemands, Func<int, int, FieldScriptAnalysis>? analyzeContinuation = null, Func<int, int, FieldScriptAnalysis>? analyzeTransfer = null)
     {
-        return ShouldWait(generation, navigationKey, vm, process, script, inputDemands, admittedSetupOnly: true, analyzeContinuation);
+        return ShouldWait(generation, navigationKey, vm, process, script, inputDemands, admittedSetupOnly: true, analyzeContinuation, analyzeTransfer);
     }
 
     internal static bool HasCompletedConstantFade(Ff7FieldProcess process, FieldFadeCommand fade)
@@ -613,7 +613,7 @@ internal sealed class Ff7AutoPlayNativeReadiness
         return fade is { Type: 8, Speed: 255, Adjustment: 0, NewFade: false, Wait: false } && process.FadeState is { Type: 8, Completed: true, Speed: 255, EntryCurve: false } current && current.HasConstantFieldColor && !current.HidesField && current.Red == fade.Red && current.Green == fade.Green && current.Blue == fade.Blue;
     }
 
-    private bool ShouldWait(long generation, string navigationKey, FieldVmSnapshot vm, Ff7FieldProcess process, ReadOnlySpan<byte> script, IReadOnlyList<FieldScriptInputDemand> inputDemands, bool admittedSetupOnly, Func<int, int, FieldScriptAnalysis>? analyzeContinuation = null)
+    private bool ShouldWait(long generation, string navigationKey, FieldVmSnapshot vm, Ff7FieldProcess process, ReadOnlySpan<byte> script, IReadOnlyList<FieldScriptInputDemand> inputDemands, bool admittedSetupOnly, Func<int, int, FieldScriptAnalysis>? analyzeContinuation = null, Func<int, int, FieldScriptAnalysis>? analyzeTransfer = null)
     {
         HashSet<int> work = [];
         List<(int Owner, int Target)> links = [];
@@ -621,7 +621,12 @@ internal sealed class Ff7AutoPlayNativeReadiness
         {
             FieldEntitySnapshot target = vm.Entities[targetId];
             int currentPc = target.ProgramCounter;
+            bool finiteWait = target.WaitCounter > 0 && currentPc >= 0 && currentPc + 2 < script.Length && script[currentPc] == 0x24;
             bool admitted = HasAdmittedContinuation(target, script);
+            if (!admitted && admittedSetupOnly && finiteWait && target.Priority == 7 && process.Movie is { Playing: false, Completed: true } && analyzeTransfer?.Invoke(targetId, currentPc) is { DestinationFields.Length: 1 } transfer)
+            {
+                admitted = IsAutonomousSynchronousContinuation(transfer, vm.Entities.Length, script, targetId, currentPc);
+            }
             if (admittedSetupOnly && admitted && analyzeContinuation is not null && target.SyncStates.Length > target.Priority && target.SyncOwners.Length > target.Priority && target.SyncStates[target.Priority] == FieldSyncState.None && target.SyncOwners[target.Priority] == -1 && analyzeContinuation(targetId, currentPc) is { Complete: true } continuation && (continuation.IndependentActorMotionLoop && process.Actors.Any(actor => actor.EntityBound && actor.Entity == targetId && !actor.PlayerControlled) && !process.Actors.Any(actor => actor.Entity == targetId && actor.PlayerControlled) || continuation.RepeatingConstantFade is { } fade && HasCompletedConstantFade(process, fade) || Ff7AutoPlayPolicy.HasIndependentNpcAnimationLoop(vm, process, targetId, script, continuation) || Ff7AutoPlayPolicy.HasIndependentNpcFacingPoll(vm, process, targetId, script, continuation) || Ff7AutoPlayPolicy.HasIndependentNpcIdleYield(vm, process, targetId, script)))
             {
                 admitted = false;
@@ -630,7 +635,7 @@ internal sealed class Ff7AutoPlayNativeReadiness
             {
                 work.Add(targetId);
             }
-            if ((!admittedSetupOnly || admitted) && target.WaitCounter > 0 && currentPc >= 0 && currentPc + 2 < script.Length && script[currentPc] == 0x24)
+            if ((!admittedSetupOnly || admitted) && finiteWait)
             {
                 // The executing WAIT owns a finite countdown, regardless of the following opcode.
                 work.Add(targetId);

@@ -19,13 +19,26 @@ public sealed class Ff7MovieResourcesTests
         Assert.True(File.Exists(shared.Path));
     }
 
+    [Fact]
+    public void InstalledDiscTwoMovieUsesItsNativeVideoAndCameraTable()
+    {
+        Ff7Installation installation = Installed();
+        Ff7PcExecutableData native = Ff7PcExecutableData.Load(installation);
+        Assert.Throws<InvalidDataException>(() => Ff7MovieResources.Load(installation, 57, native, disc: 1));
+        Assert.Throws<InvalidDataException>(() => Ff7MovieResources.Load(installation, 61, native, disc: 2));
+        Ff7MovieResources movie = Ff7MovieResources.Load(installation, 57, native, disc: 2);
+        Assert.Equal("loslake1.avi", Path.GetFileName(movie.Path));
+        Assert.True(File.Exists(movie.Path));
+        Assert.Equal(237, movie.Cameras?.Count);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public void MovieLookupUsesSelectedLanguageThenSharedPreservesAbsentVideoAndRejectsAmbiguousCamera(bool nested)
     {
         Ff7PcExecutableData native = Ff7PcExecutableData.Load(Installed());
-        string name = native.MovieFiles[36];
+        const string name = "loslake1.avi";
         string root = Path.Combine(Path.GetTempPath(), $"ff7-movie-resource-{Guid.NewGuid():N}");
         string data = nested ? Path.Combine(root, "ff7", "workingdir", "data") : Path.Combine(root, "data");
         try
@@ -43,16 +56,16 @@ public sealed class Ff7MovieResourcesTests
             string otherLanguage = Path.Combine(data, "lang-en", "movies", name);
             string common = Path.Combine(data, "movies", name);
             File.WriteAllBytes(otherLanguage, []);
-            Ff7MovieResources absent = Ff7MovieResources.Load(installation, 36, native);
+            Ff7MovieResources absent = Ff7MovieResources.Load(installation, 57, native, disc: 2);
             Assert.Equal(common, absent.Path);
             Assert.False(File.Exists(absent.Path));
             Assert.Null(absent.Cameras);
             File.WriteAllBytes(common, []);
-            Assert.Equal(common, Ff7MovieResources.Load(installation, 36, native).Path);
+            Assert.Equal(common, Ff7MovieResources.Load(installation, 57, native, disc: 2).Path);
             File.WriteAllBytes(selected, []);
-            Assert.Equal(selected, Ff7MovieResources.Load(installation, 36, native).Path);
+            Assert.Equal(selected, Ff7MovieResources.Load(installation, 57, native, disc: 2).Path);
             WriteCameraArchive(archive, Path.ChangeExtension(name, ".cam"), 2);
-            Assert.Throws<InvalidDataException>(() => Ff7MovieResources.Load(installation, 36, native));
+            Assert.Throws<InvalidDataException>(() => Ff7MovieResources.Load(installation, 57, native, disc: 2));
         }
         finally
         {

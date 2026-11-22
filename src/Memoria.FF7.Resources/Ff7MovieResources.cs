@@ -5,22 +5,22 @@ namespace Memoria.FF7.Resources;
 /// <summary>Original movie identity and optional native camera member; video and PCM decoding belong to the presentation backend.</summary>
 public sealed record Ff7MovieResources(string Path, IReadOnlyList<PcMovieCamera>? Cameras)
 {
-    public static Ff7MovieResources Load(Ff7Installation installation, int movieId, Ff7PcExecutableData? native = null)
+    public static Ff7MovieResources Load(Ff7Installation installation, int movieId, Ff7PcExecutableData? native = null, int disc = 1)
     {
         ArgumentNullException.ThrowIfNull(installation);
         native ??= Ff7PcExecutableData.Load(installation);
-        if ((uint)movieId >= native.MovieFiles.Count)
-        {
-            throw new InvalidDataException("The FFVII movie index is outside its original execution-data table.");
-        }
-        string name = native.MovieFiles[movieId];
+        (string name, string? cameraName) = native.ReadMovie(movieId, disc);
         string path = System.IO.Path.Combine(installation.DataDirectory, $"lang-{installation.Language}", "movies", name);
         if (!File.Exists(path))
         {
             path = System.IO.Path.Combine(installation.GetRequired(Ff7ResourceRole.Movies).Path, name);
         }
+        if (cameraName is null)
+        {
+            return new(path, null);
+        }
         using LgpArchive archive = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.MovieCameraArchive).Path);
-        IReadOnlyList<LgpEntry> members = archive.Find(System.IO.Path.ChangeExtension(name, ".cam"));
+        IReadOnlyList<LgpEntry> members = archive.Find(cameraName);
         IReadOnlyList<PcMovieCamera>? cameras = members.Count switch
         {
             0 => null,

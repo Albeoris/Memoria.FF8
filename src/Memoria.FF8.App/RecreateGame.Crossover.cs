@@ -174,7 +174,7 @@ internal sealed partial class RecreateGame
             crossoverAssets ??= new GameAssets(options.GameDirectory, resources: resourceHost!.Resources, modelOverrides: resourceHost);
         }
         IFf7ActorAppearance? appearance = Ff7AppearanceSelection.Create(state.Mappings, installation, crossoverAssets);
-        Ff7Scene scene = new(GraphicsDevice, installation, tools, new Ff7ProjectionDepth(native.FieldNearPlane, native.FieldFarPlane), movie => Ff7Scene.ResolveMovie(installation, tools, movie), state, appearance, options.AudioEnabled, audioOutput);
+        Ff7Scene scene = new(GraphicsDevice, installation, tools, new Ff7ProjectionDepth(native.FieldNearPlane, native.FieldFarPlane), null, state, appearance, options.AudioEnabled, audioOutput);
         try
         {
             scene.ConfigureEnemyIntegrationMods(options.ModsDirectory, options.ModLocations);

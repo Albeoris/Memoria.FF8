@@ -14,8 +14,8 @@ internal sealed partial class Ff7Scene
     private MoviePresentation? movie;
     private Ff7MovieSource? movieSource;
     private Ff7MovieSource? preparedMovieSource;
-    private (long Generation, long? Request, int Id)? preparedMovieIdentity;
-    private (long Generation, long? Request, int Id)? movieSourceIdentity;
+    private (long Generation, long? Request, int Id, byte Disc)? preparedMovieIdentity;
+    private (long Generation, long? Request, int Id, byte Disc)? movieSourceIdentity;
     private readonly MovieSkipGesture movieSkipGesture = new();
     private (long Generation, long? Request)? movieSkipIdentity;
     private bool movieCompletionPending;
@@ -98,9 +98,8 @@ internal sealed partial class Ff7Scene
         }
     }
 
-    public static Ff7MovieSource ResolveMovie(Ff7Installation installation, string mediaToolsDirectory, int movieId)
+    private static Ff7MovieSource ResolveMovie(Ff7MovieResources resource, string mediaToolsDirectory)
     {
-        Ff7MovieResources resource = Ff7MovieResources.Load(installation, movieId);
         MovieInformation information = FfmpegMovieDecoder.Probe(mediaToolsDirectory, resource.Path);
         if (information.FramesPerSecond != 15)
         {
@@ -111,9 +110,9 @@ internal sealed partial class Ff7Scene
         return new Ff7MovieSource(resource.Path, information, information.FrameCount, 15, frame => cameraTrack.CameraAt(frame), (frame, words) => cameraTrack.Publish(frame, words)) { CameraRecordCount = cameras?.Count ?? 0, SnapshotCameraFrame = (frame, words) => cameraTrack.SnapshotAt(frame, words) };
     }
 
-    private (long Generation, long? Request, int Id) MovieIdentity(Ff7Movie movie)
+    private (long Generation, long? Request, int Id, byte Disc) MovieIdentity(Ff7Movie movie)
     {
-        return (Session!.FieldGeneration, movie.RequestId, movie.PreparedId);
+        return (Session!.FieldGeneration, movie.RequestId, movie.PreparedId, Session.NativeMovieDisc);
     }
 
     private Ff7MovieSource PreparedMovieSource(Ff7Movie movie)
@@ -121,7 +120,7 @@ internal sealed partial class Ff7Scene
         var identity = MovieIdentity(movie);
         if (preparedMovieSource is null || preparedMovieIdentity != identity)
         {
-            preparedMovieSource = resolveMovie(movie.PreparedId);
+            preparedMovieSource = resolveMovie?.Invoke(movie.PreparedId) ?? ResolveMovie(Session!.ReadMovieResources(movie.PreparedId), mediaToolsDirectory);
             preparedMovieIdentity = identity;
         }
         return preparedMovieSource;

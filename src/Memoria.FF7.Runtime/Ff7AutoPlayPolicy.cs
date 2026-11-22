@@ -541,7 +541,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
                 return ReadKnownFieldDepartureSource(State, observation, target) is not null || driver.HasNativeGeometricContact(target) && ordinaryAvailability(currentNavigation, native)?.Unavailable != true;
             }
             // Player control can return before synchronous setup finishes changing the walkmesh.
-            if (State.DestinationField is not null && nativeReadiness.ShouldWaitForDestinationSetup(session.FieldGeneration, observation.NavigationKey, session.Machine.Capture(), session.Host.Process, session.Field.Scripts.Data.Span, session.Machine.ReadCurrentInputDemands(), (entity, pc) => session.Machine.AnalyzeScriptAtProgramCounter(entity, pc)))
+            if (State.DestinationField is not null && nativeReadiness.ShouldWaitForDestinationSetup(session.FieldGeneration, observation.NavigationKey, session.Machine.Capture(), session.Host.Process, session.Field.Scripts.Data.Span, session.Machine.ReadCurrentInputDemands(), (entity, pc) => session.Machine.AnalyzeScriptAtProgramCounter(entity, pc), session.Machine.AnalyzeScriptUntilFieldTransition))
             {
                 State.Status = "Waiting for existing native setup before resolving the destination";
                 Publish();
@@ -592,7 +592,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             if (next is null)
             {
                 bool waitingForSetup = State.DestinationField is not null
-                    ? nativeReadiness.ShouldWaitForDestinationSetup(session.FieldGeneration, observation.NavigationKey, session.Machine.Capture(), session.Host.Process, session.Field.Scripts.Data.Span, session.Machine.ReadCurrentInputDemands(), (entity, pc) => session.Machine.AnalyzeScriptAtProgramCounter(entity, pc))
+                    ? nativeReadiness.ShouldWaitForDestinationSetup(session.FieldGeneration, observation.NavigationKey, session.Machine.Capture(), session.Host.Process, session.Field.Scripts.Data.Span, session.Machine.ReadCurrentInputDemands(), (entity, pc) => session.Machine.AnalyzeScriptAtProgramCounter(entity, pc), session.Machine.AnalyzeScriptUntilFieldTransition)
                     : nativeReadiness.ShouldWait(session.FieldGeneration, observation.NavigationKey, session.Machine.Capture(), session.Host.Process, session.Field.Scripts.Data.Span, session.Machine.ReadCurrentInputDemands());
                 if (waitingForSetup)
                 {

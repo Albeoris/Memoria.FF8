@@ -198,7 +198,16 @@ public sealed partial class FieldMachine
         return result with { Fingerprint = fingerprint };
     }
 
-    private FieldScriptAnalysis AnalyzeScriptCore(int entity, int script, int entry, int instructionBudget, IReadOnlySet<int>? exitBoundaries, byte initialOwnership, NavigationInvariantInspection? navigationInvariant = null, StochasticInspection? stochastic = null, bool collectRandomReads = false)
+    public FieldScriptAnalysis AnalyzeScriptUntilFieldTransition(int entity, int programCounter)
+    {
+        if ((uint)entity >= entities.Length || (uint)programCounter >= program.Length)
+        {
+            throw new ArgumentOutOfRangeException(nameof(programCounter));
+        }
+        return AnalyzeScriptCore(entity, 0, programCounter, 8192, null, 0, stopAtFieldTransition: true);
+    }
+
+    private FieldScriptAnalysis AnalyzeScriptCore(int entity, int script, int entry, int instructionBudget, IReadOnlySet<int>? exitBoundaries, byte initialOwnership, NavigationInvariantInspection? navigationInvariant = null, StochasticInspection? stochastic = null, bool collectRandomReads = false, bool stopAtFieldTransition = false)
     {
         byte[] persistent = Variables.CopyPersistent();
         byte[] map = Variables.CopyMap();
@@ -557,6 +566,10 @@ public sealed partial class FieldMachine
                             throw new NotSupportedException("A random-result dependency requires an explicit stochastic event coverage contract.");
                         }
                     }
+                }
+                if (stopAtFieldTransition && detached.inspection.Commands.Any(command => command is FieldTransitionCommand))
+                {
+                    continue;
                 }
                 int next = detached.entities[owner].Pc;
                 if (next == pc)

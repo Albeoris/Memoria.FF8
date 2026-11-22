@@ -9,14 +9,19 @@ public sealed partial class Ff7PcExecutableData
 {
     public const string SupportedSha256 = "26998200234F7A49A700BDC1AE5D0A43FD001CC909871A366CF82BDFFAA351C9";
 
-    private Ff7PcExecutableData(short[] sinCos, ushort[] angles, string[] movieFiles, string[] musicNames, byte[] fieldRandomTable, byte fieldRandomStep, int[] soundPan, int[] soundVolume, byte[] materiaClasses, short[] materiaStatModifiers, byte[] cameraShakeRandomTable, Ff7PcFieldPresentationData presentation, byte[] fieldEntryFadeAlpha)
+    private readonly (string[] Videos, string[] Cameras) commonMovies;
+    private readonly (string[] Videos, string[] Cameras)[] discMovies;
+
+    private Ff7PcExecutableData(short[] sinCos, ushort[] angles, (string[] Videos, string[] Cameras) commonMovies, (string[] Videos, string[] Cameras)[] discMovies, string[] musicNames, byte[] fieldRandomTable, byte fieldRandomStep, int[] soundPan, int[] soundVolume, byte[] materiaClasses, short[] materiaStatModifiers, byte[] cameraShakeRandomTable, Ff7PcFieldPresentationData presentation, byte[] fieldEntryFadeAlpha)
     {
         NativePresentation = presentation;
         NativeFieldEntryFadeAlpha = Array.AsReadOnly(fieldEntryFadeAlpha);
         NativeSinCos = Array.AsReadOnly(sinCos);
         NativeArcAngleWords = Array.AsReadOnly(angles);
         NativeArcAngles = Array.AsReadOnly(angles.Select(angle => checked((byte)angle)).ToArray());
-        MovieFiles = Array.AsReadOnly(movieFiles);
+        this.commonMovies = commonMovies;
+        this.discMovies = discMovies;
+        MovieFiles = Array.AsReadOnly<string>([.. commonMovies.Videos, .. discMovies[0].Videos]);
         MusicNames = Array.AsReadOnly(musicNames);
         NativeFieldRandomTable = Array.AsReadOnly(fieldRandomTable);
         FieldRandomStep = fieldRandomStep;
@@ -102,24 +107,18 @@ public sealed partial class Ff7PcExecutableData
                 throw new InvalidDataException("FF7 native angle table exceeds its octant range.");
             }
         }
-        byte[] moviePointers = ReadVirtual(stream, pe, 0x7BAE80, 54 * 4);
-        string[] movieFiles = new string[54];
-        for (int index = 0; index < movieFiles.Length; index++)
+        (string[] Videos, string[] Cameras) ReadMovies(uint video, uint camera, int count)
         {
-            uint address = BinaryPrimitives.ReadUInt32LittleEndian(moviePointers.AsSpan(index * 4));
-            byte[] name = ReadVirtual(stream, pe, address, 64);
-            int terminator = Array.IndexOf(name, (byte)0);
-            if (terminator < 1 || name.AsSpan(0, terminator).ContainsAnyInRange((byte)128, byte.MaxValue))
-            {
-                throw new InvalidDataException("FF7 movie resource name is not bounded ASCII.");
-            }
-            string movie = Encoding.ASCII.GetString(name, 0, terminator);
-            if (Path.GetFileName(movie) != movie || !movie.EndsWith(".avi", StringComparison.OrdinalIgnoreCase))
-            {
-                throw new InvalidDataException("FF7 movie resource identity is invalid.");
-            }
-            movieFiles[index] = movie;
+            return (ReadMovieNames(stream, pe, video, count, ".avi"), ReadMovieNames(stream, pe, camera, count, ".cam"));
         }
+
+        var commonMovies = ReadMovies(0x7BAE80, 0x7BB028, 20);
+        (string[] Videos, string[] Cameras)[] discMovies =
+        [
+            ReadMovies(0x7BAED0, 0x7BB078, 34),
+            ReadMovies(0x7BAF58, 0x7BB100, 41),
+            ReadMovies(0x7BB000, 0x7BB1A8, 10)
+        ];
         byte[] musicPointers = ReadVirtual(stream, pe, 0x9684C8, 99 * 4);
         string[] musicNames = new string[99];
         for (int index = 0; index < musicNames.Length; index++)
@@ -176,7 +175,7 @@ public sealed partial class Ff7PcExecutableData
         {
             throw new InvalidDataException("FF7 native field-entry fade alpha table has invalid endpoints or ordering.");
         }
-        return new Ff7PcExecutableData(sinCos, angles, movieFiles, musicNames, ReadVirtual(stream, pe, 0x9059A0, 256), ReadVirtual(stream, pe, 0x905E50, 1)[0], soundPan, soundVolume, resolvedMateriaClasses, materiaStatModifiers, ReadVirtual(stream, pe, 0x905920, 256), ReadFieldPresentationData(stream, pe), fieldEntryFadeAlpha) { NativeMateriaRequirementGroups = ReadMateriaRequirementGroups(stream, pe) };
+        return new Ff7PcExecutableData(sinCos, angles, commonMovies, discMovies, musicNames, ReadVirtual(stream, pe, 0x9059A0, 256), ReadVirtual(stream, pe, 0x905E50, 1)[0], soundPan, soundVolume, resolvedMateriaClasses, materiaStatModifiers, ReadVirtual(stream, pe, 0x905920, 256), ReadFieldPresentationData(stream, pe), fieldEntryFadeAlpha) { NativeMateriaRequirementGroups = ReadMateriaRequirementGroups(stream, pe) };
     }
 
     private static FileStream OpenSupportedImage(Ff7Installation installation)
@@ -202,6 +201,46 @@ public sealed partial class Ff7PcExecutableData
             stream.Dispose();
             throw;
         }
+    }
+
+    internal (string Video, string? Camera) ReadMovie(int movieId, int disc)
+    {
+        if (disc is < 1 or > 3)
+        {
+            throw new InvalidDataException("The FFVII movie disc is outside its original execution-data table.");
+        }
+        int sharedCount = commonMovies.Videos.Length;
+        var table = movieId < sharedCount ? commonMovies : discMovies[disc - 1];
+        int index = movieId < sharedCount ? movieId : movieId - sharedCount;
+        if ((uint)index >= table.Videos.Length)
+        {
+            throw new InvalidDataException("The FFVII movie index is outside its original execution-data table for the current disc.");
+        }
+        bool withoutCamera = (disc, movieId) is (1, 36) or (2, 42) or (3, 20 or 21 or 23 or 28);
+        return (table.Videos[index], withoutCamera ? null : table.Cameras[index]);
+    }
+
+    private static string[] ReadMovieNames(Stream stream, PEReader pe, uint tableAddress, int count, string extension)
+    {
+        byte[] pointers = ReadVirtual(stream, pe, tableAddress, count * 4);
+        string[] movies = new string[count];
+        for (int index = 0; index < movies.Length; index++)
+        {
+            uint address = BinaryPrimitives.ReadUInt32LittleEndian(pointers.AsSpan(index * 4));
+            byte[] name = ReadVirtual(stream, pe, address, 64);
+            int terminator = Array.IndexOf(name, (byte)0);
+            if (terminator < 1 || name.AsSpan(0, terminator).ContainsAnyInRange((byte)128, byte.MaxValue))
+            {
+                throw new InvalidDataException("FF7 movie resource name is not bounded ASCII.");
+            }
+            string movie = Encoding.ASCII.GetString(name, 0, terminator);
+            if (Path.GetFileName(movie) != movie || !movie.EndsWith(extension, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidDataException("FF7 movie resource identity is invalid.");
+            }
+            movies[index] = movie;
+        }
+        return movies;
     }
 
     private static byte[] ReadVirtual(Stream stream, PEReader pe, uint address, int count)
