@@ -3,6 +3,19 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-world-model-portal-only", StringComparer.Ordinal))
+{
+    NativeWorldModelPortalTests.Run();
+    AutoPlayWorldModelNavigationTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-world-model-portal-original-only", StringComparer.Ordinal))
+{
+    NativeWorldModelPortalOriginalTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-passive-input-child-only", StringComparer.Ordinal))
 {
     NativePassiveInputChildTests.Run();

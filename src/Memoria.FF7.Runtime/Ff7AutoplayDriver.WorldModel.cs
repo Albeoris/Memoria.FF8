@@ -51,6 +51,7 @@ public sealed partial class Ff7AutoplayDriver
             worldRepeatedTarget = identity;
         }
         Vector3? guidePoint = null;
+        Ff7WorldTerrainReference? guideGround = null;
         string context = $"{identity}:{world.ReadAutoPlayNavigationContext()}";
 
         int guideIndex = worldTerrainGuide is null ? -1 : Array.FindIndex(worldTerrainGuide.Faces, face => face.Source == source.Input.GroundTriangle);
@@ -70,8 +71,18 @@ public sealed partial class Ff7AutoplayDriver
         }
         if (guideIndex + 1 < guide.Faces.Length)
         {
-            guidePoint = guide.Faces[guideIndex + 1].Center;
-            identity += $":guide:{guide.Faces[guideIndex + 1].Source}";
+            Ff7AutoPlayWorldGuideFace next = guide.Faces[guideIndex + 1];
+            guidePoint = next.Center;
+            if (source.Input.GroundTriangle == guide.Faces[guideIndex].Source)
+            {
+                guidePoint = ReadWorldGuidePortal(guide.Faces[guideIndex], next);
+                if (guidePoint is null)
+                {
+                    return new(Ff7AutoPlayWorldNavigationStatus.Unsupported, default, 0, "The native model approach advice lacks its shared terrain portal.");
+                }
+                guideGround = next.Source;
+            }
+            identity += $":guide:{next.Source}";
         }
         if (worldRouteTarget != identity || worldRouteRearming)
         {
@@ -91,18 +102,18 @@ public sealed partial class Ff7AutoplayDriver
             worldRoute.Clear();
         }
         worldRepeatedInputs.TryGetValue(positionKey, out HashSet<Ff7AutoplayInput>? repeated);
-        Ff7AutoPlayWorldRoute route = SearchWorldModelRoute(source, target, (input, state) => world.PreviewAutoPlayInput(input, state), nodeBudget, repeated, guidePoint, (create, quantum) => ResumeWorldPhysicalSearch(ReadWorldPhysicalSearchContext(world, source, identity + "|" + guidePoint), create, quantum, world));
+        Ff7AutoPlayWorldRoute route = SearchWorldModelRoute(source, target, (input, state) => world.PreviewAutoPlayInput(input, state), nodeBudget, repeated, guidePoint, (create, quantum) => ResumeWorldPhysicalSearch(ReadWorldPhysicalSearchContext(world, source, identity + "|" + guidePoint), create, quantum, world), intermediateGround: guideGround);
         physicalExpanded = route.Expanded;
         if (route.Steps.Length == 0 && route.Status != Ff7AutoPlayWorldNavigationStatus.SearchLimited && repeated is { Count: > 0 })
         {
             repeated.Clear();
             if (physicalExpanded == nodeBudget)
             {
-                SearchWorldModelRoute(source, target, (input, state) => world.PreviewAutoPlayInput(input, state), 0, waypoint: guidePoint, resume: (create, quantum) => ResumeWorldPhysicalSearch(ReadWorldPhysicalSearchContext(world, source, identity + "|" + guidePoint), create, quantum, world));
+                SearchWorldModelRoute(source, target, (input, state) => world.PreviewAutoPlayInput(input, state), 0, waypoint: guidePoint, resume: (create, quantum) => ResumeWorldPhysicalSearch(ReadWorldPhysicalSearchContext(world, source, identity + "|" + guidePoint), create, quantum, world), intermediateGround: guideGround);
                 retry = true;
                 return new(Ff7AutoPlayWorldNavigationStatus.SearchLimited, default, physicalExpanded, "Native input preferences were renewed; the bounded physical search remains pending.");
             }
-            route = SearchWorldModelRoute(source, target, (input, state) => world.PreviewAutoPlayInput(input, state), nodeBudget - physicalExpanded, waypoint: guidePoint, resume: (create, quantum) => ResumeWorldPhysicalSearch(ReadWorldPhysicalSearchContext(world, source, identity + "|" + guidePoint), create, quantum, world));
+            route = SearchWorldModelRoute(source, target, (input, state) => world.PreviewAutoPlayInput(input, state), nodeBudget - physicalExpanded, waypoint: guidePoint, resume: (create, quantum) => ResumeWorldPhysicalSearch(ReadWorldPhysicalSearchContext(world, source, identity + "|" + guidePoint), create, quantum, world), intermediateGround: guideGround);
             physicalExpanded += route.Expanded;
         }
         foreach (Ff7AutoPlayWorldRouteStep step in route.Steps)
@@ -117,13 +128,25 @@ public sealed partial class Ff7AutoplayDriver
         return new(route.Status, first.Input, physicalExpanded, route.Reason, first.Boundary, HasInput: true);
     }
 
+    internal static Vector3? ReadWorldGuidePortal(Ff7AutoPlayWorldGuideFace current, Ff7AutoPlayWorldGuideFace next)
+    {
+        static bool Same(Vector3 a, Vector3 b) => a.Y == b.Y && WorldDelta(a.X - b.X, WorldWidth) == 0 && WorldDelta(a.Z - b.Z, WorldDepth) == 0;
+        Vector3[] adjacent = [next.A, next.B, next.C];
+        Vector3[] shared = new[] { current.A, current.B, current.C }.Where(point => adjacent.Any(other => Same(point, other))).Distinct().ToArray();
+        if (shared.Length != 2)
+        {
+            return null;
+        }
+        return shared[0] + new Vector3((float)WorldDelta(shared[1].X - shared[0].X, WorldWidth), shared[1].Y - shared[0].Y, (float)WorldDelta(shared[1].Z - shared[0].Z, WorldDepth)) / 2;
+    }
+
     private static bool AdmitWorldModelStep(Ff7AutoPlayWorldMovementPreview step, int model, int eventId)
     {
         return step.TerrainBoundary is not { Inert: false } && (step.ModelBoundaries ?? []).All(boundary => boundary.Inert || boundary.Model == model && boundary.Event == eventId);
     }
 
-    internal static Ff7AutoPlayWorldRoute SearchWorldModelRoute(Ff7AutoPlayWorldMovementState source, Ff7AutoPlayWorldModelScriptObservation target, Func<Ff7AutoplayInput, Ff7AutoPlayWorldMovementState, Ff7AutoPlayWorldMovementPreview> preview, int nodeBudget, IReadOnlySet<Ff7AutoplayInput>? avoidFirst = null, Vector3? waypoint = null, Func<Func<WorldPhysicalSearchCursor>, int, Ff7AutoPlayWorldRoute>? resume = null)
+    internal static Ff7AutoPlayWorldRoute SearchWorldModelRoute(Ff7AutoPlayWorldMovementState source, Ff7AutoPlayWorldModelScriptObservation target, Func<Ff7AutoplayInput, Ff7AutoPlayWorldMovementState, Ff7AutoPlayWorldMovementPreview> preview, int nodeBudget, IReadOnlySet<Ff7AutoplayInput>? avoidFirst = null, Vector3? waypoint = null, Func<Func<WorldPhysicalSearchCursor>, int, Ff7AutoPlayWorldRoute>? resume = null, Ff7WorldTerrainReference? intermediateGround = null)
     {
-        return SearchWorldPhysicalRoute(source, preview, state => WorldPointDistance(state.Player, waypoint ?? new Vector3(target.Target.X, target.Target.Y, target.Target.Z)), step => AdmitWorldModelStep(step, target.Model, target.Event), step => (step.ModelBoundaries ?? []).Any(boundary => boundary.Model == target.Model && boundary.Event == target.Event), nodeBudget, avoidFirst, held: target.Event == 4 ? (ushort)32 : (ushort)0, resume: resume);
+        return SearchWorldPhysicalRoute(source, preview, state => WorldPointDistance(state.Player, waypoint ?? new Vector3(target.Target.X, target.Target.Y, target.Target.Z)), step => AdmitWorldModelStep(step, target.Model, target.Event), step => (step.ModelBoundaries ?? []).Any(boundary => boundary.Model == target.Model && boundary.Event == target.Event) || intermediateGround is not null && intermediateGround != source.Input.GroundTriangle && step.State?.Input.GroundTriangle == intermediateGround, nodeBudget, avoidFirst, held: target.Event == 4 ? (ushort)32 : (ushort)0, resume: resume);
     }
 }
