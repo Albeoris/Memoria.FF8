@@ -179,6 +179,12 @@ if (args.Contains("--native-autonomous-fade-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--native-owned-fade-original-only", StringComparer.Ordinal))
+{
+    NativeOwnedFadeOriginalTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-autonomous-fade-original-only", StringComparer.Ordinal))
 {
     NativeAutonomousFadeOriginalTests.Run();

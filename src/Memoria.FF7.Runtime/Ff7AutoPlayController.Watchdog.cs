@@ -34,7 +34,28 @@ public sealed partial class Ff7AutoPlayController
             + string.Join(";", state.Vm.Entities.Select(entity => $"{entity.ProgramCounter},{entity.Priority},{entity.WaitCounter}"))
             + string.Join(";", state.Process.Actors.Select(actor => $"{actor.X4096},{actor.Y4096},{actor.Z4096},{actor.Triangle},{actor.Ladder?.Step},{actor.Jump?.Step}"))
             + ":dialogues:" + string.Join(";", state.Process.Dialogues.Select(DialogueProgress))
-            + ":blocking-animations:" + string.Join(";", BlockingAnimationProgress(state));
+            + ":blocking-animations:" + string.Join(";", BlockingAnimationProgress(state))
+            + ":owned-fade-waits:" + string.Join(";", OwnedFadeWaitProgress(state));
+    }
+
+    private static IEnumerable<string> OwnedFadeWaitProgress(Ff7SessionSave state)
+    {
+        if (state.Process.FadeState is not { Type: 1 or 2 or 5 or 6 or 7 or 8 or 9 or 10 or 11 or 12, Speed: > 0, Completed: false } fade)
+        {
+            yield break;
+        }
+        foreach (FieldHostRequest request in state.Vm.PendingRequests ?? [])
+        {
+            if (request.Command is not FieldFadeCommand { Wait: true } || (uint)request.Entity >= state.Vm.Entities.Length)
+            {
+                continue;
+            }
+            FieldEntitySnapshot owner = state.Vm.Entities[request.Entity];
+            if (owner.Priority == request.Priority && owner.ProgramCounter == request.ProgramCounter)
+            {
+                yield return $"{request.Entity},{request.Priority},{request.ProgramCounter},{fade.Type},{fade.Position}";
+            }
+        }
     }
 
     private static IEnumerable<string> BlockingAnimationProgress(Ff7SessionSave state)

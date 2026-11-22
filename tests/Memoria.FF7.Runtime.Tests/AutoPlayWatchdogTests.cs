@@ -9,6 +9,7 @@ internal static class AutoPlayWatchdogTests
         AuthenticatedReplayedMoviesRenewProgress();
         PlanningPollsDoNotSpendSemanticCallbacks();
         OwnedBlockingAnimationFramesRenewProgress();
+        OwnedFadeWaitCountersRenewProgress();
         FieldAllocationsDoNotRenewSemanticProgress();
         FrontierProgressSurvivesLifecycleRestores();
         ReexecutingConsumedEventsDoesNotRenewFrontierBudget();
@@ -54,6 +55,52 @@ internal static class AutoPlayWatchdogTests
         Check(Ff7AutoPlayController.WorldProgress(speaking) != Ff7AutoPlayController.WorldProgress(speaking with { Dialogue = dialogue with { TokenPosition = 1 } }), "Native dialogue reveal was omitted from semantic progress.");
         Check(Ff7AutoPlayController.WorldProgress(speaking) != Ff7AutoPlayController.WorldProgress(speaking with { Dialogue = dialogue with { WaitTicks = 1 } }), "Native dialogue waiting was omitted from semantic progress.");
         Console.WriteLine("PASS autoplay semantic watchdog, repeated cycles and bounded host batches.");
+    }
+
+    private static void OwnedFadeWaitCountersRenewProgress()
+    {
+        FieldHostRequest request = new(9, 0, 1, 4, new FieldFadeCommand(0, Wait: true));
+        Ff7SessionSave field = new()
+        {
+            ResourceProfile = "profile",
+            Language = "en",
+            FieldName = "field",
+            Vm = new(1, "profile", "program", 0, true, [], [], [new(4, 1, 0, [], [], [])], PendingRequests: [request]),
+            Progress = new() { InitialKernelData = [], Characters = [], Party = [], Inventory = [], Materia = [] },
+            Process = new() { FadeState = new(1, 40, 8, 0, 0, 0, false) }
+        };
+        Ff7SessionSave AtPosition(Ff7SessionSave state, int position) => state with { Process = state.Process with { FadeState = state.Process.FadeState! with { Position = position } } };
+        string initial = Ff7AutoPlayController.FieldProgress(field);
+        Check(initial != Ff7AutoPlayController.FieldProgress(AtPosition(field, 32)), "An owned finite fade counter lost semantic progress.");
+        foreach (Ff7SessionSave invalid in new[]
+        {
+            field with { Vm = field.Vm with { PendingRequests = [] } },
+            field with { Vm = field.Vm with { PendingRequests = [request with { Entity = 1 }] } },
+            field with { Vm = field.Vm with { PendingRequests = [request with { Priority = 2 }] } },
+            field with { Vm = field.Vm with { PendingRequests = [request with { ProgramCounter = 5 }] } },
+            field with { Vm = field.Vm with { PendingRequests = [request with { Command = new FieldFadeCommand(1) }] } },
+            field with { Process = field.Process with { FadeState = field.Process.FadeState! with { Speed = 0 } } }
+        })
+        {
+            Check(Ff7AutoPlayController.FieldProgress(invalid) == Ff7AutoPlayController.FieldProgress(AtPosition(invalid, 32)), "An unowned, stale or frozen fade invented semantic progress.");
+        }
+        Check(initial == Ff7AutoPlayController.FieldProgress(field with { Vm = field.Vm with { PendingRequests = [request with { Id = 99 }] } }), "Reallocating an unchanged fade wait invented semantic progress.");
+        Ff7AutoPlayProgressWatchdog stationary = new();
+        stationary.Observe(initial);
+        for (int step = 1; step < Ff7AutoPlayProgressWatchdog.IdleStepLimit; step++)
+        {
+            Check(!stationary.Observe(initial), "An unchanged finite fade renewed the watchdog.");
+        }
+        ExpectTimeout(() => stationary.Observe(initial));
+        Ff7AutoPlayProgressWatchdog repeating = new();
+        repeating.Observe(initial);
+        string other = Ff7AutoPlayController.FieldProgress(AtPosition(field, 32));
+        repeating.Observe(other);
+        for (int step = 1; step < Ff7AutoPlayProgressWatchdog.IdleStepLimit; step++)
+        {
+            Check(!repeating.Observe(step % 2 == 0 ? initial : other), "A repeated fade counter cycle renewed the watchdog.");
+        }
+        ExpectTimeout(() => repeating.Observe(initial));
     }
 
     private static void OwnedBlockingAnimationFramesRenewProgress()
