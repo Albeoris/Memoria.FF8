@@ -10,6 +10,11 @@ public sealed partial class Ff7BattleSession
     public Ff7BattleStageFadeState? StageFade => state.StageFade;
     public Ff7BattleStageFadeState? RenderStageFade => state.RenderStageFade ?? state.StageFade;
 
+    private void ScheduleActionScreenPulse(byte delay)
+    {
+        state = state with { SecondaryEffects = Ff7BattleSecondaryEffects.ScheduleCallback(EnsureSecondaryEffects(), new Ff7BattleDelayedScreenPulseCallback(delay)) };
+    }
+
     private Ff7BattleSecondaryState EnsureSecondaryEffects()
     {
         if (state.SecondaryEffects is { } current)

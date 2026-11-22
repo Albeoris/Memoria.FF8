@@ -539,6 +539,10 @@ public sealed partial class Ff7BattleSession
                 {
                     DispatchLinkedActorAction(command.ActorSlot, instruction, copyFacing: true);
                 }
+                else if (instruction.Opcode == 0x91)
+                {
+                    ScheduleActionScreenPulse(instruction.Operands.Span[0]);
+                }
                 else if (instruction.Opcode == 0x92)
                 {
                     SetCameraActiveAction();

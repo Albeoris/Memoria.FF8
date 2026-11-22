@@ -13,6 +13,7 @@ namespace Memoria.FF7.Formats;
 [JsonDerivedType(typeof(Ff7BattleHitmarkOwnerCallback), "HitmarkOwner")]
 [JsonDerivedType(typeof(Ff7BattleHitmarkSpriteCallback), "HitmarkSprite")]
 [JsonDerivedType(typeof(Ff7BattleDelayedSoundCallback), "Sound")]
+[JsonDerivedType(typeof(Ff7BattleDelayedScreenPulseCallback), "ScreenPulse")]
 [JsonDerivedType(typeof(Ff7BattleDelayedActorHitmarkCallback), "DelayedActorHitmark")]
 [JsonDerivedType(typeof(Ff7BattleBossDeathShakeCallback), "BossDeathShake")]
 [JsonDerivedType(typeof(Ff7BattleLimitPreparationEntry), "LimitPreparationEntry")]
@@ -38,6 +39,7 @@ public sealed record Ff7BattleGunDustCallback(Ff7BattleBraverPoint Position, int
 public sealed record Ff7BattleHitmarkOwnerCallback(int Target, Ff7BattleHitmarkDefinition Definition, Ff7BattleBraverPoint Anchor, int CollisionRadius, bool Flipped) : Ff7BattleSecondaryCallback;
 public sealed record Ff7BattleHitmarkSpriteCallback(int Target, Ff7BattleHitmarkCue Cue, Ff7BattleBraverPoint Anchor, int CollisionRadius, bool Flipped) : Ff7BattleSecondaryCallback;
 public sealed record Ff7BattleDelayedSoundCallback(ushort Sound, int Delay) : Ff7BattleSecondaryCallback;
+public sealed record Ff7BattleDelayedScreenPulseCallback(byte Remaining) : Ff7BattleSecondaryCallback;
 public sealed record Ff7BattleDelayedActorHitmarkCallback(int Actor, Ff7BattleHitmarkDefinition Definition, int Delay) : Ff7BattleSecondaryCallback;
 
 public sealed record Ff7BattleGunMuzzle(Ff7BattleBraverPoint Origin, Ff7BattleBraverPoint XAxis, Ff7BattleBraverPoint YAxis, Ff7BattleBraverPoint ZAxis);
@@ -173,6 +175,17 @@ public static partial class Ff7BattleSecondaryEffects
                         actorWrites.Add(new(uv.Actor, NativeUvOffset: packedUv));
                     }
                     break;
+                case Ff7BattleDelayedScreenPulseCallback pulse:
+                    if (pulse.Remaining == 0)
+                    {
+                        EmitWhitePulse();
+                        slots[cursor] = null;
+                    }
+                    else
+                    {
+                        slots[cursor] = pulse with { Remaining = (byte)(pulse.Remaining - 1) };
+                    }
+                    break;
                 case Ff7BattleBossDeathShakeCallback shake:
                     Ff7BattleBossDeathShakeUpdate shakeUpdate = Ff7BattleActorDeath.AdvanceShake(shake.State);
                     slots[cursor] = shakeUpdate.State is { } shakeState ? shake with { State = shakeState, Age = shake.Age + 1 } : null;
@@ -182,8 +195,7 @@ public static partial class Ff7BattleSecondaryEffects
                     }
                     if (shakeUpdate.Flash)
                     {
-                        drawOrder.Add(new(Ff7BattleSecondaryDrawKind.ScreenPulse, screenPulses.Count));
-                        screenPulses.Add(new(250, 250, 250));
+                        EmitWhitePulse();
                     }
                     break;
                 case Ff7BattleElectromagFragment:
@@ -342,6 +354,11 @@ public static partial class Ff7BattleSecondaryEffects
         void Allocate(Ff7BattleSecondaryCallback callback) => Insert(slots, cursor, callback);
         }
         return new() { Slots = slots, Muzzles = muzzles, Casings = casings, Sparks = sparks, Dust = dust, Hitmarks = hitmarks, SoundIds = sounds, ActorWrites = actorWrites, ScreenPulses = screenPulses, LimitPreparations = limitPreparations, WaveSparks = waveSparks, TailLaserDraws = tailLaserDraws, ElectromagSprites = electromagSprites, DrawOrder = drawOrder };
+        void EmitWhitePulse()
+        {
+            drawOrder.Add(new(Ff7BattleSecondaryDrawKind.ScreenPulse, screenPulses.Count));
+            screenPulses.Add(new(250, 250, 250));
+        }
     }
 
     private static Ff7BattleBraverPoint Add(Ff7BattleBraverPoint a, Ff7BattleBraverPoint b) => new((short)(a.X + b.X), (short)(a.Y + b.Y), (short)(a.Z + b.Z));
