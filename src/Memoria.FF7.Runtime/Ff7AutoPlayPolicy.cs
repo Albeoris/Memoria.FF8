@@ -274,6 +274,14 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             Publish();
             return default;
         }
+        if (scriptedInput.ChooseDialogueClosingInput() is Ff7AutoplayInput closeDialogue)
+        {
+            CancelNativePlanning("native-owned-dialogue-input");
+            driver.BeginPlanningStep();
+            controllable = true;
+            State.Status = "Using the owned native button continuation to close its dialogue";
+            return closeDialogue;
+        }
         if (Ff7AutoPlayNativeReadiness.HasAdvancingDialoguePresentation(dialogueVm, session.Host.Process) || Ff7AutoPlayNativeReadiness.HasOwnedDialogueWait(dialogueVm, session.Host.Process) && nativeReadiness.ShouldWait(session.FieldGeneration, $"dialogue:{session.Field.Name}", dialogueVm, session.Host.Process, session.Field.Scripts.Data.Span, session.Machine.ReadCurrentInputDemands()))
         {
             CancelNativePlanning("native-dialogue-presentation");

@@ -3,6 +3,18 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-owned-dialogue-original-only", StringComparer.Ordinal))
+{
+    NativeOwnedDialogueOriginalTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-owned-dialogue-input-only", StringComparer.Ordinal))
+{
+    NativeOwnedDialogueInputTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-navigation-choice-original-only", StringComparer.Ordinal))
 {
     NativeNavigationChoiceOriginalTests.Run();
