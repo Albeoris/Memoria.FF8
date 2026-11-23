@@ -115,6 +115,14 @@ public sealed partial class BattleHudController
     }
 
     private IReadOnlyList<BattleCommandPresentation> PlayerCommandChoices => GetPlayerCommandPresentations();
+
+    internal bool IsCommandChoiceSealed(int index)
+    {
+        return !SelectingAction && !SelectingTarget && !HasGuardianFormCommands && SelectedActor is { } actor &&
+            PlayerCommandChoices.ElementAtOrDefault(index) is { Command: >= 0 and <= byte.MaxValue } choice &&
+            session.IsPlayerCommandSealed(actor.Id, (byte)choice.Command);
+    }
+
     private int? SelectedNativeCommand
     {
         get
@@ -222,7 +230,9 @@ public sealed partial class BattleHudController
         }
         IEnumerable<BattleCommandPresentation> choices = BattleCommandPresentation.Read(actor).Where(choice =>
             choice.Ability is BattleAbility.Attack or BattleAbility.Magic or BattleAbility.Item or BattleAbility.Draw or BattleAbility.GuardianForce ||
-            choice.Ability == BattleAbility.NativeCommand && session.GetNativePlayerActionChoices(actor.Id, limits: false, command: choice.Command).Count > 0);
+            choice.Ability == BattleAbility.NativeCommand &&
+            (choice.Command is > 0 and <= byte.MaxValue && session.IsPlayerCommandSealed(actor.Id, (byte)choice.Command) ||
+                session.GetNativePlayerActionChoices(actor.Id, limits: false, command: choice.Command).Count > 0));
         BattleCommandPresentation[] commands = choices.Select(choice => choice.Ability == BattleAbility.LimitBreak ? LimitCommand(actor) : choice).ToArray();
         if (nativeLimitCommandSelected && NativeLimitInspectable && commands.Length > 0)
         {

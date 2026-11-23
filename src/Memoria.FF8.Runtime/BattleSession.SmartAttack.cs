@@ -107,14 +107,14 @@ public sealed partial class BattleSession
             {
                 continue;
             }
-            if (actor.Abilities.Contains(BattleAbility.Draw) && nativeKnownMagic?.Contains(action.Id) == true)
+            if (actor.Abilities.Contains(BattleAbility.Draw) && !IsPlayerCommandSealed(actor, 6) && nativeKnownMagic?.Contains(action.Id) == true)
             {
                 foreach (BattleCombatant source in combatants.Where(source => source.IsActive && source.IsAlive && !source.IsPlayer && !source.Untargetable && source.NativeDrawSlots.Any(slot => slot.Id == action.Id)))
                 {
                     candidates.Add(new(action, 1, 0, 1, ForecastMagic(actor, target, action.NativeAction!, 1, source, action.DrawResist), source.Id, null, CanSmartApplyParameterStatus(actor, target, action.NativeAction!)));
                 }
             }
-            int available = actor.Abilities.Contains(BattleAbility.Magic) ? GetAvailableMagicCasts(actor.Id, action.Id, reservation) : 0;
+            int available = actor.Abilities.Contains(BattleAbility.Magic) && !IsPlayerCommandSealed(actor, 2) ? GetAvailableMagicCasts(actor.Id, action.Id, reservation) : 0;
             if (available > 0)
             {
                 int casts = AffordableSmartCasts(actor, action.Id, available);

@@ -223,6 +223,7 @@ internal sealed partial class BattleHudElement : UiElement
                     Layout.DrawCommandPointer(canvas, theme, BattleHudLayout.CommandX, y);
                 }
                 bool unavailable = actions.Count > start + row && (!actions[start + row].Available || controller.SelectedCommand == BattleAbility.Magic && controller.SelectedActor is { } caster && !session.QuoteMagic(caster.Id, actions[start + row].Id).Allowed);
+                unavailable |= controller.IsCommandChoiceSealed(start + row);
                 unavailable |= !controller.SelectingAction && !controller.HasGuardianFormCommands && controller.Commands.ElementAtOrDefault(start + row) == BattleAbility.Draw && !controller.DrawAvailable;
                 unavailable |= !controller.SelectingAction && !controller.HasGuardianFormCommands && controller.Commands.ElementAtOrDefault(start + row) == BattleAbility.Magic && !controller.MagicAvailable;
                 unavailable |= !controller.SelectingAction && !controller.HasGuardianFormCommands && controller.Commands.ElementAtOrDefault(start + row) == BattleAbility.LimitBreak && !controller.NativeLimitAvailable;

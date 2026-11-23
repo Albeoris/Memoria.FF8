@@ -5,6 +5,7 @@ public sealed partial class BattleSession
     private void QueuePlayerDraw(string actorId, string sourceId, int selection, bool cast, string? castTargetId)
     {
         BattleCombatant actor = GetActor(actorId);
+        RequireUnsealedPlayerCommand(actor, 6);
         BattleCombatant source = GetActor(sourceId);
         if (Outcome != BattleOutcome.Active || !actor.IsReady || RequiresNativeCompelledCommand(actor) || !actor.Abilities.Contains(BattleAbility.Draw) || HasStatus(actor, BattleStatusKind.Silence) || !source.IsActive || !source.IsAlive || source.Untargetable || source.IsPlayer == actor.IsPlayer || selection is < 1 or >= 80 || !source.NativeDrawSlots.Any(slot => slot.Id == selection) || cast && selection >= 64 || !cast && castTargetId is not null)
         {

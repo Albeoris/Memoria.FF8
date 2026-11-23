@@ -129,10 +129,6 @@ internal sealed partial class GameWorld
         NativeInputConfiguration input = session.InputConfiguration ?? throw new NotSupportedException("Battle command restrictions require the current native saved options owner.");
         input.Validate();
         byte fieldRules = input.CommandRestrictions;
-        if ((fieldRules & 0x1F) != 0)
-        {
-            throw new NotSupportedException("Interactive battle requires native495530 sealed-command slot flags and admission; enabled commands cannot substitute for those restrictions.");
-        }
         NativeCharacterVitals entryVitals = (session.State.CharacterVitals ?? throw new NotSupportedException("Battle entry requires the saved GF owner.")).RebuildParty();
         NativeEconomy entryEconomy = session.State.Economy ?? throw new NotSupportedException("Interactive battle requires the canonical economy owner.");
         NativeBattleModelCpuResources retainedCpu = session.State.NativeBattleMemory?.ModelCpuResources ?? throw new NotSupportedException("Battle entry requires its retained party CPU allocation.");

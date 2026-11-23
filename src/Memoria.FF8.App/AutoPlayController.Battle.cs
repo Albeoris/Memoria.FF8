@@ -14,6 +14,7 @@ internal sealed partial class AutoPlayController
     private bool stopAfterCurrentBattle;
 
     internal bool WaitingToStopAfterBattle => stopAfterCurrentBattle;
+    internal bool StopBeforeBattle { get; init; }
 
     private void ApplyBattlePolicy(GameWorld world)
     {
@@ -41,6 +42,12 @@ internal sealed partial class AutoPlayController
             if (session.State.FullBattlePlaythrough != true)
             {
                 return false;
+            }
+            if (StopBeforeBattle)
+            {
+                Status = $"Pending battle at field {session.State.FieldId}, frame {world.NextTrigger.Frame}.";
+                SaveAndStop(AutoPlayStopBoundary.Immediately);
+                return true;
             }
             // The exploration seed also makes the submitted encounter seed reproducible.
             world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: session.State.GameplayPreferences.AtbMode, NativeSeed: checked((byte)run.Seed)));

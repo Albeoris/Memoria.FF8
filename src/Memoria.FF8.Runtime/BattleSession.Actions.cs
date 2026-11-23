@@ -50,6 +50,14 @@ public sealed partial class BattleSession
             return;
         }
         BattleCombatant actor = GetActor(actorId);
+        byte nativeMenuCommand = ability switch
+        {
+            BattleAbility.Magic => 2,
+            BattleAbility.GuardianForce => 3,
+            BattleAbility.Item => 4,
+            _ => throw new InvalidOperationException($"Unexpected ordinary battle command {ability}.")
+        };
+        RequireUnsealedPlayerCommand(actor, nativeMenuCommand);
         BattleCombatant target = GetActor(targetId);
         BattleActionDefinition action = FindAction(ability == BattleAbility.Draw ? BattleAbility.Magic : ability, actionId);
         ImmutableArray<BattleMagicCastInvocation> casts = PreparePlayerMagicTargets(actor, action, targetId, magicTargets);
@@ -90,9 +98,9 @@ public sealed partial class BattleSession
                 throw new NotSupportedException($"Battle command {ability} is unsupported.");
         }
         int magicMode = actor.IsPlayer && casts.Length == 2 && (NativeBattleStatusBits(actor) & 0x60000) == 0x40000 ? 3 : 0;
-        BattleAttackCommand queued = new(actorId, targetId, request, ability, actionId, drawCast) { MagicCasts = casts, NativeMagicCastMode = magicMode, ReservedNativeItemSlot = reservedItemSlot, NativeQueuedCommand = ability switch { BattleAbility.Magic => 2, BattleAbility.Item => 4, BattleAbility.Draw => 6, BattleAbility.GuardianForce => 254, _ => null } };
+        BattleAttackCommand queued = new(actorId, targetId, request, ability, actionId, drawCast) { MagicCasts = casts, NativeMagicCastMode = magicMode, ReservedNativeItemSlot = reservedItemSlot, NativeQueuedCommand = ability == BattleAbility.GuardianForce ? (byte)254 : nativeMenuCommand };
         queued = EnsureMagicReservation(actor, queued with { SmartAttack = pendingSmartAttack });
-        OnNativePlayerCommandSubmitted(actor, ability == BattleAbility.GuardianForce ? (byte)3 : queued.NativeQueuedCommand!.Value);
+        OnNativePlayerCommandSubmitted(actor, nativeMenuCommand);
         if (ability == BattleAbility.GuardianForce)
         {
             QueueGuardianForce(actor, queued);

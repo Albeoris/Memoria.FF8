@@ -14,6 +14,38 @@ public sealed partial class BattleSession
 {
     private readonly Dictionary<string, byte> nativeLimitLevels = new(StringComparer.Ordinal);
 
+    /// <summary>Reports the castle seal without removing the command from the actor's bindings.</summary>
+    public bool IsPlayerCommandSealed(string actorId, byte command)
+    {
+        return IsPlayerCommandSealed(GetActor(actorId), command);
+    }
+
+    private bool IsPlayerCommandSealed(BattleCombatant actor, byte command)
+    {
+        if (!actor.IsPlayer || definition.NativeFieldBattleRules is not byte restrictions || (restrictions & 0x3F) == 0)
+        {
+            return false;
+        }
+        int slot = actor.NativeCommandSlots.IsDefaultOrEmpty ? -1 : actor.NativeCommandSlots.IndexOf(command);
+        if (slot < 0)
+        {
+            if (actor.NativeLimit?.Command == command)
+            {
+                return (restrictions & 0x20) != 0;
+            }
+            slot = command is 1 or 12 ? 0 : 1;
+        }
+        return NativeBattleLimitRules.CommandSlotSealFlags(slot, command, restrictions) != 0;
+    }
+
+    private void RequireUnsealedPlayerCommand(BattleCombatant actor, byte command)
+    {
+        if (IsPlayerCommandSealed(actor, command))
+        {
+            throw new InvalidOperationException($"Player command {command} is sealed.");
+        }
+    }
+
     public bool HasNativeLimitSelection(string actorId)
     {
         _ = GetActor(actorId);
@@ -88,6 +120,10 @@ public sealed partial class BattleSession
         {
             foreach (BattleNativeCommandBinding binding in actor.NativeCommands.Where(binding => binding.Command is not (1 or 2 or 3 or 4 or 6 or 12) && (command is null || binding.Command == command)))
             {
+                if (IsPlayerCommandSealed(actor, binding.Command))
+                {
+                    continue;
+                }
                 choices.Add(FindNativeCommandAction(actor, binding.Command, NativeBindingActionId(binding)));
             }
         }
@@ -219,9 +255,13 @@ public sealed partial class BattleSession
             crisis = currentCrisis;
             ValidateNativeLimitSelection(actor, command, actionId);
         }
-        else if (!actor.NativeCommands.Any(binding => binding.Command == command && NativeBindingActionId(binding) == actionId))
+        else
         {
-            throw new InvalidOperationException("Native command is not equipped in this character's saved command slots.");
+            RequireUnsealedPlayerCommand(actor, command);
+            if (!actor.NativeCommands.Any(binding => binding.Command == command && NativeBindingActionId(binding) == actionId))
+            {
+                throw new InvalidOperationException("Native command is not equipped in this character's saved command slots.");
+            }
         }
             if (limit && command == 5)
             {

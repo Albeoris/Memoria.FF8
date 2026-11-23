@@ -100,6 +100,7 @@ internal sealed partial class AutoPlayController
     private readonly HashSet<GameWorld> watchedWorlds = [];
     private bool advancing;
     internal static readonly TimeSpan MaximumIdleTime = TimeSpan.FromSeconds(10);
+    internal bool PlayMovies { get; init; }
 
     public AutoPlayController(GameSession session, Func<GameWorld> getWorld, Action<GameState> restore, string outputDirectory, TimeProvider? time = null, TimeProvider? deadlineTime = null, Func<GameSession>? createColdProcess = null, bool? fullBattlePlaythroughOverride = null)
     {
@@ -709,6 +710,10 @@ internal sealed partial class AutoPlayController
             {
                 var axes = world.Events.AutoPlayMovementAxes(new(-1, 0));
                 Apply(world.Events.CanAcceptMovementInput ? new(PlayerActionKind.Move, Horizontal: axes.X, Vertical: axes.Y, Frames: 120) : new(PlayerActionKind.Wait));
+            }
+            else if (PlayMovies)
+            {
+                Apply(new(PlayerActionKind.Wait, Frames: 600));
             }
             else
             {

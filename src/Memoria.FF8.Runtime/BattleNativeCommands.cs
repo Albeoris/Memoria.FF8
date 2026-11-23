@@ -29,6 +29,29 @@ public sealed record BattleNativeLimitDefinition(int CharacterId, byte Command, 
 
 public static class NativeBattleLimitRules
 {
+    /// <summary>Native 495530 adds descriptor flag 2 to equipped slots disabled by the battle restriction byte.</summary>
+    internal static byte CommandSlotSealFlags(int slot, byte command, byte restrictions)
+    {
+        if ((uint)slot >= 4)
+        {
+            throw new ArgumentOutOfRangeException(nameof(slot));
+        }
+        if (slot == 0)
+        {
+            return 0;
+        }
+        int seal = command switch
+        {
+            0 => 0,
+            2 => 0x02,
+            3 => 0x04,
+            4 or 13 => 0x01,
+            6 => 0x08,
+            _ => 0x10
+        };
+        return (restrictions & seal) != 0 ? (byte)2 : (byte)0;
+    }
+
     /// <summary>Native4AA1D0 permits changing sides only for target selection mode1.</summary>
     public static bool CanSelectEitherSide(byte targetFlags)
     {

@@ -16,7 +16,8 @@ internal static class HeadlessControlHost
         GameSession session = new(options.InitialState);
         using GameResourceHost resources = new(options.GameDirectory, modsDirectory: options.ModsDirectory, resourceLanguage: options.ResourceLanguage, modelSourceDirectory: options.ModelSourceDirectory, modLocations: options.ModLocations, connectEncounterMods: true);
         resources.PrepareStartupGameplayDifficulty(session.State.GameplayPreferences.Difficulty);
-        using GameWorld world = new(session, options.GameDirectory, resources: resources.Resources, validateWorldPresentation: false, resolveGameFile: resources.ResolveGameFile, readSceneMods: () => resources.SceneMods, modelOverrides: resources, readGameplayPolicy: () => resources.GameplayPolicy);
+        using MovieClock movieClock = new(session, options.GameDirectory, options.MediaToolsDirectory, resources.ResolveGameFile);
+        using GameWorld world = new(session, options.GameDirectory, movieClock, resources.Resources, validateWorldPresentation: false, resolveGameFile: resources.ResolveGameFile, readSceneMods: () => resources.SceneMods, modelOverrides: resources, readGameplayPolicy: () => resources.GameplayPolicy, applyEncounterMods: resources.ApplyEncounterMods);
         world.EnsureField();
         bool running = true;
         bool faulted = world.Events.LastFault is not null;
@@ -41,6 +42,24 @@ internal static class HeadlessControlHost
             ActionLog = compact ? null : world.Events.ActionLog,
             TraceCounts = new { Coverage = world.Events.Coverage.Count, Decisions = world.Events.Decisions.Count, DialogueOutcomes = world.Events.DialogueOutcomes.Count, Actions = world.Events.ActionLog.Count }
         };
+        object BattleStatus()
+        {
+            BattleSession? battle = world.Battle;
+            return new
+            {
+                Battle = battle is null ? null : new
+                {
+                    battle.Mode, battle.Frame, battle.Outcome, battle.Name, battle.Combatants, battle.CanReturnToField,
+                    battle.ActiveAction, battle.QueuedActions, battle.GuardianForces,
+                    SealedCommands = battle.Combatants.Where(actor => actor.IsPlayer).ToDictionary(actor => actor.Id, actor => actor.NativeCommandSlots.Where(command => battle.IsPlayerCommandSealed(actor.Id, command)).Select(command => (int)command).ToArray()),
+                    MagicAvailability = battle.Combatants.Where(actor => actor.IsPlayer).ToDictionary(actor => actor.Id, actor => actor.MagicStocks.Select(stock => new { stock.Id, Count = battle.GetAvailableMagicCasts(actor.Id, stock.Id) }).Where(stock => stock.Count > 0).ToArray()),
+                    Items = battle.Items.Select(stock => new { stock.Id, stock.Count, Action = battle.GetActionDefinition(BattleAbility.Item, stock.Id) }).ToArray(),
+                    Magic = battle.Combatants.Where(actor => actor.IsPlayer).SelectMany(actor => actor.MagicStocks).Select(stock => stock.Id).Distinct().Select(id => battle.GetActionDefinition(BattleAbility.Magic, id)).ToArray(),
+                    EntryReady = battle.Presentation?.EntryReady,
+                    RecentEvents = battle.Events.TakeLast(12).ToArray()
+                }
+            };
+        }
         void Save(string path)
         {
             path = Path.GetFullPath(path);
@@ -68,6 +87,11 @@ internal static class HeadlessControlHost
             {
                 case "status":
                     return Status(request.Compact);
+                case "battle-status":
+                    return BattleStatus();
+                case "battle-input":
+                    world.ApplyBattleInput(request.Battle?.Input ?? throw new ArgumentException("Battle Input is required."));
+                    return BattleStatus();
                 case "save":
                     Save(request.Path ?? options.SavePath);
                     return Status(request.Compact);
@@ -121,7 +145,7 @@ internal static class HeadlessControlHost
                     }
                     return new { ActionResult = applied, Status = Status(request.Compact) };
                 default:
-                    throw new ArgumentException("Headless control commands: status, action, advance, run, save, capture, quit.");
+                    throw new ArgumentException("Headless control commands: status, action, advance, run, battle-status, battle-input, save, capture, quit.");
             }
         }
         ControlQueue queue = new(options.ControlDirectory, Dispatch);

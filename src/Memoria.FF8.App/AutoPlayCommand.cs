@@ -10,6 +10,8 @@ internal static class AutoPlayCommand
         string? resume = null;
         long? maxSteps = null;
         bool? battlePolicy = null;
+        bool stopBeforeBattle = false;
+        bool playMovies = false;
         List<string> launch = [];
         for (int index = 0; index < args.Length; index++)
         {
@@ -17,6 +19,16 @@ internal static class AutoPlayCommand
             if (argument == "--auto-victory")
             {
                 battlePolicy = false;
+                continue;
+            }
+            if (argument == "--stop-before-battle")
+            {
+                stopBeforeBattle = true;
+                continue;
+            }
+            if (argument == "--play-movies")
+            {
+                playMovies = true;
                 continue;
             }
             if (argument is "--output" or "--resume" or "--max-steps")
@@ -52,6 +64,10 @@ internal static class AutoPlayCommand
         {
             throw new ArgumentException("Choose --state for fresh exploration coverage or --resume for an existing exploration run.");
         }
+        if (stopBeforeBattle && battlePolicy == false)
+        {
+            throw new ArgumentException("Stopping before a battle requires full battle playthrough.");
+        }
         output ??= resume is null ? Path.Combine(Path.GetDirectoryName(Path.GetFullPath(options.SavePath))!, "autoplay") : Directory.GetParent(Path.GetDirectoryName(resume)!)!.FullName;
         GameSession session = options.StatePath is null ? GameWorld.CreateColdProcess(options.GameDirectory) : new(options.InitialState);
         using GameResourceHost resources = new(options.GameDirectory, watch: false, modsDirectory: options.ModsDirectory, resourceLanguage: options.ResourceLanguage, modelSourceDirectory: options.ModelSourceDirectory, modLocations: options.ModLocations, connectEncounterMods: true);
@@ -61,7 +77,7 @@ internal static class AutoPlayCommand
             if (world is null)
             {
                 resources.PrepareStartupGameplayDifficulty(session.State.GameplayPreferences.Difficulty);
-                world = new(session, options.GameDirectory, new MovieClock(session, options.GameDirectory, options.MediaToolsDirectory, resources.ResolveGameFile), resources.Resources, validateWorldPresentation: false, resolveGameFile: resources.ResolveGameFile, modelOverrides: resources, readGameplayPolicy: () => resources.GameplayPolicy) { AutoPlayFastMovement = true };
+                world = new(session, options.GameDirectory, new MovieClock(session, options.GameDirectory, options.MediaToolsDirectory, resources.ResolveGameFile), resources.Resources, validateWorldPresentation: false, resolveGameFile: resources.ResolveGameFile, modelOverrides: resources, readGameplayPolicy: () => resources.GameplayPolicy, applyEncounterMods: resources.ApplyEncounterMods) { AutoPlayFastMovement = true };
             }
             return world;
         }
@@ -71,7 +87,11 @@ internal static class AutoPlayCommand
             world = null;
             session.Restore(state);
         }
-        AutoPlayController controller = new(session, GetWorld, Restore, output, createColdProcess: () => GameWorld.CreateColdProcess(options.GameDirectory), fullBattlePlaythroughOverride: battlePolicy);
+        AutoPlayController controller = new(session, GetWorld, Restore, output, createColdProcess: () => GameWorld.CreateColdProcess(options.GameDirectory), fullBattlePlaythroughOverride: battlePolicy)
+        {
+            StopBeforeBattle = stopBeforeBattle,
+            PlayMovies = playMovies
+        };
         try
         {
             if (resume is not null)

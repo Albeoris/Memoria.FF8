@@ -7,6 +7,10 @@ public sealed partial class BattleSession
     public bool CanSelectExpandedGuardianForce(string actorId, int guardianForceId)
     {
         BattleCombatant actor = GetActor(actorId);
+        if (IsPlayerCommandSealed(actor, 3))
+        {
+            return false;
+        }
         BattleActionDefinition action = FindAction(BattleAbility.GuardianForce, guardianForceId);
         return actor.IsPlayer && actor.EquipmentIds.Contains(guardianForceId) && action.Available &&
             SupportsExpandedAction(action) && actor.GuardianForceCompatibility is { Count: 16 } && definition.NativeBattleSpeed is not null &&
