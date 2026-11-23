@@ -79,6 +79,8 @@ internal sealed partial class RecreateGame
         FieldSceneView? view = Scene3DView;
         FieldSceneInstance? instance = Scene3DInstance;
         FieldSceneAsset? asset = instance is null ? null : scene3DDraft!.Assets[instance.AssetId];
+        bool authoredView = view?.Projection == FieldSceneProjection.Authored;
+        bool canAdjustFrameFit = authoredView || instance?.Enabled == true && asset?.Cameras.Count > 0;
         string slot = world?.Events.Scene.CameraIndex.ToString(CultureInfo.InvariantCulture) ?? "–";
         List<MenuEntry> entries =
         [
@@ -88,10 +90,13 @@ internal sealed partial class RecreateGame
             Scene3DEntry("view", $"View: {view?.Id ?? "None"}", "Cycle the bindings in this field.", scene3DDraft?.Document.Views.Length > 1),
             Scene3DEntry("instance", $"Instance: {instance?.Id ?? "None"}", "Cycle scene instances in the selected view.", view?.Instances.Length > 1),
             Scene3DEntry("enabled", instance?.Enabled == true ? "Instance visible" : "Instance hidden", "Toggle the selected instance.", instance is not null),
-            Scene3DEntry("project", $"Camera: {view?.Projection.ToString() ?? "Native"}", "Select the native projection or cycle the selected instance's imported cameras.", asset?.Cameras.Count > 0),
+            Scene3DEntry("project", $"Camera: {view?.Projection.ToString() ?? "Native"}", "Choose the projection to save for gameplay. Select Authored to use the imported camera and its frame fit.", asset?.Cameras.Count > 0),
             Scene3DEntry("inspection", $"Preview camera: {scene3DInspection switch { Scene3DInspectionMode.ImportedAuthorCamera => "Imported author camera", Scene3DInspectionMode.FreeInspection => "Free inspection", _ => "Game camera" }}", "Switch preview cameras without editing the package."),
             Scene3DEntry("orbit", "Orbit inspection camera · 15°", "Orbit around the captured field pivot.", scene3DInspection == Scene3DInspectionMode.FreeInspection),
-            Scene3DEntry("frame-fit", $"Frame fit: {view?.FrameFit.ToString() ?? "Contain"}", "Cycle contain, crop and expand.", view?.Projection == FieldSceneProjection.Authored),
+            Scene3DEntry("frame-fit", $"Frame fit: {view?.FrameFit.ToString() ?? "Contain"}", authoredView
+                ? "Cycle Contain, Crop and Expand for the authored camera. Crop fills the viewport."
+                : "Preview the imported camera. Crop fills the viewport. The gameplay camera stays native.", canAdjustFrameFit),
+            Scene3DEntry("preview", "Full-screen field preview", "Hide the editor panels. Press Back to return."),
             Scene3DEntry("camera-motion", $"Camera motion: {view?.CameraMotion.ToString() ?? "Static"}", "A static authored view suppresses native scroll and shake. Capture-relative mode preserves their projected deltas.", view?.Projection == FieldSceneProjection.Authored),
             Scene3DEntry("pose", "Align author camera pose", "Initialize pose against the native camera. Check scale and floor alignment in preview.", asset?.Cameras.Count > 0),
             Scene3DEntry("calibrate", "Fit 3D landmarks", "Load paired Blender/glTF and native XYZ landmarks, then measure the native pixel residual.", instance is not null),
@@ -105,7 +110,6 @@ internal sealed partial class RecreateGame
             Scene3DEntry("capture-states", "Bind current native states", "Apply this view only when the captured background states match.", view is not null),
             Scene3DEntry("cover-states", "Cover all native background states", "Review all tile states before claiming them for this replacement.", view?.Background == FieldSceneBackgroundMode.Replace),
             Scene3DEntry("compare", scene3DCompare ? "Show custom scene" : "Compare native field", "Toggle the complete native presentation."),
-            Scene3DEntry("preview", "Full-screen field preview", "Press Back to return to the editor."),
             Scene3DEntry("lighting", "Edit active field lighting", "Switch to the selected lighting editor and keep the scene draft.", lightingAuthoringEnabled && lightingStore is not null),
             Scene3DEntry("undo", "Undo", "Undo the most recent draft edit.", scene3DUndo.Count != 0),
             Scene3DEntry("redo", "Redo", "Restore the most recently undone edit.", scene3DRedo.Count != 0),
@@ -189,7 +193,7 @@ internal sealed partial class RecreateGame
                         scene3DInspectionAngle = (scene3DInspectionAngle + MathF.PI / 12) % MathF.Tau;
                         break;
                     case "frame-fit":
-                        ChangeScene3DView(view => view with { FrameFit = (FieldSceneFrameFit)(((int)view.FrameFit + 1) % 3) });
+                        CycleScene3DFrameFit();
                         break;
                     case "camera-motion":
                         ToggleScene3DCameraMotion();

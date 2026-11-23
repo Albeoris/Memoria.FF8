@@ -188,6 +188,7 @@ internal sealed partial class RecreateGame
         if (next == cameras.Length)
         {
             ChangeScene3DView(view => view with { Projection = FieldSceneProjection.Native, CameraInstance = null, CameraId = null, CameraMotion = FieldSceneCameraMotion.Static, ScrollBaseline = null });
+            scene3DInspection = Scene3DInspectionMode.GameCamera;
             return;
         }
         ChangeScene3DView(view => view with
@@ -200,6 +201,27 @@ internal sealed partial class RecreateGame
             NativeStates = view.Background == FieldSceneBackgroundMode.Replace ? view.NativeStates : CaptureScene3DStates(),
             NativeStateSets = view.Background == FieldSceneBackgroundMode.Replace ? view.NativeStateSets : null
         });
+        scene3DInspection = Scene3DInspectionMode.GameCamera;
+    }
+
+    private void CycleScene3DFrameFit()
+    {
+        FieldSceneView view = Scene3DView ?? throw new InvalidOperationException("Import a scene with a camera before adjusting frame fit.");
+        bool authoredView = view.Projection == FieldSceneProjection.Authored;
+        if (!authoredView && (Scene3DInstance is not { Enabled: true } instance || scene3DDraft!.Assets[instance.AssetId].Cameras.Count == 0))
+        {
+            throw new InvalidOperationException("Select a visible scene instance with an imported camera to adjust frame fit.");
+        }
+        FieldSceneFrameFit fit = view.FrameFit switch
+        {
+            FieldSceneFrameFit.Contain => FieldSceneFrameFit.Crop,
+            FieldSceneFrameFit.Crop => FieldSceneFrameFit.Expand,
+            _ => FieldSceneFrameFit.Contain
+        };
+        ChangeScene3DView(current => current with { FrameFit = fit });
+        scene3DInspection = authoredView ? Scene3DInspectionMode.GameCamera : Scene3DInspectionMode.ImportedAuthorCamera;
+        scene3DCompare = false;
+        scene3DNotice = fit == FieldSceneFrameFit.Crop ? "Crop fills the viewport using the selected camera." : $"Previewing {fit} framing.";
     }
 
     private void ToggleScene3DCameraMotion()

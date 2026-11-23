@@ -26,6 +26,8 @@ See `blender --background --python tools/blender/field_scene.py -- --help` for t
 6. **Save scene** writes the current field binding and content-addressed GLBs to the chosen package. Reimport retains placement and exact stable-ID bindings. Review removed IDs and select replacement bindings before Save. Undo and Redo are local to the editor. A revision conflict leaves the draft open. Use **Compare native field** or **Full-screen field preview** to check the complete raster. The preview camera can use the game camera, an imported camera, or an inspection orbit without changing the saved camera binding.
 7. Close the editor and enable the package through **Mods → Installed**. Test entering and leaving the field, its scripts and each camera covered by the mod. Test a missing or unmatched binding to verify native fallback.
 
+To preview a window-filling composition, import a GLB with a camera, choose **Frame fit: Crop**, then open **Full-screen field preview**. **Frame fit** switches the preview to the imported camera when gameplay still uses the native camera. To use the same framing in gameplay, select **Camera: Authored** and save the view. **Contain** preserves the whole authored frame and can show bars. **Expand** widens the visible area for scenes with geometry beyond the authored frame.
+
 ## Package layout and coordinate contract
 
 ```text
