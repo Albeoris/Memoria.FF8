@@ -188,6 +188,10 @@ public sealed class BattleActionSequence
             {
                 return new(state with { NextInstruction = index + 1 }, events.AsReadOnly());
             }
+            if (opcode == 0xF1)
+            {
+                return new(state with { NextInstruction = index, Completed = true, TerminalOpcode = opcode, MissingClip = null }, events.AsReadOnly());
+            }
             if (opcode is 0x9E or 0xEE or 0xFF)
             {
                 return new(state with { NextInstruction = index + 1, Completed = true, TerminalOpcode = opcode, MissingClip = null }, events.AsReadOnly());

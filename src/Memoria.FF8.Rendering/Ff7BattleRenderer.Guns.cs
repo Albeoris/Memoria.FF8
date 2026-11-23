@@ -30,7 +30,7 @@ public sealed partial class Ff7BattleRenderer
                     break;
                 case Ff7BattleSecondaryDrawKind.ScreenPulse:
                     Ff7BattleActorScreenPulse pulse = state.ScreenPulses[draw.Index];
-                    DrawScreenPulse(renderer, pulse.Red, pulse.Green, pulse.Blue, view);
+                    DrawScreenPulse(renderer, pulse.Red, pulse.Green, pulse.Blue, view, pulse.Opacity);
                     break;
                 case Ff7BattleSecondaryDrawKind.Muzzle:
                     DrawMuzzle(state.Muzzles[draw.Index]);

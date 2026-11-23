@@ -547,6 +547,10 @@ public sealed partial class Ff7BattleSession
                 {
                     SetCameraActiveAction();
                 }
+                else if (instruction.Opcode == 0x93)
+                {
+                    ScheduleActionScreenFade();
+                }
                 else if (instruction.Opcode == 0xB9)
                 {
                     SetCameraEntry(instruction.Operands.Span[0]);

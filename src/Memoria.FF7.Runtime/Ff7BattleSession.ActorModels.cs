@@ -268,6 +268,9 @@ public sealed partial class Ff7BattleSession
                     case 0x91:
                         ScheduleActionScreenPulse(instruction.Operands.Span[0]);
                         break;
+                    case 0x93:
+                        ScheduleActionScreenFade();
+                        break;
                     case 0x90:
                         ApplyActorPaletteColor(previous.Slot, instruction.Operands.Span);
                         break;
@@ -368,6 +371,10 @@ public sealed partial class Ff7BattleSession
                         break;
                     case 0xE5:
                         ResetActorFacing(previous.Slot);
+                        break;
+                    case 0xF1:
+                        model = ActorModelState(previous.Slot);
+                        ReplaceActorModel(model with { Reaction = false, ReactionKnockedOut = false, LinkedAction = false });
                         break;
                     case 0xEE:
                     case 0xFE:
@@ -567,7 +574,7 @@ public sealed partial class Ff7BattleSession
         long presentation = (snapshot.Tick + LogicUpdatesPerPresentation - 1) / LogicUpdatesPerPresentation;
         foreach (Ff7BattleActorModelState model in snapshot.ActorModels)
         {
-            if (model.Action < 0 || model.PendingSince < -1 || model.PendingSince > presentation || model.PendingSince >= 0 && !model.Reaction || (model.ReactionKnockedOut || model.LinkedAction) && !model.Reaction || model.IdleStarted < 0 || model.IdleStarted > presentation || model.Pose is { TerminalOpcode: not (null or 0x9E or 0xEE or 0xFF) })
+            if (model.Action < 0 || model.PendingSince < -1 || model.PendingSince > presentation || model.PendingSince >= 0 && !model.Reaction || (model.ReactionKnockedOut || model.LinkedAction) && !model.Reaction || model.IdleStarted < 0 || model.IdleStarted > presentation || model.Pose is { TerminalOpcode: not (null or 0x9E or 0xEE or 0xF1 or 0xFF) })
             {
                 throw new InvalidDataException("FFVII saved actor model readiness or pose cursor is invalid.");
             }

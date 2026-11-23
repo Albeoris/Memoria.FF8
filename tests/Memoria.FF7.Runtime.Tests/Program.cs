@@ -2290,6 +2290,12 @@ if (args.Contains("--native-story-player-menu-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--native-terminal-model-action-only", StringComparer.Ordinal))
+{
+    NativeTerminalModelActionTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-roster-level-menu-only", StringComparer.Ordinal))
 {
     NativeRosterLevelMenuTests.Run();
@@ -3140,6 +3146,7 @@ var tests = new (string Name, Action Run)[]
     ("native autoplay pre-battle world checkpoints", AutoPlayWorldBattleCheckpointTests.Run),
     ("native actor reaction fixed-motion ownership", NativeReactionMotionTests.Run),
     ("native actor reaction sound gain ownership", NativeReactionSoundGainTests.Run),
+    ("native terminal model action", NativeTerminalModelActionTests.Run),
     ("native delayed actor hitmark ownership", NativeActorHitmarkTests.Run),
     ("native autoplay global visit guards", AutoPlayVisitGuardTests.Run),
     ("native autoplay transition progress guard", NativeAutoPlayTransitionGuardTests.Run),

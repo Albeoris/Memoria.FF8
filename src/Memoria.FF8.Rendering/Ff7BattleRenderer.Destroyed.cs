@@ -24,14 +24,14 @@ public sealed partial class Ff7BattleRenderer
         DrawScreenPulse(renderer, 0, 0, blue, view);
     }
 
-    private static void DrawScreenPulse(ITriangleRenderer renderer, byte red, byte green, byte blue, CameraView view)
+    private static void DrawScreenPulse(ITriangleRenderer renderer, byte red, byte green, byte blue, CameraView view, byte? opacity = null)
     {
-        Vector4 color = new(red / 255f, green / 255f, blue / 255f, 1);
+        Vector4 color = new(red / 255f, green / 255f, blue / 255f, (opacity ?? byte.MaxValue) / 255f);
         TriangleVertex a = new(new(0, 0), 0.1f, 1, Vector2.Zero, color);
         TriangleVertex b = new(new(view.Width, 0), 0.1f, 1, Vector2.Zero, color);
         TriangleVertex c = new(new(0, view.Height), 0.1f, 1, Vector2.Zero, color);
         TriangleVertex d = new(new(view.Width, view.Height), 0.1f, 1, Vector2.Zero, color);
-        TriangleMaterial pulse = new(null, TriangleBlend.Add, TriangleDepthComparison.Always, false);
+        TriangleMaterial pulse = new(null, opacity.HasValue ? TriangleBlend.Alpha : TriangleBlend.Add, TriangleDepthComparison.Always, false);
         renderer.Draw(a, b, c, pulse);
         renderer.Draw(b, d, c, pulse);
     }

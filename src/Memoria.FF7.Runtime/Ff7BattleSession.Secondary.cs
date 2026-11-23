@@ -16,6 +16,11 @@ public sealed partial class Ff7BattleSession
         state = state with { SecondaryEffects = Ff7BattleSecondaryEffects.ScheduleCallback(EnsureSecondaryEffects(), new Ff7BattleDelayedScreenPulseCallback(delay)) };
     }
 
+    private void ScheduleActionScreenFade()
+    {
+        state = state with { SecondaryEffects = Ff7BattleSecondaryEffects.ScheduleCallback(EnsureSecondaryEffects(), new Ff7BattleScreenFadeCallback()) };
+    }
+
     private void ScheduleActorGun(int slot, ReadOnlySpan<byte> operands)
     {
         int bone = unchecked((sbyte)animations!.JointSelector(ActorModel(slot), operands[0]));
@@ -104,6 +109,10 @@ public sealed partial class Ff7BattleSession
             if (callback.Age is < 0 or int.MaxValue || actor != -1 && snapshot.Actors.All(candidate => candidate.Actor.Slot != actor) || callback is Ff7BattleBossDeathShakeCallback { State.Remaining: < 0 or > 64 } || callback is Ff7BattleLimitPreparationEntry { Bone: < 0 } || callback is Ff7BattleWaveSpark { Age: > 7 } || callback is Ff7BattleTailLaserSecondary && !IsValidTailLaserSecondary(callback) || (callback is Ff7BattleElectromagFragment or Ff7BattleElectromagSpinningFragment) && !IsValidElectromagSecondary(callback) || callback is Ff7BattleDelayedSoundCallback { Delay: < 0 or > 255 } || callback is Ff7BattleGunEmitter { Bone: < -1 } || callback is Ff7BattleGunMuzzleCallback { Bone: < -1 } || callback is Ff7BattleGunCasingCallback { Bounces: < 0 or > 1 } || callback is Ff7BattleHitmarkOwnerCallback { Definition: null } or Ff7BattleHitmarkOwnerCallback { Definition.Cues: null })
             {
                 throw new InvalidDataException("FFVII secondary effect callback has an invalid owner or cursor.");
+            }
+            if (callback is Ff7BattleScreenFadeCallback fade && (fade.Age > Ff7BattleScreenFadeCallback.HoldAge || fade.Age != 0 && secondary.ScreenFadeOpacity is null))
+            {
+                throw new InvalidDataException("FFVII screen fade has an invalid callback or lost its shared opacity.");
             }
             if (callback is Ff7BattleActorUvAnimationCallback uv && (uv.State is null || uv.State.Delay > 255 || uv.Selector >= 8 || string.IsNullOrWhiteSpace(uv.Model)))
             {

@@ -14,6 +14,7 @@ namespace Memoria.FF7.Formats;
 [JsonDerivedType(typeof(Ff7BattleHitmarkSpriteCallback), "HitmarkSprite")]
 [JsonDerivedType(typeof(Ff7BattleDelayedSoundCallback), "Sound")]
 [JsonDerivedType(typeof(Ff7BattleDelayedScreenPulseCallback), "ScreenPulse")]
+[JsonDerivedType(typeof(Ff7BattleScreenFadeCallback), "ScreenFade")]
 [JsonDerivedType(typeof(Ff7BattleDelayedActorHitmarkCallback), "DelayedActorHitmark")]
 [JsonDerivedType(typeof(Ff7BattleBossDeathShakeCallback), "BossDeathShake")]
 [JsonDerivedType(typeof(Ff7BattleLimitPreparationEntry), "LimitPreparationEntry")]
@@ -72,6 +73,8 @@ public sealed record Ff7BattleSecondaryState
     public IReadOnlyList<ushort> SoundIds { get; init; } = [];
     public IReadOnlyList<Ff7BattleActorModelWrite> ActorWrites { get; init; } = [];
     public IReadOnlyList<Ff7BattleActorScreenPulse> ScreenPulses { get; init; } = [];
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public byte? ScreenFadeOpacity { get; init; }
     public IReadOnlyList<Ff7BattleLimitPreparationDraw> LimitPreparations { get; init; } = [];
     public IReadOnlyList<Ff7BattleWaveSparkDraw> WaveSparks { get; init; } = [];
     public IReadOnlyList<Ff7BattleTailLaserSprite> TailLaserDraws { get; init; } = [];
@@ -156,6 +159,7 @@ public static partial class Ff7BattleSecondaryEffects
         List<Ff7BattleSecondaryDraw> drawOrder = [];
         List<Ff7BattleActorModelWrite> actorWrites = [];
         List<Ff7BattleActorScreenPulse> screenPulses = [];
+        byte? screenFadeOpacity = state.ScreenFadeOpacity;
         List<Ff7BattleLimitPreparationDraw> limitPreparations = [];
         List<Ff7BattleWaveSparkDraw> waveSparks = [];
         List<Ff7BattleTailLaserSprite> tailLaserDraws = [];
@@ -184,6 +188,20 @@ public static partial class Ff7BattleSecondaryEffects
                     else
                     {
                         slots[cursor] = pulse with { Remaining = (byte)(pulse.Remaining - 1) };
+                    }
+                    break;
+                case Ff7BattleScreenFadeCallback fade:
+                    byte opacity = fade.Age switch
+                    {
+                        0 => 0,
+                        Ff7BattleScreenFadeCallback.RampEndAge => byte.MaxValue,
+                        _ => screenFadeOpacity ?? throw new InvalidDataException("FFVII screen fade lost its shared opacity.")
+                    };
+                    EmitScreenPulse(new(0, 0, 0) { Opacity = opacity });
+                    screenFadeOpacity = fade.Age < Ff7BattleScreenFadeCallback.RampEndAge ? unchecked((byte)(opacity + 16)) : opacity;
+                    if (fade.Age < Ff7BattleScreenFadeCallback.HoldAge)
+                    {
+                        slots[cursor] = fade with { Age = fade.Age + 1 };
                     }
                     break;
                 case Ff7BattleBossDeathShakeCallback shake:
@@ -353,11 +371,14 @@ public static partial class Ff7BattleSecondaryEffects
 
         void Allocate(Ff7BattleSecondaryCallback callback) => Insert(slots, cursor, callback);
         }
-        return new() { Slots = slots, Muzzles = muzzles, Casings = casings, Sparks = sparks, Dust = dust, Hitmarks = hitmarks, SoundIds = sounds, ActorWrites = actorWrites, ScreenPulses = screenPulses, LimitPreparations = limitPreparations, WaveSparks = waveSparks, TailLaserDraws = tailLaserDraws, ElectromagSprites = electromagSprites, DrawOrder = drawOrder };
-        void EmitWhitePulse()
+        return new() { Slots = slots, Muzzles = muzzles, Casings = casings, Sparks = sparks, Dust = dust, Hitmarks = hitmarks, SoundIds = sounds, ActorWrites = actorWrites, ScreenPulses = screenPulses, ScreenFadeOpacity = screenFadeOpacity, LimitPreparations = limitPreparations, WaveSparks = waveSparks, TailLaserDraws = tailLaserDraws, ElectromagSprites = electromagSprites, DrawOrder = drawOrder };
+
+        void EmitWhitePulse() => EmitScreenPulse(new(250, 250, 250));
+
+        void EmitScreenPulse(Ff7BattleActorScreenPulse pulse)
         {
             drawOrder.Add(new(Ff7BattleSecondaryDrawKind.ScreenPulse, screenPulses.Count));
-            screenPulses.Add(new(250, 250, 250));
+            screenPulses.Add(pulse);
         }
     }
 
