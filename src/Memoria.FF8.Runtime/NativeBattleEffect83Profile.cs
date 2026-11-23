@@ -19,7 +19,8 @@ public static class NativeBattleEffect83Profile
     public const uint ProjectedAddress = 0x25CF3F8;
     public const int ProjectedLength = 1128;
     public const uint TransformedAddress = 0x25CA868;
-    public const int TransformedLength = 7648;
+    private const uint SpiralTaskBank = 0x25CE6E8;
+    public const int TransformedCapacity = (int)(SpiralTaskBank - TransformedAddress);
     public const uint DescriptorAddress = 0x25CFA58;
     public const int DescriptorLength = 38;
     public const uint NodeSourceAddress = 0x172C818;
@@ -34,6 +35,6 @@ public static class NativeBattleEffect83Profile
     public const uint TargetPointerAddress = 0x157843C;
     public const uint TextureNameAddress = 0x157AEE0;
     public const int TextureLength = 164896;
-    public static readonly ImmutableArray<NativeBattleCureFamilyPool> Pools = [new(RootDescriptor, RootBank, 0x64, 2), new(0x25CF278, 0x25CF288, 0x58, 4), new(0x25CA058, 0x25C9F80, 0x48, 3), new(0x25CEFD8, 0x25CED30, 0x2A4, 1), new(0x25CA160, 0x25CA170, 0xB0, 10), new(0x25CA858, 0x25CE6E8, 0xC8, 8), new(0x25CF268, 0x25CEFE8, 0x40, 10), new(0x25CFA18, 0x25CF8D8, 0x140, 1)];
-    public static readonly ImmutableArray<(uint Address, int Length)> OwnedRanges = [(0x25C9F70, 10), (0x25CA07C, 8), (0x25CA850, 2), (0x25CA854, 4), (0x25CED28, 8), (0x25CF3E8, 12), (0x25CF878, 2), (0x25CFA28, 2), (0x25CFA2C, 4), (0x25CFA38, 4), (0x25CFA40, 20), (TargetAddress, TargetLength), (ProjectedAddress, ProjectedLength), (TransformedAddress, TransformedLength), (DescriptorAddress, DescriptorLength)];
+    public static readonly ImmutableArray<NativeBattleCureFamilyPool> Pools = [new(RootDescriptor, RootBank, 0x64, 2), new(0x25CF278, 0x25CF288, 0x58, 4), new(0x25CA058, 0x25C9F80, 0x48, 3), new(0x25CEFD8, 0x25CED30, 0x2A4, 1), new(0x25CA160, 0x25CA170, 0xB0, 10), new(0x25CA858, SpiralTaskBank, 0xC8, 8), new(0x25CF268, 0x25CEFE8, 0x40, 10), new(0x25CFA18, 0x25CF8D8, 0x140, 1)];
+    public static readonly ImmutableArray<(uint Address, int Length)> OwnedRanges = [(0x25C9F70, 10), (0x25CA07C, 8), (0x25CA850, 2), (0x25CA854, 4), (0x25CED28, 8), (0x25CF3E8, 12), (0x25CF878, 2), (0x25CFA28, 2), (0x25CFA2C, 4), (0x25CFA38, 4), (0x25CFA40, 20), (TargetAddress, TargetLength), (ProjectedAddress, ProjectedLength), (TransformedAddress, TransformedCapacity), (DescriptorAddress, DescriptorLength)];
 }

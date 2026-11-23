@@ -7,6 +7,43 @@ public sealed record NativeBattleEffect83SpiralDrawingStep(NativeBattleEffectMem
 
 public static partial class NativeBattleEffect83SpiralDrawing
 {
+    private const int TransformedVertexStride = 16;
+
+    internal static int RequiredTransformedLength(NativeBattleModelGeometrySource geometrySource, uint meshMask)
+    {
+        NativeBattleModelGeometryCursor geometryAddress = new(geometrySource);
+        int objects = Int(geometryAddress);
+        int length = 0;
+        for (int item = 0; item < objects; item++)
+        {
+            if ((meshMask & (1u << (item & 31))) == 0)
+            {
+                continue;
+            }
+            NativeBattleModelGeometryCursor cursor = ObjectAddress(geometryAddress, item);
+            int groups = Short(cursor);
+            cursor += 2;
+            int vertices = 0;
+            for (int group = 0; group < groups; group++)
+            {
+                int count = Short(cursor + 2);
+                if (count < 0)
+                {
+                    throw new InvalidDataException("Effect83 requires a bounded current target bone group.");
+                }
+                vertices += count;
+                if (vertices > NativeBattleEffect83Profile.TransformedCapacity / TransformedVertexStride)
+                {
+                    throw new InvalidDataException("Effect83 target vertices exceed their physical transformed workspace.");
+                }
+                cursor += 4 + count * 6;
+            }
+            // Each selected object reuses the transformed workspace from its first vertex.
+            length = Math.Max(length, vertices * TransformedVertexStride);
+        }
+        return length;
+    }
+
     public static NativeBattleEffect83SpiralDrawingStep Draw(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary148, Func<uint, int, NativeBattleEffectArena> readGeometry, uint geometryAddress, ImmutableArray<NativeBattlePackedMatrix32> bones, NativeBattlePackedMatrix32 matrix, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls, NativeBattleEffectArena transformed, int transformedLength, NativeBattleEffectArena faces, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         return Draw(memory, temporary148, NativeBattleModelGeometrySource.FromNumericArena(geometryAddress, readGeometry), bones, matrix, projection, controls, transformed, transformedLength, faces, pilotIdentity);
@@ -29,7 +66,7 @@ public static partial class NativeBattleEffect83SpiralDrawing
             {
                 continue;
             }
-            NativeBattleModelGeometryCursor cursor = unchecked(geometryAddress + (uint)Int(geometryAddress + 4 + (uint)(item * 4)));
+            NativeBattleModelGeometryCursor cursor = ObjectAddress(geometryAddress, item);
             int groups = Short(cursor);
             cursor += 2;
             int vertices = 0;
@@ -45,7 +82,7 @@ public static partial class NativeBattleEffect83SpiralDrawing
                 memory = NativeBattleLightBackTransform.LoadBone(memory, bones[bone]);
                 for (int vertex = 0; vertex < count; vertex++)
                 {
-                    int destination = checked(vertices * 16);
+                    int destination = checked(vertices * TransformedVertexStride);
                     if (destination > transformedLength - 8)
                     {
                         throw new InvalidDataException("Effect83 target vertices exceed their supplied transformed workspace.");
@@ -85,7 +122,7 @@ public static partial class NativeBattleEffect83SpiralDrawing
                             throw new InvalidDataException("Effect83 face leaves its transformed target object.");
                         }
                         temporary148 = SetDword(temporary148, 0x38 + corner * 4, (uint)index);
-                        temporary148 = NativeBattleEffectNodeContextMemory.Copy(transformed, index * 16, temporary148, 0x54 + corner * 8, 8);
+                        temporary148 = NativeBattleEffectNodeContextMemory.Copy(transformed, index * TransformedVertexStride, temporary148, 0x54 + corner * 8, 8);
                     }
                     temporary148 = Word(temporary148, 0x8C, ReadWord(temporary148, 0x8C) + 1);
                     faceOffset += 32;
@@ -145,10 +182,11 @@ public static partial class NativeBattleEffect83SpiralDrawing
         return new(memory, temporary148, transformed, faces, new(attempts.ToImmutable(), allocation));
 
         NativeBattleGeometryRegisterStep Registers() => new(memory.GeometryRegisters ?? throw new NotSupportedException("Effect83 requires geometry registers."), memory.ScriptedColorRegisters ?? throw new NotSupportedException("Effect83 requires arithmetic registers."));
-        int Int(NativeBattleModelGeometryCursor address) => BinaryPrimitives.ReadInt32LittleEndian(readGeometry(address, 4).Read(0, 4));
-        short Short(NativeBattleModelGeometryCursor address) => BinaryPrimitives.ReadInt16LittleEndian(readGeometry(address, 2).Read(0, 2));
     }
 
+    private static NativeBattleModelGeometryCursor ObjectAddress(NativeBattleModelGeometryCursor geometry, int item) => unchecked(geometry + (uint)Int(geometry + 4 + (uint)(item * 4)));
+    private static int Int(NativeBattleModelGeometryCursor address) => BinaryPrimitives.ReadInt32LittleEndian(address.Read(4).Read(0, 4));
+    private static short Short(NativeBattleModelGeometryCursor address) => BinaryPrimitives.ReadInt16LittleEndian(address.Read(2).Read(0, 2));
     private static short? Padding(NativeBattlePackedMatrix32 matrix) => matrix.Known[18] && matrix.Known[19] ? BinaryPrimitives.ReadInt16LittleEndian(matrix.Bytes.AsSpan().Slice(18, 2)) : null;
     private static short? NullableWord(NativeBattleEffectArena memory, int offset)
     {

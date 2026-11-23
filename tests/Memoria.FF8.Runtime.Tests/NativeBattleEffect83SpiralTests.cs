@@ -11,8 +11,8 @@ public sealed class NativeBattleEffect83SpiralTests
     public void Presentation_spiral_retains_native_face_work_and_triangle_or_quad_payload(bool quad)
     {
         byte[] source = Geometry(quad);
-        NativeBattleEffect83SpiralDrawingStep original = Raster(source, quad);
-        NativeBattleEffect83SpiralDrawingStep capture = Raster(source, quad, new(83, 0x100, 1, 4, 0) { ResourceGeneration = 0x1000 });
+        NativeBattleEffect83SpiralDrawingStep original = Raster(source);
+        NativeBattleEffect83SpiralDrawingStep capture = Raster(source, new(83, 0x100, 1, 4, 0) { ResourceGeneration = 0x1000 });
         Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(original.Memory)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(capture.Memory)));
         Assert.Equal(original.Faces.ReadSnapshot(0, 64).Item1, capture.Faces.ReadSnapshot(0, 64).Item1);
         Assert.Equal(original.Temporary148.ReadSnapshot(0, 148).Item1, capture.Temporary148.ReadSnapshot(0, 148).Item1);
@@ -89,7 +89,7 @@ public sealed class NativeBattleEffect83SpiralTests
     public void Raster_preserves_strided_unknown_W_and_native_packet_holes(bool quad)
     {
         byte[] source = Geometry(quad);
-        NativeBattleEffect83SpiralDrawingStep result = Raster(source, quad);
+        NativeBattleEffect83SpiralDrawingStep result = Raster(source);
         NativeBattleGfGeometryAttempt packet = Assert.Single(result.Batch.Attempts);
         Assert.Equal(quad ? 40 : 32, result.Batch.AllocationBytes);
         Assert.Equal(quad ? 0x2Eu : 0x26u, packet.Primitive!.Words[1] >> 24);
@@ -106,11 +106,58 @@ public sealed class NativeBattleEffect83SpiralTests
     }
 
     [Fact]
+    public void Target_with_513_vertices_uses_full_model_span_and_preserves_unwritten_lanes()
+    {
+        const int vertices = 513;
+        const int lastVertex = (vertices - 1) * 16;
+        byte[] source = Geometry(false, vertices);
+        int face = ((14 + vertices * 6 + 3) & ~3) + 12;
+        BinaryPrimitives.WriteUInt16LittleEndian(source.AsSpan(face + 4), vertices - 1);
+        BinaryPrimitives.WriteInt16LittleEndian(source.AsSpan(14 + (vertices - 1) * 6 + 2), 100);
+        NativeBattleModelGeometrySource geometry = NumericGeometry(source);
+        int length = NativeBattleEffect83SpiralDrawing.RequiredTransformedLength(geometry, 1);
+        Assert.Equal(0x2010, length);
+
+        uint address = NativeBattleEffect83Profile.TransformedAddress;
+        NativeBattleEffect83State state = NativeBattleEffect83State.FromColdProcess().Write(address + lastVertex + 8, [0xA5]).Write(address + (uint)length, [0x5A]);
+        NativeBattleEffect83SpiralDrawingStep result = Raster(source, resourceSource: geometry, transformed: state.ReadView(address, length));
+        Assert.Single(result.Batch.Attempts);
+        Assert.Equal((short)100, Word(result.Transformed, lastVertex + 2));
+        Assert.Throws<NotSupportedException>(() => result.Transformed.Read(lastVertex + 6, 2));
+        state = state.WriteView(address, result.Transformed, length);
+        state.Validate();
+        Assert.Equal(new byte[] { 0xA5 }, state.Read(address + lastVertex + 8, 1));
+        Assert.Equal(new byte[] { 0x5A }, state.Read(address + (uint)length, 1));
+    }
+
+    [Fact]
+    public void Workspace_reuses_the_largest_selected_object_without_entering_the_task_bank()
+    {
+        byte[] source = new byte[48];
+        BinaryPrimitives.WriteInt32LittleEndian(source, 3);
+        BinaryPrimitives.WriteInt32LittleEndian(source.AsSpan(4), 16);
+        BinaryPrimitives.WriteInt32LittleEndian(source.AsSpan(8), 24);
+        BinaryPrimitives.WriteInt32LittleEndian(source.AsSpan(12), 32);
+        BinaryPrimitives.WriteInt16LittleEndian(source.AsSpan(16), 1);
+        BinaryPrimitives.WriteInt16LittleEndian(source.AsSpan(20), 513);
+        BinaryPrimitives.WriteInt16LittleEndian(source.AsSpan(24), 1);
+        BinaryPrimitives.WriteInt16LittleEndian(source.AsSpan(28), 1000);
+        BinaryPrimitives.WriteInt16LittleEndian(source.AsSpan(32), 1);
+        BinaryPrimitives.WriteInt16LittleEndian(source.AsSpan(36), 1001);
+        NativeBattleModelGeometrySource geometry = NumericGeometry(source);
+
+        Assert.Equal(0, NativeBattleEffect83SpiralDrawing.RequiredTransformedLength(geometry, 0));
+        Assert.Equal(0x2010, NativeBattleEffect83SpiralDrawing.RequiredTransformedLength(geometry, 1));
+        Assert.Equal(NativeBattleEffect83Profile.TransformedCapacity, NativeBattleEffect83SpiralDrawing.RequiredTransformedLength(geometry, 3));
+        Assert.Throws<InvalidDataException>(() => NativeBattleEffect83SpiralDrawing.RequiredTransformedLength(geometry, 4));
+    }
+
+    [Fact]
     public void Zero_area_rejects_packet_after_transform_and_persistent_face_initialization()
     {
         byte[] source = Geometry(false);
         source.AsSpan(14, 18).Clear();
-        NativeBattleEffect83SpiralDrawingStep result = Raster(source, false);
+        NativeBattleEffect83SpiralDrawingStep result = Raster(source);
         Assert.Empty(result.Batch.Attempts);
         Assert.Equal(0, result.Batch.AllocationBytes);
         Assert.Equal((short)1, Word(result.Faces, 38));
@@ -123,30 +170,30 @@ public sealed class NativeBattleEffect83SpiralTests
     public void Logical_source_scope_reads_beyond_old_capacity_and_restores_cursor_receipts(bool remastered)
     {
         NativeBattleLogicalGeometryFixture fixture = new(Geometry(true), remastered);
-        var numeric = Raster(fixture.Bytes, true);
-        var logical = Raster(fixture.Bytes, true, resourceSource: fixture.Source);
+        var numeric = Raster(fixture.Bytes);
+        var logical = Raster(fixture.Bytes, resourceSource: fixture.Source);
         Assert.Equal(NativeBattleTestSnapshots.Json(numeric.Memory), NativeBattleTestSnapshots.Json(logical.Memory));
         Assert.Equal(NativeBattleTestSnapshots.Json(numeric.Batch), NativeBattleTestSnapshots.Json(logical.Batch));
         fixture.AssertTemporary(numeric.Temporary148, logical.Temporary148, 148);
     }
 
-    private static NativeBattleEffect83SpiralDrawingStep Raster(byte[] source, bool quad, NativeBattlePilotVisualIdentity? pilotIdentity = null, NativeBattleModelGeometrySource? resourceSource = null)
+    private static NativeBattleEffect83SpiralDrawingStep Raster(byte[] source, NativeBattlePilotVisualIdentity? pilotIdentity = null, NativeBattleModelGeometrySource? resourceSource = null, NativeBattleEffectArena? transformed = null)
     {
         NativeBattleActionMatrix identity = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096);
         NativeBattlePackedMatrix32 bone = NativeBattlePackedMatrix32.FromMatrix(identity, null);
         NativeBattlePackedMatrix32 view = NativeBattlePackedMatrix32.FromMatrix(identity with { Z = 8000 }, null);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { GeometryRegisters = NativeBattleGeometry.LoadMatrix(NativeBattleGeometryRegisters.Unknown(), identity, true, true, null), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown() };
         NativeBattleEffectArena temporary = NativeBattleEffectArena.Clear().MarkUnknown(0, 148).Write(0x48, BitConverter.GetBytes(0x24123456u)).Write(0x4C, BitConverter.GetBytes(0x2C123456u)).Write(0x50, BitConverter.GetBytes(1u)).Write(0x90, new byte[2]);
-        if (resourceSource is { } selected)
-        {
-            return NativeBattleEffect83SpiralDrawing.Draw(memory, temporary, selected, [bone], view, new(identity, 100, 160, 108), NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0(), NativeBattleEffectArena.Clear(), (quad ? 4 : 3) * 16, NativeBattleEffectArena.Clear(), pilotIdentity);
-        }
-        return NativeBattleEffect83SpiralDrawing.Draw(memory, temporary, (address, length) => NativeBattleEffectArena.Clear().Write(0, source.AsSpan(checked((int)(address - 0x1000)), length)), 0x1000, [bone], view, new(identity, 100, 160, 108), NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0(), NativeBattleEffectArena.Clear(), (quad ? 4 : 3) * 16, NativeBattleEffectArena.Clear(), pilotIdentity);
+        NativeBattleModelGeometrySource selected = resourceSource ?? NumericGeometry(source);
+        int transformedLength = NativeBattleEffect83SpiralDrawing.RequiredTransformedLength(selected, 1);
+        return NativeBattleEffect83SpiralDrawing.Draw(memory, temporary, selected, [bone], view, new(identity, 100, 160, 108), NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0(), transformed ?? NativeBattleEffectArena.Clear(), transformedLength, NativeBattleEffectArena.Clear(), pilotIdentity);
     }
 
-    private static byte[] Geometry(bool quad)
+    private static NativeBattleModelGeometrySource NumericGeometry(byte[] source) => NativeBattleModelGeometrySource.FromNumericArena(0x1000, (address, length) => NativeBattleEffectArena.Clear().Write(0, source.AsSpan(checked((int)(address - 0x1000)), length)));
+
+    private static byte[] Geometry(bool quad, int? vertexCount = null)
     {
-        int vertices = quad ? 4 : 3;
+        int vertices = vertexCount ?? (quad ? 4 : 3);
         int counts = (14 + vertices * 6 + 3) & ~3;
         byte[] source = new byte[counts + 12 + (quad ? 20 : 16)];
         BinaryPrimitives.WriteInt32LittleEndian(source, 1);
