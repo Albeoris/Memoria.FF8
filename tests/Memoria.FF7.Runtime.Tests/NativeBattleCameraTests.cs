@@ -43,6 +43,7 @@ internal static class NativeBattleCameraTests
         Check(entryScripts[0].Position.Span.SequenceEqual(new byte[] { 0xF9, 0xE8, 3, 0, 0x83, 0xE8, 3, 0xE2, 60, 0xF5, 60, 0xF4, 0xFF, 0, 0, 0 }), "Original entry camera zero must retain its signed Y point, 60-callback motion and wait.");
         Check(entryScripts[88].Position.Length == 224 && entryScripts[88].Focus.Length == 208, "Long original entry scripts must not be truncated to ordinary 16-byte rows.");
         EntryCallbacks(entryScripts, math);
+        FinalDuelEntry(installation);
         using LgpArchive actors = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.BattleArchive).Path);
         foreach ((string name, Ff7BattleCameraModelParameters parameters) in new[]
         {
@@ -311,6 +312,45 @@ internal static class NativeBattleCameraTests
             Ff7BattleCameraScriptState cold = JsonSerializer.Deserialize<Ff7BattleCameraScriptState>(JsonSerializer.Serialize(state))!;
             Check(JsonSerializer.Serialize(output) == JsonSerializer.Serialize(Ff7NativeBattleCameraOutput.Select(cold, test.Input, [idle, idle, idle], displayed)), "Cold camera output changed its native return-to-idle owner.");
         }
+    }
+
+    internal static void RunFinalDuelEntry()
+    {
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        if (string.IsNullOrWhiteSpace(root))
+        {
+            Console.WriteLine("SKIP installed final duel camera: MEMORIA_FF7_GAME_DIR is unset.");
+            return;
+        }
+        FinalDuelEntry(Ff7Installation.Discover(root));
+    }
+
+    private static void FinalDuelEntry(Ff7Installation installation)
+    {
+        SceneFormation formation = SceneArchive.Read(File.ReadAllBytes(installation.GetRequired(Ff7ResourceRole.BattleScenes).Path)).Single(entry => entry.FormationId == 925);
+        Ff7BattleCameraScriptResources resources = Ff7BattleCameraResources.LoadScripts(installation, formation.Layout);
+        Check(formation.InitialCamera == 0x58, "The installed final duel must select its authored entry camera.");
+        IReadOnlyList<SceneCameraPlacement> placements = SceneBattleData.Read(formation).Cameras;
+        SceneCameraPlacement idle = placements[0];
+        Ff7BattleCameraScriptState state = Ff7NativeBattleCameraScripts.Create(-2, formation.InitialCamera, idle);
+        int[] flashCallbacks = [60, 108, 145, 150, 155, 181, 185, 189];
+        for (int callback = 0; callback <= 223; callback++)
+        {
+            Ff7NativeBattleCameraScripts.Validate(state, resources.Script);
+            Ff7BattleCameraScriptUpdate update = Ff7NativeBattleCameraScripts.Advance(state, true, false, resources.Script, placements, idle, resources.Math.Cosine);
+            Check(update.ScreenFlashes == (flashCallbacks.Contains(callback) ? 3 : 0), $"The installed camera flash occurred on the wrong native tracks or callback {callback}.");
+            byte? expectedClock = callback == 0 ? (byte)0x58 : callback == 222 ? (byte)0 : null;
+            Check(update.ActionClockWrite == expectedClock, "The original final duel camera must resume the action clock only when its intro finishes.");
+            if (callback == 60)
+            {
+                Ff7BattleCameraScriptState cold = JsonSerializer.Deserialize<Ff7BattleCameraScriptState>(JsonSerializer.Serialize(state))!;
+                Ff7BattleCameraScriptUpdate restored = Ff7NativeBattleCameraScripts.Advance(cold, true, false, resources.Script, placements, idle, resources.Math.Cosine);
+                Check(JsonSerializer.Serialize(update) == JsonSerializer.Serialize(restored), "Cold continuation changed the first camera flash or consumed it twice.");
+                Check(update.State.Tracks.Take(3).All(track => track.Pc == 36 && track.Wait == 5), "The camera flash must consume no operands and continue into the same callback's wait.");
+            }
+            state = update.State;
+        }
+        Check(state.Callbacks.All(callback => callback is null) && state.Tracks[0].Pc == 217 && state.Tracks[4].Pc == 203, "The installed final duel must retire both camera scripts at their own stop instructions.");
     }
 
     private static void EntryCallbacks(IReadOnlyList<Ff7BattleCameraEntryScript> entryScripts, Ff7BattleCameraMath math)

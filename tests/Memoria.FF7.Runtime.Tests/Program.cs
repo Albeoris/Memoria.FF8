@@ -2290,6 +2290,12 @@ if (args.Contains("--native-story-player-menu-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--native-final-duel-camera-only", StringComparer.Ordinal))
+{
+    NativeBattleCameraTests.RunFinalDuelEntry();
+    return 0;
+}
+
 if (args.Contains("--native-terminal-model-action-only", StringComparer.Ordinal))
 {
     NativeTerminalModelActionTests.Run();

@@ -25,6 +25,7 @@ public sealed record Ff7BattleCameraActors(int Attacker, int Target, Func<int, i
 public readonly record struct Ff7BattleCameraScriptUpdate(Ff7BattleCameraScriptState State, int? TargetWrite)
 {
     public byte? ActionClockWrite { get; init; }
+    public int ScreenFlashes { get; init; }
 }
 
 public static class Ff7NativeBattleCameraScripts
@@ -112,6 +113,7 @@ public static class Ff7NativeBattleCameraScripts
         int target = actors?.Target ?? -1;
         int? targetWrite = null;
         byte? actionClockWrite = null;
+        int screenFlashes = 0;
         for (int track = 0; track < 3; track++)
         {
             Execute(track + 4, Ff7BattleCameraComponent.Focus);
@@ -145,7 +147,7 @@ public static class Ff7NativeBattleCameraScripts
                 }
             }
         }
-        return new(state, targetWrite) { ActionClockWrite = actionClockWrite };
+        return new(state, targetWrite) { ActionClockWrite = actionClockWrite, ScreenFlashes = screenFlashes };
 
         Ff7BattleCameraActors RequireActors() => actors ?? throw new InvalidDataException("FFVII relative camera requires its native actor geometry inputs.");
 
@@ -194,6 +196,9 @@ public static class Ff7NativeBattleCameraScripts
                 byte opcode = Byte();
                 switch (opcode)
                 {
+                    case 0xD6 when component == Ff7BattleCameraComponent.Position:
+                        screenFlashes++;
+                        break;
                     case 0xD7 when component == Ff7BattleCameraComponent.Position:
                         byte flag = Byte();
                         byte value = Byte();

@@ -9,7 +9,11 @@ public readonly record struct Ff7BattleCameraView(Ff7BattleCameraPoint Position,
     public SceneCameraPlacement ToPlacement() => new(Position.ToVector(), Focus.ToVector());
 }
 
-public sealed record Ff7BattleCameraPresentation(Ff7BattleCameraScriptState Scripts, Ff7BattleCameraView Output, Ff7BattleCameraView RenderOutput, int Attacker = 0, int Target = 0, ushort TargetMask = 0, ushort Options = 0, short MenuPhase = -1, sbyte PrimaryQueueState = 0, Ff7BattleOutcome? TerminalOutcome = null);
+public sealed record Ff7BattleCameraPresentation(Ff7BattleCameraScriptState Scripts, Ff7BattleCameraView Output, Ff7BattleCameraView RenderOutput, int Attacker = 0, int Target = 0, ushort TargetMask = 0, ushort Options = 0, short MenuPhase = -1, sbyte PrimaryQueueState = 0, Ff7BattleOutcome? TerminalOutcome = null)
+{
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public int ScreenFlashes { get; init; }
+}
 
 public sealed partial class Ff7BattleSession
 {
@@ -119,9 +123,13 @@ public sealed partial class Ff7BattleSession
         {
             state = state with { ActionClockPaused = actionClock != 0 };
         }
+        for (int flash = 0; flash < update.ScreenFlashes; flash++)
+        {
+            AppendSounds(Ff7NativeBattleSound.Emit(state.Sounds ?? Ff7BattleSoundState.Empty, 0x10C, 0x40));
+        }
         sbyte phase = finalVictory ? (sbyte)100 : (sbyte)0;
         Ff7BattleCameraOutput selected = Ff7NativeBattleCameraOutput.Select(update.State, new(unchecked((ushort)Formation.LocationId), camera.Options, phase, camera.MenuPhase, camera.PrimaryQueueState), Data.Cameras, camera.Output.ToPlacement());
-        state = state with { Camera = camera with { Scripts = selected.State, Output = CameraView(selected.Camera), Options = selected.Options, Target = update.TargetWrite ?? camera.Target } };
+        state = state with { Camera = camera with { Scripts = selected.State, Output = CameraView(selected.Camera), Options = selected.Options, Target = update.TargetWrite ?? camera.Target, ScreenFlashes = update.ScreenFlashes } };
     }
 
     private void FinishCameraPresentation()
@@ -262,7 +270,7 @@ public sealed partial class Ff7BattleSession
         {
             return;
         }
-        if (cameraScripts is null || animations is null || camera.Scripts is null || camera.PrimaryQueueState is < 0 or > 1 || camera.Attacker is < 0 or > 9 || camera.Target is < 0 or > 15 || camera.Target is > 9 and < 15)
+        if (cameraScripts is null || animations is null || camera.Scripts is null || camera.PrimaryQueueState is < 0 or > 1 || camera.Attacker is < 0 or > 9 || camera.Target is < 0 or > 15 || camera.Target is > 9 and < 15 || camera.ScreenFlashes is < 0 or > 12288)
         {
             throw new InvalidDataException("FFVII battle camera snapshot lost its native resource, selector or joint-cache owner.");
         }

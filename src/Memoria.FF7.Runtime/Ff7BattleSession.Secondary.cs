@@ -7,7 +7,23 @@ namespace Memoria.FF7.Runtime;
 
 public sealed partial class Ff7BattleSession
 {
-    public Ff7BattleSecondaryState? SecondaryEffects => state.SecondaryEffects;
+    public Ff7BattleSecondaryState? SecondaryEffects
+    {
+        get
+        {
+            if (state.Camera is not { ScreenFlashes: > 0 } camera)
+            {
+                return state.SecondaryEffects;
+            }
+
+            Ff7BattleSecondaryState secondary = state.SecondaryEffects ?? new();
+            return secondary with
+            {
+                ScreenPulses = [.. Enumerable.Repeat(new Ff7BattleActorScreenPulse(250, 250, 250), camera.ScreenFlashes), .. secondary.ScreenPulses],
+                DrawOrder = [.. Enumerable.Range(0, camera.ScreenFlashes).Select(index => new Ff7BattleSecondaryDraw(Ff7BattleSecondaryDrawKind.ScreenPulse, index)), .. secondary.DrawOrder.Select(draw => draw.Kind == Ff7BattleSecondaryDrawKind.ScreenPulse ? draw with { Index = draw.Index + camera.ScreenFlashes } : draw)]
+            };
+        }
+    }
     public Ff7BattleStageFadeState? StageFade => state.StageFade;
     public Ff7BattleStageFadeState? RenderStageFade => state.RenderStageFade ?? state.StageFade;
 
