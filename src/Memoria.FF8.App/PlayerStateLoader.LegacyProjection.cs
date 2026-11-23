@@ -32,6 +32,10 @@ internal static partial class PlayerStateLoader
         {
             return saved;
         }
+        if (modelOverrides is GameResourceHost host)
+        {
+            host.PrepareStartupGameplayDifficulty(saved.GameplayPreferences.Difficulty);
+        }
         GameSession source = new(saved);
         using GameWorld projection = new(source, directory, resources: resources, sharedAssets: assets, modelOverrides: modelOverrides, readGameplayPolicy: readGameplayPolicy, legacyGameplayProjection: true);
         projection.EnsureField();
