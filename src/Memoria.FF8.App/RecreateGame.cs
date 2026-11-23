@@ -567,6 +567,7 @@ internal sealed partial class RecreateGame : GamePresentationHost
             movie.Dispose();
             movie = null;
             movieIndex = -1;
+            world?.ReleaseMovieRenderer();
         }
         ResumeGameplayAudio();
         fieldAudio?.Update();
@@ -1551,6 +1552,7 @@ internal sealed partial class RecreateGame : GamePresentationHost
             {
                 HasFrame = movie?.HasFrame == true,
                 DecodedFrame = compact ? null : movie?.InspectDecodedFrame(),
+                ContentBounds = world?.MovieContentBounds,
                 CanPresentCurrentField = world?.CanPresentCurrentField,
                 FieldCallbackClock = events?.Scene.FieldCallbackClock,
                 MovieMaskPlayback = events?.Scene.NativeMovieMask?.Playback,
@@ -1700,13 +1702,15 @@ internal sealed partial class RecreateGame : GamePresentationHost
                 switch (FieldPresentationReadiness.SelectRenderer(session.State.Scene, world.CanPresentCurrentField, movie?.HasFrame == true))
                 {
                     case FieldPresentationRenderer.Movie:
-                        byte[] moviePixels = world.RenderMovieFrame(movie!.DecodedPixels, movie.Texture.Width, movie.Texture.Height, fieldGpu, uiPreferences.NativeFieldShadows);
+                        // A resumed movie can present before the ordinary field target has been sized.
+                        Viewport viewport = GraphicsDevice.Viewport;
+                        byte[] moviePixels = world.RenderMovieFrame(movie!.DecodedPixels, movie.Texture.Width, movie.Texture.Height, fieldGpu, uiPreferences.NativeFieldShadows, (viewport.Width, viewport.Height));
                         if (fieldGpu is null)
                         {
-                            if (fieldTexture.Width != world.RenderWidth || fieldTexture.Height != world.RenderHeight)
+                            if (fieldTexture.Width != viewport.Width || fieldTexture.Height != viewport.Height)
                             {
                                 fieldTexture.Dispose();
-                                fieldTexture = new Texture2D(GraphicsDevice, world.RenderWidth, world.RenderHeight);
+                                fieldTexture = new Texture2D(GraphicsDevice, viewport.Width, viewport.Height);
                             }
                             fieldTexture.SetData(moviePixels);
                         }

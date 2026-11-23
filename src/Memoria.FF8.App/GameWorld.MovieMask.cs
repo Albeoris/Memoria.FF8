@@ -15,6 +15,12 @@ internal sealed partial class GameWorld
 
     internal PixelBounds? MovieContentBounds => movieRenderer?.ContentBounds;
 
+    internal void ReleaseMovieRenderer()
+    {
+        movieRenderer = null;
+        movieRendererField = null;
+    }
+
     private (NativeMovieSource Source, NativeMovieMaskPlayback Playback, NativeMovieCameraFlags Flags) RequireNativeMovieCameraPhase()
     {
         NativeMovieSource source = MovieClock.RequireSource(session.State);
@@ -71,7 +77,7 @@ internal sealed partial class GameWorld
         }
     }
 
-    internal byte[] RenderMovieFrame(ReadOnlySpan<byte> decodedPixels, int decodedWidth, int decodedHeight, ITriangleRenderer? triangleRenderer = null, bool nativeFieldShadows = true)
+    internal byte[] RenderMovieFrame(ReadOnlySpan<byte> decodedPixels, int decodedWidth, int decodedHeight, ITriangleRenderer? triangleRenderer = null, bool nativeFieldShadows = true, (int Width, int Height)? outputSize = null)
     {
         RequireSupportedMovieMaskRender();
         FieldAssets currentField = Field ?? throw new NotSupportedException("Movie field compositing requires the allocated field.");
@@ -108,9 +114,10 @@ internal sealed partial class GameWorld
         FieldCamera camera = NativeMovieCameraReader.ReadCamera(cameraBytes, record);
         IEnumerable<ActorVisual> actors = drawActors ? Events.Actors.Select(CreateVisual) : [];
         FieldMovieMask? mask = currentField.Information?.NativeMovieMaskFlag14 == 1 && drawValue == 0 ? currentField.MovieMask ?? throw new NotSupportedException("Movie presentation requires its original INF-selected MSK triangle bank.") : null;
-        if (movieRenderer is null || movieRendererField != currentField || movieRenderer.OutputWidth != renderWidth || movieRenderer.OutputHeight != renderHeight)
+        var (width, height) = outputSize ?? (renderWidth, renderHeight);
+        if (movieRenderer is null || movieRendererField != currentField || movieRenderer.OutputWidth != width || movieRenderer.OutputHeight != height)
         {
-            movieRenderer = new FieldRenderer(currentField, renderWidth, renderHeight, nativeMovieViewport: true);
+            movieRenderer = new FieldRenderer(currentField, width, height, nativeMovieViewport: true);
             movieRendererField = currentField;
         }
         //4767B0's movie branch returns before47B980 submits the field fade packets.
