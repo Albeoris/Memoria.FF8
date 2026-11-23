@@ -105,6 +105,8 @@ public sealed record Ff7BattleSnapshot(long RequestId, int FormationId, byte Lay
     public byte[]? PartyAiAliases { get; init; }
     public byte[]? AiSaveBank1 { get; init; }
     public byte[]? AiSaveBankDirty { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public ushort[]? AiSaveBankExtendedDirty { get; init; }
     public byte[]? FormationAiMemory { get; init; }
     public byte FormationAiPending { get; init; }
     public ushort? CounterProcessedMask { get; init; }
@@ -853,6 +855,7 @@ public sealed partial class Ff7BattleSession
             PartyAiAliases = source.PartyAiAliases?.ToArray(),
             AiSaveBank1 = source.AiSaveBank1?.ToArray(),
             AiSaveBankDirty = source.AiSaveBankDirty?.ToArray(),
+            AiSaveBankExtendedDirty = source.AiSaveBankExtendedDirty?.ToArray(),
             FormationAiMemory = source.FormationAiMemory?.ToArray(),
             EnemyExtensions = source.EnemyExtensions?.Select(e => e with { DrawSlots = e.DrawSlots.ToArray(), Items = e.Items.ToArray() }).ToArray(),
             GuestSlots = source.GuestSlots is null ? null : (Ff7BattleGuestSlotState[])source.GuestSlots.Clone(),

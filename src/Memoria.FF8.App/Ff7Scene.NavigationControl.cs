@@ -36,7 +36,16 @@ internal sealed partial class Ff7Scene
             Dialogues = (world?.Dialogues ?? process.Dialogues).Where(dialogue => !dialogue.Completed).Take(32).Select(dialogue => ObserveDialogue(session, dialogue)).ToArray(),
             process.Movie,
             Menu = process.Menu is null ? null : new { process.Menu.RequestId, process.Menu.Mode, process.Menu.Parameter, process.Menu.Completed },
-            Battle = battle is null ? null : new { battle.Tick, battle.Outcome, battle.ResultReady, battle.ReadyPlayer, battle.Message, Actors = battle.Actors.Take(16).Select(state => new { state.Identity, state.Actor.Slot, Name = battle.Name(state.Actor.Slot), state.Actor.HitPoints, state.Actor.MaxHitPoints, state.Actor.MagicPoints, state.Actor.MaxMagicPoints, state.Actor.Statuses, state.AwaitingTurn }).ToArray() },
+            Battle = battle is null ? null : new
+            {
+                battle.Formation.FormationId,
+                battle.Tick,
+                battle.Outcome,
+                battle.ResultReady,
+                battle.ReadyPlayer,
+                battle.Message,
+                Actors = battle.Actors.Take(16).Select(state => new { state.Identity, state.Actor.Slot, Name = battle.Name(state.Actor.Slot), state.Actor.HitPoints, state.Actor.MaxHitPoints, state.Actor.MagicPoints, state.Actor.MaxMagicPoints, state.Actor.Statuses, state.AwaitingTurn, AiLocal = state.Actor.Slot >= 4 ? state.AiMemory : null }).ToArray()
+            },
             BattleInput = battle is null ? null : new { Owner = battleInputOwner, Category = highlightedBattleCategory?.Name, Page = battleCommandPage?.Name, Argument = highlightedBattleArgument, TargetSlot = highlightedBattleTarget?.Slot, TargetIdentity = highlightedBattleTarget?.Identity, Selected = selectedBattleCommand, Unavailable = unavailableBattleCommand, Group = battleTargetGroup },
             World = world is null ? null : new { world.WorldId, world.Tick, world.ControlledModel, world.MovementEnabled, world.ControlLock, world.MainState, Player = world.Entities.Where(entity => entity.Model == world.ControlledModel).Select(entity => new { entity.Model, entity.X, entity.Y, entity.Z, entity.Direction }).FirstOrDefault() },
             Condor = session.Condor?.Frame,

@@ -7,7 +7,7 @@ public sealed partial class Ff7BattleSession
     public static byte[] CaptureNativeSaveBank(FieldVariables variables)
     {
         ArgumentNullException.ThrowIfNull(variables);
-        return variables.CopyPersistent()[..256];
+        return variables.CopyPersistent();
     }
 
     private void ApplyNativeSaveWrites(Ff7BattleAiResult result)
@@ -16,18 +16,22 @@ public sealed partial class Ff7BattleSession
         {
             return;
         }
-        byte[] bank = state.AiSaveBank1?.ToArray() ?? new byte[256];
-        if (bank.Length != 256)
-        {
-            throw new InvalidDataException("FFVII battle save-bank projection has an invalid size.");
-        }
+        byte[] bank = state.AiSaveBank1!.ToArray();
         HashSet<byte> dirty = new(state.AiSaveBankDirty ?? []);
-        foreach ((byte address, byte value) in result.SaveBank1Writes)
+        HashSet<ushort> extendedDirty = new(state.AiSaveBankExtendedDirty ?? []);
+        foreach ((ushort address, byte value) in result.SaveBank1Writes)
         {
             bank[address] = value;
-            dirty.Add(address);
+            if (address <= byte.MaxValue)
+            {
+                dirty.Add((byte)address);
+            }
+            else
+            {
+                extendedDirty.Add(address);
+            }
         }
-        state = state with { AiSaveBank1 = bank, AiSaveBankDirty = dirty.Order().ToArray() };
+        state = state with { AiSaveBank1 = bank, AiSaveBankDirty = dirty.Order().ToArray(), AiSaveBankExtendedDirty = extendedDirty.Count == 0 ? null : extendedDirty.Order().ToArray() };
     }
 
     public int ResolveNativeFieldResult(int defaultResult)
@@ -36,7 +40,7 @@ public sealed partial class Ff7BattleSession
         {
             return defaultResult;
         }
-        if (state.AiSaveBank1 is not { Length: 256 } bank)
+        if (state.AiSaveBank1 is not { Length: Ff7BattleAi.NativeSaveBankSize } bank)
         {
             throw new InvalidDataException("FFVII battle result has no valid save-bank owner.");
         }
@@ -46,23 +50,21 @@ public sealed partial class Ff7BattleSession
     public void PublishNativeSaveWrites(FieldVariables variables)
     {
         ApplyNativeSaveWrites(variables);
-        state = state with { AiSaveBankDirty = [] };
+        state = state with { AiSaveBankDirty = [], AiSaveBankExtendedDirty = null };
     }
 
     internal void ApplyNativeSaveWrites(FieldVariables variables)
     {
         ArgumentNullException.ThrowIfNull(variables);
-        if (state.AiSaveBankDirty is not { Length: > 0 } dirty)
-        {
-            return;
-        }
-        if (state.AiSaveBank1 is not { Length: 256 } bank)
-        {
-            throw new InvalidDataException("FFVII battle persistent writes have no valid save-bank owner.");
-        }
-        foreach (byte address in dirty)
+        byte[] bank = state.AiSaveBank1!;
+        foreach (byte address in state.AiSaveBankDirty ?? [])
         {
             variables.WriteByte(FieldBank.Persistent0Byte, address, bank[address]);
+        }
+        ReadOnlySpan<FieldBank> owners = [FieldBank.Persistent0Byte, FieldBank.Persistent1Byte, FieldBank.Persistent2Byte, FieldBank.Persistent3Byte, FieldBank.Persistent4Byte];
+        foreach (ushort address in state.AiSaveBankExtendedDirty ?? [])
+        {
+            variables.WriteByte(owners[address >> 8], (byte)(address & byte.MaxValue), bank[address]);
         }
     }
 }

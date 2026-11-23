@@ -132,7 +132,9 @@ public sealed partial class FieldMachine
                     Variables.WriteByte(Bank(id, 2), B(id, 6), (byte)value);
                 }, applyPendingResult: true);
             case 0x49:
-                return Host(id, new FieldMenuCommand(B(id, 2), R8(id, 2, 3)), 4, firstCallYields: true);
+                FieldMenuCommand menu = new(B(id, 2), R8(id, 2, 3));
+                bool admittedPlayerMenu = menu is { Mode: 9, Parameter: 0 };
+                return Host(id, menu, 4, yieldAfter: admittedPlayerMenu, firstCallYields: !admittedPlayerMenu);
             case 0x4A:
                 return Host(id, new FieldControlCommand(FieldControlKind.MenuDisabled, B(id, 1)), 2);
             case 0x4B:

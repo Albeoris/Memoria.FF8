@@ -4,6 +4,8 @@ namespace Memoria.FF7.Runtime;
 
 public sealed partial class Ff7FieldHost
 {
+    public Ff7Menu? PendingStoryPlayerMenu => Process.Menu is { Mode: 9, Parameter: 0, Completed: false } menu && Process.GlobalCommand == Ff7GlobalCommand.Menu && Process.GlobalRequestId == menu.RequestId ? menu : null;
+
     private FieldHostReply Menu(long requestId, FieldMenuCommand command)
     {
         if (Process.Menu is { } existing && existing.RequestId == requestId)
@@ -19,9 +21,17 @@ public sealed partial class Ff7FieldHost
         {
             return new(false);
         }
-        if (command.Mode is not (6 or 7 or 8 or 14 or 17 or 20 or 21 or 22))
+        if (command.Mode is not (5 or 6 or 7 or 8 or 9 or 14 or 17 or 20 or 21 or 22 or 24 or 25))
         {
             throw new NotSupportedException($"FFVII menu mode {command.Mode} requires its native menu process.");
+        }
+        if (command.Mode == 5 && command.Parameter != 0)
+        {
+            throw new NotSupportedException($"FFVII ending menu parameter {command.Parameter} requires its native process.");
+        }
+        if (command.Mode == 9 && command.Parameter != 0)
+        {
+            throw new NotSupportedException($"FFVII player menu parameter {command.Parameter} requires its native process.");
         }
         if (command.Mode == 8 && command.Parameter is < 0 or >= 80)
         {
@@ -42,18 +52,23 @@ public sealed partial class Ff7FieldHost
             menu = menu with { NamingPhase = Ff7NamingPhase.Editing };
         }
         Process = Process with { Menu = menu, GlobalCommand = Ff7GlobalCommand.Menu, GlobalRequestId = requestId };
-        return new(false);
+        return new(command.Mode == 9);
     }
 
     public void AdvanceNativeMenu()
     {
-        if (Process.Menu is not { Mode: 17 or 20 or 21 or 22, Completed: false } menu || Process.GlobalCommand != Ff7GlobalCommand.Menu || Process.GlobalRequestId != menu.RequestId)
+        if (Process.Menu is not { Mode: 17 or 20 or 21 or 22 or 24 or 25, Completed: false } menu || Process.GlobalCommand != Ff7GlobalCommand.Menu || Process.GlobalRequestId != menu.RequestId)
         {
             return;
         }
         if (menu.Mode == 20)
         {
             Process = Process with { Movie = null };
+            CompleteMenu(menu.RequestId);
+            return;
+        }
+        if (menu.Mode == 25)
+        {
             CompleteMenu(menu.RequestId);
             return;
         }
@@ -103,12 +118,43 @@ public sealed partial class Ff7FieldHost
         {
             throw new InvalidOperationException("Only a naming menu can publish a native character name.");
         }
+        if (menu.Mode == 9)
+        {
+            Process = Process with { Menu = menu with { Completed = true }, GlobalCommand = Ff7GlobalCommand.None, GlobalRequestId = null };
+            return;
+        }
         Process = Process with { Menu = menu with { Completed = true } };
     }
 }
 
 public sealed partial class Ff7Session
 {
+    internal static void CaptureNativeRosterLevels(Ff7Progress progress, FieldMachine machine)
+    {
+        ReadOnlySpan<byte> roster = [0, 1, 2, 4, 5, 6, 7, 8];
+        for (int row = 0; row < roster.Length; row++)
+        {
+            int identity = roster[row];
+            if ((progress.AvailableCharacters & (1 << identity)) != 0)
+            {
+                byte level = progress.Characters.Single(character => character.Id == identity).NativeRecord[1];
+                machine.Variables.WriteByte(FieldBank.Persistent1Byte, (byte)(0xC4 + row), level);
+            }
+        }
+        machine.SynchronizePartyFromMain(progress.Party);
+    }
+
+    public bool CompleteStoryPlayerMenu(long requestId)
+    {
+        if (Host.PendingStoryPlayerMenu?.RequestId != requestId)
+        {
+            return false;
+        }
+        Machine.SynchronizePartyFromMain(Progress.Party);
+        Host.CompleteMenu(requestId);
+        return true;
+    }
+
     public bool CompleteStoryPartyMenu(long requestId, IReadOnlyList<int> members)
     {
         ArgumentNullException.ThrowIfNull(members);

@@ -26,7 +26,7 @@ public sealed record Ff7BattleAiResult(byte[] LocalMemory, Ff7BattleAiCommand[] 
 {
     public byte[] GlobalMemory { get; init; } = [];
     public Ff7BattleAiTransfer[] TransferUpdates { get; init; } = [];
-    public IReadOnlyDictionary<byte, byte> SaveBank1Writes { get; init; } = new Dictionary<byte, byte>();
+    public IReadOnlyDictionary<ushort, byte> SaveBank1Writes { get; init; } = new Dictionary<ushort, byte>();
     public IReadOnlyDictionary<int, byte> PartyAliasWrites { get; init; } = new Dictionary<int, byte>();
 }
 
@@ -34,6 +34,7 @@ public sealed record Ff7BattleAiResult(byte[] LocalMemory, Ff7BattleAiCommand[] 
 public static class Ff7BattleAi
 {
     public const int LocalMemorySize = 128;
+    internal const int NativeSaveBankSize = 1280;
     private const ushort ActorMask = 0x03FF;
     private const int StackCapacity = 512;
     private const int InstructionLimit = 16384;
@@ -132,7 +133,7 @@ public static class Ff7BattleAi
         private readonly List<Ff7BattleAiCommand> commands = new();
         private readonly byte[] global;
         private readonly List<Ff7BattleAiTransfer> transferUpdates = new();
-        private readonly Dictionary<byte, byte> saveBank1Writes = new();
+        private readonly Dictionary<ushort, byte> saveBank1Writes = new();
         private readonly Dictionary<int, byte> partyAliasWrites = new();
         private ushort updatedActors;
         private ushort target;
@@ -333,7 +334,7 @@ public static class Ff7BattleAi
                     changed.Add(actors[slot]!);
                 }
             }
-            return new(local, commands.ToArray(), changed.ToArray()) { GlobalMemory = global.ToArray(), TransferUpdates = transferUpdates.ToArray(), SaveBank1Writes = new Dictionary<byte, byte>(saveBank1Writes), PartyAliasWrites = new Dictionary<int, byte>(partyAliasWrites) };
+            return new(local, commands.ToArray(), changed.ToArray()) { GlobalMemory = global.ToArray(), TransferUpdates = transferUpdates.ToArray(), SaveBank1Writes = new Dictionary<ushort, byte>(saveBank1Writes), PartyAliasWrites = new Dictionary<int, byte>(partyAliasWrites) };
         }
 
         private void Branch(byte opcode)
@@ -394,14 +395,14 @@ public static class Ff7BattleAi
             {
                 return;
             }
-            if (address > byte.MaxValue || context.SaveBank1 is null || context.SaveBank1.Length != 256)
+            if (context.SaveBank1 is not { Length: 256 or NativeSaveBankSize } bank || address >= bank.Length)
             {
-                throw new NotSupportedException("FFVII battle AI save-bank exchange requires native bank 1.");
+                throw new NotSupportedException($"FFVII battle AI save-bank exchange requires a retained native persistent byte at {address:X4}.");
             }
-            byte index = (byte)address;
+            ushort index = (ushort)address;
             if (mode == 0)
             {
-                global[2] = saveBank1Writes.TryGetValue(index, out byte changed) ? changed : context.SaveBank1[index];
+                global[2] = saveBank1Writes.TryGetValue(index, out byte changed) ? changed : bank[index];
             }
             else
             {

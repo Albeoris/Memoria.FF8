@@ -23,7 +23,7 @@ internal sealed partial class RecreateGame
                 }
                 return ff7Scene!.PlanDiagnostic(request.Name ?? throw new ArgumentException("Planning requires a target Name."));
             case "world-status":
-                return new { ActiveGame = InFf7 ? "FFVII" : "FFVIII", UpdatePaused = updateSave.Paused, SwitchUnavailable = InFf7 ? ff7Scene?.CanSave == true ? null : "Saving is unavailable." : Ff8WorldSwitchUnavailable(), Ff7Field = ff7Scene?.Session?.Field.Name, Ff7Tick = ff7Scene?.Session?.Host.Process.Tick, Ff7World = ff7Scene?.Session?.World?.Process, Ff7Snowboard = ff7Scene?.SnowboardStatus, Ff7Error = ff7Scene?.Error, Mappings = crossover?.Mappings ?? [] };
+                return new { ActiveGame = InFf7 ? "FFVII" : "FFVIII", UpdatePaused = updateSave.Paused, SwitchUnavailable = InFf7 ? ff7Scene?.CanSave == true ? null : "Saving is unavailable." : Ff8WorldSwitchUnavailable(), Ff7Field = ff7Scene?.Session?.Field.Name, Ff7Tick = ff7Scene?.Session?.Host.Process.Tick, Ff7World = ff7Scene?.Session?.World?.Process, Ff7Snowboard = ff7Scene?.SnowboardStatus, Ff7Ending = ff7Scene?.EndingStatus, Ff7Error = ff7Scene?.Error, Mappings = crossover?.Mappings ?? [] };
             case "world-autoplay":
                 if (!InFf7)
                 {

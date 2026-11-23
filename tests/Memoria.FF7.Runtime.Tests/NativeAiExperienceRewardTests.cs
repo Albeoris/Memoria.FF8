@@ -163,7 +163,7 @@ internal static class NativeAiExperienceRewardTests
                 Dictionary<int, byte[]> locals = current.Locals.ToDictionary(pair => pair.Key, pair => pair.Value);
                 locals[slot] = result.LocalMemory;
                 byte[] bank = current.SaveBank.ToArray();
-                foreach ((byte address, byte value) in result.SaveBank1Writes)
+                foreach ((ushort address, byte value) in result.SaveBank1Writes)
                 {
                     bank[address] = value;
                 }

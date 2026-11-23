@@ -14,7 +14,7 @@ public sealed partial class Ff7Session
 
     public bool CanUsePlayerMenu => Battle is null && !HasPendingTick && !tickTailInProgress && (World is { } world
         ? CanOpenWorldPlayerMenu(world.Process)
-        : CanOpenFieldPlayerMenu(Host.Process));
+        : Host.PendingStoryPlayerMenu is not null || CanOpenFieldPlayerMenu(Host.Process));
 
     public static bool CanOpenFieldPlayerMenu(Ff7FieldProcess process) => !process.MenuDisabled && !process.PlayerLocked && process.GlobalCommand == Ff7GlobalCommand.None && process.Transition is null && process.Movie is not { Playing: true } && process.Dialogues.All(dialogue => dialogue.Completed);
 

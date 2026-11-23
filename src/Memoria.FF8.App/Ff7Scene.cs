@@ -238,6 +238,10 @@ internal sealed partial class Ff7Scene : IDisposable
                 }
                 return;
             }
+            if (UpdateEndingPresentation(gameTime.ElapsedGameTime))
+            {
+                return;
+            }
             UpdateAutoSave(gameTime.ElapsedGameTime, Session);
             if (Session.Battle is { } battle)
             {
@@ -322,7 +326,7 @@ internal sealed partial class Ff7Scene : IDisposable
                 }
                 RememberReportCheckpoint();
                 UpdateAudio();
-                if (IsShopMenuPresentation || Session.Battle is not null || Session.Highway is not null || Session.ChocoboRace is not null || Session.Snowboard is not null || Session.Condor is not null || Session.Submarine is not null)
+                if (IsShopMenuPresentation || IsStoryPlayerMenuPending || Session.Battle is not null || Session.Highway is not null || Session.ChocoboRace is not null || Session.Snowboard is not null || Session.Condor is not null || Session.Submarine is not null)
                 {
                     tickRemainder = 0;
                     return false;
@@ -340,6 +344,11 @@ internal sealed partial class Ff7Scene : IDisposable
     {
         if (bounds.Width <= 0 || bounds.Height <= 0)
         {
+            return;
+        }
+        if (IsEndingPresentationActive)
+        {
+            RunGuarded(() => DrawEndingPresentation(batch, bounds));
             return;
         }
         Rectangle windowBounds = bounds;
@@ -489,6 +498,7 @@ internal sealed partial class Ff7Scene : IDisposable
             previous.Dispose();
         }
         StopMovie();
+        ResetEndingPresentation();
         preparedMovieSource = null;
         preparedMovieIdentity = null;
         Session = session;
@@ -853,6 +863,7 @@ internal sealed partial class Ff7Scene : IDisposable
         ResetAutoPlay();
         ResetMixedCombat();
         StopMovie();
+        ResetEndingPresentation();
         DisposeNamingPresentation();
         DisposePlayerMenu();
         DisposeShopMenu();

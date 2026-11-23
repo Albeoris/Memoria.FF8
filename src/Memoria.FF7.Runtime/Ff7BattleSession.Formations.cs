@@ -33,6 +33,7 @@ public sealed partial class Ff7BattleSession
             PartyAiAliases = previous.PartyAiAliases?.ToArray() ?? state.PartyAiAliases,
             AiSaveBank1 = previous.AiSaveBank1,
             AiSaveBankDirty = previous.AiSaveBankDirty,
+            AiSaveBankExtendedDirty = previous.AiSaveBankExtendedDirty,
             GlobalStatusClock = previous.GlobalStatusClock
         };
 

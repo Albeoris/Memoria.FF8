@@ -2284,6 +2284,18 @@ if (args.Contains("--native-materia-prerequisites-only", StringComparer.Ordinal)
     return 0;
 }
 
+if (args.Contains("--native-story-player-menu-only", StringComparer.Ordinal))
+{
+    NativeStoryPlayerMenuTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-roster-level-menu-only", StringComparer.Ordinal))
+{
+    NativeRosterLevelMenuTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-materia-prerequisites-original-only", StringComparer.Ordinal))
 {
     NativeMateriaPrerequisiteTests.RunOriginal();
@@ -2708,6 +2720,12 @@ if (args.Contains("--status-counterparts-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--native-battle-save-window-only", StringComparer.Ordinal))
+{
+    NativeBattleSaveWindowTests.Run();
+    return 0;
+}
+
 if (args.Contains("--special-enemies-only", StringComparer.Ordinal))
 {
     NativeSpecialAiTests.RunContracts();
@@ -3095,6 +3113,9 @@ var tests = new (string Name, Action Run)[]
     ("native materia acquisition and cold continuation", NativeMateriaTests.Run),
     ("native equipment removal and cold continuation", NativeEquipmentRemovalTests.Run),
     ("native materia prerequisites and menu acknowledgement", NativeMateriaPrerequisiteTests.Run),
+    ("native battle AI persistent window", NativeBattleSaveWindowTests.Run),
+    ("native story player-menu owner", NativeStoryPlayerMenuTests.Run),
+    ("native roster level capture and menu acknowledgement", NativeRosterLevelMenuTests.Run),
     ("native autoplay lifecycle and standalone continuation", NativeAutoPlayTests.Run),
     ("native generic autoplay discovery", NativeAutoPlayDiscoveryTests.Run),
     ("native autonomous spatial frontiers", NativeAutoPlaySpatialTests.Run),

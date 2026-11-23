@@ -7,9 +7,13 @@ public sealed partial class Ff7BattleSession
 {
     private void RestoreNativeAiState(byte[]? initialSaveBank1, uint initialGil, bool fresh = false)
     {
-        if (state.AiGlobalMemory is { Length: not 64 } || state.AiSaveBank1 is { Length: not 256 } || initialSaveBank1 is { Length: not 256 } || state.FormationAiMemory is { Length: not Ff7BattleAi.LocalMemorySize } || state.PartyAiAliases is not { Length: Ff7KernelBattleAi.IdentityCount } || state.AiSaveBankDirty?.Distinct().Count() != state.AiSaveBankDirty?.Length)
+        if (state.AiGlobalMemory is { Length: not 64 } || state.AiSaveBank1 is { Length: not (256 or Ff7BattleAi.NativeSaveBankSize) } || initialSaveBank1 is { Length: not (256 or Ff7BattleAi.NativeSaveBankSize) } || state.FormationAiMemory is { Length: not Ff7BattleAi.LocalMemorySize } || state.PartyAiAliases is not { Length: Ff7KernelBattleAi.IdentityCount } || state.AiSaveBankDirty?.Distinct().Count() != state.AiSaveBankDirty?.Length)
         {
             throw new InvalidDataException("Native battle AI memory has an invalid shape.");
+        }
+        if (state.AiSaveBankExtendedDirty is { Length: > 0 } extended && (state.AiSaveBank1 is not { Length: Ff7BattleAi.NativeSaveBankSize } || extended.Any(address => address is < 256 or >= Ff7BattleAi.NativeSaveBankSize) || extended.Distinct().Count() != extended.Length))
+        {
+            throw new InvalidDataException("Native battle AI has invalid extended persistent writes.");
         }
         if (state.ImprisonedType > 3 || state.CounterProcessedMask is ushort processed && (processed & ~0x3FF) != 0 || state.Actors.Any(actor => actor.SuccessorSlot is int successor && (successor is < 0 or 3 or > 9 || !state.Actors.Any(candidate => candidate.Actor.Slot == successor))))
         {
@@ -24,7 +28,10 @@ public sealed partial class Ff7BattleSession
             BinaryPrimitives.WriteUInt16LittleEndian(globals.AsSpan(0x2C), Formation.BattleFlags);
             BinaryPrimitives.WriteUInt32LittleEndian(globals.AsSpan(0x38), initialGil);
         }
-        state = state with { AiGlobalMemory = globals, AiSaveBank1 = state.AiSaveBank1?.ToArray() ?? initialSaveBank1?.ToArray() ?? new byte[256], AiSaveBankDirty = state.AiSaveBankDirty?.ToArray() ?? [], FormationAiMemory = state.FormationAiMemory?.ToArray() ?? new byte[Ff7BattleAi.LocalMemorySize] };
+        byte[] saveBank = new byte[Ff7BattleAi.NativeSaveBankSize];
+        initialSaveBank1?.CopyTo(saveBank, 0);
+        state.AiSaveBank1?.CopyTo(saveBank, 0);
+        state = state with { AiGlobalMemory = globals, AiSaveBank1 = saveBank, AiSaveBankDirty = state.AiSaveBankDirty?.ToArray() ?? [], AiSaveBankExtendedDirty = state.AiSaveBankExtendedDirty?.ToArray(), FormationAiMemory = state.FormationAiMemory?.ToArray() ?? new byte[Ff7BattleAi.LocalMemorySize] };
         foreach (Ff7BattleActorState runtime in state.Actors.ToArray())
         {
             Ff7BattleAiActor actor = runtime.Actor;

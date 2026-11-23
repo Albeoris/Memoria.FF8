@@ -274,6 +274,14 @@ public sealed partial class Ff7Session : IDisposable
             }
             return;
         }
+        if (tickContinuation is null && Host.PendingStoryPlayerMenu is not null)
+        {
+            if (advanceClock)
+            {
+                AdvanceNominalClockCallbacks();
+            }
+            return;
+        }
         if (tickContinuation is null && Host.PendingMinigame is { } minigame)
         {
             AdvanceMinigame(minigame, advanceClock);
@@ -467,6 +475,11 @@ public sealed partial class Ff7Session : IDisposable
 
     private FieldHostReply ExecuteExternal(FieldCommand command)
     {
+        if (command is FieldMenuCommand { Mode: 24 })
+        {
+            CaptureNativeRosterLevels(Progress, Machine);
+            return new(true);
+        }
         if (command is FieldMenuCommand { Mode: 22 } prerequisites)
         {
             bool satisfied = Ff7NativeMateriaPrerequisites.Evaluate(Progress, prerequisites.Parameter, executable.NativeMateriaRequirementGroups);

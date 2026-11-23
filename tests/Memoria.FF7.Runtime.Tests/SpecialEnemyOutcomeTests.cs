@@ -13,7 +13,7 @@ internal static class SpecialEnemyOutcomeTests
         variables.WriteByte(FieldBank.Persistent0Byte, 84, 6);
         variables.WriteByte(FieldBank.Persistent1Byte, 2, 77);
         byte[] initialBank = Ff7BattleSession.CaptureNativeSaveBank(variables);
-        Check(initialBank.Length == 256 && initialBank[2] == 9 && initialBank[84] == 6, "The native battle bridge must read the first persistent bank.");
+        Check(initialBank.Length == Ff7BattleAi.NativeSaveBankSize && initialBank[2] == 9 && initialBank[84] == 6 && initialBank[0x102] == 77, "The native battle bridge must read the contiguous persistent banks.");
         initialBank[2] = 0;
         Check(variables.ReadByte(FieldBank.Persistent0Byte, 2) == 9, "Capturing the native bank must not alias field-owned storage.");
 
@@ -31,7 +31,7 @@ internal static class SpecialEnemyOutcomeTests
         Ff7BattleSession Create(Ff7BattleSnapshot? snapshot = null) => new(formation, session.Progress, kernel, modifiers, 1, snapshot: snapshot, initialSaveBank1: Ff7BattleSession.CaptureNativeSaveBank(variables));
 
         Ff7BattleSnapshot initial = Create().Capture();
-        Check(initial.AiSaveBank1 is { Length: 256 } && initial.AiSaveBank1[2] == 9 && initial.AiSaveBank1[84] == 6, "Battle initialization must project the field bank before native callbacks.");
+        Check(initial.AiSaveBank1 is { Length: Ff7BattleAi.NativeSaveBankSize } && initial.AiSaveBank1[2] == 9 && initial.AiSaveBank1[84] == 6, "Battle initialization must project the field bank before native callbacks.");
         Ff7BattleSession ordinary = Create(initial);
         Check(ordinary.ResolveNativeFieldResult(4) == 4, "An unchanged pre-battle result byte must not replace the current terminal result.");
 

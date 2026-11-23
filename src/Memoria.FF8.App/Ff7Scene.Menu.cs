@@ -19,6 +19,8 @@ internal sealed partial class Ff7Scene
     private bool playerMenuClockChanged;
     private bool pendingPlayerMenuRequest;
     private bool nativePlayerMenuActive;
+    private long? storyPlayerMenuRequest;
+    private bool IsStoryPlayerMenuPending => Session?.Host.PendingStoryPlayerMenu is not null;
     private static readonly IReadOnlySet<string> PlayerPreferenceKeys = new[] { "config-graphics", "config-frame-limits", "config-audio", "config-interface", "config-text", "config-speed" }.SelectMany(page => SettingsPlacement.Pages[page].Items).Where(key => !key.StartsWith("config-", StringComparison.Ordinal)).Concat(UiPreferences.AutoSaveSettingKeys).Concat(["Battle ATB mode", "Battle policy", "Random encounters"]).ToHashSet(StringComparer.Ordinal);
 
     internal MenuController? ActivePlayerMenu => titleConfigMenu?.IsOpen == true ? titleConfigMenu : guestPlayerMenu?.IsOpen == true ? guestPlayerMenu : playerMenu?.IsOpen == true ? playerMenu : null;
@@ -202,6 +204,13 @@ internal sealed partial class Ff7Scene
         {
             return true;
         }
+        if (Session is { HasPendingTick: false } storySession && storySession.Host.PendingStoryPlayerMenu is { } storyMenu && storyPlayerMenuRequest != storyMenu.RequestId)
+        {
+            storyPlayerMenuRequest = storyMenu.RequestId;
+            pendingPlayerMenuRequest = false;
+            OpenNativePlayerMenu(storySession, time.ElapsedGameTime);
+            return true;
+        }
         if ((sharedInput.GameMenuRequested || pendingPlayerMenuRequest) && ActivePlayerMenu?.IsCapturingControls != true)
         {
             pendingPlayerMenuRequest = false;
@@ -217,18 +226,7 @@ internal sealed partial class Ff7Scene
                 pendingPlayerMenuRequest = Session is { } session && (session.HasPendingTick || session.Host.Process.GlobalCommand == Ff7GlobalCommand.Battle);
                 return false;
             }
-            EnsurePlayerMenu();
-            Session!.PublishNativeMenuPartyStatistics();
-            Session.Host.InitializeNativeMenuAudio();
-            playerMenu!.Presentation = PresentationPreferences.MenuPresentation;
-            playerMenu.Open();
-            nativePlayerMenuActive = true;
-            pendingPressedKeys = 0;
-            sharedInput.SuppressHeldUiInput();
-            menuPointerPressed = pointerState.LeftButton == ButtonState.Pressed;
-            SetAudioPaused(focusPaused || userPaused || debugMenu || error is not null);
-            AdvancePlayerMenuClock(time.ElapsedGameTime);
-            RefreshPlayerMenuPresentation();
+            OpenNativePlayerMenu(Session!, time.ElapsedGameTime);
             return true;
         }
         if (ActivePlayerMenu is not { } menu)
@@ -243,6 +241,10 @@ internal sealed partial class Ff7Scene
             next.Presentation = PresentationPreferences.MenuPresentation;
             next.Open();
         }
+        else if (storyPlayerMenuRequest is not null && menu.ScreenId == "main" && !menu.IsSelectingCharacter && autoPlay is { Running: true, Paused: false })
+        {
+            menu.Navigate(MenuInput.Cancel);
+        }
         else
         {
             UpdateSharedMenuInput(menu, keys, pad, ref menuPointerPressed);
@@ -253,6 +255,22 @@ internal sealed partial class Ff7Scene
         }
         RefreshPlayerMenuPresentation();
         return true;
+    }
+
+    private void OpenNativePlayerMenu(Ff7Session session, TimeSpan elapsed)
+    {
+        EnsurePlayerMenu();
+        session.PublishNativeMenuPartyStatistics();
+        session.Host.InitializeNativeMenuAudio();
+        playerMenu!.Presentation = PresentationPreferences.MenuPresentation;
+        playerMenu.Open();
+        nativePlayerMenuActive = true;
+        pendingPressedKeys = 0;
+        sharedInput.SuppressHeldUiInput();
+        menuPointerPressed = pointerState.LeftButton == ButtonState.Pressed;
+        SetAudioPaused(focusPaused || userPaused || debugMenu || error is not null);
+        AdvancePlayerMenuClock(elapsed);
+        RefreshPlayerMenuPresentation();
     }
 
     private void AdvancePlayerMenuClock(TimeSpan elapsed)
@@ -317,11 +335,16 @@ internal sealed partial class Ff7Scene
 
     private void ClosePlayerMenu()
     {
-        if (nativePlayerMenuActive)
+        if (storyPlayerMenuRequest is long requestId)
+        {
+            Session?.CompleteStoryPlayerMenu(requestId);
+            storyPlayerMenuRequest = null;
+        }
+        else if (nativePlayerMenuActive)
         {
             Session?.CompleteWorldPlayerMenu();
-            nativePlayerMenuActive = false;
         }
+        nativePlayerMenuActive = false;
         playerMenu?.Close();
         titleConfigMenu?.Close();
         guestPlayerMenu?.Close();
@@ -351,6 +374,7 @@ internal sealed partial class Ff7Scene
         titleConfigMenu?.Close();
         titleConfigMenu = null;
         nativePlayerMenuActive = false;
+        storyPlayerMenuRequest = null;
         playerMenu?.Close();
         playerMenu = null;
         storyPartyMenuRequest = null;
