@@ -659,6 +659,11 @@ public sealed partial class Ff7FieldHost : IFieldHost
 
     private FieldHostReply Movie(long requestId, FieldMovieCommand command)
     {
+        if (command.Operation == FieldMovieOperation.SetBackground)
+        {
+            Process = Process with { MovieBackgroundEnabled = command.MovieId != 0 };
+            return new(true);
+        }
         if (command.Operation == FieldMovieOperation.Prepare)
         {
             if (Process.GlobalCommand != Ff7GlobalCommand.None)
@@ -685,9 +690,6 @@ public sealed partial class Ff7FieldHost : IFieldHost
                 return new(movie.Completed);
             case FieldMovieOperation.ReadFrame:
                 return new(true, movie.Frame);
-            case FieldMovieOperation.SetBackground:
-                Process = Process with { MovieBackgroundEnabled = command.MovieId != 0 };
-                return new(true);
             default:
                 throw new NotSupportedException("Unsupported FFVII movie operation.");
         }

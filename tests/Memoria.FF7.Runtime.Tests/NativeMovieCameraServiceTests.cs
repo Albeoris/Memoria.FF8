@@ -16,6 +16,11 @@ internal static class NativeMovieCameraServiceTests
             Ff7FieldResources field = new("movie-camera-fixture", null!, null!, null!, [fieldCamera], [], null!, null!, null!);
             return new(field, (_, _) => 1, process ?? new() { BlinkStateInitialized = true, Movie = new(53, true, 0, false, 1), GlobalCommand = Ff7GlobalCommand.Movie, GlobalRequestId = 1 });
         }
+        Ff7FieldHost background = Host(new() { BlinkStateInitialized = true });
+        Check(background.Execute(new(1, 0, 7, 0, new FieldMovieCommand(FieldMovieOperation.SetBackground, 1))).Completed && background.Process is { MovieBackgroundEnabled: true, Movie: null, GlobalCommand: Ff7GlobalCommand.None }, "Setting the native movie background must work before a movie is prepared.");
+        Throws<InvalidDataException>(() => background.Execute(new(2, 0, 7, 2, new FieldMovieCommand(FieldMovieOperation.Play))));
+        background = Host(JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(background.Capture()))!);
+        Check(background.Execute(new(3, 0, 7, 5, new FieldMovieCommand(FieldMovieOperation.Prepare, 20))).Completed && background.Process is { MovieBackgroundEnabled: true, Movie.PreparedId: 20 }, "Preparing a movie must keep its independently configured background after restore.");
         Ff7FieldHost host = Host();
         host.NativeMovieCameraRecordCount = () => 3;
         host.PublishMovieFrame(0, false);
