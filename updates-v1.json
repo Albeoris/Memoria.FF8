@@ -31,33 +31,33 @@
       "publishedAt": "2026-11-23T10:46:49+00:00"
     },
     "nightly": {
-      "name": "Nightly - 2026-10-27 02:22:56 UTC",
+      "publishedAt": "2026-11-23T21:41:42.0000000+00:00",
       "tag": "nightly",
+      "engineCompatibilityVersion": "0.8.15",
       "artifacts": {
         "win-x64": {
+          "size": 625729650,
           "url": "https://github.com/Albeoris/Memoria.FF8/releases/download/nightly/Memoria-FF8-win-x64.zip",
-          "sha256": "cdb2abbe44f3f86a039a363405365ff13491a0b71d36ea031c3007f8cac4cb9c",
-          "size": 625725930
+          "sha256": "441f06df35bc41227bbf7eda483294480359f33577fe8c3313352c890fe152fc"
         },
         "linux-x64": {
+          "size": 299068766,
           "url": "https://github.com/Albeoris/Memoria.FF8/releases/download/nightly/Memoria-FF8-linux-x64.tar.gz",
-          "sha256": "3a690867a6962b74fdf294bb32bbe97371a96984726a9f38bc5d28f043fa0c73",
-          "size": 299064137
+          "sha256": "b80b9765355803997d0c87bad9b83d024e660341efecb353d1d0fc33f70a4a7d"
         },
         "osx-x64": {
+          "size": 296973043,
           "url": "https://github.com/Albeoris/Memoria.FF8/releases/download/nightly/Memoria-FF8-osx-x64.tar.gz",
-          "sha256": "93610206c7d08b8758c63ca0bb5b46a1b0c739975ea79d426402c48b06c69f8c",
-          "size": 296967628
+          "sha256": "f392a506adf920df339f3b5c5ae9e8ed0588012607e98ad97b8db9ba4376cffe"
         },
         "osx-arm64": {
+          "size": 276140555,
           "url": "https://github.com/Albeoris/Memoria.FF8/releases/download/nightly/Memoria-FF8-osx-arm64.tar.gz",
-          "sha256": "e109ae4b0e3085fdc414af663bb47a796b974cc975595871f2a5bd39efa32538",
-          "size": 276141189
+          "sha256": "7829c2615f4d4762e61eed72a391b6ae52c03f7c31dc6bedcda1df24dd5e67fb"
         }
       },
-      "engineCompatibilityVersion": "0.8.15",
-      "publishedAt": "2026-11-23T10:47:42.0000000+00:00",
-      "buildId": "3f4a2d757af6abb54dcb76311ebee66dbaf429ac"
+      "buildId": "dd04d43f97ebfa14de595a1693562c15dd7e7db4",
+      "name": "Nightly - 2026-10-27 02:22:56 UTC"
     }
   }
 }
