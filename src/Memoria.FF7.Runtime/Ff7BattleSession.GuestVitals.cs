@@ -215,9 +215,10 @@ public sealed partial class Ff7BattleSession
         bool recovery = GuestRecoveryCommand((Ff7BattleCommand)command.CommandId, command.Argument) && command.ActorSlot < 3;
         bool enemy = command.ActorSlot >= 4 && (command.CommandId is 0x20 or 2 or (byte)Ff7BattleCommand.EnemySkill) || command.CommandId == 0x23;
         bool countdown = command.StatusCountdown && command.ActorSlot == targetSlot;
-        if (!(enemy || recovery || countdown || command.Reflected) || record is { AdditionalEffect: not (byte.MaxValue or 0x06 or 0x07 or 0x19) })
+        bool nativePhysical = command.ActorSlot is >= 0 and < 3 && command.CommandId == (byte)Ff7BattleCommand.Attack && !command.GuestAttack && record is null;
+        if (!(enemy || recovery || countdown || nativePhysical || command.Reflected) || record is { AdditionalEffect: not (byte.MaxValue or 0x06 or 0x07 or 0x19) })
         {
-            throw new NotSupportedException("The native action has no admitted effect on this guest vitals profile.");
+            throw new NotSupportedException($"Native command 0x{command.CommandId:X2}/0x{command.Argument:X4} from slot {command.ActorSlot} has no admitted effect on guest slot {targetSlot}.");
         }
     }
 
