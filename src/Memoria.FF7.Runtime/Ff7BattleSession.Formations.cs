@@ -35,5 +35,34 @@ public sealed partial class Ff7BattleSession
             AiSaveBankDirty = previous.AiSaveBankDirty,
             GlobalStatusClock = previous.GlobalStatusClock
         };
+
+        IReadOnlyList<Ff7BattleGuestSlotState> guests = previous.GetGuestSlotStates();
+        if (guests.Count == 0)
+        {
+            return;
+        }
+
+        // Source item and action receipts are dated on the original encounter clock.
+        state = state with
+        {
+            Tick = previous.Tick,
+            GuestAttackUsed = previous.GuestAttackUsed,
+            GuestOriginStatuses = previous.GuestOriginStatuses?.Where(row => row.HostSlot < 3).Select(row => row with { Timers = row.Timers?.ToArray() }).ToArray(),
+            OriginStatusClockRemainder = previous.OriginStatusClockRemainder
+        };
+        foreach (Ff7BattleGuestSlotState guest in guests)
+        {
+            SetGuestSlotState(guest);
+            int slot = guest.Binding.HostSlot;
+            bool Queued(Ff7BattleQueuedCommand? command) => command is { GuestAttack: true, StatusCountdown: false } && command.ActorSlot == slot;
+            bool hadGuestCommand = state.Queue.Ready.Any(Queued) || state.Queue.Slots.Any(entry => Queued(entry?.Command));
+            if (hadGuestCommand)
+            {
+                RemoveQueuedGuestProcessActions(slot);
+                Ff7BattleActorState actor = Actor(slot);
+                Replace(actor with { AwaitingTurn = CanAct(actor) && actor.Gauge == ushort.MaxValue });
+            }
+        }
+        RefreshGuestSpeedDenominator();
     }
 }

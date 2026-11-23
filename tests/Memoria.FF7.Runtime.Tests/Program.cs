@@ -3195,6 +3195,7 @@ var tests = new (string Name, Action Run)[]
     ("native Ruby Weapon phase", NativeBattleRubyPhaseTests.Run),
     ("native story boss phases", NativeBattleStoryBossTests.Run),
     ("native Hundred Gunner formation chain", NativeBattleFormationChainTests.Run),
+    ("native Hojo formation chain with guest", NativeBattleFormationChainTests.RunGuestHojo),
     ("native Shinra Sample H0512", NativeBattleShinraTests.RunSample),
     ("native Shinra elevator bosses", NativeBattleShinraTests.RunElevator),
     ("native Shinra Rufus", NativeBattleShinraTests.RunRufus),

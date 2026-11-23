@@ -107,10 +107,18 @@ internal sealed partial class Ff7Scene
         {
             return;
         }
+        CrossoverMixedBattle? previousFormation = mixedCombat is { } previous && previous.Precedes(battle) ? previous : null;
         restoredNativeBattle = null;
-        ResetMixedCombat();
+        if (previousFormation is null)
+        {
+            ResetMixedCombat();
+        }
+        else
+        {
+            DeliverGuestBattleSounds();
+        }
         CombinedSessionSave source = envelope with { Ff7 = session.Capture(), ActiveGame = SessionGame.Ff7 };
-        CrossoverMixedBattle mixed = new(identityFf8Directory ?? throw new InvalidOperationException("Select the FFVIII installation before entering mixed combat."), source, battle, ReadStatusStatModifiers);
+        CrossoverMixedBattle mixed = new(identityFf8Directory ?? throw new InvalidOperationException("Select the FFVIII installation before entering mixed combat."), source, battle, ReadStatusStatModifiers, previousFormation);
         mixed.BindForeignGeometry(slot =>
         {
             if (mixed.GuestAt(slot) is { } guest)
@@ -125,6 +133,7 @@ internal sealed partial class Ff7Scene
             _ = BattleRenderer(battle);
             return arenaSurfaceCapture!.Resolve(material);
         });
+        previousFormation?.Dispose();
         mixedCombat = mixed;
     }
 

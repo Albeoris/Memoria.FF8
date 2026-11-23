@@ -35,7 +35,7 @@ internal sealed class CrossoverMixedBattle : IDisposable
     public CrossoverGunbladeHostAttack Attack => Actions.Attack;
     public CrossoverGuestHostActions? ActiveGuest => Guests.SingleOrDefault(guest => guest.Invocation is not null) ?? Guests.FirstOrDefault(guest => guest.HasProcessBackground);
 
-    public CrossoverMixedBattle(string directory, CombinedSessionSave source, Ff7BattleSession host, Func<BattleDifficulty, ImmutableArray<StatusStatModifier>>? readStatusStatModifiers = null)
+    public CrossoverMixedBattle(string directory, CombinedSessionSave source, Ff7BattleSession host, Func<BattleDifficulty, ImmutableArray<StatusStatModifier>>? readStatusStatModifiers = null, CrossoverMixedBattle? previousFormation = null)
     {
         game = new(directory);
         assets = new(directory);
@@ -56,7 +56,7 @@ internal sealed class CrossoverMixedBattle : IDisposable
             Dictionary<int, (CrossoverGunbladeHostSnapshot Attack, CrossoverGuestActorSnapshot? Actions)> savedActors = [];
             NativeGlobalRandomState currentRandom = originRandom;
             ImmutableArray<StatusStatModifier>? capturedStatusStats = null;
-            if (source.MixedBattlePayload is { Length: > 0 } payload)
+            if (previousFormation is null && source.MixedBattlePayload is { Length: > 0 } payload)
             {
                 using JsonDocument json = JsonDocument.Parse(payload);
                 JsonElement root = json.RootElement;
@@ -105,9 +105,25 @@ internal sealed class CrossoverMixedBattle : IDisposable
             {
                 CrossoverBattleBinding[] combat = bindings.Select(binding => new CrossoverBattleBinding(host.Actors.Single(actor => actor.Actor.Slot < 3 && actor.Identity == binding.StoryCharacter).Actor.Slot, binding.StoryCharacter, binding.OriginCharacter)).ToArray();
                 CharacterAppearanceMapping[] appearances = bindings.Select(binding => new CharacterAppearanceMapping(SessionGame.Ff7, binding.StoryCharacter, SessionGame.Ff8, binding.OriginCharacter, "native-battle")).ToArray();
-                roster = CrossoverBattleRoster.Create(Guid.NewGuid(), host.Capture(), combat, appearances);
-                capturedStatusStats = readStatusStatModifiers?.Invoke(document.Progression?.Rules.Preferences.Difficulty ?? BattleDifficulty.Normal);
-                vitals = CrossoverBattleVitalsSettlement.ReadBindings(source, roster, installed, assets).OrderBy(binding => binding.HostSlot).ToArray();
+                roster = CrossoverBattleRoster.Create(previousFormation?.roster.EncounterId ?? Guid.NewGuid(), host.Capture(), combat, appearances);
+                capturedStatusStats = previousFormation?.statusStatModifiers ?? readStatusStatModifiers?.Invoke(document.Progression?.Rules.Preferences.Difficulty ?? BattleDifficulty.Normal);
+                vitals = previousFormation?.vitals ?? CrossoverBattleVitalsSettlement.ReadBindings(source, roster, installed, assets).OrderBy(binding => binding.HostSlot).ToArray();
+                if (previousFormation is not null)
+                {
+                    if (!previousFormation.Precedes(host))
+                    {
+                        throw new InvalidDataException("The mixed encounter can only continue into its native successor formation.");
+                    }
+                    ValidateRestoredRoster(bindings);
+                    foreach (CrossoverGuestHostActions guest in previousFormation.Guests)
+                    {
+                        guest.CancelAtTerminal();
+                        CrossoverGunbladeHostSnapshot standing = previousFormation.CaptureAttack(guest) with { HostTick = host.Tick, Placement = null, Presentation = null, Auxiliary = NativeBattleAuxiliaryState.Clear(), ReactionTick = null, IdleTextures = null };
+                        savedActors.Add(guest.ActorSlot, (standing, guest.CaptureActor()));
+                    }
+                    shared = previousFormation.encounter.Capture();
+                    currentRandom = previousFormation.encounter.GlobalRandom;
+                }
             }
 
             if (source.MixedBattlePayload is { Length: > 0 } && capturedStatusStats is null)
@@ -121,6 +137,10 @@ internal sealed class CrossoverMixedBattle : IDisposable
             statusStatModifiers = StatusStatRules.Resolve(capturedStatusStats ?? []);
             host.BindOriginStatusStats(stats => CrossoverStatusStatProjection.Apply(statusStatModifiers, stats));
             encounter = new(roster, origin, host, currentRandom, document.Progression?.Clocks.CrtRandom, document.Economy, shared) { OriginBattleSpeed = document.Progression?.Rules.Input?.BattleSpeed };
+            if (previousFormation is not null)
+            {
+                encounter.LimitLearning = previousFormation.encounter.LimitLearning;
+            }
             NativeBattleUiRandomState limitUiRandom = (document.Progression?.Clocks.Playtime ?? NativePlaytimeState.FromColdProcess()).CreateBattleUiRandom();
             List<CrossoverGuestHostActions> guests = [];
             foreach (Ff7BattleGuestVitalsBinding binding in vitals)
@@ -131,6 +151,10 @@ internal sealed class CrossoverMixedBattle : IDisposable
                 CrossoverGunbladeHostAttack attack = new(roster, kit, assets, game, originRandom, () => host.RenderCameraOutput, _ => 128, saved.Attack, host.GuestEffectTargetAnchor, host.GuestEffectTargetBone);
                 attack.GlobalRandom = encounter.GlobalRandom;
                 attack.PrepareStanding(host.VisualPlacement(binding.HostSlot));
+                if (previousFormation is not null)
+                {
+                    attack.GlobalRandom = currentRandom;
+                }
                 encounter.GlobalRandom = attack.GlobalRandom;
                 ushort? limitOptions = document.Limits.Options ?? game.ReadNewGameLimitProgress().Options978;
                 CrossoverGuestHostActions actions = new(roster, kit, attack, host, game, assets, encounter, saved.Actions, limitOptions, limitUiRandom);
@@ -148,6 +172,8 @@ internal sealed class CrossoverMixedBattle : IDisposable
             throw;
         }
     }
+
+    internal bool Precedes(Ff7BattleSession battle) => Host.Outcome == Ff7BattleOutcome.Victory && Host.RequestId == battle.RequestId && Host.Formation.NextBattleId == battle.Formation.FormationId;
 
     private void ValidateRestoredRoster(IReadOnlyList<Ff7MixedCombatBinding> bindings)
     {

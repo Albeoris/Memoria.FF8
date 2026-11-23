@@ -225,6 +225,10 @@ internal sealed partial class Ff7Scene
             if (!ReferenceEquals(session.Battle, battle))
             {
                 ResetBattlePresentation();
+                if (session.Battle is { } successor)
+                {
+                    EnsureMixedBattle(successor);
+                }
                 break;
             }
             if (battle.GuestAbilityFailure is { } failure && failure != presentedGuestAbilityFailure)

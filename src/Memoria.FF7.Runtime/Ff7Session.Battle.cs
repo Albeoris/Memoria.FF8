@@ -93,10 +93,6 @@ public sealed partial class Ff7Session
         {
             return;
         }
-        if (battle.GuestVitalsBindings.Count != 0)
-        {
-            throw new NotSupportedException("FFVII formation transitions with a guest battle owner are unsupported.");
-        }
         Ff7BattleSnapshot previous = battle.Capture();
         SceneFormation successor = GetBattleFormation(battle.Formation.NextBattleId);
         Battle = CreateBattle(successor, battle.RequestId, previous.RequestFlags, previous.RequestMode, previous.EntryMusicTrack ?? 0, BattleVariables(), previous);
