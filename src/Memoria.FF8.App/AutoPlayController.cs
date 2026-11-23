@@ -726,8 +726,13 @@ internal sealed partial class AutoPlayController
         {
             run.ActiveObservedInput = null;
             run.ObserveContactInput = false;
-            HandleDialogue(dialogue);
             run.SettleFrames = 0;
+            if (session.State.Scene == SceneKind.Field && !world.Events.CanReceiveDialogueInput(dialogue))
+            {
+                AdvanceInputFrame(world);
+                return;
+            }
+            HandleDialogue(dialogue);
             return;
         }
         if (session.State.Scene == SceneKind.Field && world.Events.HasConfirmableAutomaticDialogue)
@@ -1184,7 +1189,10 @@ internal sealed partial class AutoPlayController
                     {
                         RecordContactInterruption(world, source, interruptedGateway);
                     }
-                    Apply(new(PlayerActionKind.Wait));
+                    if (world.NextTrigger.Kind != PlayerTriggerKind.Battle)
+                    {
+                        Apply(new(PlayerActionKind.Wait));
+                    }
                     return;
                 }
                 if (variant.RequiresConfirm)
