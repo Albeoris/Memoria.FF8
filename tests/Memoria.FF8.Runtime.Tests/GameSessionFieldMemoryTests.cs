@@ -28,6 +28,32 @@ public sealed class GameSessionFieldMemoryTests
     }
 
     [Fact]
+    public void Outgoing_field_publishes_its_final_vram_and_crt_before_request_consumption()
+    {
+        GameSession session = GameSession.CreateColdProcess();
+        session.StartNewGame();
+        NativeBattleRetainedMemory outgoing = session.ActivateNativeFieldMemory();
+
+        session.RequestField(new FieldTransition(75, 0, 0, 0, 0));
+        Assert.True(session.OwnsNativeFieldMemory(74));
+        Assert.False(session.OwnsNativeFieldMemory(75));
+        NativeBattleEffectMemory effects = outgoing.EffectMemory!;
+        NativeBattleEffectTextureState finalTextures = effects.Textures!.Upload45BD30(0, 0, 1, 1, [18, 0]);
+        NativeCrtRandomState finalRandom = session.State.CrtRandom!.Draw(out _);
+        session.SetNativeFieldEyeOwners(outgoing with { EffectMemory = effects with { Textures = finalTextures } }, finalRandom);
+
+        session.SetFieldRequestPacket(session.FieldRequestPacket!.WithConsumedRequest());
+        Assert.False(session.OwnsNativeFieldMemory(74));
+        Assert.True(session.OwnsNativeFieldMemory(75));
+        Assert.Equal(finalRandom, session.State.CrtRandom);
+        NativeBattleEffectTextureState incomingTextures = session.ActivateNativeFieldMemory().EffectMemory!.Textures!;
+        Assert.Same(finalTextures, incomingTextures);
+        Assert.Equal((ushort)18, incomingTextures.ReadVramWord(0, 0));
+        NativeBattleEffectTextureState registered = incomingTextures.Upload45BD30(0, 0, 1, 1, [19, 0]);
+        Assert.Equal((ushort)19, registered.ReadVramWord(0, 0));
+    }
+
+    [Fact]
     public void Direct_preparation_reuses_one_field_capture_and_does_not_publish_gameplay_state()
     {
         GameSession session = GameSession.CreateColdProcess();

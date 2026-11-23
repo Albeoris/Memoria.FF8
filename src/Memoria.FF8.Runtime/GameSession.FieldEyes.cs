@@ -8,10 +8,20 @@ public sealed partial class GameSession
     /// <summary>The active field's physical owner, or the detached retained handoff when no field is attached.</summary>
     public NativeBattleRetainedMemory? CurrentNativeBattleMemory => liveFieldMemory ?? State.NativeBattleMemory;
 
-    /// <summary>A field keeps its shared graphics memory while its movie runs field callbacks.</summary>
+    /// <summary>A field keeps its shared graphics memory through its movie and the callback that requests its successor.</summary>
     public bool OwnsNativeFieldMemory(int fieldId)
     {
-        return !HasActiveBattle && HasActiveFieldScene && State.FieldId == fieldId;
+        if (HasActiveBattle || !HasActiveFieldScene)
+        {
+            return false;
+        }
+        // INF publishes the accepted request during player movement, before the outgoing model draw.
+        // The destination loader consumes that request before it starts its own field callbacks.
+        if (liveFieldMemory is not null && State.Scene == SceneKind.Field && State.PreviousFieldId is int departing && State.FieldLoadContext?.Origin == NativeFieldLoadOrigin.FieldRequest && State.FieldRequestPacket is { Kind: 1, FieldId: ushort destination } && State.FieldArrival?.FieldId == destination && State.FieldId == destination)
+        {
+            return departing == fieldId;
+        }
+        return State.FieldId == fieldId;
     }
 
     public NativeBattleRetainedMemory ActivateNativeFieldMemory()
