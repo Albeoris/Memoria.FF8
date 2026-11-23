@@ -635,7 +635,7 @@ public sealed class JunctionDashboardInteractionTests
         {
             fixture.Vitals = fixture.Vitals.TeachGuardianForceAbility(0, ability);
         }
-        fixture.Vitals = fixture.Vitals.AcquireGuardianForce(1).TeachGuardianForceAbility(1, 39).ToggleGuardianForceJunction(7, 1);
+        fixture.Vitals = fixture.Vitals.AcquireGuardianForce(1).TeachGuardianForceAbility(1, 1).TeachGuardianForceAbility(1, 12).TeachGuardianForceAbility(1, 39).ToggleGuardianForceJunction(7, 1);
         fixture.Refresh();
         fixture.Data.Settings["Text scale"] = textScale + "%";
         fixture.Menu.PrepareViewport(width, height);
@@ -653,6 +653,13 @@ public sealed class JunctionDashboardInteractionTests
         Assert.Equal("gf-transfer-loss-columns", columns.Id);
         Assert.DoesNotContain(columns.Children, row => row.Id == "transfer-loss-gf-capability-passive-39");
         Assert.Contains(columns.Children, row => row.Id == "transfer-loss-gf-capability-passive-40");
+        Assert.DoesNotContain(columns.Children, row => row.Id is "transfer-loss-gf-capability-junction-1" or "transfer-loss-gf-capability-junction-12");
+        foreach (int ability in new[] { 6, 8, 15, 17 })
+        {
+            UiElement row = Assert.Single(columns.Children, row => row.Id == $"transfer-loss-gf-capability-junction-{ability}");
+            Assert.Equal($"− {fixture.Catalog.AbilityName(ability)}", row.Children.OfType<UiLabel>().First().Text);
+            Assert.Equal(NativeAbilityMenuMetadata.Icon(ability), Assert.Single(row.Children.OfType<UiImage>()).Source);
+        }
         Assert.All(columns.Children, row =>
         {
             UiLabel label = row.Children.OfType<UiLabel>().First();

@@ -16,7 +16,13 @@ public sealed partial class MenuController
         Place(body, JunctionLabel(J("available-abilities", "Available abilities"), 14, true), 0);
         MenuCharacter? currentCharacter = donor ?? Character;
         MenuCharacter? preview = donor is null ? JunctionPreviewCharacter : junctionPlan?.After.Characters.FirstOrDefault(actor => actor.Id == donor.Id);
-        var changes = Capabilities(true).Concat(Capabilities(false)).Concat(Capacity()).Where(change => donor is null || change.Delta < 0).OrderBy(change => change.Delta == 0 ? 1 : 0).ToArray();
+        var changes = Capabilities("command", currentCharacter?.AvailableCommands, preview?.AvailableCommands)
+            .Concat(Capabilities("passive", currentCharacter?.AvailableAbilities, preview?.AvailableAbilities))
+            .Concat(Capacity())
+            .Concat(donor is null ? [] : Capabilities("junction", donor.AvailableMagicJunctionAbilities, preview?.AvailableMagicJunctionAbilities))
+            .Where(change => donor is null || change.Delta < 0)
+            .OrderBy(change => change.Delta == 0 ? 1 : 0)
+            .ToArray();
         if (changes.Length == 0)
         {
             Place(body, JunctionLabel("---", 16, true), 1);
@@ -73,15 +79,15 @@ public sealed partial class MenuController
             }
         }
 
-        IEnumerable<(string Id, MenuAbilityChoice Choice, int Delta)> Capabilities(bool commands)
+        static IEnumerable<(string Id, MenuAbilityChoice Choice, int Delta)> Capabilities(string category, IReadOnlyList<MenuAbilityChoice>? current, IReadOnlyList<MenuAbilityChoice>? next)
         {
-            IReadOnlyList<MenuAbilityChoice> current = commands ? currentCharacter?.AvailableCommands ?? [] : currentCharacter?.AvailableAbilities ?? [];
-            IReadOnlyList<MenuAbilityChoice> next = preview is null ? current : commands ? preview.AvailableCommands : preview.AvailableAbilities;
+            current ??= [];
+            next ??= current;
             HashSet<string> before = current.Select(choice => choice.Id).ToHashSet(StringComparer.Ordinal);
             HashSet<string> after = next.Select(choice => choice.Id).ToHashSet(StringComparer.Ordinal);
             foreach (MenuAbilityChoice choice in next.Concat(current).DistinctBy(choice => choice.Id))
             {
-                yield return ("gf-capability-" + (commands ? "command-" : "passive-") + choice.Id, choice, !before.Contains(choice.Id) ? 1 : !after.Contains(choice.Id) ? -1 : 0);
+                yield return ("gf-capability-" + category + "-" + choice.Id, choice, !before.Contains(choice.Id) ? 1 : !after.Contains(choice.Id) ? -1 : 0);
             }
         }
     }

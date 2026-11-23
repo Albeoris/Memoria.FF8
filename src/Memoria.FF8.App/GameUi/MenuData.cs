@@ -77,6 +77,7 @@ public sealed class MenuCharacter
     public Dictionary<string, string> JunctionIds { get; } = new(StringComparer.Ordinal);
     public List<MenuAbilityChoice> AvailableCommands { get; } = [];
     public List<MenuAbilityChoice> AvailableAbilities { get; } = [];
+    public List<MenuAbilityChoice> AvailableMagicJunctionAbilities { get; } = [];
     public int AbilitySlots { get; set; } = 2;
     public HashSet<string> AvailableJunctionSlots { get; } = new(StringComparer.Ordinal);
     public List<string> GuardianForceIds { get; } = [];

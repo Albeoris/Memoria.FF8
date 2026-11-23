@@ -229,6 +229,10 @@ public static class LiveMenuData
                     foreach (int ability in vitals.JunctionLearnedAbilities(row).Order())
                     {
                         MenuAbilityChoice choice = new(ability.ToString(System.Globalization.CultureInfo.InvariantCulture), NativeAbilityMenuMetadata.CommandName(ability, catalog?.AbilityName(ability) ?? Format("fallback.ability.name", "Ability {0}", ability), supportsSummon, Text), true) { Icon = NativeAbilityMenuMetadata.Icon(ability), Description = catalog?.ReadBonusAbilityDescription(ability, state.GameplayPreferences.Tuning.LevelBasedStatBonuses, character.Level) ?? Text("projection.ability.description-unavailable", "Ability description unavailable.") };
+                        if (ability is >= 1 and <= 17)
+                        {
+                            character.AvailableMagicJunctionAbilities.Add(choice);
+                        }
                         if (ability is >= 20 and < 39)
                         {
                             character.AvailableCommands.Add(choice);
