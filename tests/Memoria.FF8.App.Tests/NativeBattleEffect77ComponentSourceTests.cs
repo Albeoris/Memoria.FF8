@@ -51,7 +51,7 @@ public sealed class NativeBattleEffect77ComponentSourceTests
         BattleSession invalid = InstalledBattlePresentation.Restore(invalidInput, world.ValidationAssets, world.BattleResources);
         BattlePresentationSnapshot invalidPresentation = invalid.CaptureForContinuation().PresentationContinuation!;
         NativeBattlePhysicalPartyStatuses invalidBefore = invalid.Presentation!.ReadPhysicalPartyBattleStatuses();
-        NativeBattleDiagnosticOutcomeEntry staleStatuses = new(invalidPresentation.Invocation!, invalidPresentation.DiagnosticGenerations![reference.Ordinal], owner)
+        NativeBattleActionOutcomeEntry staleStatuses = new(invalidPresentation.Invocation!, invalidPresentation.DiagnosticGenerations![reference.Ordinal], owner)
         {
             OriginalStatuses = invalidPresentation.PhysicalPartyBattleStatuses!,
             BeforeStatuses = invalidBefore,
@@ -60,7 +60,7 @@ public sealed class NativeBattleEffect77ComponentSourceTests
         BattleCombatant invalidPlayer = Assert.Single(invalid.Combatants, actor => actor.IsPlayer);
         invalidPlayer.NativeStatus1 ^= 1;
         uint changedStatus = invalidPlayer.NativeStatus1;
-        System.Reflection.MethodInfo acknowledge = typeof(BattleSession).GetMethod("AcknowledgeDiagnosticOutcomeEntry", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+        System.Reflection.MethodInfo acknowledge = typeof(BattleSession).GetMethod("AcknowledgeActionOutcomeEntry", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
         System.Reflection.TargetInvocationException rejection = Assert.Throws<System.Reflection.TargetInvocationException>(() => acknowledge.Invoke(invalid, [staleStatuses, invalidPresentation.Invocation!.Token]));
         Assert.IsType<InvalidDataException>(rejection.InnerException);
         Assert.False(invalid.CaptureForContinuation().PresentationContinuation!.Invocation!.DiagnosticOutcomeEntryAcknowledged);
@@ -113,8 +113,8 @@ public sealed class NativeBattleEffect77ComponentSourceTests
         BattlePresentationProcess.HostedPresentationInvocation invocation = entered.PresentationContinuation!.Invocation!;
         Assert.True(invocation.DiagnosticOutcomeEntryIssued);
         Assert.True(invocation.DiagnosticOutcomeEntryAcknowledged);
-        NativeBattleDiagnosticOutcomeEntry replay = new(invocation, entered.PresentationContinuation.DiagnosticGenerations![reference.Ordinal], owner);
-        Assert.Throws<InvalidDataException>(() => fork.Presentation!.ValidateDiagnosticOutcomeEntry(replay));
+        NativeBattleActionOutcomeEntry replay = new(invocation, entered.PresentationContinuation.DiagnosticGenerations![reference.Ordinal], owner);
+        Assert.Throws<InvalidDataException>(() => fork.Presentation!.ValidateActionOutcomeEntry(replay));
         BattleSession continued = fork.ForkForContinuation();
         Assert.True(continued.CaptureForContinuation().PresentationContinuation!.Invocation!.DiagnosticOutcomeEntryAcknowledged);
         Assert.True(cleared.SameValues(continued.Presentation!.ReadPhysicalPartyBattleStatuses()));

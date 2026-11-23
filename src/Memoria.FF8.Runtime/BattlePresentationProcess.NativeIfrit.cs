@@ -300,7 +300,7 @@ public sealed partial class BattlePresentationProcess
                     }, frame =>
                     {
                         NativeEffectMemory = RequireWaterMemory() with { Arena = frame.Arena, ScriptedEffects = frame.Core };
-                        graphics = BeginNativeOutcome47DF60(graphics);
+                        graphics = BeginNativeOutcome47DF60(graphics, authoredCinematic: profile.Effect == 77);
                         return frame;
                     }, (frame, pointer) =>
                     {

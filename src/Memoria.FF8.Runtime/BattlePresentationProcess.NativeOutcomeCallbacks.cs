@@ -53,13 +53,16 @@ public sealed partial class BattlePresentationProcess
         }
     }
 
-    private NativeBattleGraphicsState BeginNativeOutcome47DF60(NativeBattleGraphicsState graphics)
+    private NativeBattleGraphicsState BeginNativeOutcome47DF60(NativeBattleGraphicsState graphics, bool authoredCinematic = false)
     {
-        NativeBattleOutcomeState outcome = graphics.NativeOutcome ?? throw new NotSupportedException("Native47DF60 requires its established outcome byte owners.");
-        NativeBattleUiServices ui = graphics.UiServices ?? throw new NotSupportedException("Native47DF60 requires its original player UI queue.");
-        NativeBattleDiagnosticOutcomeEntry? diagnosticEntry = hostedTerminal is null && hostedPresentationInvocation?.Provenance == BattlePresentationInvocationProvenance.ExternalDiagnostic
-            ? PrepareDiagnosticOutcomeEntry(graphics)
+        NativeBattleActionOutcomeEntry? actionEntry = hostedTerminal is null &&
+            (authoredCinematic || hostedPresentationInvocation?.Provenance == BattlePresentationInvocationProvenance.ExternalDiagnostic)
+            ? PrepareActionOutcomeEntry(graphics)
             : null;
+        NativeBattleOutcomeState outcome = graphics.NativeOutcome ?? (actionEntry?.Invocation.Provenance == BattlePresentationInvocationProvenance.Gameplay
+            ? new()
+            : throw new NotSupportedException("Native47DF60 requires its established outcome byte owners."));
+        NativeBattleUiServices ui = graphics.UiServices ?? throw new NotSupportedException("Native47DF60 requires its original player UI queue.");
         NativeBattleUiCommands commands = ui.Commands;
         for (byte index = 0; index < 3; index++)
         {
@@ -68,11 +71,11 @@ public sealed partial class BattlePresentationProcess
         }
         commands = commands.Enqueue(0, 65);
         nativeActionPackets = nativeActionPackets.RestartContactPublication();
-        if (diagnosticEntry is not null)
+        if (actionEntry is not null)
         {
-            NativeBattleModelLifecycleServices services = hostedFrameServices ?? throw new InvalidOperationException("Native47DF60 diagnostic process entry requires its ordered frame receipts.");
-            hostedPresentationInvocation = diagnosticEntry.Invocation;
-            services.EmitDiagnosticOutcomeEntry(diagnosticEntry);
+            NativeBattleModelLifecycleServices services = hostedFrameServices ?? throw new InvalidOperationException("Native47DF60 action process entry requires its ordered frame receipts.");
+            hostedPresentationInvocation = actionEntry.Invocation;
+            services.EmitActionOutcomeEntry(actionEntry);
         }
         else
         {

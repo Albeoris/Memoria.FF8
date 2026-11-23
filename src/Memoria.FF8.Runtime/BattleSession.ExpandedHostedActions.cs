@@ -103,6 +103,10 @@ public sealed partial class BattleSession
                 throw new InvalidDataException("The native model transformation requires its single non-damaging recipient packet.");
             }
         }
+        else if (header.Effect == NativeBattleEffect64Profile.Effect)
+        {
+            ValidateEffect64Geometry(header, contacts);
+        }
         else if (IsHostedCinematicContext(command, header) && contacts.Any(contact => contact.Packet is not
             { Primary: { PresentedAmount: 0, Flags2: 1, HitFlags: 0, Sequence: 0, CoverSource: null }, Secondary: null }))
         {
@@ -209,6 +213,18 @@ public sealed partial class BattleSession
 
     private bool IsHostedCinematicContext(BattleActionPresentation command, NativeBattleActionHeaderPreparation header)
     {
+        if (header.Effect == NativeBattleEffect64Profile.Effect)
+        {
+            // Sequence 16 reads the physical self packet for geometry and never delivers it as an impact.
+            if (header is not { Command: 8, Action: 353, Sequence: 16, Source: BattleEnemyActorModel source } || definition.StageId != 142 ||
+                command is not { Ability: BattleAbility.EnemyAbility, NativeAiCallbackStage: 2 or 3, NativeAction: { KernelSection: 3, KernelIndex: 353 } } ||
+                command.ActorId != command.TargetId || source.Actor.ActorId != command.ActorId || GetActor(command.ActorId).ModelId != 124 ||
+                command.TargetRequest.Selection is not BattleTargetSelection.Explicit { Actors: [BattleEnemyActorReference target] } || target != source.Actor)
+            {
+                throw new InvalidDataException("Effect 64 requires its original self-targeted enemy action and stage.");
+            }
+            return true;
+        }
         if (header.Effect == NativeBattleEffect303Profile.Effect)
         {
             // The transformation uses the first physical packet to pose and activate its dormant model.
@@ -318,14 +334,23 @@ public sealed partial class BattleSession
         expandedInvocationProgress = new(invocation, roster, bridge);
     }
 
+    private static void ValidateEffect64Geometry(NativeBattleActionHeaderPreparation header, ImmutableArray<ExpandedBattleContact> contacts)
+    {
+        if (contacts is not [{ Packet: { Primary: { PresentedAmount: 0, Flags2: 1, HitFlags: 0, Sequence: 0, CoverSource: null }, Secondary: null } packet }] ||
+            packet.Primary.Recipient != header.Source)
+        {
+            throw new InvalidDataException("Effect 64 requires its single neutral self geometry packet.");
+        }
+    }
+
     private void ApplyExpandedHostedFrameReceipts(NativeBattleModelLifecycleServices services, long? actionToken)
     {
         foreach (NativeBattlePresentationReceipt receipt in services.ReadOrderedReceipts())
         {
             switch (receipt)
             {
-                case NativeBattleDiagnosticOutcomeEntry diagnosticOutcome:
-                    AcknowledgeDiagnosticOutcomeEntry(diagnosticOutcome, actionToken);
+                case NativeBattleActionOutcomeEntry actionOutcome:
+                    AcknowledgeActionOutcomeEntry(actionOutcome, actionToken);
                     break;
                 case NativeBattlePresentationContactReceived { Invocation: { Provenance: BattlePresentationInvocationProvenance.ExternalDiagnostic } invocation } external:
                     if (actionToken != invocation.Token || external.Renzokuken is not null || external.Packet.Primary.Amount6 != 0 || external.Packet.Secondary is not null)

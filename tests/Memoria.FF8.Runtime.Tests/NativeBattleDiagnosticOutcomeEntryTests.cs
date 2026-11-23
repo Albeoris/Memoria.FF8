@@ -12,6 +12,46 @@ public sealed class NativeBattleDiagnosticOutcomeEntryTests
         fixture.Receipt.Validate(fixture.Invocation, fixture.Packet, 5, fixture.Header, fixture.Contacts);
     }
 
+    [Fact]
+    public void Effect77_authored_process_entry_accepts_its_current_self_contact_without_a_diagnostic_generation()
+    {
+        var fixture = Create();
+        BattlePresentationProcess.HostedPresentationInvocation invocation = fixture.Invocation with { Provenance = BattlePresentationInvocationProvenance.Gameplay };
+        NativeBattleActionOutcomeEntry receipt = fixture.Receipt with { Invocation = invocation, HeaderGeneration = 0 };
+        receipt.Validate(invocation, fixture.Packet, null, fixture.Header, fixture.Contacts);
+        Assert.Equal(BattlePresentationInvocationProvenance.Gameplay, receipt.Invocation.Provenance);
+    }
+
+    [Theory]
+    [InlineData("action")]
+    [InlineData("sequence")]
+    [InlineData("effect")]
+    [InlineData("target")]
+    [InlineData("hit")]
+    [InlineData("damage")]
+    public void Effect77_authored_process_entry_rejects_a_different_original_action_or_contact(string mismatch)
+    {
+        var fixture = Create();
+        BattlePresentationProcess.HostedPresentationInvocation invocation = fixture.Invocation with { Provenance = BattlePresentationInvocationProvenance.Gameplay };
+        NativeBattleActionOutcomeEntry receipt = fixture.Receipt with { Invocation = invocation, HeaderGeneration = 0 };
+        NativeBattleActionHeaderSlot header = mismatch switch
+        {
+            "action" => fixture.Header with { Action = 355 },
+            "sequence" => fixture.Header with { Sequence = 17 },
+            "effect" => fixture.Header with { Effect = 76 },
+            _ => fixture.Header
+        };
+        NativeBattleContactPacket contact = fixture.Contacts[0];
+        NativeBattleContactHalf primary = mismatch switch
+        {
+            "target" => contact.Primary with { Recipient = OriginalOwner(0) },
+            "hit" => contact.Primary with { HitFlags = 2 },
+            "damage" => contact.Primary with { Amount6 = 1 },
+            _ => contact.Primary
+        };
+        Assert.Throws<InvalidDataException>(() => receipt.Validate(invocation, fixture.Packet, null, header, [contact with { Primary = primary }]));
+    }
+
     [Theory]
     [InlineData("missing")]
     [InlineData("foreign")]
@@ -38,7 +78,7 @@ public sealed class NativeBattleDiagnosticOutcomeEntryTests
     public void Effect77_process_entry_rejects_stale_foreign_or_non_diagnostic_receipts(string fault)
     {
         var fixture = Create();
-        NativeBattleDiagnosticOutcomeEntry receipt = fixture.Receipt;
+        NativeBattleActionOutcomeEntry receipt = fixture.Receipt;
         BattlePresentationProcess.HostedPresentationInvocation? current = fixture.Invocation;
         NativeBattleDescriptorPacket packet = fixture.Packet;
         NativeBattleActionHeaderSlot header = fixture.Header;
@@ -120,7 +160,7 @@ public sealed class NativeBattleDiagnosticOutcomeEntryTests
         Assert.Throws<InvalidDataException>(() => receipt.Validate(current, packet, generation, header, contacts));
     }
 
-    private static (BattlePresentationProcess.HostedPresentationInvocation Invocation, NativeBattleDiagnosticOutcomeEntry Receipt, NativeBattleDescriptorPacket Packet, NativeBattleActionHeaderSlot Header, ImmutableArray<NativeBattleContactPacket> Contacts) Create()
+    private static (BattlePresentationProcess.HostedPresentationInvocation Invocation, NativeBattleActionOutcomeEntry Receipt, NativeBattleDescriptorPacket Packet, NativeBattleActionHeaderSlot Header, ImmutableArray<NativeBattleContactPacket> Contacts) Create()
     {
         BattleModelOwner source = OriginalOwner(3);
         BattlePresentationProcess.HostedPresentationInvocation invocation = new(1, 2, 7, new(0)) { Provenance = BattlePresentationInvocationProvenance.ExternalDiagnostic, DiagnosticOutcomeEntryIssued = true };

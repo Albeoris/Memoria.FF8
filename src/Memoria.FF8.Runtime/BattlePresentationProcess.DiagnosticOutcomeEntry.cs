@@ -2,7 +2,7 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-internal sealed record NativeBattleDiagnosticOutcomeEntry(BattlePresentationProcess.HostedPresentationInvocation Invocation, long HeaderGeneration, BattleModelOwner Source) : NativeBattlePresentationReceipt
+internal sealed record NativeBattleActionOutcomeEntry(BattlePresentationProcess.HostedPresentationInvocation Invocation, long HeaderGeneration, BattleModelOwner Source) : NativeBattlePresentationReceipt
 {
     internal NativeBattlePhysicalPartyStatuses OriginalStatuses { get; init; } = NativeBattlePhysicalPartyStatuses.Unknown();
     internal NativeBattlePhysicalPartyStatuses BeforeStatuses { get; init; } = NativeBattlePhysicalPartyStatuses.Unknown();
@@ -10,25 +10,36 @@ internal sealed record NativeBattleDiagnosticOutcomeEntry(BattlePresentationProc
 
     internal void Validate(BattlePresentationProcess.HostedPresentationInvocation? current, NativeBattleDescriptorPacket packet, long? generation, NativeBattleActionHeaderSlot header, ImmutableArray<NativeBattleContactPacket> contacts)
     {
-        if (Invocation is null || !ReferenceEquals(Invocation, current) || Invocation.Provenance != BattlePresentationInvocationProvenance.ExternalDiagnostic ||
+        if (Invocation is null || !ReferenceEquals(Invocation, current) ||
             Invocation.Token <= 0 || Invocation.DescriptorSlot < 0 || !Invocation.DiagnosticOutcomeEntryIssued || Invocation.DiagnosticOutcomeEntryAcknowledged ||
             packet.Command != 104 || packet.Serial != Invocation.DescriptorSerial || packet.Header != Invocation.Header || packet.PriorityState == 255 ||
-            HeaderGeneration <= 0 || generation != HeaderGeneration || Source is null || header.Source != Source ||
+            Source is null || header.Source != Source ||
             header.ContactCount is not > 0 || contacts.IsDefaultOrEmpty || contacts.Length != header.ContactCount ||
-            contacts.Any(contact => contact.Primary.Amount6 != 0 || contact.Secondary is not null))
+            contacts.Any(contact => contact.Primary.PresentedAmount != 0 || contact.Secondary is not null))
         {
-            throw new InvalidDataException("Native47DF60 diagnostic process entry lost its current invocation, descriptor, header generation or zero-amount contacts.");
+            throw new InvalidDataException("Native47DF60 action process entry lost its current invocation, descriptor, header, or zero-amount contacts.");
+        }
+        bool matchesOwner = Invocation.Provenance switch
+        {
+            BattlePresentationInvocationProvenance.ExternalDiagnostic => HeaderGeneration > 0 && generation == HeaderGeneration,
+            BattlePresentationInvocationProvenance.Gameplay => HeaderGeneration == 0 && header is { Command: 8, Action: 356, Sequence: 18, Effect: 77, Source: BattleEnemyActorModel } &&
+                contacts is [{ Primary: { Recipient: var recipient, Sequence: 0, Flags2: 1, HitFlags: 0, CoverSource: null } }] && recipient == Source,
+            _ => false
+        };
+        if (!matchesOwner)
+        {
+            throw new InvalidDataException("Native47DF60 action process entry lost its original action owner.");
         }
         if (OriginalStatuses is null || BeforeStatuses is null || AfterStatuses is null)
         {
-            throw new InvalidDataException("Native47DF60 diagnostic process entry requires its complete physical status owners.");
+            throw new InvalidDataException("Native47DF60 action process entry requires its complete physical status owners.");
         }
         OriginalStatuses.Validate();
         BeforeStatuses.Validate();
         AfterStatuses.Validate();
         if (!BeforeStatuses.ClearHighBits().SameValues(AfterStatuses))
         {
-            throw new InvalidDataException("Native47DF60 diagnostic process entry changed its physical battle-status masked write.");
+            throw new InvalidDataException("Native47DF60 action process entry changed its physical battle-status masked write.");
         }
     }
 }
@@ -56,19 +67,27 @@ public sealed partial class BattlePresentationProcess
         return result;
     }
 
-    private NativeBattleDiagnosticOutcomeEntry PrepareDiagnosticOutcomeEntry(NativeBattleGraphicsState graphics)
+    private NativeBattleActionOutcomeEntry PrepareActionOutcomeEntry(NativeBattleGraphicsState graphics)
     {
-        HostedPresentationInvocation current = hostedPresentationInvocation ?? throw new InvalidDataException("Native47DF60 diagnostic process entry requires its active invocation.");
-        if (current.Provenance != BattlePresentationInvocationProvenance.ExternalDiagnostic || current.DiagnosticOutcomeEntryIssued || current.DiagnosticOutcomeEntryAcknowledged ||
+        HostedPresentationInvocation current = hostedPresentationInvocation ?? throw new InvalidDataException("Native47DF60 action process entry requires its active invocation.");
+        if (current.DiagnosticOutcomeEntryIssued || current.DiagnosticOutcomeEntryAcknowledged ||
             (uint)current.DescriptorSlot >= (uint)graphics.Descriptors.Packets.Length)
         {
-            throw new InvalidDataException("Native47DF60 diagnostic process entry requires its unconsumed external invocation.");
+            throw new InvalidDataException("Native47DF60 action process entry requires its unconsumed current invocation.");
         }
         HostedPresentationInvocation issued = current with { DiagnosticOutcomeEntryIssued = true };
         NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(current.Header);
-        long generation = ReadDiagnosticCounterHeaderGeneration(current.Header.Ordinal) ?? throw new InvalidDataException("Native47DF60 diagnostic process entry requires its actual header generation.");
+        long generation = 0;
+        if (current.Provenance == BattlePresentationInvocationProvenance.ExternalDiagnostic)
+        {
+            generation = ReadDiagnosticCounterHeaderGeneration(current.Header.Ordinal) ?? throw new InvalidDataException("Native47DF60 diagnostic process entry requires its actual header generation.");
+        }
+        else
+        {
+            RequireAuthoredOutcomeSource(graphics, current, header);
+        }
         NativeBattlePhysicalPartyStatuses before = ReadPhysicalPartyBattleStatuses();
-        NativeBattleDiagnosticOutcomeEntry receipt = new(issued, generation, header.Source)
+        NativeBattleActionOutcomeEntry receipt = new(issued, generation, header.Source)
         {
             OriginalStatuses = physicalPartyBattleStatuses,
             BeforeStatuses = before,
@@ -78,26 +97,41 @@ public sealed partial class BattlePresentationProcess
         return receipt;
     }
 
-    internal void ValidateDiagnosticOutcomeEntry(NativeBattleDiagnosticOutcomeEntry receipt)
+    internal void ValidateActionOutcomeEntry(NativeBattleActionOutcomeEntry receipt)
     {
         ArgumentNullException.ThrowIfNull(receipt);
-        HostedPresentationInvocation current = hostedPresentationInvocation ?? throw new InvalidDataException("Native47DF60 diagnostic process entry has no current invocation.");
+        HostedPresentationInvocation current = hostedPresentationInvocation ?? throw new InvalidDataException("Native47DF60 action process entry has no current invocation.");
         NativeBattleGraphicsState graphics = RequireNativeGraphics();
         if ((uint)current.DescriptorSlot >= (uint)graphics.Descriptors.Packets.Length)
         {
-            throw new InvalidDataException("Native47DF60 diagnostic process entry left its current descriptor owner.");
+            throw new InvalidDataException("Native47DF60 action process entry left its current descriptor owner.");
         }
-        receipt.Validate(current, graphics.Descriptors.Packets[current.DescriptorSlot], ReadDiagnosticCounterHeaderGeneration(current.Header.Ordinal), nativeActionPackets.ReadHeader(current.Header), nativeActionPackets.ReadHeaderContacts(current.Header));
+        NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(current.Header);
+        if (current.Provenance == BattlePresentationInvocationProvenance.Gameplay)
+        {
+            RequireAuthoredOutcomeSource(graphics, current, header);
+        }
+        receipt.Validate(current, graphics.Descriptors.Packets[current.DescriptorSlot], ReadDiagnosticCounterHeaderGeneration(current.Header.Ordinal), header, nativeActionPackets.ReadHeaderContacts(current.Header));
         if (!ReferenceEquals(receipt.OriginalStatuses, physicalPartyBattleStatuses) || !receipt.BeforeStatuses.SameValues(ReadPhysicalPartyBattleStatuses()))
         {
-            throw new InvalidDataException("Native47DF60 diagnostic process entry lost its current physical status owner.");
+            throw new InvalidDataException("Native47DF60 action process entry lost its current physical status owner.");
         }
     }
 
-    internal void AcknowledgeDiagnosticOutcomeEntry(NativeBattleDiagnosticOutcomeEntry receipt)
+    internal void AcknowledgeActionOutcomeEntry(NativeBattleActionOutcomeEntry receipt)
     {
-        ValidateDiagnosticOutcomeEntry(receipt);
+        ValidateActionOutcomeEntry(receipt);
         physicalPartyBattleStatuses = receipt.AfterStatuses;
         hostedPresentationInvocation = receipt.Invocation with { DiagnosticOutcomeEntryAcknowledged = true };
+    }
+
+    private void RequireAuthoredOutcomeSource(NativeBattleGraphicsState graphics, HostedPresentationInvocation invocation, NativeBattleActionHeaderSlot header)
+    {
+        if (invocation.Provenance != BattlePresentationInvocationProvenance.Gameplay || nativeActionPackets.ActiveHeader != invocation.Header ||
+            graphics.OriginalEffect is not { Binding.Effect: 77, Parameters: { } effect } || effect.Header != invocation.Header || effect.Source != header.Source ||
+            graphics.ActorModels.Get(header.Source).ModelId4 != 142)
+        {
+            throw new InvalidDataException("Native47DF60 action process entry requires the active original cinematic source.");
+        }
     }
 }
