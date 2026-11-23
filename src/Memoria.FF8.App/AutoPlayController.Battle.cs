@@ -15,6 +15,7 @@ internal sealed partial class AutoPlayController
 
     internal bool WaitingToStopAfterBattle => stopAfterCurrentBattle;
     internal bool StopBeforeBattle { get; init; }
+    internal bool FleeRandomEncounters { get; init; }
 
     private void ApplyBattlePolicy(GameWorld world)
     {
@@ -37,13 +38,14 @@ internal sealed partial class AutoPlayController
             return false;
         }
         run.SettleFrames = 0;
+        bool flee = FleeRandomEncounters && session.State.FullBattlePlaythrough == true && session.State.RandomEncounters?.Pending is not null;
         if (world.Battle is null)
         {
             if (session.State.FullBattlePlaythrough != true)
             {
                 return false;
             }
-            if (StopBeforeBattle)
+            if (StopBeforeBattle && !flee)
             {
                 Status = $"Pending battle at field {session.State.FieldId}, frame {world.NextTrigger.Frame}.";
                 SaveAndStop(AutoPlayStopBoundary.Immediately);
@@ -65,6 +67,19 @@ internal sealed partial class AutoPlayController
                 ? $"Finishing current battle {active.EncounterId} before saving and stopping."
                 : $"Battle {active.EncounterId} · frame {active.Frame} · {run.Steps} steps";
             BattleInput input = PlanBattleInput(active);
+            if (flee && active.Outcome == BattleOutcome.Active)
+            {
+                if (!active.EscapeDisabled)
+                {
+                    active.PublishNativeEscapeButtons(3);
+                    input = new(BattleInputKind.Tick);
+                }
+                else if (StopBeforeBattle && active.NativeEntryReady)
+                {
+                    StopAtLastDurableCheckpoint($"Random encounter {active.EncounterId} does not allow escape.");
+                    return true;
+                }
+            }
             if (!stopAfterCurrentBattle && session.State.FullBattlePlaythrough != true && active.Outcome == BattleOutcome.Active)
             {
                 input = new(active.CanAdmitDebugOutcome ? BattleInputKind.InstantVictory : BattleInputKind.Tick);

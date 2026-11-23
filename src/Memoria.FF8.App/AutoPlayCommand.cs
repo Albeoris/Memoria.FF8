@@ -12,6 +12,7 @@ internal static class AutoPlayCommand
         bool? battlePolicy = null;
         bool stopBeforeBattle = false;
         bool playMovies = false;
+        bool fleeRandomEncounters = false;
         int captureBudgetMiB = AutoPlayController.DefaultCaptureBudgetMiB;
         List<string> launch = [];
         for (int index = 0; index < args.Length; index++)
@@ -30,6 +31,11 @@ internal static class AutoPlayCommand
             if (argument == "--play-movies")
             {
                 playMovies = true;
+                continue;
+            }
+            if (argument == "--flee-random-encounters")
+            {
+                fleeRandomEncounters = true;
                 continue;
             }
             if (argument is "--output" or "--resume" or "--max-steps" or "--capture-budget-mib")
@@ -98,6 +104,7 @@ internal static class AutoPlayCommand
         {
             StopBeforeBattle = stopBeforeBattle,
             PlayMovies = playMovies,
+            FleeRandomEncounters = fleeRandomEncounters,
             CaptureBudgetMiB = captureBudgetMiB
         };
         try
