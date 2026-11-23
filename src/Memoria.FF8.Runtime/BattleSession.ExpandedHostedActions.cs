@@ -94,7 +94,16 @@ public sealed partial class BattleSession
         {
             throw new NotSupportedException("Hosted presentation requires an explicit contact list, its original failed control header, or a native graphics header.");
         }
-        if (IsHostedCinematicContext(command, header) && contacts.Any(contact => contact.Packet is not
+        if (header.Effect == NativeBattleEffect303Profile.Effect)
+        {
+            if (contacts is not [{ RecipientId: var recipientId, Packet: { Primary: { Recipient: BattleEnemyActorModel recipient, PresentedAmount: 0, CoverSource: null }, Secondary: null } }] ||
+                command.TargetRequest.Selection is not BattleTargetSelection.Explicit { Actors: [BattleEnemyActorReference selected] } ||
+                recipient.Actor != selected || recipientId != selected.ActorId)
+            {
+                throw new InvalidDataException("The native model transformation requires its single non-damaging recipient packet.");
+            }
+        }
+        else if (IsHostedCinematicContext(command, header) && contacts.Any(contact => contact.Packet is not
             { Primary: { PresentedAmount: 0, Flags2: 1, HitFlags: 0, Sequence: 0, CoverSource: null }, Secondary: null }))
         {
             throw new InvalidDataException("A native context-only cinematic produced a contact that requires publication.");
@@ -181,9 +190,14 @@ public sealed partial class BattleSession
         }
         if (IsHostedCinematicContext(command, header))
         {
-            byte expectedAttackFlags = header.Effect == NativeBattleEffect298Profile.Effect ? (byte)0 : (byte)3;
-            if (command.NativeAction is not { AttackType: 0, Power: 0, HitCount: 1, DamagePresentation: 0, Element: 0, StatusAttack: 0, Statuses0: 0, Statuses1: 0 } native ||
-                native.AttackFlags != expectedAttackFlags ||
+            (byte attackType, byte attackFlags) = header.Effect switch
+            {
+                NativeBattleEffect298Profile.Effect => ((byte)0, (byte)0),
+                NativeBattleEffect303Profile.Effect => ((byte)1, (byte)0x83),
+                _ => ((byte)0, (byte)3)
+            };
+            if (command.NativeAction is not { Power: 0, HitCount: 1, DamagePresentation: 0, Element: 0, StatusAttack: 0, Statuses0: 0, Statuses1: 0 } native ||
+                native.AttackType != attackType || native.AttackFlags != attackFlags ||
                 native.Command != header.Command || native.ActionId != header.Action || native.MagicId != header.Effect)
             {
                 throw new InvalidDataException("A native context-only cinematic requires its original zero-impact action.");
@@ -195,6 +209,20 @@ public sealed partial class BattleSession
 
     private bool IsHostedCinematicContext(BattleActionPresentation command, NativeBattleActionHeaderPreparation header)
     {
+        if (header.Effect == NativeBattleEffect303Profile.Effect)
+        {
+            // The transformation uses the first physical packet to pose and activate its dormant model.
+            if (header is not { Command: 8, Action: 258, Sequence: 13, Source: BattleEnemyActorModel source } || definition.EncounterId != 363 ||
+                command is not { Ability: BattleAbility.EnemyAbility, NativeAiCallbackStage: 3, NativeAction: { KernelSection: 3, KernelIndex: 258, Hit: 255 } } ||
+                source.Actor.ActorId != command.ActorId || GetActor(command.ActorId) is not { ModelId: 11, SceneSlot: 0 } ||
+                command.TargetRequest.Selection is not BattleTargetSelection.Explicit { Actors: [BattleEnemyActorReference target] } ||
+                GetActor(target.ActorId) is not { ModelId: 12, SceneSlot: 1, IsActive: true, Hidden: true, Suspended: true, Untargetable: true } recipient ||
+                TargetActorReference(recipient) != target)
+            {
+                throw new InvalidDataException("The native model transformation requires its original death action and dormant recipient.");
+            }
+            return true;
+        }
         if (header.Effect == NativeBattleEffect101Profile.Effect)
         {
             // Trauma's counter uses the dormant Droma packet for model setup. Its recipient sequence has no contact event.

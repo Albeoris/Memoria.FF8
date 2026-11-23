@@ -54,6 +54,59 @@ public sealed class NativeBattleHostedCinematicContextTests
         Assert.Empty(ReadOperations(candidate));
     }
 
+    [Theory]
+    [InlineData(5, 0)]
+    [InlineData(6, 2)]
+    public void Sphinxaur_transformation_keeps_the_dormant_recipient_packet_without_requiring_an_impact(byte sequence, byte hitFlags)
+    {
+        BattleSession candidate = SphinxCandidate();
+        var (command, header, contact) = SphinxInvocation();
+        contact = contact with { Packet = contact.Packet with { Primary = contact.Contact with { Sequence = sequence, HitFlags = hitFlags } } };
+        BattleCombatant recipient = candidate.Combatants.Single(actor => actor.Id == contact.RecipientId);
+        int hitPointsBefore = recipient.CurrentHp;
+
+        Stage(candidate, command, header, contact);
+
+        BattleSession.ExpandedHostedInvocation invocation = Assert.IsType<BattleSession.ExpandedHostedInvocation>(Assert.Single(ReadOperations(candidate)));
+        Assert.Equal(BattleSession.ExpandedHostedContactDisposition.ContextOnly, invocation.ContactDisposition);
+        Assert.Equal(1, invocation.ContactCount);
+        Assert.Equal(0, invocation.RequiredContactCount);
+        Assert.Equal(contact, Assert.Single(invocation.Contacts));
+        Assert.True(recipient.Hidden && recipient.Suspended && recipient.Untargetable);
+        Assert.Equal(hitPointsBefore, recipient.CurrentHp);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    public void Sphinxaur_transformation_rejects_unproved_actions_targets_and_packets(int mismatch)
+    {
+        BattleSession candidate = SphinxCandidate(dormant: mismatch != 0);
+        var (command, header, contact) = SphinxInvocation();
+        switch (mismatch)
+        {
+            case 1:
+                command = command with { NativeAiCallbackStage = 2 };
+                break;
+            case 2:
+                command = command with { NativeAction = command.NativeAction! with { AttackFlags = 3 } };
+                break;
+            case 3:
+                contact = contact with { Packet = contact.Packet with { Primary = contact.Contact with { Amount6 = 1 } } };
+                break;
+            case 4:
+                contact = contact with { Packet = contact.Packet with { Primary = contact.Contact with { Recipient = Source } } };
+                break;
+        }
+
+        TargetInvocationException error = Assert.Throws<TargetInvocationException>(() => Stage(candidate, command, header, contact));
+        Assert.IsType<InvalidDataException>(error.InnerException);
+        Assert.Empty(ReadOperations(candidate));
+    }
+
     private static BattleNativeAction Action(ushort effect, ushort action)
     {
         return new(8, action, 3, action)
@@ -74,6 +127,38 @@ public sealed class NativeBattleHostedCinematicContextTests
         return candidate;
     }
 
+    private static BattleSession SphinxCandidate(bool dormant = true)
+    {
+        BattleSession candidate = new(new BattleDefinition
+        {
+            EncounterId = 363,
+            Combatants =
+            [
+                new() { Id = "ally", Name = "Ally", IsPlayer = true },
+                new() { Id = "enemy", Name = "Sphinxaur", ModelId = 11, SceneSlot = 0 },
+                new() { Id = "dormant", Name = "Sphinxara", ModelId = 12, SceneSlot = 1, MaximumHp = 10000, CurrentHp = 10000, InitialHidden = dormant, InitialSuspended = dormant, InitialUntargetable = dormant }
+            ]
+        }, BattleAtbMode.TurnBased);
+        typeof(BattleSession).GetField("preparingExpandedHostedAction", Private)!.SetValue(candidate, true);
+        return candidate;
+    }
+
+    private static (BattleActionPresentation Command, NativeBattleActionHeaderPreparation Header, ExpandedBattleContact Contact) SphinxInvocation()
+    {
+        BattleEnemyActorReference target = new("dormant");
+        BattleTargetRequest request = new(new BattleTargetSelection.Explicit([target]), BattleTargetEligibility.AiAvailable, false, BattleTargetReplacement.None);
+        BattleActionPresentation command = new("enemy", target.ActorId, BattleActionPhase.Recovery, request, BattleAbility.EnemyAbility, 258)
+        {
+            NativeAiCallbackStage = 3,
+            NativeQueuedCommand = 8,
+            NativeSequence = 13,
+            NativeAction = Action(303, 258) with { AttackType = 1, AttackFlags = 0x83 }
+        };
+        NativeBattleActionHeaderPreparation header = new(Source, 8, 13, -1, 258, 303, null);
+        ExpandedBattleContact contact = new(target.ActorId, new(new(new BattleEnemyActorModel(target), 5, 0, 0, 0x20, 0, 0x100), null));
+        return (command, header, contact);
+    }
+
     private static object[] ReadOperations(BattleSession candidate)
     {
         var operations = (System.Collections.IEnumerable)ReadHostedOperations(candidate, Private);
@@ -90,7 +175,12 @@ public sealed class NativeBattleHostedCinematicContextTests
             NativeAction = action,
             NativeSequence = sequence
         };
-        typeof(BattleSession).GetMethod("StageExpandedHostedInvocationCore", Private)!.Invoke(candidate, [command, header, ImmutableArray.Create(new ExpandedBattleContact("enemy", contact)), null, false, false]);
+        Stage(candidate, command, header, new("enemy", contact));
+    }
+
+    private static void Stage(BattleSession candidate, BattleActionPresentation command, NativeBattleActionHeaderPreparation header, ExpandedBattleContact contact)
+    {
+        typeof(BattleSession).GetMethod("StageExpandedHostedInvocationCore", Private)!.Invoke(candidate, [command, header, ImmutableArray.Create(contact), null, false, false]);
     }
 
     private static object ReadHostedOperations(BattleSession battle, BindingFlags flags)
