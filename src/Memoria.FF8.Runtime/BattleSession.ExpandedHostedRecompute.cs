@@ -114,7 +114,7 @@ public sealed partial class BattleSession
                     break;
                 case ExpandedHostedDescriptor { Control: HostedDispatchControl.Model model } when model.Command is 105 or 106 or 113 && roster.Contains(model.Owner):
                 case ExpandedHostedDescriptor { Control: HostedDispatchControl.LoadEnemy or HostedDispatchControl.AllocationStatistics or HostedDispatchControl.ActivateOriginal or HostedDispatchControl.AllocationGate }:
-                case ExpandedHostedDescriptor { Control: HostedDispatchControl.Barrier or HostedDispatchControl.ResetCounts or HostedDispatchControl.Message }:
+                case ExpandedHostedDescriptor { Control: HostedDispatchControl.Barrier or HostedDispatchControl.ResetCounts or HostedDispatchControl.Message or HostedDispatchControl.RemoveOriginal }:
                     result.Add(operation);
                     break;
                 default:

@@ -262,7 +262,9 @@ public sealed partial class BattleSession
                         BattlePreviousTarget destination = removal == 200 ? new BattlePreviousTarget.Actor(source)
                             : new NativeBattleTargetRequestAdapter.OriginalPreviousOperand(removal + NativeBattleSlots.AllyCount);
                         StageOrQueueRosterOperation(new BattleRosterMutation.Operation.Remove(source, destination));
+                        // 493B60 clears the caller's gauge and command flags even for a vacant target row.
                         actor.Atb = 0;
+                        actor.NativeCombatantFlags &= ~0xCu;
                         break;
                     case 30:
                         byte effect = instruction[0];

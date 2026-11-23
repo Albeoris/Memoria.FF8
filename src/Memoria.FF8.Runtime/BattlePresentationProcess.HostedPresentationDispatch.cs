@@ -17,6 +17,7 @@ public sealed partial class BattlePresentationProcess
         internal sealed record PartyReplacement(PartyReplacementDescriptor Descriptor) : HostedDispatchControl;
         internal sealed record AllocationStatistics : HostedDispatchControl;
         internal sealed record ActivateOriginal(NativeBattleModelSlot Slot) : HostedDispatchControl;
+        internal sealed record RemoveOriginal(NativeBattleModelSlot Slot) : HostedDispatchControl;
         internal sealed record AllocationGate : HostedDispatchControl;
         internal sealed record Message(BattleEvent Event, byte Tag, byte Priority = 128) : HostedDispatchControl;
         internal sealed record ShotReadiness(uint Callback) : HostedDispatchControl;
@@ -225,6 +226,9 @@ public sealed partial class BattlePresentationProcess
                         break;
                     case HostedDispatchControl.ActivateOriginal activate:
                         (descriptors, slot) = descriptors.Enqueue(113, 128, 0x487670, checked((ushort)activate.Slot.Offset));
+                        break;
+                    case HostedDispatchControl.RemoveOriginal remove:
+                        (descriptors, slot) = descriptors.Enqueue(105, 128, 0, checked((ushort)remove.Slot.Offset));
                         break;
                     case HostedDispatchControl.AllocationGate:
                         (descriptors, slot) = descriptors.Enqueue(10, 128, 0x4876B0);

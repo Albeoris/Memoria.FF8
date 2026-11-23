@@ -107,9 +107,15 @@ internal static class HeadlessControlHost
                 case "action":
                 case "advance":
                 case "run":
+                case "field-input-frame":
                     if (faulted || world.Events.LastFault is not null)
                     {
                         throw new InvalidOperationException("Headless control stopped at its preserved fault. Save, inspect or quit before resuming a safe checkpoint.");
+                    }
+                    if (request.Command.Equals("field-input-frame", StringComparison.OrdinalIgnoreCase))
+                    {
+                        world.AdvanceAutoPlayInputFrame();
+                        return Status(request.Compact);
                     }
                     bool repeat = request.Command.Equals("run", StringComparison.OrdinalIgnoreCase);
                     PlayerAction action = request.Command.Equals("advance", StringComparison.OrdinalIgnoreCase) ? new(PlayerActionKind.Wait, Frames: request.Frames) : request.Action ?? throw new ArgumentException("An ordinary action payload is required.");
@@ -149,7 +155,7 @@ internal static class HeadlessControlHost
                     }
                     return new { ActionResult = applied, Status = Status(request.Compact) };
                 default:
-                    throw new ArgumentException("Headless control commands: status, action, advance, run, battle-status, battle-input, save, capture, quit.");
+                    throw new ArgumentException("Headless control commands: status, action, advance, run, field-input-frame, battle-status, battle-input, save, capture, quit.");
             }
         }
         ControlQueue queue = new(options.ControlDirectory, Dispatch);

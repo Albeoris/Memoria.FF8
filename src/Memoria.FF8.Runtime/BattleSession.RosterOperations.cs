@@ -69,14 +69,30 @@ public sealed partial class BattleSession
                 break;
 
             case BattleRosterMutation.Operation.Remove remove:
-                BattleCombatant target = remove.Target switch
+                if (remove.Target is NativeBattleTargetRequestAdapter.OriginalPreviousOperand original && original.Operand >= NativeBattleSlots.AllyCount && NativeBattleSlots.Contains(original.Operand))
                 {
-                    BattlePreviousTarget.Actor actor => FindTargetActor(actor.Reference) ?? throw new InvalidDataException("Roster removal requires its captured actor."),
-                    NativeBattleTargetRequestAdapter.OriginalPreviousOperand original => RequireSourceOriginalActor(caller, original.Operand),
-                    _ => throw new InvalidDataException("Roster removal requires a typed actor or original slot operand.")
-                };
-                StageExpandedHostedModelControl(105, target);
-                break;
+                    if (ReadScopedEnemySource(caller) is null)
+                    {
+                        // Descriptor 105 samples the original cell at dispatch. An unloaded cell retires immediately.
+                        StageExpandedHostedControl(new HostedDispatchControl.RemoveOriginal(NativeBattleModelSlot.Decode((byte)original.Operand)));
+                    }
+                    else if (FindSourceOriginalActor(caller, original.Operand) is { } member)
+                    {
+                        StageExpandedHostedModelControl(105, member);
+                    }
+                    else
+                    {
+                        // A vacant source-local row has no physical cell in the host's expanded roster.
+                        StopTurnAdvance();
+                    }
+                    break;
+                }
+                if (remove.Target is BattlePreviousTarget.Actor actor && FindTargetActor(actor.Reference) is { } target)
+                {
+                    StageExpandedHostedModelControl(105, target);
+                    break;
+                }
+                throw new InvalidDataException("Roster removal requires a captured actor or original enemy slot operand.");
 
             case BattleRosterMutation.Operation.Allocate allocate:
                 AllocateNativeEnemy(caller, allocate.SceneSlot, allocate.OriginalSlot?.Offset ?? 0, allocate.ActivateAfterLoading);

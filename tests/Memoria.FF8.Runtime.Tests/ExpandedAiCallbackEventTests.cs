@@ -62,6 +62,45 @@ public sealed class ExpandedAiCallbackEventTests
     }
 
     [Fact]
+    public void Death_callback_removes_vacant_original_rows_without_allocating_a_model_task()
+    {
+        var (logical, process) = Fixture(Program(death: [0x1D, 2, 0x1D, 3, 0]));
+        BattleCombatant actor = Actor(logical, Enemy);
+        Dispatch(logical);
+        CompleteEmpty(logical, process, 0x47DDA0);
+        actor.CurrentHp = 0;
+        actor.NativeStatus0 |= 1;
+        actor.NativeCombatantFlags |= 0x0C;
+        actor.Atb = 1024;
+        Queue(logical, actor, 3);
+
+        Dispatch(logical);
+
+        Assert.Equal(0, actor.Atb);
+        Assert.Equal(0u, actor.NativeCombatantFlags & 0x0C);
+        NativeBattleGraphicsState graphics = process.Graphics;
+        NativeBattleDescriptorPacket[] packets = graphics.Descriptors.Queue.Select(index => graphics.Descriptors.Packets[index]).ToArray();
+        Assert.Equal(new ushort[] { 105, 105, 10 }, packets.Select(packet => packet.Command));
+        Assert.Equal(new NativeBattleDescriptorModelSubject.AuthoredOriginalSlot(NativeBattleModelSlot.Decode(5)), packets[0].ModelSubject);
+        Assert.Equal(new NativeBattleDescriptorModelSubject.AuthoredOriginalSlot(NativeBattleModelSlot.Decode(6)), packets[1].ModelSubject);
+
+        NativeBattleModelLifecycleServices services = logical.CaptureModelLifecycleServices(graphics.ActorModels.Roster);
+        Field(process, "hostedFrameServices").SetValue(process, services);
+        try
+        {
+            SetGraphics(process, (NativeBattleGraphicsState)Invoke(process, "AdvanceNativeDescriptors", graphics)!);
+        }
+        finally
+        {
+            Field(process, "hostedFrameServices").SetValue(process, null);
+        }
+        Assert.Empty(process.Graphics.Descriptors.Queue);
+        Assert.DoesNotContain(process.Graphics.Descriptors.Tasks, task => (task.Flags & 1) != 0 && task.Kind == NativeBattleDescriptorTaskKind.Remove502ED0);
+        Assert.Equal(graphics.ActorModels.Roster.Owners, process.Graphics.ActorModels.Roster.Owners);
+        Assert.IsType<NativeBattlePresentationCompletionRequested>(Assert.Single(services.ReadOrderedReceipts()));
+    }
+
+    [Fact]
     public void Immediate_counter_follows_the_parent_header_and_keeps_the_whole_turn_reaction_order()
     {
         byte[] turn = [4, 38, 7, 100, 6, 4, 39, 7, 101, 6, 0];
@@ -508,7 +547,7 @@ public sealed class ExpandedAiCallbackEventTests
         Assert.Null(logical.ActiveAction);
     }
 
-    private static void Queue(BattleSession session, BattleCombatant actor, int stage) => Invoke(session, "QueueExpandedAiCallback", actor, stage);
+    private static void Queue(BattleSession session, BattleCombatant actor, int stage) => Invoke(session, "QueueExpandedAiCallback", actor, stage, null);
 
     private static void Dispatch(BattleSession session) => Invoke(session, "DispatchAction");
 
