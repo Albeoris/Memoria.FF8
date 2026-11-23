@@ -3234,6 +3234,7 @@ var tests = new (string Name, Action Run)[]
     ("native Hell House transformation fade", NativeBattleHellHouseTests.Run),
     ("native battle sound dispatch and cold continuation", NativeBattleSoundTests.Run),
     ("native battle actor model callbacks", NativeBattleActorModelTests.Run),
+    ("native Grosspanzer detached gun reaction", NativeBattleActorModelTests.RunGrosspanzerGunReaction),
     ("native Emerald Weapon linked actor models", NativeBattleActorModelTests.RunEmeraldLinkedModels),
     ("native guest limit contact continuation", NativeGuestLimitTests.Run),
     ("guest selected continuation and deferred host responses", GuestContinuationTests.Run),

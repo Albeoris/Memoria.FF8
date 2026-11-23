@@ -643,10 +643,7 @@ public sealed partial class Ff7BattleSession
                 }
                 else if (instruction.Opcode == 0xAD)
                 {
-                    ReadOnlySpan<byte> operands = instruction.Operands.Span;
-                    int bone = operands[0] == byte.MaxValue ? -1 : presentation.JointSelector(model, operands[0]);
-                    Ff7BattleSecondaryState secondary = EnsureSecondaryEffects();
-                    state = state with { SecondaryEffects = Ff7BattleSecondaryEffects.ScheduleGun(secondary, command.ActorSlot, bone, BinaryPrimitives.ReadInt16LittleEndian(operands[1..]), operands[3], operands[4]) };
+                    ScheduleActorGun(command.ActorSlot, instruction.Operands.Span);
                 }
                 else if (instruction.Opcode == 0xE0)
                 {

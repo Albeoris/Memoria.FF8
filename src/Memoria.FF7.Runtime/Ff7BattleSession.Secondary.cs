@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Numerics;
 using Memoria.FF7.Formats;
 using Memoria.FF7.Resources;
@@ -13,6 +14,12 @@ public sealed partial class Ff7BattleSession
     private void ScheduleActionScreenPulse(byte delay)
     {
         state = state with { SecondaryEffects = Ff7BattleSecondaryEffects.ScheduleCallback(EnsureSecondaryEffects(), new Ff7BattleDelayedScreenPulseCallback(delay)) };
+    }
+
+    private void ScheduleActorGun(int slot, ReadOnlySpan<byte> operands)
+    {
+        int bone = unchecked((sbyte)animations!.JointSelector(ActorModel(slot), operands[0]));
+        state = state with { SecondaryEffects = Ff7BattleSecondaryEffects.ScheduleGun(EnsureSecondaryEffects(), slot, bone, BinaryPrimitives.ReadInt16LittleEndian(operands[1..]), operands[3], operands[4]) };
     }
 
     private Ff7BattleSecondaryState EnsureSecondaryEffects()

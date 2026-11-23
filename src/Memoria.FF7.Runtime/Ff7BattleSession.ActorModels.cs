@@ -262,6 +262,9 @@ public sealed partial class Ff7BattleSession
                     case 0xA3:
                         AppendSounds(Ff7NativeBattleSound.SetChannelGain(state.Sounds ?? Ff7BattleSoundState.Empty, 1, 0, instruction.Operands.Span[0]));
                         break;
+                    case 0xAD:
+                        ScheduleActorGun(previous.Slot, instruction.Operands.Span);
+                        break;
                     case 0x91:
                         ScheduleActionScreenPulse(instruction.Operands.Span[0]);
                         break;

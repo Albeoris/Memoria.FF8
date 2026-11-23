@@ -177,6 +177,74 @@ internal static class NativeBattleActorModelTests
         Check(battle.ActorModelOutput(4).TexturePalette is { Count: 7 } palette && palette[9] == 0xFF40A8B8 && palette[15] == 0xFF80D0C8, "The eye row did not publish its seven RGB555 writes to the odd bank of the body texture.");
     }
 
+    public static void RunGrosspanzerGunReaction()
+    {
+        string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        if (string.IsNullOrWhiteSpace(directory))
+        {
+            Console.WriteLine("SKIP installed Grosspanzer gun reaction: MEMORIA_FF7_GAME_DIR is unset.");
+            return;
+        }
+
+        Ff7Installation installation = Ff7Installation.Discover(directory);
+        using Ff7Session original = Ff7Session.NewGame(installation);
+        Ff7Progress progress = original.Progress with { Party = [0, 255, 255] };
+        IReadOnlyList<KernelSection> kernel = KernelArchive.Read(File.ReadAllBytes(installation.GetRequired(Ff7ResourceRole.Kernel).Path));
+        SceneFormation formation = SceneArchive.Read(File.ReadAllBytes(installation.GetRequired(Ff7ResourceRole.BattleScenes).Path))[836];
+        IReadOnlyList<short> materia = Ff7PcExecutableData.Load(installation).NativeMateriaStatModifiers;
+        using LgpArchive models = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.BattleArchive).Path);
+        using LgpArchive magic = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.MagicArchive).Path);
+        Ff7BattleAnimationResources animations = new(models, Ff7PcExecutableData.LoadBattlePlacement(installation), magic, Ff7PcExecutableData.LoadBattleJumpDeltas(installation), Ff7PcExecutableData.LoadBattleHitmarks(installation), Ff7PcExecutableData.LoadBattleActorModelResources(installation));
+        Ff7BattleSession initial = new(formation, progress, kernel, materia, 1, animations: animations);
+        const int gunOwner = 5;
+
+        foreach ((short action, byte delay, byte duration) in new (short, byte, byte)[] { (4, 4, 0x8A), (14, 8, 0x88) })
+        {
+            Ff7BattleSnapshot source = initial.Capture();
+            source = source with
+            {
+                Intro = null,
+                Actors = source.Actors.Select(actor => actor with { AwaitingTurn = actor.Actor.Slot == 0, Gauge = actor.Actor.Slot == 0 ? ushort.MaxValue : (ushort)0 }).ToArray(),
+                ActorModels = source.ActorModels.Select(actor => actor.Slot == gunOwner ? actor with { Action = action, Pose = null, Reaction = true, Ready = false, PendingSince = -1, IdleStarted = null } : actor).ToArray()
+            };
+            Ff7BattleSession battle = Restore(source);
+            Ff7BattleSession? cold = null;
+            int muzzles = 0;
+            for (int tick = 0; tick < 400; tick++)
+            {
+                long beforePresentation = battle.PresentationTick;
+                battle.Advance(waitForCommand: true);
+                Ff7BattleSnapshot current = battle.Capture();
+                if (cold is not null)
+                {
+                    cold.Advance(waitForCommand: true);
+                    Check(JsonSerializer.Serialize(current) == JsonSerializer.Serialize(cold.Capture()), "A retained gun reaction changed its next callback after restore.");
+                }
+                if (current.SecondaryEffects is not { } effects)
+                {
+                    continue;
+                }
+                if (cold is null && effects.Slots.OfType<Ff7BattleGunEmitter>().SingleOrDefault() is { } emitter)
+                {
+                    Check(emitter is { Actor: gunOwner, Bone: 3, Offset: 800 } && emitter.Delay == delay && emitter.Duration == duration && current.Action is null, "The gun reaction did not schedule its native operands for its own model independently of an attacker command.");
+                    cold = Restore(JsonSerializer.Deserialize<Ff7BattleSnapshot>(JsonSerializer.Serialize(current))!);
+                }
+                if (battle.PresentationTick != beforePresentation)
+                {
+                    muzzles += effects.Muzzles.Count;
+                }
+                Check(effects.Casings.Count == 0, "The gun reaction ignored the native casing suppression bit.");
+                if (cold is not null && battle.NativeActorModelsReady && !effects.HasCallbacks)
+                {
+                    break;
+                }
+            }
+            Check(cold is not null && muzzles == (duration & 0x7F) && battle.NativeActorModelsReady && battle.SecondaryEffects is { HasCallbacks: false }, $"Gun reaction {action} emitted {muzzles} of {duration & 0x7F} muzzles, started {cold is not null}, models ready {battle.NativeActorModelsReady}, callbacks left {battle.SecondaryEffects?.HasCallbacks}.");
+        }
+
+        Ff7BattleSession Restore(Ff7BattleSnapshot snapshot) => new(formation, progress, kernel, materia, 1, snapshot: snapshot, animations: animations);
+    }
+
     private static void MechanicalDeathPose()
     {
         BattleClipFrame frame = new(100, -200, 300, [new(128, 256, 384), new(), new()]);
