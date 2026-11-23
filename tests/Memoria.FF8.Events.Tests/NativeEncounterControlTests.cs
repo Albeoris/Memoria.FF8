@@ -9,6 +9,15 @@ internal static partial class Program
 {
     private static void NativeEncounterControlContract()
     {
+        static byte[] EncounterControlProgram(params (Jsm.Opcode Opcode, int Parameter)[] operations)
+        {
+            byte[] program = BattleModeCallbackProgram(operations);
+            // The fixture needs an area script and no physical actor/model registration.
+            program[0] = 1;
+            program[3] = 0;
+            return program;
+        }
+
         foreach (Jsm.Opcode opcode in new[] { Jsm.Opcode.BATTLEOFF, Jsm.Opcode.BATTLEON })
         {
             foreach (bool? pending in new bool?[] { null, false, true })
@@ -27,10 +36,11 @@ internal static partial class Program
                             }
                         }
                         operations.AddRange([(Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (opcode, 0), (Jsm.Opcode.PSHM_L, 104), (Jsm.Opcode.POPI_L, 1), (Jsm.Opcode.PSHM_B, 207), (Jsm.Opcode.POPI_L, 2), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]);
-                        byte[] code = BattleModeCallbackProgram(operations.ToArray());
+                        byte[] code = EncounterControlProgram(operations.ToArray());
                         GameSession session = CreateNativeMusicSession();
                         EventEngine engine = new(session);
-                        engine.LoadField(74, code, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+                        int fieldId = pending is null ? 100 : 74;
+                        engine.LoadField(fieldId, code, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
                         bool waiting = false;
                         engine.CommandExecuted += command => waiting |= command.Name == "WAIT";
                         for (int frame = 0; frame < 8 && !waiting; frame++)
@@ -50,7 +60,7 @@ internal static partial class Program
                         JsonElement snapshot = engine.Capture();
                         GameSession independent = CloneMusicSession(session.State);
                         EventEngine restored = new(independent);
-                        restored.LoadField(74, code, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+                        restored.LoadField(fieldId, code, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
                         using JsonDocument document = JsonDocument.Parse(snapshot.GetRawText());
                         restored.Restore(document.RootElement);
                         Require(JsonElement.DeepEquals(snapshot, restored.Capture()), "Encounter controls did not survive independent JSON restore at the opcode boundary.");
@@ -96,10 +106,10 @@ internal static partial class Program
         }
         foreach (int raw in new[] { -1, 0x1234, 256 })
         {
-            byte[] code = BattleModeCallbackProgram((Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, raw), (Jsm.Opcode.POPM_B, 207), (Jsm.Opcode.PSHM_B, 207), (Jsm.Opcode.POPI_L, 1), (Jsm.Opcode.PSHSM_B, 207), (Jsm.Opcode.POPI_L, 2), (Jsm.Opcode.BATTLECUT, 0), (Jsm.Opcode.BATTLEON, 0), (Jsm.Opcode.PSHM_L, 104), (Jsm.Opcode.POPI_L, 3), (Jsm.Opcode.PSHM_B, 207), (Jsm.Opcode.POPI_L, 4), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8));
+            byte[] code = EncounterControlProgram((Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, raw), (Jsm.Opcode.POPM_B, 207), (Jsm.Opcode.PSHM_B, 207), (Jsm.Opcode.POPI_L, 1), (Jsm.Opcode.PSHSM_B, 207), (Jsm.Opcode.POPI_L, 2), (Jsm.Opcode.BATTLECUT, 0), (Jsm.Opcode.BATTLEON, 0), (Jsm.Opcode.PSHM_L, 104), (Jsm.Opcode.POPI_L, 3), (Jsm.Opcode.PSHM_B, 207), (Jsm.Opcode.POPI_L, 4), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8));
             GameSession session = CreateNativeMusicSession();
             EventEngine engine = new(session);
-            engine.LoadField(74, code, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+            engine.LoadField(100, code, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             bool waiting = false;
             engine.CommandExecuted += command => waiting |= command.Name == "WAIT";
             for (int frame = 0; frame < 4 && !waiting; frame++)
@@ -122,7 +132,7 @@ internal static partial class Program
             Require(session.WorldControls == expected && results.GetProperty("3").GetInt32() == unchecked((int)expected.EventFlags104) && results.GetProperty("4").GetInt32() == 1 && engine.Scene.MusicProcess?.Pending is null && !engine.EventMemory.Cells.ContainsKey(207), "BATTLECUT failed to publish byte207/mask20, preserve mask400/unrelated controls or bypass unknown pending music at subsequent BATTLEON.");
             GameSession independent = CloneMusicSession(session.State);
             EventEngine restored = new(independent);
-            restored.LoadField(74, code, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+            restored.LoadField(100, code, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             using JsonDocument document = JsonDocument.Parse(engine.Capture().GetRawText());
             restored.Restore(document.RootElement);
             Require(independent.WorldControls == expected && JsonElement.DeepEquals(engine.Capture(), restored.Capture()), "BATTLECUT and direct BYTE207 ownership failed independent JSON restore.");

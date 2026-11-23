@@ -19,6 +19,28 @@ internal static partial class Program
         return session;
     }
 
+    private static void ColdMusicBootstrapContract()
+    {
+        byte[] program = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.BATTLEON, 0), (Jsm.Opcode.RET, 0));
+        (GameSession Session, EventEngine Engine) Fresh()
+        {
+            GameSession session = CreateNativeMusicSession();
+            EventEngine engine = new(session);
+            engine.LoadField(74, program, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+            return (session, engine);
+        }
+        (_, EventEngine cold) = Fresh();
+        Require(cold.Scene.MusicProcess is { Pending: false }, "A cold New Game must have the executable's zero-filled pending music flag.");
+        JsonNode legacy = JsonNode.Parse(cold.Capture().GetRawText())!;
+        legacy["Scene"]!["MusicProcess"]!["Pending"] = null;
+        (GameSession session, EventEngine restored) = Fresh();
+        restored.Restore(JsonSerializer.SerializeToElement(legacy));
+        Require(restored.Scene.MusicProcess is { Pending: false }, "An older cold field checkpoint lost its initialized pending music flag.");
+        session.SetWorldControls(session.WorldControls! with { MusicKeep207 = 1 });
+        restored.Step();
+        Require(restored.LastFault is null && restored.Scene.MusicLoadRequest is null && session.WorldControls is { MusicKeep207: 0 }, "BATTLEON before the first MUSICLOAD must clear the native encounter-suppression byte.");
+    }
+
     private static void NativeMusicLoadContract()
     {
         NativeBattleMusicEntryContract();
@@ -33,7 +55,7 @@ internal static partial class Program
             return (session, engine);
         }
         (GameSession session, EventEngine first) = Fresh();
-        Require(first.Scene.MusicChannel108 is { ChannelId: -1, MusicId: 255 } && first.Scene.MusicChannel112 is { ChannelId: -1, MusicId: 255 } && session.WorldControls is { EventFlags104: 0x18, MusicKeep207: 0 } && first.Scene.MusicProcess is { Pending: null, Bank201: 0 }, "Fresh native bootstrap invented pending music or lost the original reset bytes.");
+        Require(first.Scene.MusicChannel108 is { ChannelId: -1, MusicId: 255 } && first.Scene.MusicChannel112 is { ChannelId: -1, MusicId: 255 } && session.WorldControls is { EventFlags104: 0x18, MusicKeep207: 0 } && first.Scene.MusicProcess is { Pending: false, Bank201: 0 }, "Fresh native bootstrap lost the zero-filled pending flag or the original reset bytes.");
         while (first.Scene.MusicPlayRequest is null && first.Frame < 4)
         {
             first.Step();

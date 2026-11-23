@@ -9,6 +9,35 @@ namespace Memoria.FF8.App.Tests;
 public sealed class WorldSaveCompatibilityTests
 {
     [Fact]
+    public void SemanticWorldSaveWalksDirectlyIntoBalambGarden()
+    {
+        string game = TestResources.GameDirectory;
+        string source = TestResources.FixturePath("WorldSaveCompatibilityTests.EarlyGardenApproach");
+        byte[] original = File.ReadAllBytes(source);
+        GameSession session = new(GameplaySaveSessionLoader.Load(source, game));
+        using GameWorld world = new(session, game, validateWorldPresentation: false);
+        world.EnsureField();
+        Assert.Equal(SceneKind.WorldMap, session.State.Scene);
+        bool? pending = world.Events.Scene.MusicProcess!.Pending;
+        List<ScriptCommand> commands = [];
+        world.Events.CommandExecuted += commands.Add;
+        WorldAutoPlayTarget garden = Assert.Single(world.DiscoverAutoPlayWorldTargets(), target => target.DestinationField == 159);
+        WorldAutoPlayTravelResult arrival = world.ExecuteAutoPlayWorldTarget(garden);
+        Assert.True(arrival.MatchedTarget, arrival.Action.Detail);
+        Assert.Equal(PlayerTriggerKind.FieldTransition, arrival.Action.Trigger.Kind);
+        world.EnsureField();
+        Assert.Equal(159, world.Events.FieldId);
+        for (int callback = 0; callback < 8 && world.Events.Frame == 0; callback++)
+        {
+            Assert.True(world.Apply(new(PlayerActionKind.Wait)).Accepted);
+        }
+        Assert.Contains(commands, command => command is { FieldId: 159, ObjectId: 10, ScriptId: 77, Operation: 1469, Name: "BATTLEON" });
+        Assert.False(pending);
+        Assert.Equal(original, File.ReadAllBytes(source));
+        Assert.Null(world.Events.LastFault);
+    }
+
+    [Fact]
     public void MissingProcessUsesFirstInitializationDefaultsAndRetainsExplicitPersistentBytes()
     {
         GameState source = GameSession.Load(TestResources.FixturePath("WorldSaveCompatibilityTests.Source"));
@@ -16,7 +45,7 @@ public sealed class WorldSaveCompatibilityTests
         GameSession session = new(source with { EventState = null, DepartingFieldState = null, OriginalSave = null, WorldEventState = null, EventMemory = memory });
         using GameWorld host = new(session, TestResources.GameDirectory, validateWorldPresentation: false);
         Assert.False(host.Events.HasFieldProgram);
-        Assert.Null(host.Events.Scene.MusicProcess!.Pending);
+        Assert.False(host.Events.Scene.MusicProcess!.Pending);
         Assert.Equal((byte?)0, host.Events.Scene.MusicProcess.Bank201);
         Assert.Equal((byte?)255, host.Events.Scene.MusicProcess.Bank202);
         Assert.Null(host.Events.Scene.MusicProcess.Buffer0);
@@ -34,8 +63,11 @@ public sealed class WorldSaveCompatibilityTests
         host.PublishEventProcess();
         Assert.Null(session.State.EventState);
         Assert.Equal("Published process", session.State.WorldEventState!.Value.GetProperty("Scene").GetProperty("Names").GetProperty("0").GetString());
-        using GameWorld restored = new(new GameSession(session.State), TestResources.GameDirectory, validateWorldPresentation: false);
+        JsonNode legacy = JsonNode.Parse(session.State.WorldEventState!.Value.GetRawText())!;
+        legacy["Scene"]!["MusicProcess"]!.AsObject().Remove("Pending");
+        using GameWorld restored = new(new GameSession(session.State with { WorldEventState = JsonSerializer.SerializeToElement(legacy) }), TestResources.GameDirectory, validateWorldPresentation: false);
         restored.EnsureField();
+        Assert.False(restored.Events.Scene.MusicProcess!.Pending);
         Assert.Equal((byte)41, restored.Events.Scene.WorldMusicSelection!.Music);
         Assert.Equal((byte?)0x56, restored.Events.Scene.SoundMusicVolume197);
     }

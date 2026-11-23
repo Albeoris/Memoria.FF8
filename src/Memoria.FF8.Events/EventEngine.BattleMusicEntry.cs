@@ -60,6 +60,6 @@ public sealed partial class EventEngine
             return;
         }
         process.Validate();
-        Scene.MusicProcess = process.Buffers;
+        Scene.MusicProcess = RestoreColdMusicPending(process.Buffers, Scene.MusicLoadRequest);
     }
 }

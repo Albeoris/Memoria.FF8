@@ -806,6 +806,7 @@ public sealed partial class EventEngine
         {
             backgroundAnimations.Add(animation.Id, new BackgroundAnimation { NativeVersion = animation.NativeVersion, First = animation.First, Last = animation.Last, Speed = animation.Speed, Counter = animation.Counter, Position = animation.Position, Active = animation.Active, Complete = animation.Complete, Loop = animation.Loop, NativeFlag404 = animation.NativeFlag404 });
         }
+        saved.Scene.MusicProcess = RestoreColdMusicPending(saved.Scene.MusicProcess, saved.Scene.MusicLoadRequest);
         Scene = saved.Scene;
         // A suspended field retains its cached eye process while battle owns shared memory and CRT.
         if (restoreSharedState && !IsDormantWorldReturnCheckpoint(snapshot) && services is GameSession eyeSession && eyeSession.OwnsNativeFieldMemory(FieldId) && Scene.NativeEyeProcess is not null)

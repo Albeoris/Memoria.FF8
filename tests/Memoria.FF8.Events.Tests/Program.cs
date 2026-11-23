@@ -238,6 +238,7 @@ internal static partial class Program
                 ["draw-point-allocated-byte"] = NativeDrawPointAllocatedByteContract,
                 ["music-position"] = () => NativeMusicPositionContract(selectedGameDirectory),
                 ["music-load"] = NativeMusicLoadContract,
+                ["cold-music-bootstrap"] = ColdMusicBootstrapContract,
                 ["battle-music-byte"] = NativeBattleMusicByteContract,
                 ["native-encounter-control"] = NativeEncounterControlContract,
                 ["native-music-playback"] = NativeMusicPlaybackContract,

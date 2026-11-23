@@ -66,9 +66,11 @@ internal sealed partial class GameWorld
             first = Math.Min(first, (int)MathF.Floor(visual.AnimationFrame));
             terminal = Math.Max(terminal, (int)MathF.Ceiling(visual.AnimationFrame) + 1);
         }
-        if (frameCount is int count)
+        if (frameCount is int count && count > 0)
         {
-            terminal = Math.Min(terminal, count);
+            // Native range selection can publish an empty interval at the end of a clip before the next callback completes it.
+            first = Math.Clamp(first, 0, count - 1);
+            terminal = Math.Clamp(terminal, first + 1, count);
         }
         return new FieldActorSample(actor, actor.PresentationPositionRevision, actor.PresentationAnimationRevision, visual, first, terminal, customAnimation || actor.AnimationLoop, customAnimation ? 1 : actor.PresentationAnimationStep ?? actor.AnimationSpeed);
     }

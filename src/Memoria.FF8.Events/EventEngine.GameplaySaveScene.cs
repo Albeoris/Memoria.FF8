@@ -168,7 +168,7 @@ public sealed partial class EventEngine
         Scene.NativeDialogueFocus = saved.DialogueFocus;
         Scene.NativeAskPreviousFocus = saved.AskPreviousFocus;
         Scene.NativeAaskPreviousFocus = saved.AaskPreviousFocus;
-        Scene.MusicProcess = saved.Music is { } music ? new(1, music.Pending, music.Requested, music.Complete, music.Bank201, music.Bank202, new(1, NativeMusicBootstrap.GameplaySaveRule, profile.ExecutableHash)) { SelectionAuthority = music.Authority, Buffer0 = music.Buffer0, Buffer1 = music.Buffer1 } : null;
+        Scene.MusicProcess = saved.Music is { } music ? new(1, music.Pending ?? (music.Bank201 is null ? null : false), music.Requested, music.Complete, music.Bank201, music.Bank202, new(1, NativeMusicBootstrap.GameplaySaveRule, profile.ExecutableHash)) { SelectionAuthority = music.Authority, Buffer0 = music.Buffer0, Buffer1 = music.Buffer1 } : null;
         Scene.LoadedSoundEffects.Clear();
         foreach (GameplaySaveFieldSound sound in saved.LoadedSounds)
         {

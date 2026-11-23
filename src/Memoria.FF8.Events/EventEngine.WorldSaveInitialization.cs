@@ -125,6 +125,7 @@ public sealed partial class EventEngine
         ValidateWorldMusicLoad(saved.Scene);
         ValidateWorldBattleModeState(saved.Scene, session.State.ExamTimer);
         NativeEventMemoryOwnership.Validate(session.State.EventMemory, [.. NativeEventMemoryOwnership.RootRegions(session.State), .. NativeEventMemoryOwnership.SceneRegions(SceneMemoryOwners(saved.Scene))]);
+        saved.Scene.MusicProcess = RestoreColdMusicPending(saved.Scene.MusicProcess, saved.Scene.MusicLoadRequest);
         Scene = saved.Scene;
         NativeRuntimeProfile = profile;
         FieldId = saved.FieldId;

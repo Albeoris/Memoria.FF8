@@ -68,7 +68,14 @@ public sealed partial class EventEngine
         SetSoundVolumeByte(198, ColdMusicVolume);
     }
 
-    private static NativeMusicProcessState BuildColdMusicProcess(NativeFieldRuntimeProfile profile, string rule) => new(1, null, 0, 0, 0, 255, new NativeMusicBootstrap(1, rule, profile.ExecutableHash));
+    // The executable's zero-filled data initializes global BYTE1D9CDE0. Native field and world loads preserve it.
+    private static NativeMusicProcessState BuildColdMusicProcess(NativeFieldRuntimeProfile profile, string rule) => new(1, false, 0, 0, 0, 255, new NativeMusicBootstrap(1, rule, profile.ExecutableHash));
+
+    private static NativeMusicProcessState? RestoreColdMusicPending(NativeMusicProcessState? process, NativeMusicLoadRequest? load)
+    {
+        // Older checkpoints left the cold flag unknown until the first MUSICLOAD.
+        return process is { Pending: null, Bank201: not null, Bootstrap: not null } && load is null ? process with { Pending = false } : process;
+    }
 
     private void CopyNativeMusicLoad(SceneEventState previous, NativeFieldRuntimeProfile? profile, bool restoringCheckpoint = false)
     {
@@ -302,7 +309,8 @@ public sealed partial class EventEngine
         {
             throw new InvalidDataException("Saved music bootstrap requires a supported process initialization and installed image identity.");
         }
-        if (process?.Bank201 is byte knownBank && (process.Bootstrap is null || knownBank > 1) || process?.Pending is not null && scene.MusicLoadRequest is null && process.Bootstrap?.Rule is not (NativeMusicBootstrap.OriginalSaveRule or NativeMusicBootstrap.GameplaySaveRule) || scene.MusicLoadRequest is NativeMusicLoadRequest currentLoad && (process is null || process.Requested213 != currentLoad.Music || !currentLoad.Loaded && process.Pending != false))
+        bool pendingWithoutAuthority = process?.Pending is not null && scene.MusicLoadRequest is null && (process.Bootstrap is null || process.Pending == true && process.Bootstrap.Rule != NativeMusicBootstrap.GameplaySaveRule);
+        if (process?.Bank201 is byte knownBank && (process.Bootstrap is null || knownBank > 1) || pendingWithoutAuthority || scene.MusicLoadRequest is NativeMusicLoadRequest currentLoad && (process is null || process.Requested213 != currentLoad.Music || !currentLoad.Loaded && process.Pending != false))
         {
             throw new InvalidDataException("Saved native music process disagrees with its executed bank/load authority.");
         }

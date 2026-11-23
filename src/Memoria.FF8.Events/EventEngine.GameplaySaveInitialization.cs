@@ -39,7 +39,6 @@ public sealed partial class EventEngine
         else
         {
             InitializeColdMusicProcess(profile, NativeMusicBootstrap.GameplaySaveRule);
-            Scene.MusicProcess = Scene.MusicProcess! with { Pending = false };
             Scene.NativeLayerZeroScrollCurrent = new NativeLayerZeroScrollCurrent(1, 0, 0);
             Scene.NativeBackgroundScrollCurrents = Enumerable.Range(1, 7).ToDictionary(layer => layer, _ => new NativeBackgroundScrollCurrent(1, 0, 0));
             Scene.NativeDrawPointDisplayMask = 0;

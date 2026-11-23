@@ -41,7 +41,7 @@ public sealed partial class EventEngine
 
     private void PublishNativeFieldResumeScene(NativeFieldResumeTail tail)
     {
-        Scene.MusicProcess = tail.Music;
+        Scene.MusicProcess = RestoreColdMusicPending(tail.Music, Scene.MusicLoadRequest);
         //52B4F0's common tail calls4747A0 only when B240 is nonzero;
         //it preserves B240/241/242 and never calls the eight-anchor reset474750.
         Scene.NativeDrawPointDisplayMask = tail.DrawPointMask;

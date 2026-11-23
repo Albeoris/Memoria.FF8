@@ -50,12 +50,14 @@ public sealed class GameplaySaveSceneInitializationTests
         engine.InitializeGameplaySave(NativeFieldRuntimeProfile.FF8En, Facts(GameplaySaveSceneFactsOrigin.WorldEventContext));
         Assert.Equal(new[] { 4, 255, 0 }, engine.Scene.Party);
         Assert.Equal("Saved name", engine.Scene.Names[0]);
+        Assert.False(engine.Scene.MusicProcess!.Pending);
         JsonElement captured = engine.CaptureWorldEventState();
         EventEngine restored = new(new GameSession(session.State));
         restored.RestoreWorldEventState(captured, NativeFieldRuntimeProfile.FF8En);
         Assert.Equal(engine.Scene.Party, restored.Scene.Party);
         Assert.Equal(engine.Scene.Names, restored.Scene.Names);
         Assert.Equal(engine.Scene.UnlockedTutorials, restored.Scene.UnlockedTutorials);
+        Assert.False(restored.Scene.MusicProcess!.Pending);
         Assert.Equal(NativeMusicBootstrap.GameplaySaveRule, restored.Scene.MusicProcess!.Bootstrap!.Rule);
         Assert.Equal((ushort)0x2200, Assert.Single(restored.Scene.NativeBattleFlagWrites!).PersistentFlags);
         Assert.Equal(1, bytes[NativePcSaveData.MainOffset + 3304]);

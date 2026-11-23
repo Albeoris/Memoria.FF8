@@ -15,7 +15,12 @@ public sealed class FieldActorCaptureTests
     [InlineData(0, 0, 1.5f, false, 0, 3, 15)]
     [InlineData(1, 3, 3.5f, false, 1, 4, 30)]
     [InlineData(1, 2, 2.5f, true, 1, 3, 15)]
-    public void SamplingIncludesHeldPoseAndPreservesPlaybackState(int first, int last, float phase, bool loop, int expectedFirst, int expectedTerminal, float expectedX)
+    [InlineData(1, 0, 1, false, 0, 1, 0, 1)]
+    [InlineData(4, 3, 4, false, 3, 4, 30)]
+    [InlineData(2, 1, 2, true, 2, 3, 20)]
+    [InlineData(3, 1, 3, true, 3, 4, 30)]
+    [InlineData(4, 3, 4, true, 3, 4, 30)]
+    public void SamplingIncludesHeldPoseAndPreservesPlaybackState(int first, int last, float phase, bool loop, int expectedFirst, int expectedTerminal, float expectedX, int frameCount = 4)
     {
         JsonObject definition = JsonSerializer.SerializeToNode(new ActorState(1, 0))!.AsObject();
         definition["AnimationFirst"] = first;
@@ -26,7 +31,7 @@ public sealed class FieldActorCaptureTests
         definition["AnimationKeep"] = !loop;
         ActorState actor = definition.Deserialize<ActorState>()!;
         string state = JsonSerializer.Serialize(actor);
-        FieldModel model = new("sample", [new(-1, 0)], [new(Vector3.UnitY, 0)], [], [], [new(Enumerable.Range(0, 4).Select(index => new AnimationFrame(new(index * 10, 0, 0), [Vector3.Zero])).ToArray())]);
+        FieldModel model = new("sample", [new(-1, 0)], [new(Vector3.UnitY, 0)], [], [], [new(Enumerable.Range(0, frameCount).Select(index => new AnimationFrame(new(index * 10, 0, 0), [Vector3.Zero])).ToArray())]);
         ActorVisual visual = new(1, 0, 0, 0, 0, 0, 0, phase, true);
         FieldActorSample captured = GameWorld.CaptureFieldActor(actor, visual, model.Animations[0].Frames.Count);
         Assert.Equal(expectedFirst, captured.FirstFrame);
