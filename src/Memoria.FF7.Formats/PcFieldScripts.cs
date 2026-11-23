@@ -59,7 +59,7 @@ public sealed class PcFieldScripts
             }
         }
         int codeStart = checked(cursor.Position + entityCount * 64);
-        bool textless = textOffset == source.Length;
+        bool textless = textOffset == source.Length || textOffset <= source.Length && akao.Contains((uint)textOffset) && source[textOffset..].StartsWith("AKAO"u8);
         if (textOffset < codeStart || textOffset > source.Length || !textless && textOffset > source.Length - 2)
         {
             throw new InvalidDataException("FF7 script text offset overlaps its directory or exceeds its section.");
@@ -82,7 +82,7 @@ public sealed class PcFieldScripts
         byte[] data = source.ToArray();
         if (textless)
         {
-            // The native loader retains this raw pointer without reading a text directory until a message is requested.
+            // A textless section can point to the section end or directly to its first audio allocation.
             return new PcFieldScripts(data, models, scale, textOffset, creator, name, entities, akao, []);
         }
         cursor.Seek(textOffset);

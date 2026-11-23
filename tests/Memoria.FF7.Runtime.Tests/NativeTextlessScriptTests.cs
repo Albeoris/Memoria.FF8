@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using Memoria.FF7.Events;
 using Memoria.FF7.Formats;
+using Memoria.FF7.Resources;
 
 internal static class NativeTextlessScriptTests
 {
@@ -43,6 +44,23 @@ internal static class NativeTextlessScriptTests
         PcFieldScripts ordinary = PcFieldScripts.Read(nonempty);
         Check(ordinary.Texts.Count == 1 && ordinary.Texts[0].Span.SequenceEqual(new byte[] { 0x21 }), "A normal nonempty text directory no longer decodes its exact terminated text.");
         Check(PcFieldScripts.Read(Section(108, 106)).Texts.Count == 0, "An ordinary in-section empty text directory was rejected.");
+        byte[] audioAtTextOffset = Section(128, 110);
+        BinaryPrimitives.WriteUInt16LittleEndian(audioAtTextOffset.AsSpan(6), 1);
+        BinaryPrimitives.WriteUInt32LittleEndian(audioAtTextOffset.AsSpan(40), 110);
+        for (int script = 0; script < 32; script++)
+        {
+            BinaryPrimitives.WriteUInt16LittleEndian(audioAtTextOffset.AsSpan(44 + script * 2), script == 0 ? (ushort)108 : (ushort)109);
+        }
+        "AKAO"u8.CopyTo(audioAtTextOffset.AsSpan(110));
+        PcFieldScripts alias = PcFieldScripts.Read(audioAtTextOffset);
+        Check(alias.TextOffset == 110 && alias.AkaoOffsets.SequenceEqual(new uint[] { 110 }) && alias.Texts.Count == 0 && alias.Data.Span.SequenceEqual(audioAtTextOffset), "An AKAO allocation at the native text pointer must preserve both addresses without inventing a text table.");
+        BinaryPrimitives.WriteUInt32LittleEndian(audioAtTextOffset.AsSpan(40), 114);
+        Reject(audioAtTextOffset, "AKAO bytes outside the declared allocation must not suppress directory validation.");
+        if (Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR") is { Length: > 0 } root)
+        {
+            Ff7FieldResources installed = Ff7FieldResources.Load(Ff7Installation.Discover(root), "las4_42");
+            Check(installed.Scripts.TextOffset == 0x890 && installed.Scripts.AkaoOffsets.Single() == 0x890 && installed.Scripts.Texts.Count == 0 && installed.Scripts.Data.Length == 0x8AC, "The installed finale field must admit its original text/AKAO pointer alias.");
+        }
 
         foreach (ushort textOffset in new ushort[] { 0, 103, 105, 107, ushort.MaxValue })
         {
