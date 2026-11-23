@@ -128,6 +128,8 @@ internal sealed partial class RecreateGame
         ConnectLocalizationTools();
         ConnectLocalizationWorkbench();
         ConnectLightingAuthoring();
+        ConnectScene3DAuthoring();
+        ConnectScene3DEditorDetails();
         gameMenus.ConnectPreferences(ReadCurrentUiPreferences, ApplyLiveMenuAction);
         gameMenus.ConnectQuickSaveRetention(count => playerSaves.PreviewQuickSaveCount(count), CommitQuickSaveRetention);
         gameMenus.ConnectNaming(ReadDebugNames, (subject, name) => world!.Rename(subject, name));

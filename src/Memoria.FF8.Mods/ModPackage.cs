@@ -28,6 +28,8 @@ public sealed record ModPackage(string Id, string Name, ModFormat Format, bool? 
     public bool IsSettingsGroup { get; init; }
     public bool HasLocalization { get; init; }
     public bool HasLighting { get; init; }
+    public bool HasFieldScene3D { get; init; }
+    public bool FieldScenePresentationOnly { get; init; }
     public bool LocalizationOnly { get; init; }
     public bool TextureContentOnly { get; init; }
     public bool MoviePresentationOnly { get; init; }

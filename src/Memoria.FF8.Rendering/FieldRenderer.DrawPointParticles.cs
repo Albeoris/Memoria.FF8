@@ -33,12 +33,12 @@ public sealed partial class FieldRenderer
             for (int age = 0; age < 5; age++)
             {
                 Vector3 Point(int trailAge, bool secondEdge) => blend?.Point(particles, spark, trailAge, secondEdge) ?? (secondEdge ? spark.SecondEdge : spark.FirstEdge)[(spark.RenderCounter - trailAge) & 7].Vector;
-                ProjectedPoint a = ToViewport(camera.Project(Point(age, false)));
-                ProjectedPoint b = ToViewport(camera.Project(Point(age, true)));
-                ProjectedPoint c = ToViewport(camera.Project(Point(age + 1, false)));
-                ProjectedPoint d = ToViewport(camera.Project(Point(age + 1, true)));
+                ProjectedPoint a = ProjectFieldWorld(Point(age, false));
+                ProjectedPoint b = ProjectFieldWorld(Point(age, true));
+                ProjectedPoint c = ProjectFieldWorld(Point(age + 1, false));
+                ProjectedPoint d = ProjectFieldWorld(Point(age + 1, true));
                 float orderingDepth = MathF.Truncate((age == 0 ? c.Depth : d.Depth) / 4) * 4;
-                if (orderingDepth >= 4096 * 4 || a.Depth <= 1 || b.Depth <= 1 || c.Depth <= 1 || d.Depth <= 1)
+                if (orderingDepth >= 4096 * 4 || OutsideWorldDepth(a.Depth) || OutsideWorldDepth(b.Depth) || OutsideWorldDepth(c.Depth) || OutsideWorldDepth(d.Depth))
                 {
                     continue;
                 }
@@ -77,7 +77,7 @@ public sealed partial class FieldRenderer
         }
         if (TriangleRenderer is not null)
         {
-            TriangleMaterial material = GpuMaterial(null, TriangleBlend.Add, false) with { DepthComparison = revealed ? TriangleDepthComparison.Always : TriangleDepthComparison.Less };
+            TriangleMaterial material = GpuMaterial(null, TriangleBlend.Add, false) with { ClipRectangle = WorldClip, DepthComparison = revealed ? TriangleDepthComparison.Always : TriangleDepthComparison.Less };
             TriangleRenderer.Draw(GpuVertex(a, Vector2.Zero, new Vector4(colorA / 255, 1), orderingDepth, false), GpuVertex(b, Vector2.Zero, new Vector4(colorB / 255, 1), orderingDepth, false), GpuVertex(c, Vector2.Zero, new Vector4(colorC / 255, 1), orderingDepth, false), material);
             return;
         }

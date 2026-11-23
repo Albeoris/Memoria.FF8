@@ -174,7 +174,9 @@ public sealed partial class FieldRenderer
             backgroundHardwareLayout = TriangleRenderer is not null;
         }
         PrepareInspectionBackdrop(camera);
+        PrepareSceneView(camera, backgroundVisible);
         camera = InspectionCamera ?? camera;
+        PrepareCustomScene();
         if (TriangleRenderer is not null)
         {
             TriangleRenderer.Begin(OutputWidth, OutputHeight, new Vector4(ClearColor.R, ClearColor.G, ClearColor.B, ClearColor.A) / 255);
@@ -186,6 +188,15 @@ public sealed partial class FieldRenderer
         }
         PrepareLighting(preparedActors);
         List<(float Depth, Action Draw)> translucent = [];
+        DrawCustomScene(translucent, backdrop: true);
+        if (translucent.Count > 0)
+        {
+            foreach (var primitive in translucent.OrderByDescending(primitive => primitive.Depth))
+            {
+                primitive.Draw();
+            }
+            translucent.Clear();
+        }
         QueueLightingReceivers(translucent);
         List<TileRaster> visibleBackground = [];
         foreach (TileRaster raster in renderBackground)
@@ -222,6 +233,7 @@ public sealed partial class FieldRenderer
                 translucent.Add((raster.Tile.Z * 4f, () => DrawTile(raster, translucentPass: true)));
             }
         }
+        DrawCustomScene(translucent, backdrop: false);
         foreach (ActorVisual actor in preparedActors)
         {
             if (actor.Visible && (uint)actor.ModelId < field.Models.Count)
@@ -515,8 +527,7 @@ public sealed partial class FieldRenderer
             }
             Vector3 native = pose[i];
             Vector3 world = preparedPose is not null ? native : Vector3.Transform(native, rotation) + new Vector3(actor.X, actor.Y, actor.Z);
-            ProjectedPoint point = camera.Project(world);
-            projected[i] = ToViewport(point);
+            projected[i] = ProjectFieldWorld(world);
         }
         int faceIndex = -1;
         foreach (ModelFace face in model.Faces)
@@ -569,7 +580,7 @@ public sealed partial class FieldRenderer
 
     private void Triangle(ProjectedPoint a, ProjectedPoint b, ProjectedPoint c, Vector2 uvA, Vector2 uvB, Vector2 uvC, PixelImage texture, Vector3 polygonColor, bool primitiveTransparencyEnabled, Vector4? colorA = null, Vector4? colorB = null, Vector4? colorC = null)
     {
-        if (a.Depth <= 1 || b.Depth <= 1 || c.Depth <= 1)
+        if (OutsideWorldDepth(a.Depth) || OutsideWorldDepth(b.Depth) || OutsideWorldDepth(c.Depth))
         {
             return;
         }
@@ -583,10 +594,12 @@ public sealed partial class FieldRenderer
             TriangleMaterial material = GpuMaterial(texture, primitiveTransparencyEnabled ? TriangleBlend.Add : TriangleBlend.Replace, !primitiveTransparencyEnabled, ModelSampling) with
             {
                 DepthComparison = primitiveTransparencyEnabled ? TriangleDepthComparison.LessEqual : TriangleDepthComparison.Less,
-                PerspectiveDepth = true
+                PerspectiveDepth = !OrthographicScene,
+                ClipRectangle = WorldClip
             };
             Vector4 color = new(polygonColor / 128, 1);
-            TriangleRenderer.Draw(GpuVertex(a, uvA / new Vector2(texture.Width, texture.Height), color * (colorA ?? Vector4.One)), GpuVertex(b, uvB / new Vector2(texture.Width, texture.Height), color * (colorB ?? Vector4.One)), GpuVertex(c, uvC / new Vector2(texture.Width, texture.Height), color * (colorC ?? Vector4.One)), material);
+            Vector2 size = new(texture.Width, texture.Height);
+            TriangleRenderer.Draw(GpuVertex(a, uvA / size, color * (colorA ?? Vector4.One), perspective: !OrthographicScene), GpuVertex(b, uvB / size, color * (colorB ?? Vector4.One), perspective: !OrthographicScene), GpuVertex(c, uvC / size, color * (colorC ?? Vector4.One), perspective: !OrthographicScene), material);
             return;
         }
         int minX = Math.Max((int)MathF.Floor(Math.Min(a.X, Math.Min(b.X, c.X))), clipLeft);

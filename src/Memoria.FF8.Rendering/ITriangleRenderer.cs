@@ -1,5 +1,6 @@
 using System.Numerics;
 using Albeoris.Games.FF8.Imaging;
+using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Rendering;
@@ -31,7 +32,8 @@ public enum TriangleDepthComparison
     Less,
     LessEqual,
     Greater,
-    GreaterEqual
+    GreaterEqual,
+    Equal
 }
 public enum TriangleSampler
 {
@@ -45,6 +47,16 @@ public enum TriangleDepthMapping
 {
     Normalized,
     Positive
+}
+
+public enum SceneAlphaCoverage
+{
+    Legacy,
+    Opaque,
+    Mask,
+    OpaqueCore,
+    Fractional,
+    Blend
 }
 
 public readonly record struct TriangleMaterial(PixelImage? Texture, TriangleBlend Blend = TriangleBlend.Replace, TriangleDepthComparison DepthComparison = TriangleDepthComparison.LessEqual, bool DepthWrite = true, float MinimumAlpha = 1f / 255, TriangleSampler Sampler = TriangleSampler.PointWrap)
@@ -68,6 +80,8 @@ public readonly record struct TriangleMaterial(PixelImage? Texture, TriangleBlen
     public float FogEnd { get; init; }
     public float MinimumReciprocalW { get; init; }
     public FieldLightingPass FieldLighting { get; init; }
+    public SceneAlphaCoverage SceneCoverage { get; init; }
+    public FieldSceneSampler SceneSampler { get; init; }
 }
 
 /// <summary>A scene's ordered triangle stream, independent of its raster backend.</summary>

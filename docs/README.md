@@ -33,6 +33,7 @@ Start with [installation and first launch](players/getting-started.md), then use
 | [Encounter documents](modding/encounters.md) | Atomic semantic encounter patches, stable identities, dependencies and runtime capability boundaries. |
 | [FFVII enemy extensions](modding/ff7-enemy-extensions.md) | ID-bound deltas for FFVII growth, English Scan prose, Draw and reward policies. |
 | [Native field mods](modding/field-mods.md) | Scene configuration, the bundled Cid fix and Scene inspector. |
+| [3D field scenes](modding/field-scenes-3d.md) | Blender reference export, scene import, calibration, cameras and background replacement. |
 | [Translator guide](modding/localization.md) | JSON/XLSX packages, stable keys, source/context metadata, choice contracts and CLI validation. |
 
 ## Develop

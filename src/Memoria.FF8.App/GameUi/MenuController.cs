@@ -513,8 +513,15 @@ public sealed partial class MenuController
         _view = null;
     }
 
+    internal Action<string>? Scene3DAction { get; set; }
+
     public void Back()
     {
+        if (ScreenId == "field-scene-3d-edit" && Scene3DAction is not null)
+        {
+            Scene3DAction("close");
+            return;
+        }
         if (ScreenId == "mods-preview")
         {
             CloseModPreview();
@@ -935,6 +942,11 @@ public sealed partial class MenuController
         }
         if (ExecuteControlsAction(action))
         {
+            return;
+        }
+        if (action.Kind == "field-scene-3d" && Scene3DAction is not null)
+        {
+            Scene3DAction(action.SubjectId);
             return;
         }
         if (ExecuteModelBrowserAction(action) || ExecuteSceneInspectorAction(action) || ExecuteWorldSwitchAction(action) || ExecuteLocalizationWorkbenchAction(action) || ExecuteLightingAuthoringAction(action))

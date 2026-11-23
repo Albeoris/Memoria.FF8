@@ -225,7 +225,7 @@ internal sealed partial class RecreateGame : GamePresentationHost
         {
             return;
         }
-        if (UpdateLightingAuthoring(gameTime))
+        if (PollScene3DShortcut() || UpdateLightingAuthoring(gameTime))
         {
             return;
         }
@@ -852,6 +852,11 @@ internal sealed partial class RecreateGame : GamePresentationHost
             lightingEditor.OnTextInput(args.Character);
             return;
         }
+        if (scene3DTransformMode is not null)
+        {
+            TypeScene3DTransform(args.Character);
+            return;
+        }
         if (gameMenus?.IsLightingNameEditing == true)
         {
             gameMenus.EnterLightingPackageName(args.Character);
@@ -1338,6 +1343,14 @@ internal sealed partial class RecreateGame : GamePresentationHost
 
     private object DispatchControl(ControlRequest request)
     {
+        if (request.Command.StartsWith("scene3d-", StringComparison.OrdinalIgnoreCase))
+        {
+            return DispatchScene3DControl(request);
+        }
+        if (scene3DDraft is not null && request.Command.ToLowerInvariant() is not ("status" or "capture" or "quit" or "ui-input" or "ui-pointer" or "ui-status"))
+        {
+            throw new InvalidOperationException("Close the current field scene editor before changing gameplay or resources.");
+        }
         if (request.Command.StartsWith("lighting-", StringComparison.OrdinalIgnoreCase))
         {
             return DispatchLightingControl(request);
@@ -1603,6 +1616,8 @@ internal sealed partial class RecreateGame : GamePresentationHost
         PixelBounds target = session.State.Scene == SceneKind.Field ? ViewportLayout.FieldRenderTarget(viewport.Width, viewport.Height, options.WorldRenderLimit) : ViewportLayout.WorldRenderTarget(viewport.Width, viewport.Height, options.WorldRenderLimit, session.State.Scene == SceneKind.WorldMap);
         world!.SetRenderSize(target.Width, target.Height);
         world.ActiveLighting = ResolveFieldLighting();
+        world.ActiveSceneMods3D = resourceHost!.Mods.FieldScenes3D;
+        ApplyScene3DPreview();
         if (fieldGpu is null && (fieldTexture.Width != target.Width || fieldTexture.Height != target.Height))
         {
             Texture2D next = new(GraphicsDevice, target.Width, target.Height);
@@ -1617,8 +1632,9 @@ internal sealed partial class RecreateGame : GamePresentationHost
             fieldGpu.PreviewGrayFieldMaterial = lightingEditor?.PreviewGrayMaterial == true;
             fieldGpu.PreviewWrappedFieldDiffuse = lightingEditor?.PreviewWrapLighting == true;
         }
-        FieldCamera? inspectionCamera = lightingEditor is { InspectionView: true } && world.Field is { } inspectionField ? lightingEditor.InspectionCamera(inspectionField.GetCamera(world.Events.Scene.CameraIndex)) : null;
-        byte[] pixels = world.Render(lightingEditor is null ? elapsed : lightingFrozenTime, uiPreferences.RareCardMarkers, fieldGpu, worldInterpolation, fieldInterpolation, smoothField, uiPreferences.NativeFieldShadows, inspectionCamera, lightingEditor?.PreviewInspectionBackdrop == true);
+        FieldCamera? sceneInspectionCamera = Scene3DInspectionCamera();
+        FieldCamera? inspectionCamera = lightingEditor is { InspectionView: true } && world.Field is { } inspectionField ? lightingEditor.InspectionCamera(inspectionField.GetCamera(world.Events.Scene.CameraIndex)) : sceneInspectionCamera;
+        byte[] pixels = world.Render(lightingEditor is not null ? lightingFrozenTime : scene3DDraft is not null ? scene3DFrozenTime : elapsed, uiPreferences.RareCardMarkers, fieldGpu, worldInterpolation, fieldInterpolation, smoothField, uiPreferences.NativeFieldShadows, inspectionCamera, lightingEditor?.PreviewInspectionBackdrop == true || sceneInspectionCamera is not null);
         double renderMilliseconds = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
         started = Stopwatch.GetTimestamp();
         if (fieldGpu is null)
@@ -1677,7 +1693,7 @@ internal sealed partial class RecreateGame : GamePresentationHost
         }
         UpdateLocationWindowTitle();
         // Catch-up updates advance the VM only. Rasterize once for the frame actually presented.
-        if (!updateSave.Paused && ActiveBattle is null && world?.ActiveTripleTriad is null && gameMenus?.IsOpen != true && !fieldFaulted && !fieldRenderFaulted && world is not null && (session.State.Scene == SceneKind.WorldMap || world.CanPresentCurrentField))
+        if (!updateSave.Paused && ActiveBattle is null && world?.ActiveTripleTriad is null && (gameMenus?.IsOpen != true || scene3DDraft is not null) && !fieldFaulted && !fieldRenderFaulted && world is not null && (session.State.Scene == SceneKind.WorldMap || world.CanPresentCurrentField))
         {
             try
             {
@@ -1839,7 +1855,11 @@ internal sealed partial class RecreateGame : GamePresentationHost
         {
             DrawNoticeUi(bounds, error, true);
         }
-        DrawGameUi(bounds);
+        if (!scene3DPreviewFullScreen)
+        {
+            DrawGameUi(bounds);
+            DrawScene3DPreview(bounds);
+        }
         bool showDrawPointNotice = drawPointNoticeSeconds > 0 && !saveMenu.IsOpen && noticeWindow.RemainingSeconds <= 0 && sceneInspector is null && ActiveBattle is null && session.State.Scene == SceneKind.Field && gameMenus?.IsOpen != true && events?.Scene == drawPointNoticeScene;
         if (saveMenu.IsOpen)
         {

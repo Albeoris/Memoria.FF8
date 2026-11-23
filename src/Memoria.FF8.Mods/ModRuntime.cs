@@ -37,6 +37,8 @@ public sealed partial class ModRuntime : IModService, IDisposable
     private readonly HashSet<string> changedPackageIds = new(StringComparer.OrdinalIgnoreCase);
     private ModCatalogSnapshot? pending;
     private ModPreparationResult? pendingPreparation;
+    private FieldScene3DMods? pendingFieldScenes3D;
+    private FieldScene3DMods fieldScenes3D = FieldScene3DMods.Empty;
     private FieldLightingMods? pendingLighting;
     private FieldLightingMods lighting = FieldLightingMods.Empty;
     private (ModCatalogSnapshot Candidate, bool AutoEnable, string Identity)? deferredDiscovery;
@@ -156,6 +158,17 @@ public sealed partial class ModRuntime : IModService, IDisposable
         }
     }
 
+    public FieldScene3DMods FieldScenes3D
+    {
+        get
+        {
+            lock (gate)
+            {
+                return fieldScenes3D;
+            }
+        }
+    }
+
     public FieldLightingMods Lighting
     {
         get
@@ -259,7 +272,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
             {
                 return new(false, lockReason);
             }
-            if (!isCompatible(package.Format) && !package.LocalizationOnly && !package.TextureContentOnly && !package.MoviePresentationOnly || enabled && package.Status == ModEffectiveStatus.IncompatibleEdition)
+            if (!isCompatible(package.Format) && !package.LocalizationOnly && !package.TextureContentOnly && !package.MoviePresentationOnly && !package.FieldScenePresentationOnly || enabled && package.Status == ModEffectiveStatus.IncompatibleEdition)
             {
                 return new(false, $"{package.Name} is incompatible with the selected game-data edition.");
             }
@@ -410,6 +423,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
             pending = null;
             pendingPreparation = null;
             pendingLighting = null;
+            pendingFieldScenes3D = null;
             try
             {
                 ModCatalogSnapshot candidate;
@@ -442,7 +456,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 if (identity == lastIdentity)
                 {
                     installedPackages = catalog.Packages;
-                    diagnostics = Array.AsReadOnly(candidate.Diagnostics.Concat(diagnostics.Where(diagnostic => diagnostic.Code is "subscriber-failed" or "resource-rejected")).Concat(catalog.Diagnostics.Where(diagnostic => diagnostic.Code is "Junction.FieldGroupConflict" or "Junction.DynamicFieldTextReference" or "Junction.MissingFieldColors")).Distinct().ToArray());
+                    diagnostics = Array.AsReadOnly(candidate.Diagnostics.Concat(diagnostics.Where(diagnostic => diagnostic.Code is "subscriber-failed" or "resource-rejected")).Concat(catalog.Diagnostics.Where(diagnostic => diagnostic.Code is "Junction.FieldGroupConflict" or "Junction.DynamicFieldTextReference" or "Junction.MissingFieldColors" or "Memoria.FieldSceneViewConflict")).Distinct().ToArray());
                     updateOutcome = ModUpdateOutcome.Idle;
                     changedPackageIds.Clear();
                     return false;
@@ -468,10 +482,17 @@ public sealed partial class ModRuntime : IModService, IDisposable
                     ScheduleRetry();
                     return false;
                 }
+                if (!FieldScene3DMods.TryPrepare(candidate, out FieldScene3DMods candidateScenes3D, out IReadOnlyList<ModDiagnostic> scenes3DDiagnostics))
+                {
+                    diagnostics = Array.AsReadOnly(candidate.Diagnostics.Concat(scenes3DDiagnostics).Append(new ModDiagnostic("reload-failed", "3D field scene preparation failed; the last committed generation remains active.")).ToArray());
+                    updateOutcome = ModUpdateOutcome.Failed;
+                    ScheduleRetry();
+                    return false;
+                }
                 candidate.PreparedStatusMods = statuses;
                 candidate.PreparedGuardianForceRules = guardianForceRules;
                 ModPreparationResult result = prepare(candidate);
-                diagnostics = Array.AsReadOnly(candidate.Diagnostics.Concat(result.Diagnostics ?? []).ToArray());
+                diagnostics = Array.AsReadOnly(candidate.Diagnostics.Concat(scenes3DDiagnostics).Concat(result.Diagnostics ?? []).ToArray());
                 if (result.Deferred)
                 {
                     deferredPreparation = result;
@@ -494,7 +515,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 IEnumerable<ModPackage> preparedPackages = candidate.Packages;
                 if (result.UsablePackageIds is not null)
                 {
-                    HashSet<string> usable = new(result.UsablePackageIds.Concat(candidateLighting.PackageIds).Concat(guardianForceRules.PackageIds), StringComparer.OrdinalIgnoreCase);
+                    HashSet<string> usable = new(result.UsablePackageIds.Concat(candidateLighting.PackageIds).Concat(candidateScenes3D.PackageIds).Concat(guardianForceRules.PackageIds), StringComparer.OrdinalIgnoreCase);
                     preparedPackages = preparedPackages.Select(package => package.Status == ModEffectiveStatus.Active && !usable.Contains(package.Id) ? package with { Status = ModEffectiveStatus.NoUsableEntries } : package);
                 }
                 candidate = new(candidate.Generation, preparedPackages, candidate.Files, diagnostics)
@@ -510,6 +531,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 pending = candidate;
                 pendingPreparation = result;
                 pendingLighting = candidateLighting;
+                pendingFieldScenes3D = candidateScenes3D;
                 pendingIdentity = identity;
                 return true;
             }
@@ -573,7 +595,9 @@ public sealed partial class ModRuntime : IModService, IDisposable
             }
             catalog = pending;
             lighting = pendingLighting ?? FieldLightingMods.Empty;
+            fieldScenes3D = pendingFieldScenes3D ?? FieldScene3DMods.Empty;
             pendingLighting = null;
+            pendingFieldScenes3D = null;
             committedFileEntries = new(fileEntries, StringComparer.Ordinal);
             updateOutcome = ModUpdateOutcome.Idle;
             changedPackageIds.Clear();
@@ -811,6 +835,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 bool requested = RequiredPackageReason(id) is not null || (explicitEnabled ?? nextAutoEnable);
                 bool hasLocalization = format == ModFormat.Memoria && File.Exists(Path.Combine(root, "Localization", "localization.manifest.json"));
                 bool hasLighting = format == ModFormat.Memoria && (File.Exists(Path.Combine(root, FieldLightingSceneIO.ComponentPath)) || bundledRoot is not null && File.Exists(Path.Combine(bundledRoot, FieldLightingSceneIO.ComponentPath)));
+                bool hasFieldScene3D = format == ModFormat.Memoria && (File.Exists(Path.Combine(root, FieldSceneDocuments.ComponentPath)) || bundledRoot is not null && File.Exists(Path.Combine(bundledRoot, FieldSceneDocuments.ComponentPath)));
                 bool localizationOnly = hasLocalization && Directory.EnumerateFileSystemEntries(root).All(path => Path.GetFileName(path).Equals("mod.ini", StringComparison.OrdinalIgnoreCase) || Path.GetFileName(path).Equals("Localization", StringComparison.OrdinalIgnoreCase) || Path.GetFileName(path).Equals(NativeModDescriptor.FileName, StringComparison.OrdinalIgnoreCase));
                 string? nativeError = native?.Error;
                 if (native?.Official is { } nativeComponent)
@@ -850,7 +875,9 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 }
                 bool textureContentOnly = format == ModFormat.Memoria && TexturePackageCompatibility.IsTextureContentOnly(packageFiles.Select(file => file.Relative), hasLocalization);
                 bool moviePresentationOnly = format == ModFormat.Memoria && !textureContentOnly && TexturePackageCompatibility.IsMoviePresentationOnly(packageFiles.Select(file => file.Relative), hasLocalization);
-                bool compatible = ((native?.Official is not null && nativeError is null) || isCompatible(format) || localizationOnly || textureContentOnly || moviePresentationOnly) && nativeError is null && descriptorFailure is null;
+                bool fieldScenePresentationOnly = hasFieldScene3D && packageFiles.All(file => file.Relative.StartsWith("scene3d/", StringComparison.OrdinalIgnoreCase) ||
+                    hasLighting && file.Relative.StartsWith("lighting/", StringComparison.OrdinalIgnoreCase) || file.Relative.Equals("mod.ini", StringComparison.OrdinalIgnoreCase) || file.Relative.Equals(NativeModDescriptor.FileName, StringComparison.OrdinalIgnoreCase));
+                bool compatible = ((native?.Official is not null && nativeError is null) || isCompatible(format) || localizationOnly || textureContentOnly || moviePresentationOnly || fieldScenePresentationOnly) && nativeError is null && descriptorFailure is null;
                 ModEffectiveStatus status = !compatible ? ModEffectiveStatus.IncompatibleEdition : !requested ? ModEffectiveStatus.Disabled : ModEffectiveStatus.Active;
                 identities.Add($"{id}\0{root}\0{explicitEnabled}\0{requested}\0{compatible}\0{priority}");
                 Dictionary<string, string> normalizedPaths = new(StringComparer.OrdinalIgnoreCase);
@@ -906,7 +933,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 {
                     status = ModEffectiveStatus.NoUsableEntries;
                 }
-                packages.Add(new(id, descriptor?.Name ?? native?.Official?.Name ?? name, format, explicitEnabled, requested, status, root) { IsBundled = format == ModFormat.Memoria && (bundledRoot is not null || modRoot == bundledModsRoot), Official = native?.Official, Descriptor = descriptor, Priority = priority, HasLocalization = hasLocalization, HasLighting = hasLighting, LocalizationOnly = localizationOnly, TextureContentOnly = textureContentOnly, MoviePresentationOnly = moviePresentationOnly });
+                packages.Add(new(id, descriptor?.Name ?? native?.Official?.Name ?? name, format, explicitEnabled, requested, status, root) { IsBundled = format == ModFormat.Memoria && (bundledRoot is not null || modRoot == bundledModsRoot), Official = native?.Official, Descriptor = descriptor, Priority = priority, HasLocalization = hasLocalization, HasLighting = hasLighting, HasFieldScene3D = hasFieldScene3D, FieldScenePresentationOnly = fieldScenePresentationOnly, LocalizationOnly = localizationOnly, TextureContentOnly = textureContentOnly, MoviePresentationOnly = moviePresentationOnly });
             }
         }
         foreach (string key in fileEntries.Keys.Where(key => !visitedFiles.Contains(key)).ToArray())

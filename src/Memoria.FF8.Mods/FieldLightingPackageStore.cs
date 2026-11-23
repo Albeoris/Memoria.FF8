@@ -140,7 +140,7 @@ public sealed class FieldLightingPackageStore
         }
     }
 
-    private static void CopyDirectory(string source, string destination)
+    internal static void CopyDirectory(string source, string destination)
     {
         RejectLinks(source);
         foreach (string file in Directory.EnumerateFiles(source))
@@ -271,13 +271,13 @@ public sealed class FieldLightingPackageStore
         return new(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
     }
 
-    private static void RejectLinks(string path)
+    internal static void RejectLinks(string path)
     {
         for (string? current = Path.GetFullPath(path); current is not null; current = Path.GetDirectoryName(current))
         {
             if ((Directory.Exists(current) || File.Exists(current)) && (File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0)
             {
-                throw new InvalidDataException("Lighting package paths must be regular files and directories, without links or reparse points.");
+                throw new InvalidDataException("Authoring package paths must be regular files and directories, without links or reparse points.");
             }
         }
     }

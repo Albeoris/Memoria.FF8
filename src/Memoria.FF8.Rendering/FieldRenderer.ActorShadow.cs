@@ -83,6 +83,10 @@ public sealed partial class FieldRenderer
 
     private ProjectedPoint ProjectShadowPoint(Vector3 point)
     {
+        if (renderedSceneCamera is not null)
+        {
+            return ProjectFieldWorld(point);
+        }
         // 56C910 uses the shared 45FE10 projection. Its SZ and screen coordinates
         // saturate even behind the camera; 472F20 does not reject those vertices.
         int Row(Vector3 axis) => (int)Math.Round(axis.Z * (double)point.Z + axis.Y * (double)point.Y + axis.X * (double)point.X);
@@ -97,6 +101,10 @@ public sealed partial class FieldRenderer
 
     private void DrawShadowTriangle(ProjectedPoint a, ProjectedPoint b, ProjectedPoint c, byte level)
     {
+        if (renderedSceneCamera is not null && (OutsideWorldDepth(a.Depth) || OutsideWorldDepth(b.Depth) || OutsideWorldDepth(c.Depth)))
+        {
+            return;
+        }
         float area = Edge(a, b, c.X, c.Y);
         if (Math.Abs(area) < 0.001f)
         {
@@ -104,7 +112,7 @@ public sealed partial class FieldRenderer
         }
         if (TriangleRenderer is not null)
         {
-            TriangleMaterial material = GpuMaterial(null, TriangleBlend.Subtract, false);
+            TriangleMaterial material = GpuMaterial(null, TriangleBlend.Subtract, false) with { ClipRectangle = WorldClip };
             TriangleRenderer.Draw(GpuVertex(a, Vector2.Zero, new Vector4(new Vector3(level / 255f), 1), perspective: false), GpuVertex(b, Vector2.Zero, new Vector4(0, 0, 0, 1), perspective: false), GpuVertex(c, Vector2.Zero, new Vector4(0, 0, 0, 1), perspective: false), material);
             return;
         }

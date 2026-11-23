@@ -575,6 +575,8 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
         effect.Parameters["DepthScale"].SetValue(material.DepthScale);
         effect.Parameters["CentroidTextureSampling"].SetValue(material.CentroidTextureSampling);
         effect.Parameters["FieldLightingPass"].SetValue((float)material.FieldLighting);
+        effect.Parameters["SceneAlphaCoverage"].SetValue((float)material.SceneCoverage);
+        effect.Parameters["SceneSampler"].SetValue(new Vector4(material.SceneSampler.WrapS, material.SceneSampler.WrapT, material.SceneSampler.MinFilter, material.SceneSampler.MagFilter));
         effect.Parameters["FogColor"].SetValue(new Vector3(material.FogColor.X, material.FogColor.Y, material.FogColor.Z));
         Vector4N clip = material.ClipRectangle ?? new Vector4N(0, 0, width, height);
         effect.Parameters["ClipRectangle"].SetValue(new Vector4(clip.X, clip.Y, clip.Z, clip.W));
@@ -763,6 +765,7 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
                 TriangleDepthComparison.LessEqual => CompareFunction.LessEqual,
                 TriangleDepthComparison.Greater => CompareFunction.Greater,
                 TriangleDepthComparison.GreaterEqual => CompareFunction.GreaterEqual,
+                TriangleDepthComparison.Equal => CompareFunction.Equal,
                 _ => throw new NotSupportedException("Unsupported triangle depth comparison.")
             }
         };

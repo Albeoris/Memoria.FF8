@@ -12,6 +12,8 @@ float2 ViewportSize;
 float4 MaterialParameters; // texture present, selects alpha, alpha multiplier, positive depth mapping
 float2 ActorOpacityParameters; // opacity, replace native alpha after coverage test
 float4 AlphaParameters; // minimum, maximum, minimum reciprocal W, source RGB multiplier
+float SceneAlphaCoverage; // legacy, opaque, mask, opaque core, fractional, blend
+float4 SceneSampler; // wrap S, wrap T, min filter, mag filter (glTF enums)
 float4 FogParameters; // start, end, unused, unused
 float3 FogColor;
 float4 ClipRectangle;
@@ -286,6 +288,67 @@ float3 FieldSrgb(float3 color)
     color = max(color, 0);
     return float3(color.r <= 0.0031308 ? color.r * 12.92 : 1.055 * pow(color.r, 1.0 / 2.4) - 0.055, color.g <= 0.0031308 ? color.g * 12.92 : 1.055 * pow(color.g, 1.0 / 2.4) - 0.055, color.b <= 0.0031308 ? color.b * 12.92 : 1.055 * pow(color.b, 1.0 / 2.4) - 0.055);
 }
+float SceneTexelIndex(float index, float size, float wrapMode)
+{
+    if (wrapMode == 33071) return clamp(index, 0, size - 1);
+    if (wrapMode == 33648)
+    {
+        float mirrored = frac(index / (2 * size)) * (2 * size);
+        return min(mirrored, 2 * size - 1 - mirrored);
+    }
+    return frac(index / size) * size;
+}
+float4 ReadSceneTexel(float slot, float2 index, float2 size)
+{
+    float2 wrapped = float2(SceneTexelIndex(index.x, size.x, SceneSampler.x), SceneTexelIndex(index.y, size.y, SceneSampler.y));
+    float4 sampled = SampleSourceTexture(slot, (wrapped + 0.5) / size);
+    return float4(FieldLinear(sampled.rgb), SceneAlphaCoverage == 1 ? 1 : sampled.a);
+}
+float4 SceneTexture(float slot, float2 uv)
+{
+    float2 size = SelectedTextureSize(slot);
+    float2 position = uv * size;
+    float2 horizontal = ddx(position);
+    float2 vertical = ddy(position);
+    float filter = max(dot(horizontal, horizontal), dot(vertical, vertical)) > 1 ? SceneSampler.z : SceneSampler.w;
+    if (filter == 9728 || filter == 9984 || filter == 9986)
+    {
+        return ReadSceneTexel(slot, floor(position), size);
+    }
+    // Filter linear premultiplied texels, with straight alpha at the blending boundary.
+    float2 origin = floor(position - 0.5);
+    float2 factor = frac(position - 0.5);
+    float4 a = ReadSceneTexel(slot, origin, size);
+    float4 b = ReadSceneTexel(slot, origin + float2(1, 0), size);
+    float4 c = ReadSceneTexel(slot, origin + float2(0, 1), size);
+    float4 d = ReadSceneTexel(slot, origin + 1, size);
+    a.rgb *= a.a;
+    b.rgb *= b.a;
+    c.rgb *= c.a;
+    d.rgb *= d.a;
+    float4 sampled = lerp(lerp(a, b, factor.x), lerp(c, d, factor.x), factor.y);
+    if (sampled.a > 0) sampled.rgb /= sampled.a;
+    return sampled;
+}
+
+float ApplySceneCoverage(float alpha)
+{
+    // At 0.999 the preceding 8-bit alpha value (254/255) remains fractional.
+    const float opaque = 0.999;
+    if (SceneAlphaCoverage == 1) return 1;
+    if (SceneAlphaCoverage == 2)
+    {
+        clip(alpha - AlphaParameters.x);
+        return 1;
+    }
+    if (SceneAlphaCoverage == 3)
+    {
+        clip(alpha - opaque);
+        return 1;
+    }
+    if (alpha <= 0 || (SceneAlphaCoverage == 4 && alpha >= opaque)) discard;
+    return alpha;
+}
 float FieldInfluence(int index, float3 world, out float3 incoming)
 {
     float influence = FieldLightDirectionIntensity[index].w;
@@ -350,15 +413,24 @@ float4 FieldShade(float4 albedo, VSOutput input)
     float3 world = input.WorldPosition / input.Uv.z;
     float2 shadow = FieldShadowCoverage(world);
     float4 result = 0;
-    if (FieldLightingPass > 1.5)
+    if (FieldLightingPass == 2 || FieldLightingPass == 3)
     {
+        float amount = 0;
         if (FieldPrimaryIndex >= 0)
         {
             float3 incoming = 0;
             float influence = FieldInfluence(FieldPrimaryIndex, world, incoming);
             float3 rgb = FieldLightColor[FieldPrimaryIndex].rgb;
             float strength = saturate(influence * max(rgb.r, max(rgb.g, rgb.b)));
-            result = float4(0, 0, 0, shadow.y * strength * FieldShadowParameters.y);
+            amount = saturate(shadow.y * strength * FieldShadowParameters.y);
+        }
+        if (FieldLightingPass == 3)
+        {
+            result = float4(FieldSrgb(FieldLinear(albedo.rgb) * (1 - amount)), albedo.a);
+        }
+        else
+        {
+            result = float4(0, 0, 0, amount * albedo.a);
         }
     }
     else
@@ -370,7 +442,7 @@ float4 FieldShade(float4 albedo, VSOutput input)
         {
             float3 incoming = 0;
             float influence = FieldInfluence(index, world, incoming);
-            float visibility = index == FieldPrimaryIndex ? 1 - shadow.x : 1;
+            float visibility = index == FieldPrimaryIndex && FieldLightingPass != 4 ? 1 - shadow.x : 1;
             float diffuse = max(0, (dot(normal, incoming) + FieldLightingPreview.y) / (1 + FieldLightingPreview.y));
             illumination += FieldLightColor[index].rgb * (influence * diffuse * visibility);
         }
@@ -407,10 +479,19 @@ FieldShadowOutput FieldShadowVertex(FieldShadowInput input)
 }
 float4 FieldShadowPixel(FieldShadowOutput input) : SV_TARGET0
 {
-    float4 texel = SampleSourceTexture(input.TextureSlot, input.Uv);
-    clip(texel.a - AlphaParameters.x);
+    float level = input.Level;
+    if (SceneAlphaCoverage > 0)
+    {
+        float alpha = MaterialParameters.x > 0 ? SceneTexture(input.TextureSlot, input.Uv).a : 1;
+        level = ApplySceneCoverage(alpha * level);
+    }
+    else
+    {
+        float4 texel = SampleSourceTexture(input.TextureSlot, input.Uv);
+        clip(texel.a - AlphaParameters.x);
+    }
     float depth = FieldLightCone[FieldPrimaryIndex].z > 0 ? 1 - input.Depth : 1 / input.Depth;
-    return float4(depth, input.Level, 0, 1);
+    return float4(depth, level, 0, 1);
 }
 
 struct PSOutput { float4 Color : SV_TARGET0; float Depth : SV_DEPTH; };
@@ -422,7 +503,18 @@ PSOutput PixelMainCore(VSOutput input, bool fieldLighting)
     clip(ClipRectangle.w - input.Position.y);
     clip(input.Uv.z - AlphaParameters.z);
     float4 color = input.Color;
-    if (MaterialParameters.x > 0)
+    if (SceneAlphaCoverage > 0)
+    {
+        clip(input.Uv.z - 0.0000000001);
+        color /= input.Uv.z;
+        if (MaterialParameters.x > 0)
+        {
+            color *= SceneTexture(input.TextureSlot, input.Uv.xy / input.Uv.z);
+        }
+        color.a = ApplySceneCoverage(color.a);
+        color.rgb = FieldSrgb(color.rgb);
+    }
+    else if (MaterialParameters.x > 0)
     {
         clip(input.Uv.z - 0.0000000001);
         // A partially covered MSAA pixel can have its center outside the face.

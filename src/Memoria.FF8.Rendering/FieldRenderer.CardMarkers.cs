@@ -24,7 +24,7 @@ public sealed partial class FieldRenderer
             }
             Vector3[] pose = ActorPose(model, actor);
             Matrix4x4 rotation = Matrix4x4.CreateRotationZ((actor.Direction + 64) * MathF.Tau / 256);
-            ProjectedPoint root = ToViewport(camera.Project(new Vector3(actor.X, actor.Y, actor.Z)));
+            ProjectedPoint root = ProjectFieldWorld(new Vector3(actor.X, actor.Y, actor.Z));
             ProjectedPoint head = new(root.X, float.PositiveInfinity, root.Depth);
             for (int index = 0; index < pose.Length; index++)
             {
@@ -32,13 +32,13 @@ public sealed partial class FieldRenderer
                 {
                     continue;
                 }
-                ProjectedPoint vertex = ToViewport(camera.Project(Vector3.Transform(pose[index], rotation) + new Vector3(actor.X, actor.Y, actor.Z)));
-                if (vertex.Depth > 1 && vertex.Y < head.Y)
+                ProjectedPoint vertex = ProjectFieldWorld(Vector3.Transform(pose[index], rotation) + new Vector3(actor.X, actor.Y, actor.Z));
+                if (!OutsideWorldDepth(vertex.Depth) && vertex.Y < head.Y)
                 {
                     head = vertex;
                 }
             }
-            if (!float.IsFinite(head.Y) || root.Depth <= 1)
+            if (!float.IsFinite(head.Y) || OutsideWorldDepth(root.Depth))
             {
                 continue;
             }

@@ -10,12 +10,31 @@ public static partial class ModelExchange
 {
     public static ModelExchangeImportResult ImportGlb(ReadOnlySpan<byte> content, EditableModel? original = null, bool allowBoneCountChange = false)
     {
+        (byte[] json, byte[] binary) = ReadGlbChunks(content);
+        try
+        {
+            using JsonDocument document = JsonDocument.Parse(json, new JsonDocumentOptions { MaxDepth = 128 });
+            return new GlbReader(document.RootElement, binary).Read(original, allowBoneCountChange);
+        }
+        catch (Exception exception) when (IsGlbStructureException(exception))
+        {
+            throw new InvalidDataException("The GLB contains invalid or unsupported structural data.", exception);
+        }
+    }
+
+    private static bool IsGlbStructureException(Exception exception)
+    {
+        return exception is JsonException or KeyNotFoundException or IndexOutOfRangeException or ArgumentException or OverflowException or InvalidOperationException or MagickException;
+    }
+
+    private static (byte[] Json, byte[] Binary) ReadGlbChunks(ReadOnlySpan<byte> content)
+    {
         if (content.Length < 20 || content.Length > 256 * 1024 * 1024 || BinaryPrimitives.ReadUInt32LittleEndian(content) != 0x46546c67 || BinaryPrimitives.ReadUInt32LittleEndian(content[4..]) != 2 || BinaryPrimitives.ReadUInt32LittleEndian(content[8..]) != content.Length)
         {
             throw new InvalidDataException("Expected a complete glTF 2.0 binary file no larger than 256 MiB.");
         }
         byte[]? json = null;
-        byte[] binary = [];
+        byte[]? binary = null;
         int offset = 12;
         while (offset < content.Length)
         {
@@ -40,7 +59,7 @@ public static partial class ModelExchange
             }
             else if (kind == 0x004e4942)
             {
-                if (binary.Length != 0 || json is null)
+                if (binary is not null || json is null)
                 {
                     throw new InvalidDataException("Invalid binary chunk order.");
                 }
@@ -52,15 +71,7 @@ public static partial class ModelExchange
         {
             throw new InvalidDataException("The GLB JSON chunk is missing.");
         }
-        try
-        {
-            using JsonDocument document = JsonDocument.Parse(json, new JsonDocumentOptions { MaxDepth = 128 });
-            return new GlbReader(document.RootElement, binary).Read(original, allowBoneCountChange);
-        }
-        catch (Exception exception) when (exception is JsonException or KeyNotFoundException or IndexOutOfRangeException or ArgumentException or OverflowException or InvalidOperationException or MagickException)
-        {
-            throw new InvalidDataException("The GLB contains invalid or unsupported structural data.", exception);
-        }
+        return (json, binary ?? []);
     }
 
     private static ModelImportTarget? ReadImportTarget(JsonElement owner, ModelImportTarget? previous)
@@ -241,8 +252,12 @@ public static partial class ModelExchange
         }
     }
 
-    private sealed class GlbReader(JsonElement root, byte[] binary)
+    private sealed partial class GlbReader(JsonElement root, byte[] binary)
     {
+        private JsonElement Root => root;
+        private int BinaryLength => binary.Length;
+        private long _textureTexels;
+
         private readonly List<string> _warnings = [];
         private readonly Dictionary<int, float[][]> _accessorCache = [];
 
@@ -309,23 +324,7 @@ public static partial class ModelExchange
             for (int index = 0; index < nodes.GetArrayLength(); index++)
             {
                 JsonElement node = nodes[index];
-                Vector3 translation = Vec3(node, "translation", Vector3.Zero);
-                Vector3 scale = Vec3(node, "scale", Vector3.One);
-                Vector4 rotationValue = Vec4(node, "rotation", new Vector4(0, 0, 0, 1));
-                Quaternion rotation = new(rotationValue.X, rotationValue.Y, rotationValue.Z, rotationValue.W);
-                if (node.TryGetProperty("matrix", out JsonElement matrix))
-                {
-                    Matrix4x4 transform = Matrix(matrix.EnumerateArray().Select(value => value.GetSingle()).ToArray());
-                    if (node.TryGetProperty("translation", out _) || node.TryGetProperty("rotation", out _) || node.TryGetProperty("scale", out _) || !Matrix4x4.Decompose(transform, out scale, out rotation, out translation))
-                    {
-                        throw new InvalidDataException("Node matrix cannot be represented as translation, rotation and scale.");
-                    }
-                    Matrix4x4 reconstructed = Matrix4x4.CreateScale(scale) * Matrix4x4.CreateFromQuaternion(rotation) * Matrix4x4.CreateTranslation(translation);
-                    if (MatrixValues(transform).Zip(MatrixValues(reconstructed)).Any(pair => !float.IsFinite(pair.First) || MathF.Abs(pair.First - pair.Second) > 0.0001f * MathF.Max(1, MathF.Abs(pair.First))))
-                    {
-                        throw new InvalidDataException("Apply shear and perspective transforms before exporting the model.");
-                    }
-                }
+                (Vector3 translation, Quaternion rotation, Vector3 scale) = ReadNodeTransform(node);
                 int nativeIndex = node.TryGetProperty("extras", out JsonElement boneExtras) && boneExtras.TryGetProperty("FF8_bone_index", out JsonElement nativeId) ? nativeId.GetInt32() : -1;
                 bones.Add(new EditableBone(String(node, "name", $"node_{index}"), parents[index], translation, rotation, scale, joints.Contains(index) || node.TryGetProperty("extras", out JsonElement jointExtras) && jointExtras.TryGetProperty("memoria_is_joint", out JsonElement isJoint) && isJoint.ValueKind == JsonValueKind.True) { NativeIndex = nativeIndex, RigId = Property(node, "memoria_rig"), StableId = Property(node, "memoria_joint") });
                 if (node.TryGetProperty("extras", out JsonElement extras) && extras.TryGetProperty("FF8_native", out JsonElement payload) && payload.ValueKind == JsonValueKind.String)
@@ -390,40 +389,6 @@ public static partial class ModelExchange
                         throw new InvalidDataException("Export triangles without morph targets.");
                     }
                     JsonElement attributes = primitive.GetProperty("attributes");
-                    float[][] positions = Accessor(Int(attributes, "POSITION"), "VEC3", 5126);
-                    totalVertices = checked(totalVertices + positions.Length);
-                    if (totalVertices > 4_000_000)
-                    {
-                        throw new InvalidDataException("Too many model vertices.");
-                    }
-                    float[][]? normals = OptionalAccessor(attributes, "NORMAL", "VEC3", 5126);
-                    float[][]? uvs = OptionalAccessor(attributes, "TEXCOORD_0", "VEC2");
-                    float[][]? colors = OptionalAccessor(attributes, "COLOR_0");
-                    float[][]? jointValues = OptionalAccessor(attributes, "JOINTS_0", "VEC4");
-                    float[][]? weights = OptionalAccessor(attributes, "WEIGHTS_0", "VEC4");
-                    if (attributes.TryGetProperty("JOINTS_0", out JsonElement jointAccessor))
-                    {
-                        JsonElement encoding = At("accessors", jointAccessor.GetInt32());
-                        if (Int(encoding, "componentType") is not (5121 or 5123) || encoding.TryGetProperty("normalized", out JsonElement normalized) && normalized.GetBoolean())
-                        {
-                            throw new InvalidDataException("Joint indices must be unsigned byte or unsigned short values.");
-                        }
-                    }
-                    if (attributes.TryGetProperty("JOINTS_1", out _) || attributes.TryGetProperty("WEIGHTS_1", out _))
-                    {
-                        throw new InvalidDataException("A maximum of four bone influences per vertex is supported.");
-                    }
-                    foreach (float[][]? values in new[] { normals, uvs, colors, jointValues, weights })
-                    {
-                        if (values is not null && values.Length != positions.Length)
-                        {
-                            throw new InvalidDataException("Vertex attribute counts do not agree.");
-                        }
-                    }
-                    if (skinJoints.Length != 0 && (jointValues is null || weights is null))
-                    {
-                        throw new InvalidDataException("A skinned mesh needs joint indices and weights.");
-                    }
                     int texture = -1;
                     int nativeMaterial = node.TryGetProperty("extras", out JsonElement nodeTemplateExtras) && nodeTemplateExtras.TryGetProperty("memoria_native_material", out JsonElement nodeNativeMaterial) ? nodeNativeMaterial.GetInt32() : -1;
                     int nativeTexture = node.TryGetProperty("extras", out JsonElement nodeMaterialExtras) && nodeMaterialExtras.TryGetProperty("memoria_native_texture", out JsonElement nodeNativeTexture) ? nodeNativeTexture.GetInt32() : -1;
@@ -474,47 +439,8 @@ public static partial class ModelExchange
                             _warnings.Add("Only base-color textures and vertex colors are used by the game renderer.");
                         }
                     }
-                    List<EditableVertex> vertices = [];
-                    for (int vertex = 0; vertex < positions.Length; vertex++)
-                    {
-                        Vector4 joint = Vector4.Zero;
-                        Vector4 weight = weights is null ? Vector4.Zero : Vector(weights[vertex], 0);
-                        if (skinJoints.Length != 0)
-                        {
-                            for (int slot = 0; slot < 4; slot++)
-                            {
-                                float index = jointValues![vertex][slot];
-                                if (index != MathF.Truncate(index) || index < 0 || index >= skinJoints.Length)
-                                {
-                                    throw new InvalidDataException("A vertex refers to a joint outside its skin.");
-                                }
-                                joint[slot] = skinJoints[(int)index];
-                            }
-                            float sum = weight.X + weight.Y + weight.Z + weight.W;
-                            if (sum <= 0 || MathF.Abs(sum - 1) > 0.02f)
-                            {
-                                throw new InvalidDataException("Invalid skin weight sum.");
-                            }
-                            weight /= sum;
-                        }
-                        Vector4 color = colors is null ? Vector4.One : Vector(colors[vertex], 1);
-                        vertices.Add(new EditableVertex(V3(positions[vertex]), normals is null ? Vector3.UnitY : V3(normals[vertex]), uvs is null ? Vector2.Zero : new Vector2(uvs[vertex][0], uvs[vertex][1]), joint, weight, color * factor));
-                    }
-                    int[] indices;
-                    if (primitive.TryGetProperty("indices", out JsonElement indexReference))
-                    {
-                        JsonElement encoding = At("accessors", indexReference.GetInt32());
-                        if (Int(encoding, "componentType") is not (5121 or 5123 or 5125) || encoding.TryGetProperty("normalized", out JsonElement normalized) && normalized.GetBoolean())
-                        {
-                            throw new InvalidDataException("Triangle indices must be unsigned integers.");
-                        }
-                        float[][] values = Accessor(indexReference.GetInt32(), "SCALAR");
-                        indices = values.Select(value => checked((int)value[0])).ToArray();
-                    }
-                    else
-                    {
-                        indices = Enumerable.Range(0, positions.Length).ToArray();
-                    }
+                    EditableVertex[] vertices = ReadVertices(attributes, skinJoints, ref totalVertices, factor);
+                    int[] indices = ReadTriangleIndices(primitive, vertices.Length);
                     meshes.Add(new EditableMesh(String(mesh, "name", $"mesh_{meshes.Count}"), vertices, indices, texture, globals[nodeIndex]) { Node = skinJoints.Length == 0 ? nodeIndex : -1, Skinned = skinJoints.Length != 0, InverseBindMatrices = inverseBind, Transparent = transparent, AlphaCutoff = alphaCutoff, DoubleSided = doubleSided, NativeMaterial = nativeMaterial, NativeTexture = nativeTexture, NativePart = node.TryGetProperty("extras", out JsonElement meshExtras) && meshExtras.TryGetProperty("memoria_native_part", out JsonElement nativePart) ? nativePart.GetInt32() : -1, ObjectTarget = Property(node, "memoria_target"), RigId = Property(node, "memoria_rig") });
                 }
             }
@@ -588,6 +514,125 @@ public static partial class ModelExchange
             return new ModelExchangeImportResult(result, _warnings.Distinct().ToArray(), mismatch && !allowBoneCountChange);
         }
 
+        private static (Vector3 Translation, Quaternion Rotation, Vector3 Scale) ReadNodeTransform(JsonElement node)
+        {
+            Vector3 translation = Vec3(node, "translation", Vector3.Zero);
+            Vector3 scale = Vec3(node, "scale", Vector3.One);
+            Vector4 rotationValue = Vec4(node, "rotation", new Vector4(0, 0, 0, 1));
+            Quaternion rotation = new(rotationValue.X, rotationValue.Y, rotationValue.Z, rotationValue.W);
+            if (node.TryGetProperty("matrix", out JsonElement matrix))
+            {
+                Matrix4x4 transform = Matrix(matrix.EnumerateArray().Select(value => value.GetSingle()).ToArray());
+                if (node.TryGetProperty("translation", out _) || node.TryGetProperty("rotation", out _) || node.TryGetProperty("scale", out _) || !Matrix4x4.Decompose(transform, out scale, out rotation, out translation))
+                {
+                    throw new InvalidDataException("Node matrix cannot be represented as translation, rotation and scale.");
+                }
+                Matrix4x4 reconstructed = Matrix4x4.CreateScale(scale) * Matrix4x4.CreateFromQuaternion(rotation) * Matrix4x4.CreateTranslation(translation);
+                if (MatrixValues(transform).Zip(MatrixValues(reconstructed)).Any(pair => !float.IsFinite(pair.First) || MathF.Abs(pair.First - pair.Second) > 0.0001f * MathF.Max(1, MathF.Abs(pair.First))))
+                {
+                    throw new InvalidDataException("Apply shear and perspective transforms before exporting the model.");
+                }
+            }
+            return (translation, rotation, scale);
+        }
+
+        private EditableVertex[] ReadVertices(JsonElement attributes, int[] skinJoints, ref int totalVertices, Vector4 factor, int vertexLimit = 4_000_000)
+        {
+            int positionAccessor = Int(attributes, "POSITION");
+            int vertexCount = Int(At("accessors", positionAccessor), "count");
+            totalVertices = checked(totalVertices + vertexCount);
+            if (totalVertices > vertexLimit || vertexCount < 1)
+            {
+                throw new InvalidDataException("Too many model vertices.");
+            }
+            float[][] positions = Accessor(positionAccessor, "VEC3", 5126);
+            float[][]? normals = OptionalAccessor(attributes, "NORMAL", "VEC3", 5126);
+            float[][]? uvs = OptionalAccessor(attributes, "TEXCOORD_0", "VEC2");
+            float[][]? colors = OptionalAccessor(attributes, "COLOR_0");
+            float[][]? jointValues = OptionalAccessor(attributes, "JOINTS_0", "VEC4");
+            float[][]? weights = OptionalAccessor(attributes, "WEIGHTS_0", "VEC4");
+            if (attributes.TryGetProperty("JOINTS_0", out JsonElement jointAccessor))
+            {
+                JsonElement encoding = At("accessors", jointAccessor.GetInt32());
+                if (Int(encoding, "componentType") is not (5121 or 5123) || encoding.TryGetProperty("normalized", out JsonElement normalized) && normalized.GetBoolean())
+                {
+                    throw new InvalidDataException("Joint indices must be unsigned byte or unsigned short values.");
+                }
+            }
+            if (attributes.TryGetProperty("JOINTS_1", out _) || attributes.TryGetProperty("WEIGHTS_1", out _))
+            {
+                throw new InvalidDataException("A maximum of four bone influences per vertex is supported.");
+            }
+            foreach (float[][]? values in new[] { normals, uvs, colors, jointValues, weights })
+            {
+                if (values is not null && values.Length != positions.Length)
+                {
+                    throw new InvalidDataException("Vertex attribute counts do not agree.");
+                }
+            }
+            if (skinJoints.Length != 0 && (jointValues is null || weights is null))
+            {
+                throw new InvalidDataException("A skinned mesh needs joint indices and weights.");
+            }
+            EditableVertex[] vertices = new EditableVertex[positions.Length];
+            for (int vertex = 0; vertex < positions.Length; vertex++)
+            {
+                Vector4 joint = Vector4.Zero;
+                Vector4 weight = weights is null ? Vector4.Zero : Vector(weights[vertex], 0);
+                if (skinJoints.Length != 0)
+                {
+                    for (int slot = 0; slot < 4; slot++)
+                    {
+                        float index = jointValues![vertex][slot];
+                        if (index != MathF.Truncate(index) || index < 0 || index >= skinJoints.Length)
+                        {
+                            throw new InvalidDataException("A vertex refers to a joint outside its skin.");
+                        }
+                        joint[slot] = skinJoints[(int)index];
+                    }
+                    if (weight.X < 0 || weight.Y < 0 || weight.Z < 0 || weight.W < 0)
+                    {
+                        throw new InvalidDataException("Skin weights must be nonnegative.");
+                    }
+                    float sum = weight.X + weight.Y + weight.Z + weight.W;
+                    if (sum <= 0 || MathF.Abs(sum - 1) > 0.02f)
+                    {
+                        throw new InvalidDataException("Skin weights must have a positive sum within 0.02 of one. Normalize weights before exporting.");
+                    }
+                    weight /= sum;
+                }
+                Vector4 color = colors is null ? Vector4.One : Vector(colors[vertex], 1);
+                vertices[vertex] = new EditableVertex(V3(positions[vertex]), normals is null ? Vector3.UnitY : V3(normals[vertex]), uvs is null ? Vector2.Zero : new Vector2(uvs[vertex][0], uvs[vertex][1]), joint, weight, color * factor);
+            }
+            return vertices;
+        }
+
+        private int[] ReadTriangleIndices(JsonElement primitive, int vertexCount, int indexBudget = 12_000_000)
+        {
+            int? accessorIndex = primitive.TryGetProperty("indices", out JsonElement reference) ? reference.GetInt32() : null;
+            int indexCount = accessorIndex is int index ? Int(At("accessors", index), "count") : vertexCount;
+            if (indexCount < 1 || indexCount % 3 != 0 || indexCount > indexBudget)
+            {
+                throw new InvalidDataException("Triangle index count is invalid or exceeds the supported limit.");
+            }
+            int[] indices;
+            if (accessorIndex is int indexReference)
+            {
+                JsonElement encoding = At("accessors", indexReference);
+                if (Int(encoding, "componentType") is not (5121 or 5123 or 5125) || encoding.TryGetProperty("normalized", out JsonElement normalized) && normalized.GetBoolean())
+                {
+                    throw new InvalidDataException("Triangle indices must be unsigned integers.");
+                }
+                float[][] values = Accessor(indexReference, "SCALAR");
+                indices = values.Select(value => checked((int)value[0])).ToArray();
+            }
+            else
+            {
+                indices = Enumerable.Range(0, vertexCount).ToArray();
+            }
+            return indices;
+        }
+
         private static string? Property(JsonElement node, string key)
         {
             return node.TryGetProperty("extras", out JsonElement extras) && extras.TryGetProperty(key, out JsonElement value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
@@ -596,7 +641,6 @@ public static partial class ModelExchange
         private List<PixelImage> ReadTextures()
         {
             List<PixelImage> result = [];
-            long totalTexels = 0;
             if (!root.TryGetProperty("textures", out JsonElement textures))
             {
                 return result;
@@ -607,35 +651,40 @@ public static partial class ModelExchange
             }
             foreach (JsonElement texture in textures.EnumerateArray())
             {
-                JsonElement image = At("images", Int(texture, "source"));
-                if (image.TryGetProperty("uri", out _) || !image.TryGetProperty("bufferView", out JsonElement viewReference) || String(image, "mimeType", "") is not ("image/png" or "image/jpeg"))
-                {
-                    throw new InvalidDataException("Embed PNG or JPEG textures in the GLB; external image paths are unsupported.");
-                }
-                byte[] content = ViewBytes(viewReference.GetInt32()).ToArray();
-                bool png = content.AsSpan().StartsWith(new byte[] { 137, 80, 78, 71, 13, 10, 26, 10 });
-                bool jpeg = content.Length >= 3 && content[0] == 255 && content[1] == 216 && content[2] == 255;
-                if (!png && !jpeg)
-                {
-                    throw new InvalidDataException("Embedded image bytes must be PNG or JPEG.");
-                }
-                MagickImageInfo info = new(content);
-                totalTexels += (long)info.Width * info.Height;
-                if (info.Width == 0 || info.Height == 0 || info.Width > PixelImage.MaximumDimension || info.Height > PixelImage.MaximumDimension || (long)info.Width * info.Height > 16_777_216 || totalTexels > 67_108_864)
-                {
-                    throw new InvalidDataException("Texture dimensions exceed the supported image limit.");
-                }
-                using MagickImage decoded = new(content);
-                using IPixelCollection<byte> pixels = decoded.GetPixels();
-                byte[] rgba = pixels.ToByteArray(PixelMapping.RGBA) ?? throw new InvalidDataException("Texture pixels could not be decoded.");
-                Rgba32[] colors = new Rgba32[rgba.Length / 4];
-                for (int index = 0; index < colors.Length; index++)
-                {
-                    colors[index] = new Rgba32(rgba[index * 4], rgba[index * 4 + 1], rgba[index * 4 + 2], rgba[index * 4 + 3]);
-                }
-                result.Add(new PixelImage(checked((int)decoded.Width), checked((int)decoded.Height), colors));
+                result.Add(ReadImage(Int(texture, "source")));
             }
             return result;
+        }
+
+        private PixelImage ReadImage(int imageIndex)
+        {
+            JsonElement image = At("images", imageIndex);
+            if (image.TryGetProperty("uri", out _) || !image.TryGetProperty("bufferView", out JsonElement viewReference) || String(image, "mimeType", "") is not ("image/png" or "image/jpeg"))
+            {
+                throw new InvalidDataException("Embed PNG or JPEG textures in the GLB; external image paths are unsupported.");
+            }
+            byte[] content = ViewBytes(viewReference.GetInt32()).ToArray();
+            bool png = content.AsSpan().StartsWith(new byte[] { 137, 80, 78, 71, 13, 10, 26, 10 });
+            bool jpeg = content.Length >= 3 && content[0] == 255 && content[1] == 216 && content[2] == 255;
+            if (!png && !jpeg)
+            {
+                throw new InvalidDataException("Embedded image bytes must be PNG or JPEG.");
+            }
+            MagickImageInfo info = new(content);
+            _textureTexels += (long)info.Width * info.Height;
+            if (info.Width == 0 || info.Height == 0 || info.Width > PixelImage.MaximumDimension || info.Height > PixelImage.MaximumDimension || (long)info.Width * info.Height > 16_777_216 || _textureTexels > 67_108_864)
+            {
+                throw new InvalidDataException("Texture dimensions exceed the supported image limit.");
+            }
+            using MagickImage decoded = new(content);
+            using IPixelCollection<byte> pixels = decoded.GetPixels();
+            byte[] rgba = pixels.ToByteArray(PixelMapping.RGBA) ?? throw new InvalidDataException("Texture pixels could not be decoded.");
+            Rgba32[] colors = new Rgba32[rgba.Length / 4];
+            for (int index = 0; index < colors.Length; index++)
+            {
+                colors[index] = new Rgba32(rgba[index * 4], rgba[index * 4 + 1], rgba[index * 4 + 2], rgba[index * 4 + 3]);
+            }
+            return new PixelImage(checked((int)decoded.Width), checked((int)decoded.Height), colors);
         }
 
         private JsonElement At(string property, int index)
@@ -689,6 +738,15 @@ public static partial class ModelExchange
             if (normalized && component is 5125 or 5126)
             {
                 throw new InvalidDataException("This component type cannot be normalized.");
+            }
+            if (_readingFieldScene)
+            {
+                // Account for the row reference, array header and decoded components before allocating.
+                _sceneAccessorBytes += count * (32L + size * sizeof(float));
+                if (_sceneAccessorBytes > 256 * 1024 * 1024)
+                {
+                    throw new InvalidDataException("Decoded field scene accessors exceed 256 MiB.");
+                }
             }
             float[][] values = Enumerable.Range(0, count).Select(_ => new float[size]).ToArray();
             if (accessor.TryGetProperty("bufferView", out JsonElement reference))

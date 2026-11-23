@@ -29,6 +29,7 @@ public sealed partial class FieldRenderer
         horizontalPresentationOffset = 0;
         clipLeft = Math.Clamp((int)MathF.Ceiling(offsetX - 0.5f), 0, OutputWidth);
         clipRight = Math.Clamp((int)MathF.Ceiling(offsetX + Width * scale - 0.5f), clipLeft, OutputWidth);
+        PrepareSceneView(camera, backgroundVisible: true);
         if (TriangleRenderer is not null)
         {
             TriangleRenderer.Begin(OutputWidth, OutputHeight, new Vector4(0, 0, 0, 1));

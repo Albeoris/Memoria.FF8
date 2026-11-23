@@ -7,7 +7,9 @@ public enum FieldLightingPass
 {
     None,
     Model,
-    GroundShadow
+    GroundShadow,
+    UnlitShadowReceiver,
+    ModelWithoutShadow
 }
 
 public enum FieldActorShadowState

@@ -361,7 +361,10 @@ internal sealed partial class RecreateGame
         catch (Exception exception) when (exception is IOException or InvalidDataException or UnauthorizedAccessException or NotSupportedException or JsonException)
         {
             lightingNotice = exception.Message;
-            world?.EndLightingEdit();
+            if (scene3DDraft is null)
+            {
+                world?.EndLightingEdit();
+            }
         }
     }
 
@@ -417,7 +420,14 @@ internal sealed partial class RecreateGame
     {
         lightingEditor = null;
         lightingEditingField = null;
-        world?.EndLightingEdit();
+        if (scene3DDraft is null)
+        {
+            world?.EndLightingEdit();
+        }
+        else
+        {
+            gameMenus?.Open(Scene3DEditorScreen);
+        }
         InvalidateLightingPreview();
         presentationTiming.DiscardPendingTime();
         ResetElapsedTime();

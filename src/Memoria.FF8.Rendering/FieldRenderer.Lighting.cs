@@ -26,12 +26,16 @@ public sealed partial class FieldRenderer
 
     public Vector2? ProjectWorldPoint(Vector3 world)
     {
-        ProjectedPoint point = ToViewport(camera.Project(world));
-        return point.Depth > 1 && float.IsFinite(point.X) && float.IsFinite(point.Y) ? new Vector2(point.X, point.Y) : null;
+        ProjectedPoint point = ProjectFieldWorld(world);
+        return !OutsideWorldDepth(point.Depth) && float.IsFinite(point.X) && float.IsFinite(point.Y) ? new Vector2(point.X, point.Y) : null;
     }
 
     public bool TryScreenRay(Vector2 screen, out Vector3 origin, out Vector3 direction)
     {
+        if (renderedSceneCamera is not null)
+        {
+            return TrySceneScreenRay(screen, out origin, out direction);
+        }
         Matrix4x4 view = new(camera.AxisX.X, camera.AxisY.X, camera.AxisZ.X, 0, camera.AxisX.Y, camera.AxisY.Y, camera.AxisZ.Y, 0, camera.AxisX.Z, camera.AxisY.Z, camera.AxisZ.Z, 0, camera.Translation.X, camera.Translation.Y, camera.Translation.Z, 1);
         if (!Matrix4x4.Invert(view, out Matrix4x4 inverse))
         {
@@ -68,10 +72,11 @@ public sealed partial class FieldRenderer
             Vector3 other = Vector3.Cross(delta, edge1);
             float v = Vector3.Dot(direction, other) / determinant;
             float distance = Vector3.Dot(edge2, other) / determinant;
-            if (u >= 0 && v >= 0 && u + v <= 1 && distance > 0 && distance < nearest)
+            Vector3 hit = origin + direction * distance;
+            if (u >= 0 && v >= 0 && u + v <= 1 && distance > 0 && distance < nearest && (renderedSceneCamera is null || !OutsideWorldDepth(SceneCameraPoint(hit).Z)))
             {
                 nearest = distance;
-                position = origin + direction * distance;
+                position = hit;
             }
         }
         return float.IsFinite(nearest);
@@ -106,12 +111,15 @@ public sealed partial class FieldRenderer
         effectiveLighting = ActiveLighting;
         backend.SetFieldLighting(effectiveLighting);
         FieldLight? primary = effectiveLighting.Lights.FirstOrDefault(light => light.Id == effectiveLighting.PrimaryLightId);
+        bool customReceiver = false;
         if (primary is { Enabled: true, Intensity: > 0 } && primary.Color != Vector3.Zero)
         {
+            customReceiver = customSceneReceivers.Count > 0;
+            shadowCasters.AddRange(customSceneCasters);
             foreach (FieldShadowReceiver receiver in effectiveLighting.ShadowReceivers.Where(receiver => receiver.Enabled))
             {
                 FieldShadowReceiverGeometry geometry = new(receiver);
-                if (geometry.IsWithinReach(primary, receiver.Kind == "wall"))
+                if (!CustomSceneOwnsNativeShadows && geometry.IsWithinReach(primary, receiver.Kind == "wall"))
                 {
                     authoredShadowReceivers.Add(geometry);
                 }
@@ -159,17 +167,17 @@ public sealed partial class FieldRenderer
                 continue;
             }
             FieldActorShadowState nativeState = SelectNativeReceiver(actor, primary!, out int support);
-            if (nativeState != FieldActorShadowState.IntentionalNone)
+            if (nativeState != FieldActorShadowState.IntentionalNone && (!CustomSceneOwnsNativeShadows || nativeState == FieldActorShadowState.NativeFallback))
             {
                 nativeFallbackActors.Add(actor.ObjectId);
             }
-            if (nativeState == FieldActorShadowState.Silhouette)
+            if (nativeState == FieldActorShadowState.Silhouette && !CustomSceneOwnsNativeShadows)
             {
                 AddShadowReceivers(support, primary!);
             }
-            else if (!authoredShadowReceivers.Any(receiver => receiver.CanReceiveShadow(primary!, world)))
+            else if (!customReceiver && !authoredShadowReceivers.Any(receiver => receiver.CanReceiveShadow(primary!, world)))
             {
-                lightingShadowStates[actor.ObjectId] = nativeState;
+                lightingShadowStates[actor.ObjectId] = CustomSceneOwnsNativeShadows && nativeState == FieldActorShadowState.Silhouette ? FieldActorShadowState.IntentionalNone : nativeState;
                 if (nativeState == FieldActorShadowState.NativeFallback)
                 {
                     LightingShadowDiagnostic = "Some actors have no matching support walkmesh triangle; their native shadow is gated by the Primary light.";
@@ -203,6 +211,7 @@ public sealed partial class FieldRenderer
             {
                 sunlightReceiverVertices.AddRange(receiver.World);
             }
+            sunlightReceiverVertices.AddRange(customSceneReceivers);
         }
         if (!backend.PrepareFieldShadow(shadowCasters, out string? reason, sunlight ? sunlightReceiverVertices : null))
         {
@@ -352,13 +361,13 @@ public sealed partial class FieldRenderer
 
     private int ClipReceiverNear(Vector3[] polygon, Span<Vector3> clipped)
     {
-        const float near = 1.01f;
+        float near = renderedSceneCamera is null ? 1.01f : MathF.BitIncrement(SceneNearPlane);
         int count = 0;
         Vector3 previous = polygon[^1];
-        float previousDepth = Vector3.Dot(camera.AxisZ, previous) + camera.Translation.Z;
+        float previousDepth = SceneCameraPoint(previous).Z;
         foreach (Vector3 point in polygon)
         {
-            float depth = Vector3.Dot(camera.AxisZ, point) + camera.Translation.Z;
+            float depth = SceneCameraPoint(point).Z;
             if ((previousDepth >= near) != (depth >= near))
             {
                 clipped[count++] = Vector3.Lerp(previous, point, (near - previousDepth) / (depth - previousDepth));
@@ -375,17 +384,17 @@ public sealed partial class FieldRenderer
 
     private void QueueLightingReceiverTriangle(List<(float Depth, Action Draw)> translucent, Vector3 worldA, Vector3 worldB, Vector3 worldC)
     {
-        ProjectedPoint a = ToViewport(camera.Project(worldA));
-        ProjectedPoint b = ToViewport(camera.Project(worldB));
-        ProjectedPoint c = ToViewport(camera.Project(worldC));
-        if (a.Depth <= 1 || b.Depth <= 1 || c.Depth <= 1)
+        ProjectedPoint a = ProjectFieldWorld(worldA);
+        ProjectedPoint b = ProjectFieldWorld(worldB);
+        ProjectedPoint c = ProjectFieldWorld(worldC);
+        if (OutsideWorldDepth(a.Depth) || OutsideWorldDepth(b.Depth) || OutsideWorldDepth(c.Depth))
         {
             return;
         }
-        TriangleMaterial material = GpuMaterial(null, TriangleBlend.Alpha, false) with { PerspectiveDepth = true, FieldLighting = FieldLightingPass.GroundShadow };
-        TriangleVertex va = GpuVertex(a, Vector2.Zero, Vector4.One) with { WorldPosition = worldA };
-        TriangleVertex vb = GpuVertex(b, Vector2.Zero, Vector4.One) with { WorldPosition = worldB };
-        TriangleVertex vc = GpuVertex(c, Vector2.Zero, Vector4.One) with { WorldPosition = worldC };
+        TriangleMaterial material = GpuMaterial(null, TriangleBlend.Alpha, false) with { ClipRectangle = WorldClip, PerspectiveDepth = !OrthographicScene, FieldLighting = FieldLightingPass.GroundShadow };
+        TriangleVertex va = GpuVertex(a, Vector2.Zero, Vector4.One, perspective: !OrthographicScene) with { WorldPosition = worldA };
+        TriangleVertex vb = GpuVertex(b, Vector2.Zero, Vector4.One, perspective: !OrthographicScene) with { WorldPosition = worldB };
+        TriangleVertex vc = GpuVertex(c, Vector2.Zero, Vector4.One, perspective: !OrthographicScene) with { WorldPosition = worldC };
         translucent.Add((MathF.Floor((a.Depth + b.Depth + c.Depth) / 12) * 4, () => TriangleRenderer!.Draw(va, vb, vc, material)));
     }
 
@@ -393,18 +402,19 @@ public sealed partial class FieldRenderer
 
     private void DrawLitModelTriangle(ActorVisual actor, ModelFace face, LitActorPose pose, int faceIndex, int a, int b, int c, Albeoris.Games.FF8.Imaging.PixelImage texture, Vector2 textureScale)
     {
-        if (projected[face.Vertices[a]].Depth <= 1 || projected[face.Vertices[b]].Depth <= 1 || projected[face.Vertices[c]].Depth <= 1)
+        if (OutsideWorldDepth(projected[face.Vertices[a]].Depth) || OutsideWorldDepth(projected[face.Vertices[b]].Depth) || OutsideWorldDepth(projected[face.Vertices[c]].Depth))
         {
             return;
         }
         TriangleMaterial material = GpuMaterial(texture, TriangleBlend.Replace, true, ModelSampling) with
         {
             DepthComparison = TriangleDepthComparison.Less,
-            PerspectiveDepth = true,
+            ClipRectangle = WorldClip,
+            PerspectiveDepth = !OrthographicScene,
             FieldLighting = FieldLightingPass.Model
         };
         Vector4 tint = new((actor.PresentationPolygonColor ?? actor.PolygonColor!.Value) / 128, 1);
-        TriangleVertex Vertex(int corner) => GpuVertex(projected[face.Vertices[corner]], face.TextureCoordinates[corner] * textureScale / new Vector2(texture.Width, texture.Height), tint * (face.VertexColors?[corner] ?? Vector4.One)) with { WorldPosition = pose.World[face.Vertices[corner]], WorldNormal = pose.Normals[faceIndex][corner] };
+        TriangleVertex Vertex(int corner) => GpuVertex(projected[face.Vertices[corner]], face.TextureCoordinates[corner] * textureScale / new Vector2(texture.Width, texture.Height), tint * (face.VertexColors?[corner] ?? Vector4.One), perspective: !OrthographicScene) with { WorldPosition = pose.World[face.Vertices[corner]], WorldNormal = pose.Normals[faceIndex][corner] };
         TriangleRenderer!.Draw(Vertex(a), Vertex(b), Vertex(c), material);
     }
 }
