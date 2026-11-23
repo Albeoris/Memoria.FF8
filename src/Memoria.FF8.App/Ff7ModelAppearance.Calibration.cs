@@ -12,6 +12,7 @@ internal sealed partial class Ff7ModelAppearance
 {
     public const string StandardFieldSquallProfileVersion = "ff7-cloud-field-to-ff8-field-d000-v2";
     public const string LegacyStandardFieldSquallProfileVersion = "ff7-cloud-aaaa-to-ff8-field-d000-v1";
+    private const string ParachuteCloudRig = "C01436A1B849BD234117870AC2F239F1A29D02D84875A1839FEA8CB24BE8D8C3";
     private const string CloseupCloudRig = "A057CEA5A410EEB03236E35337E04A8D056B959A0797EE22A169FBC3A93D8F6F";
 
     private const string StandardFieldSquallRig = "ff8/field/rig/EC6C2019C6DCE78C9139054606A84422C426A40840EDE4D2B0EBA63E16893FE1";
@@ -74,6 +75,14 @@ internal sealed partial class Ff7ModelAppearance
         PcFieldModelDescriptor dressedDescriptor = wallMarket.Models.Models.Single(model => Path.GetFileName(model.Hrc).Equals("dlfb.hrc", StringComparison.OrdinalIgnoreCase));
         Ff7FieldModelResources dressed = Ff7FieldModelResources.Load(characters, dressedDescriptor);
         appearance.variants.Add("dlfb.hrc", CreateFieldCharacter(assets, 0, dressedDescriptor, dressed));
+        Ff7FieldResources parachuteField = Ff7FieldResources.Load(installation, "fship_12");
+        PcFieldModelDescriptor parachuteDescriptor = parachuteField.Models.Models.Single(model => Path.GetFileName(model.Hrc).Equals("afie.hrc", StringComparison.OrdinalIgnoreCase));
+        Ff7FieldModelResources parachute = Ff7FieldModelResources.Load(characters, parachuteDescriptor);
+        if (Ff7SemanticRetargeter.HierarchyIdentity(parachute.Hierarchy) != ParachuteCloudRig)
+        {
+            throw new NotSupportedException("The selected parachute Cloud source does not implement its ordered anatomical rig profile.");
+        }
+        appearance.variants.Add("afie.hrc", CreateFieldCharacter(assets, 0, parachuteDescriptor, parachute));
         return appearance;
     }
 
