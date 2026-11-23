@@ -10,6 +10,7 @@ public static class Ff7NativeBattleStatuses
     public const uint Silence = 0x80;
     public const uint Haste = 0x100;
     public const uint Frog = 0x800;
+    public const uint Small = 0x1000;
     public const uint SlowNumb = 0x2000;
     public const uint Regen = 0x8000;
     public const uint Barrier = 0x10000;

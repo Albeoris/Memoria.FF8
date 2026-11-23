@@ -38,7 +38,7 @@ public sealed partial class Ff7BattleSession
 
     public short ActorProjectedScreenX(int slot) => ActorModelState(slot).Render?.ProjectedScreenX ?? -1;
 
-    public bool NativeActorModelsReady => state.ActorModels.All(model => model.Ready && model.Fade is null) && state.ActorSizePresentation?.ActiveSlot is null;
+    public bool NativeActorModelsReady => state.ActorModels.All(model => model.Ready && model.Fade is null) && (state.ActorSizePresentation is null or { ActiveSlot: null, SmallScales.IsEmpty: true });
     public Ff7BattleActorModelModifiers ActorModelOutput(int slot) => ActorModelState(slot).Render?.Modifiers ?? LiveActorModelOutput(slot);
     public (int Clip, int Frame) RenderActorPose(int slot) => ActorModelState(slot).Render is { } render ? (render.Clip, render.Frame) : VisualPose(slot);
     public Ff7BattlePlacement RenderActorPlacement(int slot) => ActorModelState(slot).Render is { } render ? new(render.Position.ToVector(), render.Yaw) : PosedActorPlacement(slot);
@@ -55,6 +55,7 @@ public sealed partial class Ff7BattleSession
 
     private void InitializeActorModels(bool fresh = false)
     {
+        ushort recoveredSmall = InitializeSmallActorSizes();
         if (animations is null)
         {
             return;
@@ -69,6 +70,10 @@ public sealed partial class Ff7BattleSession
         {
             bool frog = (Actor(model.Slot).Actor.Statuses & 0x800) != 0 && !IsGuestVitalsSlot(model.Slot);
             ReplaceActorModel(frog ? model with { PresentedFrog = true, Pose = null, Render = null, Joints = null, Limit = null } : model with { PresentedFrog = false });
+        }
+        foreach (Ff7BattleActorModelState model in state.ActorModels.Where(model => (recoveredSmall & (1 << model.Slot)) != 0).ToArray())
+        {
+            ReplaceActorModel(model with { Render = null, Joints = null });
         }
         if (absent && state.Action is { Applied: true } source)
         {
@@ -396,6 +401,10 @@ public sealed partial class Ff7BattleSession
             return;
         }
         int slot = impact.Target;
+        if (impact.PostActionSmall is bool small)
+        {
+            PresentActorSmallSize(slot, small);
+        }
         Ff7BattleActorModelState model = ActorModelState(slot);
         bool frog = impact.PostActionFrog ?? (Actor(slot).Actor.Statuses & 0x800) != 0;
         if (model.PresentedFrog != frog && !IsGuestVitalsSlot(slot))

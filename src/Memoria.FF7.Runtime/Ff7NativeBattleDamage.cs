@@ -94,7 +94,7 @@ public static class Ff7NativeBattleDamage
     private const uint Sadness = 0x10;
     private const uint Fury = 0x20;
     private const uint Frog = 0x800;
-    private const uint Small = 0x1000;
+    private const uint Small = Ff7NativeBattleStatuses.Small;
     private const uint Barrier = 0x10000;
     private const uint MagicBarrier = 0x20000;
     private const uint Berserk = 0x800000;
@@ -153,7 +153,7 @@ public static class Ff7NativeBattleDamage
     {
         ArgumentNullException.ThrowIfNull(random);
         const Ff7BattleDamageAffinity supportedAffinities = Ff7BattleDamageAffinity.Double | Ff7BattleDamageAffinity.Half | Ff7BattleDamageAffinity.Nullify | Ff7BattleDamageAffinity.Absorb;
-        if (action.Formula is not (0x00 or 0x04 or 0x11 or 0x22 or 0x23 or 0x24 or 0x25 or 0x26 or 0x37 or 0x47 or 0x50 or 0x6D or 0x83 or 0xB1) || (action.Affinity & ~supportedAffinities) != 0)
+        if (action.Formula is not (0x00 or 0x04 or 0x11 or 0x22 or 0x23 or 0x24 or 0x25 or 0x26 or 0x37 or 0x47 or 0x50 or 0x6A or 0x6D or 0x83 or 0xB1) || (action.Affinity & ~supportedAffinities) != 0)
         {
             throw new NotSupportedException($"FFVII battle HP damage formula 0x{action.Formula:X2} or affinity 0x{(byte)action.Affinity:X2} is unsupported.");
         }
@@ -201,7 +201,7 @@ public static class Ff7NativeBattleDamage
         bool physical = action.Formula is 0x11 or 0xB1;
         bool hit = action.Formula switch
         {
-            0x11 or 0xB1 => PhysicalHit(attacker, target, action, accuracy, random),
+            0x11 or 0x6A or 0xB1 => PhysicalHit(attacker, target, action, accuracy, random),
             0x83 => accuracy == 0 || target.Level % accuracy == 0,
             _ => (action.Formula >> 4) != 2 || MagicHit(attacker, target, action, accuracy, random)
         };
@@ -210,13 +210,17 @@ public static class Ff7NativeBattleDamage
             return new(!hit, false, 0);
         }
 
-        bool critical = false;
+        bool critical = (action.Formula is 0x11 or 0x6A) && hit && !action.SuppressCritical && CriticalHit(attacker, target, random);
+        critical |= (physical || action.Formula == 0x6A) && action.ForceCritical;
         int damage;
         if (physical)
         {
-            critical = action.Formula == 0x11 && hit && !action.SuppressCritical && CriticalHit(attacker, target, random);
-            critical |= action.ForceCritical;
             damage = PhysicalDamage(attacker, target, action, critical, fractionBasis!.Value);
+        }
+        else if (action.Formula == 0x6A)
+        {
+            uint currentHp = target.CurrentHitPoints ?? throw new InvalidDataException("FFVII remaining-HP damage requires the target's native HP.");
+            damage = checked((int)Math.Max(0L, (long)currentHp - 1));
         }
         else if (action.Formula == 0x6D)
         {
@@ -235,7 +239,7 @@ public static class Ff7NativeBattleDamage
         {
             damage = Math.Max(action.MinimumDamage, damage);
         }
-        if (action.Formula is not (0x04 or 0x23 or 0x24 or 0x26 or 0x6D or 0x83) && !(physical && action.FractionDenominator != 0))
+        if (action.Formula is not (0x04 or 0x23 or 0x24 or 0x26 or 0x6A or 0x6D or 0x83) && !(physical && action.FractionDenominator != 0))
         {
             damage = Math.Max(1, damage * (3841 + random.NextByte()) >> 12);
         }

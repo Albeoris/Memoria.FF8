@@ -43,6 +43,52 @@ internal static class NativeBattleDamageTests
         Check(JsonSerializer.Serialize(random.Capture()) == JsonSerializer.Serialize(seed), "Adrenaline must not advance the native damage or status RNG.");
     }
 
+    public static void InstalledSaferAttacks()
+    {
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        if (string.IsNullOrWhiteSpace(root))
+        {
+            return;
+        }
+
+        Ff7Installation installation = Ff7Installation.Discover(root);
+        SceneBattleData data = SceneBattleData.Read(SceneArchive.Read(File.ReadAllBytes(installation.GetRequired(Ff7ResourceRole.BattleScenes).Path))[924]);
+        Ff7BattleAttack paleHorse = data.Attacks.Single(attack => attack.Id == 0x3BD).Data;
+        Ff7BattleAttack petrify = data.Attacks.Single(attack => attack.Id == 0x030).Data;
+        Ff7BattleAttack angel = data.Attacks.Single(attack => attack.Id == 0x3AE).Data;
+        Check(paleHorse is { DamageCalculation: 0x22, StatusMask: 0x1810 } && petrify.StatusMask == 0x4000 && angel is { DamageCalculation: 0x6A, StatusChange: byte.MaxValue, AdditionalEffect: byte.MaxValue }, "The installed Safer Sephiroth attack records changed.");
+
+        Ff7BattleDamageActor safer = Ff7NativeBattleDamage.FromEnemy(data.Enemies[0]);
+        Ff7BattleDamageActor player = new(1, 50, 0, 0, 0, 0, 0, 0, 0);
+        Ff7BattleActionVitals source = new(80000, 80000, 100, 100, 0);
+        Ff7BattleActionVitals target = new(5000, 9999, 99, 100, 0);
+        byte[] rngTable = new byte[3988];
+        Ff7BattleRng NewRandom() => new(rngTable, new(new byte[8]));
+        Ff7BattleActionReceipt horse = Ff7NativeBattleActionResolver.Resolve(safer, source, player, target, Ff7BattleDamageAction.FromAttack(paleHorse), paleHorse, NewRandom());
+        Check(horse.AddedStatuses == 0x1810 && horse.Damage.Damage > 0, "Pale Horse must admit Sadness, Frog and Small together.");
+        Ff7BattleActionReceipt broken = Ff7NativeBattleActionResolver.Resolve(safer, source, player, target with { Hp = target.MaxHp }, Ff7BattleDamageAction.FromAttack(petrify), petrify, NewRandom());
+        Check(broken.AddedStatuses == 0x4000 && !Ff7NativeBattleStatuses.IsBattleParticipant(broken.Target.Statuses, 0), $"Break must apply the existing native Petrify condition. Record {petrify}; result {broken}.");
+
+        Ff7BattleDamageAction action = Ff7BattleDamageAction.FromAttack(angel);
+        Ff7BattleRng random = NewRandom();
+        Ff7BattleRng expected = NewRandom();
+        expected.NextByte();
+        expected.NextWord();
+        expected.NextWord();
+        Ff7BattleActionReceipt hit = Ff7NativeBattleActionResolver.Resolve(safer with { Luck = 40 }, source, player, target with { Statuses = Ff7NativeBattleActionResolver.Sleep }, action, angel, random);
+        Check(hit.Damage == new Ff7BattleDamageResult(false, true, 4999) && hit.Target.Hp == 1 && hit.RemovedStatuses == Ff7NativeBattleActionResolver.Sleep, "Heartless Angel must retain the physical critical and wake results while leaving exactly 1 HP.");
+        Check(JsonSerializer.Serialize(random.Capture()) == JsonSerializer.Serialize(expected.Capture()), "A landed Heartless Angel must consume the physical setup, accuracy and critical draws and no variance.");
+        Ff7BattleActionReceipt alreadyAtOne = Ff7NativeBattleActionResolver.Resolve(safer with { Luck = 40 }, source, player, target with { Hp = 1 }, action, angel, NewRandom());
+        Check(alreadyAtOne.Damage.Damage == 0 && alreadyAtOne.Target.Hp == 1, "Heartless Angel must deal zero HP damage to its target at 1 HP.");
+
+        random = NewRandom();
+        expected = NewRandom();
+        expected.NextByte();
+        expected.NextWord();
+        Ff7BattleActionReceipt missed = Ff7NativeBattleActionResolver.Resolve(safer with { Luck = 0 }, source, player with { Luck = byte.MaxValue }, target, action, angel, random);
+        Check(missed.Damage.Missed && missed.Target == target && JsonSerializer.Serialize(random.Capture()) == JsonSerializer.Serialize(expected.Capture()), "Physical luck evasion must discard Heartless Angel and skip its critical draw.");
+    }
+
     private static void PhysicalRolls()
     {
         byte[] kernel = new byte[3988];

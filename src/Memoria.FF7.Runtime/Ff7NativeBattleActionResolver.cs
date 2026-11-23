@@ -42,8 +42,8 @@ public static class Ff7NativeBattleActionResolver
     private const uint Stop = 0x400;
 
     private const uint PhysicalWakeStatuses = Sleep | 0x40 | 0x00400000;
-    private const uint SupportedRecordStatuses = Death | Sleep | Poison | Ff7NativeBattleStatuses.Sadness | Ff7NativeBattleStatuses.Fury | Slow | Stop | Darkness | Ff7NativeBattleStatuses.SupportedRecordStatuses | Ff7NativeBattleStatuses.Frog;
     private const uint Petrify = 0x4000;
+    private const uint SupportedRecordStatuses = Death | Sleep | Poison | Ff7NativeBattleStatuses.Sadness | Ff7NativeBattleStatuses.Fury | Slow | Stop | Darkness | Ff7NativeBattleStatuses.SupportedRecordStatuses | Ff7NativeBattleStatuses.Frog | Ff7NativeBattleStatuses.Small | Petrify;
     private const uint Peerless = 0x01000000;
     private const uint DeathForce = 0x10000000;
     private const uint Resist = 0x20000000;

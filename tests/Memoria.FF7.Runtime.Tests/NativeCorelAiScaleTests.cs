@@ -11,6 +11,7 @@ internal static class NativeCorelAiScaleTests
     {
         TestOperands();
         TestPresentation();
+        TestSmallPresentation();
         TestSharedTransform();
         string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
         if (string.IsNullOrWhiteSpace(directory))
@@ -81,6 +82,27 @@ internal static class NativeCorelAiScaleTests
             }
         }
         Console.WriteLine("Native size operands/selectors/store/comparison and 23 original Corel initialization/turn/JSON continuations passed, including Bomb growth counters and owner isolation.");
+    }
+
+    private static void TestSmallPresentation()
+    {
+        Ff7BattleSizePresentation present = Ff7NativeBattleActorSize.PresentSmall(Ff7NativeBattleActorSize.Create(), 0, true);
+        for (int step = 1; step <= 16; step++)
+        {
+            present = Ff7NativeBattleActorSize.Advance(present);
+            Check(present.Scales[0] == 4096 - 128 * step && present.Scales[1] == 4096, $"Native Small scale failed on shrink callback {step}.");
+        }
+        present = Ff7NativeBattleActorSize.PresentSmall(present, 0, false);
+        Ff7BattleSizePresentation saved = JsonSerializer.Deserialize<Ff7BattleSizePresentation>(JsonSerializer.Serialize(present))!;
+        for (int step = 1; step <= 16; step++)
+        {
+            present = Ff7NativeBattleActorSize.Advance(present);
+            saved = Ff7NativeBattleActorSize.Advance(saved);
+            Check(present.Scales[0] == 2048 + 128 * step && saved.Scales.SequenceEqual(present.Scales), $"Native Small scale failed on restored growth callback {step}.");
+        }
+        present = Ff7NativeBattleActorSize.Advance(present);
+        Ff7NativeBattleActorSize.Validate(present);
+        Check(present.SmallScales.IsEmpty && present.PresentedSmallMask == 0, "Native Small callback failed to retire after its sixteen scale writes.");
     }
 
     private static void TestOperands()
