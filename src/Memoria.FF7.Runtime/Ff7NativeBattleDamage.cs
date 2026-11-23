@@ -153,7 +153,7 @@ public static class Ff7NativeBattleDamage
     {
         ArgumentNullException.ThrowIfNull(random);
         const Ff7BattleDamageAffinity supportedAffinities = Ff7BattleDamageAffinity.Double | Ff7BattleDamageAffinity.Half | Ff7BattleDamageAffinity.Nullify | Ff7BattleDamageAffinity.Absorb;
-        if (action.Formula is not (0x00 or 0x04 or 0x11 or 0x22 or 0x23 or 0x24 or 0x25 or 0x26 or 0x37 or 0x47 or 0x50 or 0x6D or 0xB1) || (action.Affinity & ~supportedAffinities) != 0)
+        if (action.Formula is not (0x00 or 0x04 or 0x11 or 0x22 or 0x23 or 0x24 or 0x25 or 0x26 or 0x37 or 0x47 or 0x50 or 0x6D or 0x83 or 0xB1) || (action.Affinity & ~supportedAffinities) != 0)
         {
             throw new NotSupportedException($"FFVII battle HP damage formula 0x{action.Formula:X2} or affinity 0x{(byte)action.Affinity:X2} is unsupported.");
         }
@@ -183,6 +183,7 @@ public static class Ff7NativeBattleDamage
         {
             0x11 or 0xB1 when action.FractionDenominator != 0 => action.TargetsMagicPoints ? target.CurrentMagicPoints : target.CurrentHitPoints,
             0x23 => action.TargetsMagicPoints ? target.CurrentMagicPoints : target.CurrentHitPoints,
+            0x83 when hasDamage => action.TargetsMagicPoints ? target.CurrentMagicPoints : target.CurrentHitPoints,
             0x04 or 0x24 => action.TargetsMagicPoints ? target.MaximumMagicPoints : target.MaximumHitPoints,
             _ => 0
         };
@@ -198,7 +199,12 @@ public static class Ff7NativeBattleDamage
         }
 
         bool physical = action.Formula is 0x11 or 0xB1;
-        bool hit = physical ? PhysicalHit(attacker, target, action, accuracy, random) : (action.Formula >> 4) != 2 || MagicHit(attacker, target, action, accuracy, random);
+        bool hit = action.Formula switch
+        {
+            0x11 or 0xB1 => PhysicalHit(attacker, target, action, accuracy, random),
+            0x83 => accuracy == 0 || target.Level % accuracy == 0,
+            _ => (action.Formula >> 4) != 2 || MagicHit(attacker, target, action, accuracy, random)
+        };
         if (!hasDamage)
         {
             return new(!hit, false, 0);
@@ -218,14 +224,18 @@ public static class Ff7NativeBattleDamage
         }
         else
         {
-            damage = action.Formula is 0x04 or 0x23 or 0x24 ? action.FractionDenominator == 0 ? unchecked((int)fractionBasis.Value * action.Power) / 32 : checked((int)((long)fractionBasis.Value * action.FractionNumerator / action.FractionDenominator)) : MagicDamage(attacker, target, action);
+            damage = action.Formula is 0x04 or 0x23 or 0x24 or 0x83 ? action.FractionDenominator == 0 ? unchecked((int)fractionBasis.Value * action.Power) / 32 : checked((int)((long)fractionBasis.Value * action.FractionNumerator / action.FractionDenominator)) : MagicDamage(attacker, target, action);
+            if (action.Formula == 0x83 && action.Split)
+            {
+                damage >>= 1;
+            }
         }
 
         if (action.MinimumDamage != 0)
         {
             damage = Math.Max(action.MinimumDamage, damage);
         }
-        if (action.Formula is not (0x04 or 0x23 or 0x24 or 0x26 or 0x6D) && !(physical && action.FractionDenominator != 0))
+        if (action.Formula is not (0x04 or 0x23 or 0x24 or 0x26 or 0x6D or 0x83) && !(physical && action.FractionDenominator != 0))
         {
             damage = Math.Max(1, damage * (3841 + random.NextByte()) >> 12);
         }

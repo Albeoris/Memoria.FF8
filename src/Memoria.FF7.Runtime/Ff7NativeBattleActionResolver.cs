@@ -257,7 +257,7 @@ public static class Ff7NativeBattleActionResolver
             WithdrawTarget = !receipt.Damage.Missed && record is { AdditionalEffect: 0x1B },
             ToggleTargetRow = !receipt.Damage.Missed && record is { AdditionalEffect: 0x19 },
             TheftEffect = !receipt.Damage.Missed && record is { AdditionalEffect: 0x06 or 0x07 } ? record.AdditionalEffect : null,
-            SuppressNumericPopup = record is { AdditionalEffect: 0x06 or 0x07, Power: 0 } || record is { AdditionalEffect: 0x19 } && action.Power == 0 && action.BaseDamage is null && action.FixedDamage is null && !action.SourceMissingHitPoints && action.FractionDenominator == 0
+            SuppressNumericPopup = record is { AdditionalEffect: 0x06 or 0x07, Power: 0 } || (record is { AdditionalEffect: 0x19 } || action.Formula == 0x83) && action.Power == 0 && action.BaseDamage is null && action.FixedDamage is null && !action.SourceMissingHitPoints && action.FractionDenominator == 0
         };
 
     private static Ff7BattleActionReceipt ApplyConditionImmunity(Ff7BattleActionVitals source, Ff7BattleDamageActor targetStats, Ff7BattleActionVitals target, Ff7BattleDamageAction action, Ff7BattleActionReceipt receipt)
@@ -356,6 +356,14 @@ public static class Ff7NativeBattleActionResolver
             admittedMask = Ff7GuestBattleStatuses.ResistIncoming(admittedMask, target.Statuses, originStatusResistances, random);
         }
         uint statuses = ApplyStatuses(target, targetStats.IsEnemy, targetStats.NativeConditions, record, action.Formula, admittedMask, mode, guestContact, action.IsItem, out uint pendingStatuses);
+        if (action.Formula == 0x83 && !action.IgnoreNativeAffinity && (pendingStatuses != 0 || (action.NativeElements & 8) != 0))
+        {
+            Ff7BattleDamageAffinity affinity = Ff7NativeBattleStatuses.ShieldAffinity(target.Statuses, action.NativeElements, action.IsItem, action.Affinity);
+            if ((affinity & Ff7BattleDamageAffinity.Nullify) != 0 || (targetStats.OriginBattleStatuses & Ff7GuestBattleStatuses.OriginFloat) != 0 && (action.NativeElements & 8) != 0)
+            {
+                return new(source, target, new(true, false, 0), 0, 0);
+            }
+        }
         if (!action.RequiresKnockedOutTarget && (target.Statuses & (Petrify | Peerless)) != 0)
         {
             damage = damage with { Damage = 0 };

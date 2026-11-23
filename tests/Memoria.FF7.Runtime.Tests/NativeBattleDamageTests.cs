@@ -10,6 +10,7 @@ internal static class NativeBattleDamageTests
         PhysicalRolls();
         InstalledOpeningAttacks();
         InstalledAireTamStorm();
+        InstalledLevelDeath();
     }
 
     private static void PhysicalRolls()
@@ -135,6 +136,48 @@ internal static class NativeBattleDamageTests
         Ff7BattleRng resistRandom = new(kernel[2].Data.Span, Ff7BattleRng.BeginBattle());
         Ff7BattleActionReceipt resisted = Ff7NativeBattleActionResolver.Resolve(attacker, source, player, new(9999, 9999, 999, 999, dispelled | 0x20000000), action, record, resistRandom);
         Check(resisted.RemovedStatuses == 0x20000000 && resisted.Target.Statuses == dispelled, "Native Resist protects the other statuses from the same dispel contact.");
+    }
+
+    private static void InstalledLevelDeath()
+    {
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        if (string.IsNullOrWhiteSpace(root))
+        {
+            return;
+        }
+
+        Ff7Installation installation = Ff7Installation.Discover(root);
+        IReadOnlyList<KernelSection> kernel = KernelArchive.Read(File.ReadAllBytes(installation.GetRequired(Ff7ResourceRole.Kernel).Path));
+        SceneBattleData data = SceneBattleData.Read(SceneArchive.Read(File.ReadAllBytes(installation.GetRequired(Ff7ResourceRole.BattleScenes).Path))[869]);
+        Ff7BattleAttack record = data.Attacks.Single(attack => attack.Id == 0x31E).Data;
+        Check(record is { DamageCalculation: 0x83, Accuracy: 4, Power: 0, StatusChange: 63, StatusMask: 1, Elements: 0x2000 }, "The installed level-based Death attack record changed.");
+
+        SceneBattleEnemy enemy = data.Enemies.First(enemy => enemy.Placement.EnemyId == 295);
+        Ff7BattleDamageActor attacker = Ff7NativeBattleDamage.FromEnemy(enemy);
+        Ff7BattleDamageActor player = new(40, 0, 0, 0, 0, 0, 0, 0, 0);
+        Ff7BattleActionVitals source = new(enemy.MaxHitPoints, enemy.MaxHitPoints, enemy.MaxMagicPoints, enemy.MaxMagicPoints, 0);
+        Ff7BattleActionVitals target = new(101, 300, 89, 100, 0);
+        Ff7BattleDamageAction action = Ff7BattleDamageAction.FromAttack(record);
+        Ff7BattleRngState seed = Ff7BattleRng.BeginBattle();
+        Ff7BattleRng random = new(kernel[2].Data.Span, seed);
+
+        Ff7BattleActionReceipt matched = Ff7NativeBattleActionResolver.Resolve(attacker, source, player, target, action, record, random);
+        Check(matched.Damage == new Ff7BattleDamageResult(false, false, 0) && matched.AddedStatuses == Ff7NativeBattleActionResolver.Death && matched.SuppressNumericPopup, "The matching level must admit Death with zero numeric damage.");
+
+        Ff7BattleActionReceipt missed = Ff7NativeBattleActionResolver.Resolve(attacker, source, player with { Level = 41 }, target, action, record, random);
+        Check(missed.Damage.Missed && missed.Target == target && missed.AddedStatuses == 0, "A nonmatching level must discard the pending Death status.");
+
+        Ff7BattleActionReceipt immune = Ff7NativeBattleActionResolver.Resolve(attacker, source, player, target with { StatusImmunities = Ff7NativeBattleActionResolver.Death }, action, record, random);
+        Check(immune.Target.Hp == target.Hp && immune.AddedStatuses == 0, "Death immunity must protect a matching level.");
+
+        Ff7BattleActionVitals shielded = target with { Statuses = Ff7NativeBattleStatuses.Shield };
+        Ff7BattleActionReceipt nullified = Ff7NativeBattleActionResolver.Resolve(attacker, source, player, shielded, action, record, random);
+        Check(nullified.Damage.Missed && nullified.Target == shielded && nullified.AddedStatuses == 0, "Nullification must clear the pending status transaction.");
+
+        Ff7BattleDamageAction fractional = action with { Power = 12, Split = true, Affinity = Ff7BattleDamageAffinity.Half };
+        Check(Ff7NativeBattleDamage.Resolve(attacker, player with { CurrentHitPoints = target.Hp }, fractional, random) == new Ff7BattleDamageResult(false, false, 9), "A powered level formula must scale current HP, split, then apply affinity.");
+        Check(Ff7NativeBattleDamage.Resolve(attacker, player with { Level = 41, CurrentMagicPoints = target.Mp }, fractional with { Accuracy = 0, TargetsMagicPoints = true }, random) == new Ff7BattleDamageResult(false, false, 8), "A zero divisor skips the level check, and the MP variant must use current MP.");
+        Check(JsonSerializer.Serialize(random.Capture()) == JsonSerializer.Serialize(seed), "The level predicate, fraction, and guaranteed status must not advance native RNG.");
     }
 
     private static void CheckInstalledHit(KernelSection randomTable, Ff7BattleDamageActor attacker, Ff7BattleDamageActor target, Ff7BattleDamageAction action, int expectedDamage, uint wordCount, byte firstStreamIndex)
