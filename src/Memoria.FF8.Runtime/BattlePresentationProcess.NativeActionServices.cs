@@ -7,15 +7,20 @@ public sealed partial class BattlePresentationProcess
     private NativeBattleGraphicsState ApplyNativeActiveHeaderContacts(NativeBattleGraphicsState graphics, BattleModelOwner? sequenceOwner = null)
     {
         BattleActionHeaderReference index = nativeActionPackets.ActiveHeader ?? throw new InvalidDataException("Native50A670 requires its actual active header pointer.");
-        NativeBattleContactOrigin origin = sequenceOwner is not null && sequenceOwner == nativeActionPackets.ReadHeader(index).Source ? NativeBattleContactOrigin.SourceModelSequence : NativeBattleContactOrigin.Ordinary;
-        return ApplyNativeHeaderContacts(graphics, index, origin);
+        if (sequenceOwner is null)
+        {
+            return ApplyNativeHeaderContacts(graphics, index);
+        }
+        BattleModelOwner source = nativeActionPackets.ReadHeader(index).Source;
+        NativeBattleContactOrigin origin = sequenceOwner == source ? NativeBattleContactOrigin.SourceModelSequence : NativeBattleContactOrigin.Ordinary;
+        return ApplyNativeHeaderContacts(graphics, index, origin, new(index, source, sequenceOwner));
     }
 
-    private NativeBattleGraphicsState ApplyNativeHeaderContacts(NativeBattleGraphicsState graphics, BattleActionHeaderReference header, NativeBattleContactOrigin origin = NativeBattleContactOrigin.Ordinary)
+    private NativeBattleGraphicsState ApplyNativeHeaderContacts(NativeBattleGraphicsState graphics, BattleActionHeaderReference header, NativeBattleContactOrigin origin = NativeBattleContactOrigin.Ordinary, NativeBattleModelSequenceContact? sequenceContact = null)
     {
         //506BA0 reads this physical header range. The temporary projection is consumed here, never persisted as another contact owner.
         var contacts = nativeActionPackets.ReadHeaderContacts(header);
-        NativeBattleGraphicsState applied = ConsumeNativeGraphicsContactsFrom(graphics with { PendingContacts = contacts }, origin);
+        NativeBattleGraphicsState applied = ConsumeNativeGraphicsContactsFrom(graphics with { PendingContacts = contacts }, origin, sequenceContact);
         return applied with { PendingContacts = graphics.PendingContacts };
     }
 

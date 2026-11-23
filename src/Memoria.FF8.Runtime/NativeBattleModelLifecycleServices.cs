@@ -25,6 +25,7 @@ internal enum NativeBattleContactOrigin
     SourceModelSequence,
     BombGlowDirector
 }
+internal readonly record struct NativeBattleModelSequenceContact(BattleActionHeaderReference Header, BattleModelOwner HeaderSource, BattleModelOwner Owner);
 
 internal abstract record NativeBattlePresentationReceipt;
 internal sealed record NativeBattlePresentationContactReceived(NativeBattleContactPacket Packet, HostedRenzokukenContact? Renzokuken = null, BattlePresentationProcess.HostedPresentationInvocation? Invocation = null) : NativeBattlePresentationReceipt;
@@ -55,8 +56,11 @@ internal sealed record NativeBattleGuardianFormLanded(BattlePresentationProcess.
 
 internal sealed class NativeBattleModelLifecycleServices(ImmutableDictionary<BattleModelOwner, NativeBattleModelActorFacts> facts)
 {
+    private readonly record struct ModelSequenceDelivery(NativeBattleModelSequenceContact Producer, NativeBattleContactPacket Packet, bool Shared = false);
+
     private readonly ImmutableArray<NativeBattlePresentationReceipt>.Builder receipts = ImmutableArray.CreateBuilder<NativeBattlePresentationReceipt>();
     private NativeBattleContactPacket? bombDirectorContact;
+    private Dictionary<(BattleActionHeaderReference, BattleContactOccurrence), ModelSequenceDelivery>? modelSequenceContacts;
 
     internal ImmutableDictionary<BattleModelOwner, NativeBattleModelActorFacts> Facts { get; } = facts ?? throw new ArgumentNullException(nameof(facts));
     internal HostedNativeAllocationFrame? Allocation { get; init; }
@@ -80,10 +84,10 @@ internal sealed class NativeBattleModelLifecycleServices(ImmutableDictionary<Bat
 
     internal void EmitAllocationGate() => receipts.Add(new NativeBattleAllocationGateReached());
 
-    internal void EmitContact(NativeBattleContactPacket packet, HostedRenzokukenContact? renzokuken = null, NativeBattleContactOrigin origin = NativeBattleContactOrigin.Ordinary, BattlePresentationProcess.HostedPresentationInvocation? invocation = null)
+    internal void EmitContact(NativeBattleContactPacket packet, HostedRenzokukenContact? renzokuken = null, NativeBattleContactOrigin origin = NativeBattleContactOrigin.Ordinary, BattlePresentationProcess.HostedPresentationInvocation? invocation = null, NativeBattleModelSequenceContact? sequenceContact = null)
     {
         // Bomb's director and the caster's AA both run the same physical contact in one frame.
-        if (origin == NativeBattleContactOrigin.SourceModelSequence && packet.Occurrence is not null && packet == bombDirectorContact)
+        if (origin == NativeBattleContactOrigin.SourceModelSequence && packet.Occurrence is { } occurrence && occurrence == bombDirectorContact?.Occurrence && packet == bombDirectorContact)
         {
             bombDirectorContact = null;
             return;
@@ -92,7 +96,30 @@ internal sealed class NativeBattleModelLifecycleServices(ImmutableDictionary<Bat
         {
             bombDirectorContact = packet;
         }
+        if (sequenceContact is { } sequence && packet.Occurrence is { } physical && SharesModelSequenceDelivery(sequence, physical, packet))
+        {
+            return;
+        }
         receipts.Add(new NativeBattlePresentationContactReceived(packet, renzokuken, invocation));
+    }
+
+    private bool SharesModelSequenceDelivery(NativeBattleModelSequenceContact producer, BattleContactOccurrence occurrence, NativeBattleContactPacket packet)
+    {
+        // AA traverses the active header in both models. Only the hosted receipt is shared.
+        modelSequenceContacts ??= new();
+        var key = (producer.Header, occurrence);
+        if (!modelSequenceContacts.TryGetValue(key, out ModelSequenceDelivery first))
+        {
+            modelSequenceContacts.Add(key, new(producer, packet));
+            return false;
+        }
+        if (first.Shared || first.Producer.Owner == producer.Owner || first.Producer.HeaderSource != producer.HeaderSource ||
+            first.Producer.Owner != producer.HeaderSource && producer.Owner != producer.HeaderSource || first.Packet != packet)
+        {
+            return false;
+        }
+        modelSequenceContacts[key] = first with { Shared = true };
+        return true;
     }
 
     internal void EmitCompletion(NativeBattlePresentationCompletionRequested request) => receipts.Add(request);

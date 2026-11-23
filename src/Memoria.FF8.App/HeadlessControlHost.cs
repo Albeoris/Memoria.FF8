@@ -62,6 +62,10 @@ internal static class HeadlessControlHost
         }
         void Save(string path)
         {
+            if (world.Battle is not null || session.HasActiveBattle)
+            {
+                throw new InvalidOperationException("Research checkpoints require a boundary outside battle.");
+            }
             path = Path.GetFullPath(path);
             if (playerSaves.ContainsPath(path))
             {

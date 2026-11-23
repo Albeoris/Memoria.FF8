@@ -25,13 +25,62 @@ public sealed class NativeBattleHostedModelLifecycleTests
         services.EmitContact(bomb, origin: NativeBattleContactOrigin.BombGlowDirector);
         services.EmitContact(other, origin: NativeBattleContactOrigin.SourceModelSequence);
         services.EmitContact(bomb with { }, origin: NativeBattleContactOrigin.SourceModelSequence);
-        Assert.Equal(new[] { bomb, other }, services.ReadOrderedReceipts().OfType<NativeBattlePresentationContactReceived>().Select(receipt => receipt.Packet));
+        Assert.Equal(new[] { 4, 5 }, services.ReadOrderedReceipts().OfType<NativeBattlePresentationContactReceived>().Select(receipt => receipt.Packet.Occurrence!.Value.Ordinal));
 
         services.EmitContact(bomb, origin: NativeBattleContactOrigin.SourceModelSequence);
         Assert.Equal(3, services.ReadOrderedReceipts().Length);
         NativeBattleModelLifecycleServices next = new([]);
         next.EmitContact(bomb, origin: NativeBattleContactOrigin.SourceModelSequence);
         Assert.Equal(bomb, Assert.IsType<NativeBattlePresentationContactReceived>(Assert.Single(next.ReadOrderedReceipts())).Packet);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Paired_model_sequences_share_only_the_same_physical_header_occurrence(bool companionFirst)
+    {
+        NativeBattleModelSequenceContact source = new(new(2), FifthEnemy, FifthEnemy);
+        NativeBattleModelSequenceContact companion = source with { Owner = LastEnemy };
+        NativeBattleContactPacket packet = new(new(FifthEnemy, 0, 0, 0, 0, 23, 0), null) { Occurrence = new(4) };
+        NativeBattleContactPacket independent = packet with { Occurrence = new(5) };
+        NativeBattleModelLifecycleServices services = new([]);
+        var (first, second) = companionFirst ? (companion, source) : (source, companion);
+
+        services.EmitContact(packet, sequenceContact: first);
+        services.EmitContact(independent, sequenceContact: first);
+        services.EmitContact(packet with { }, sequenceContact: second);
+        services.EmitContact(independent with { }, sequenceContact: second);
+
+        Assert.Equal(new[] { 4, 5 }, services.ReadOrderedReceipts().OfType<NativeBattlePresentationContactReceived>().Select(receipt => receipt.Packet.Occurrence!.Value.Ordinal));
+        services.EmitContact(packet, sequenceContact: second);
+        Assert.Equal(3, services.ReadOrderedReceipts().Length);
+
+        NativeBattleModelLifecycleServices nextFrame = new([]);
+        nextFrame.EmitContact(packet, sequenceContact: second);
+        Assert.Same(packet, Assert.IsType<NativeBattlePresentationContactReceived>(Assert.Single(nextFrame.ReadOrderedReceipts())).Packet);
+    }
+
+    [Fact]
+    public void Duplicate_contact_guard_still_receives_unmatched_model_sequence_deliveries()
+    {
+        NativeBattleModelSequenceContact source = new(new(2), FifthEnemy, FifthEnemy);
+        NativeBattleModelSequenceContact companion = source with { Owner = LastEnemy };
+        NativeBattleContactPacket packet = new(new(FifthEnemy, 0, 0, 0, 0, 23, 0), null) { Occurrence = new(4) };
+
+        AssertBothPublish(source, source, packet);
+        AssertBothPublish(source, companion with { Header = new(3) }, packet);
+        AssertBothPublish(companion, companion with { Owner = ForeignEnemy }, packet);
+        AssertBothPublish(source, companion with { HeaderSource = ForeignEnemy }, packet);
+        AssertBothPublish(source, companion, packet with { Primary = packet.Primary with { Amount6 = 24 } });
+        AssertBothPublish(source, null, packet);
+
+        void AssertBothPublish(NativeBattleModelSequenceContact first, NativeBattleModelSequenceContact? second, NativeBattleContactPacket secondPacket)
+        {
+            NativeBattleModelLifecycleServices services = new([]);
+            services.EmitContact(packet, sequenceContact: first);
+            services.EmitContact(secondPacket, sequenceContact: second);
+            Assert.Equal(2, services.ReadOrderedReceipts().Length);
+        }
     }
 
     [Fact]

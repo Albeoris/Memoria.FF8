@@ -209,18 +209,18 @@ public sealed partial class BattlePresentationProcess
         return ConsumeNativeGraphicsContactsFrom(graphics, NativeBattleContactOrigin.Ordinary);
     }
 
-    private NativeBattleGraphicsState ConsumeNativeGraphicsContactsFrom(NativeBattleGraphicsState graphics, NativeBattleContactOrigin origin)
+    private NativeBattleGraphicsState ConsumeNativeGraphicsContactsFrom(NativeBattleGraphicsState graphics, NativeBattleContactOrigin origin, NativeBattleModelSequenceContact? sequenceContact = null)
     {
         if (HasBattleEntry)
         {
             NativeBattleModelLifecycleServices services = hostedFrameServices ?? throw new InvalidOperationException("Hosted graphics contacts require the current frame's actor facts.");
-            return ConsumeHostedNativeGraphicsContacts(graphics, services, origin);
+            return ConsumeHostedNativeGraphicsContacts(graphics, services, origin, sequenceContact);
         }
         presentationContacts.AddRange(graphics.PendingContacts);
         return graphics with { PendingContacts = [] };
     }
 
-    private NativeBattleGraphicsState ConsumeHostedNativeGraphicsContacts(NativeBattleGraphicsState graphics, NativeBattleModelLifecycleServices services, NativeBattleContactOrigin origin)
+    private NativeBattleGraphicsState ConsumeHostedNativeGraphicsContacts(NativeBattleGraphicsState graphics, NativeBattleModelLifecycleServices services, NativeBattleContactOrigin origin, NativeBattleModelSequenceContact? sequenceContact)
     {
         BattleModelRoster roster = HostedPlannedModelRoster;
         services.ValidateCurrentModels(roster, graphics);
@@ -263,7 +263,7 @@ public sealed partial class BattlePresentationProcess
             NativeBattleContactHalf primary = packet.Primary;
             uint rawStatus = services.Facts[primary.Recipient]!.RawBattleStatuses!.Value;
             NativeBattleContactEffectPlan plan = NativeBattleContactEffects.Plan(primary, graphics.ActorModels, rules, rawStatus);
-            services.EmitContact(packet, ReadHostedRenzokukenContact(packet), origin, hostedPresentationInvocation);
+            services.EmitContact(packet, ReadHostedRenzokukenContact(packet), origin, hostedPresentationInvocation, sequenceContact);
             graphics = ApplyNativeGraphicsContact(graphics, primary, plan, services);
             if (plan.Loaded && packet.Secondary is { } half)
             {
