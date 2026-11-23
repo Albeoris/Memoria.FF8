@@ -200,6 +200,7 @@ public sealed class NativeBattlePotion52Tests
         BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(16), -1);
         NativeBattlePoseSource source = new(skeleton.ToImmutableArray(), [1, 0, 0, 0, 8, 0, 0, 0, 1, 0, 0, 0]);
         NativeBattleActionMatrix camera = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 30000, 4096);
-        return (frame, new(packets, camera, index => new(0) { SequenceState = new() { Pose = 0, PoseFrame114 = 1 } }, _ => source));
+        NativeBattleGraphicsModel model = NativeBattleBodyBoneMatrices.Publish508C90(new(0) { SequenceState = new() { Pose = 0, PoseFrame114 = 1 } }, source);
+        return (frame, new(packets, camera, _ => model, _ => source));
     }
 }

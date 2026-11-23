@@ -85,7 +85,7 @@ public sealed class NativeBattleDrain39ControllerTests
         Assert.Equal(0u, sound.Flags);
         Assert.Equal((byte)128, sound.Pan);
         Assert.Equal(127u, sound.Volume);
-        NativeBattleDrain39Frame independent = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleDrain39Frame>(SnapshotJson(frame))!);
+        NativeBattleDrain39Frame independent = NativeBattleTestSnapshots.Independent(frame);
         Assert.Equal(SnapshotJson(NativeBattleDrain39Controller.Advance851510(frame, fixture.Inputs, Resources(), Leaf)), SnapshotJson(NativeBattleDrain39Controller.Advance851510(independent, fixture.Inputs, Resources(), Leaf)));
     }
 
@@ -126,7 +126,7 @@ public sealed class NativeBattleDrain39ControllerTests
         NativeBattleEffectTimUpload copy = Assert.IsType<NativeBattleEffectTimUpload>(frame.Memory.Textures!.Slots[0]);
         Assert.Equal((byte)3, copy.Kind);
         Assert.Equal(new NativeBattleEffectVramCopy(1, 2, 3, 4, 5, 6), copy.Copy);
-        NativeBattleDrain39Frame independent = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleDrain39Frame>(SnapshotJson(frame))!);
+        NativeBattleDrain39Frame independent = NativeBattleTestSnapshots.Independent(frame);
         NativeBattleDrain39LeafStep Leaf(NativeBattleDrain39Frame current, uint _) => new(current, 0);
         NativeBattleDrain39ControllerStep actual = NativeBattleDrain39Controller.Advance851510(frame, inputs, Resources(), Leaf);
         NativeBattleDrain39ControllerStep restored = NativeBattleDrain39Controller.Advance851510(independent, inputs, Resources(), Leaf);
@@ -214,8 +214,9 @@ public sealed class NativeBattleDrain39ControllerTests
         BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(2), 4096);
         BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(16), -1);
         NativeBattlePoseSource source = new(skeleton.ToImmutableArray(), [1, 0, 0, 0, 8, 0, 0, 0, 1, 0, 0, 0]);
+        NativeBattleGraphicsModel model = NativeBattleBodyBoneMatrices.Publish508C90(new(0) { SequenceState = new() { Pose = 0, PoseFrame114 = 1 } }, source);
         NativeBattleActionMatrix camera = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 30000, 4096);
-        return (frame, new(packets, camera, index => new(0) { SequenceState = new() { Pose = 0, PoseFrame114 = 1 } }, _ => source) { PackedCamera = NativeBattlePackedMatrix32.FromMatrix(camera, null) });
+        return (frame, new(packets, camera, _ => model, _ => source) { PackedCamera = NativeBattlePackedMatrix32.FromMatrix(camera, null) });
     }
 
     private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));

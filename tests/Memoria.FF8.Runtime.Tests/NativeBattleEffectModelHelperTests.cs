@@ -152,6 +152,29 @@ public sealed class NativeBattleEffectModelHelperTests
         Assert.Equal(new short[] { bounds.Maximum.X, bounds.Maximum.Y, bounds.Maximum.Z }, Words(updated, 0x50));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Target_bounds_use_the_loaded_rig_before_animation_selection(bool anchorsEnabled)
+    {
+        BattleEnemyActorModel target = new(new("allocated-target"));
+        NativeBattlePoseSource source = LoadedBoundsSource(200) with { Model8FBoneAliases = [0, 0x81, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] };
+        NativeBattleGraphicsModel model = NativeBattleBodyBoneMatrices.PublishLoadedSkeleton(Model(0x8F, new(100, 200, 300), -333) with { SequenceState = new(), Flags0 = anchorsEnabled ? (ushort)3 : (ushort)1 }, source);
+        model = model with { GeometryWorldMatrix = NativeBattlePoseMatrices.PublishGeometryWorldMatrix502AB0(model, source) };
+        BattleActorModels models = new([new(target, model)]);
+        NativeBattleModulePoolTask task = TargetTask(target).WriteWord(0x32, 123).WriteWord(0x4E, 0xA55A).WriteWord(0x56, 0xB66B);
+
+        NativeBattleModulePoolTask updated = NativeBattleEffectModelHelpers.UpdateTargetWithBounds8DC610(task, models.Get, _ => source);
+
+        Assert.Equal(anchorsEnabled ? unchecked((ushort)-333) : (ushort)123, updated.ReadWord(0x32));
+        Assert.Equal(new short[] { 10, 20, 30 }, Words(updated, 0x48));
+        Assert.Equal(new short[] { 100, 200, 100 }, Words(updated, 0x50));
+        Assert.Equal((ushort)0xA55A, updated.ReadWord(0x4E));
+        Assert.Equal((ushort)0xB66B, updated.ReadWord(0x56));
+        Assert.Null(model.SequenceState!.Pose);
+        Assert.Null(model.SequenceState.DecodedPose);
+    }
+
     [Fact]
     public void Target_bounds_reject_a_retired_owner_before_reading_foreign_geometry()
     {

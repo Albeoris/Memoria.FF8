@@ -202,7 +202,7 @@ public sealed class NativeBattleAquaControllerTests
         BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(2), 4096);
         BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(16), -1);
         NativeBattlePoseSource source = new(skeleton.ToImmutableArray(), new byte[] { 1, 0, 0, 0, 8, 0, 0, 0, 1, 0, 0, 0 }.ToImmutableArray());
-        NativeBattleAquaInputs inputs = fixture.Inputs with { ReadModel = owner => Model(OriginalSlot(owner), new(0, 0, 0), 0) with { SequenceState = new() { Pose = 0, PoseFrame114 = 1 } }, ReadPoseSource = _ => source };
+        NativeBattleAquaInputs inputs = fixture.Inputs with { ReadModel = owner => NativeBattleBodyBoneMatrices.Publish508C90(Model(OriginalSlot(owner), new(0, 0, 0), 0) with { SequenceState = new() { Pose = 0, PoseFrame114 = 1 } }, source), ReadPoseSource = _ => source };
         NativeBattleAquaFrame frame = (fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = hierarchy.Pools } }).WithState(fixture.Frame.State.WithWord(0x4C, released));
         frame = NativeBattleAquaController.Advance(frame, fixture.Resources, inputs);
         Assert.Equal(expectedPhase, new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(target.Address).ReadByte(0x29));

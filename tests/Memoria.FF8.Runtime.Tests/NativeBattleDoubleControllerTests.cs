@@ -256,7 +256,8 @@ public sealed class NativeBattleDoubleControllerTests
         BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(16), -1);
         NativeBattlePoseSource source = new(skeleton.ToImmutableArray(), new byte[] { 1, 0, 0, 0, 8, 0, 0, 0, 1, 0, 0, 0 }.ToImmutableArray());
         NativeBattleActionMatrix view = NativeBattleCuragaMatrices.Identity8DD770() with { Z = 10000 };
-        NativeBattleDoubleInputs inputs = new(packets, new(view, 216, 160, 108), 0, NativeBattleGteColorInterpolation.CodeConstants45F270, index => new(0) { SequenceState = new() { Pose = 0, PoseFrame114 = 1 } }, _ => source, (current, _) => current);
+        NativeBattleGraphicsModel model = NativeBattleBodyBoneMatrices.Publish508C90(new(0) { SequenceState = new() { Pose = 0, PoseFrame114 = 1 } }, source);
+        NativeBattleDoubleInputs inputs = new(packets, new(view, 216, 160, 108), 0, NativeBattleGteColorInterpolation.CodeConstants45F270, _ => model, _ => source, (current, _) => current);
         return (frame, resources, inputs);
     }
 

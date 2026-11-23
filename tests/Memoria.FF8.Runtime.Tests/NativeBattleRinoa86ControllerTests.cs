@@ -72,7 +72,7 @@ public sealed class NativeBattleRinoa86ControllerTests
         hierarchy = appended.Hierarchy;
         hierarchy = hierarchy.Write(appended.Address, hierarchy.Read(appended.Address).WriteByte(41, 1));
         var poseFixture = NativeBattleRestorationControllerTests.Fixture(24);
-        NativeBattleRinoa86Inputs controller = fixture.Inputs with { ReadModel = poseFixture.Inputs.ReadModel, ReadPoseSource = poseFixture.Inputs.ReadPoseSource };
+        NativeBattleRinoa86Inputs controller = fixture.Inputs with { ReadModel = owner => NativeBattleBodyBoneMatrices.Publish508C90(poseFixture.Inputs.ReadModel(owner), poseFixture.Inputs.ReadPoseSource(owner)), ReadPoseSource = poseFixture.Inputs.ReadPoseSource };
         ushort contactFlag = 2;
         List<int> contacts = [];
         NativeBattleRinoa86TargetInputs inputs = new(controller, (_, _) => throw new InvalidOperationException(), _ => contactFlag, _ => throw new InvalidOperationException("No children means no scene completion read."), (current, index) =>

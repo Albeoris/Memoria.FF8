@@ -127,6 +127,7 @@ public sealed class NativeBattleCuraControllerTests
         BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(2), 4096);
         BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(16), -1);
         NativeBattlePoseSource source = new(skeleton.ToImmutableArray(), [1, 0, 0, 0, 8, 0, 0, 0, 1, 0, 0, 0]);
-        return (frame, new(packets, index => new(0) { SequenceState = new() { Pose = 0, PoseFrame114 = 1 } }, _ => source));
+        NativeBattleGraphicsModel model = NativeBattleBodyBoneMatrices.Publish508C90(new(0) { SequenceState = new() { Pose = 0, PoseFrame114 = 1 } }, source);
+        return (frame, new(packets, _ => model, _ => source));
     }
 }

@@ -39,9 +39,7 @@ public static class NativeBattleEffectModelHelpers
             return UpdateTarget8DC610(task, foreign);
         }
         task = WriteAnchors(task, model, target, readSource, null, null, null);
-        NativeBattlePoseSource source = readSource(target);
-        NativeBattleSequenceState pose = model.SequenceState ?? throw new NotSupportedException("Target bounds require its current decoded pose.");
-        return UpdateBounds8DC870(task, source, source.Sample(pose.Pose ?? throw new NotSupportedException("Target bounds require its selected pose."), pose.PoseFrame114 ?? throw new NotSupportedException("Target bounds require its decoded frame."), pose.PoseFlags109));
+        return UpdateBounds8DC870(task, model, readSource(target));
     }
 
     public static NativeBattleModulePoolTask UpdateTarget8DC610(NativeBattleModulePoolTask task, Func<BattleModelOwner, NativeBattleGraphicsModel> readModel, Func<BattleModelOwner, NativeBattlePoseSource> readSource, Action<NativeBattleBoneAnchorProducer>? observeAnchor = null, Func<BattleModelOwner, NativeBattleEffectActorGeometry?>? readForeign = null, Action<BattleModelOwner, byte>? observeForeignAnchor = null)

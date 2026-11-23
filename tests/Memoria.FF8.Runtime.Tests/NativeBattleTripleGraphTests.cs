@@ -168,7 +168,8 @@ public sealed class NativeBattleTripleGraphTests
         BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(2), 4096);
         BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(16), -1);
         NativeBattlePoseSource pose = new(skeleton.ToImmutableArray(), new byte[] { 1, 0, 0, 0, 8, 0, 0, 0, 1, 0, 0, 0 }.ToImmutableArray());
-        NativeBattleTripleInputs inputs = new(packets, new(NativeBattleCuragaMatrices.Identity8DD770() with { Z = 10000 }, 216, 160, 108), 0, NativeBattleGteColorInterpolation.CodeConstants45F270, index => new(0) { SequenceState = new() { Pose = 0, PoseFrame114 = 1 } }, _ => pose, (current, _) => current);
+        NativeBattleGraphicsModel model = NativeBattleBodyBoneMatrices.Publish508C90(new(0) { SequenceState = new() { Pose = 0, PoseFrame114 = 1 } }, pose);
+        NativeBattleTripleInputs inputs = new(packets, new(NativeBattleCuragaMatrices.Identity8DD770() with { Z = 10000 }, 216, 160, 108), 0, NativeBattleGteColorInterpolation.CodeConstants45F270, _ => model, _ => pose, (current, _) => current);
         return (frame, resources, inputs);
     }
 

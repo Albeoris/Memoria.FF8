@@ -319,7 +319,8 @@ public sealed class NativeBattleMightyGuardTests
         BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(16), -1);
         NativeBattlePoseSource pose = new(skeleton.ToImmutableArray(), [1, 0, 0, 0, 8, 0, 0, 0, 1, 0, 0, 0]);
         List<NativeBattleMightyGuardOperation> operations = [];
-        NativeBattleMightyGuardInputs inputs = new(packets, NativeBattleCuragaMatrices.Identity8DD770(), index => new(0) { Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, 4096), SequenceState = new() { Pose = 0, PoseFrame114 = 1 }, GeometryBounds52 = new(new(0, -100, 0), new(0, 400, 0)) }, _ => pose, (current, operation) =>
+        NativeBattleGraphicsModel model = NativeBattleBodyBoneMatrices.Publish508C90(new(0) { Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, 4096), SequenceState = new() { Pose = 0, PoseFrame114 = 1 }, GeometryBounds52 = new(new(0, -100, 0), new(0, 400, 0)) }, pose);
+        NativeBattleMightyGuardInputs inputs = new(packets, NativeBattleCuragaMatrices.Identity8DD770(), _ => model, _ => pose, (current, operation) =>
         {
             operations.Add(operation);
             return current;

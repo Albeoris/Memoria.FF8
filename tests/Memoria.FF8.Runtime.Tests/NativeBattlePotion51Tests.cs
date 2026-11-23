@@ -156,7 +156,8 @@ public sealed class NativeBattlePotion51Tests
         BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(2), 4096);
         BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(16), -1);
         NativeBattlePoseSource pose = new(skeleton.ToImmutableArray(), [1, 0, 0, 0, 8, 0, 0, 0, 1, 0, 0, 0]);
-        return (frame, new(packets, index => new(0) { SequenceState = new() { Pose = 0, PoseFrame114 = 1 } }, _ => pose));
+        NativeBattleGraphicsModel model = NativeBattleBodyBoneMatrices.Publish508C90(new(0) { SequenceState = new() { Pose = 0, PoseFrame114 = 1 } }, pose);
+        return (frame, new(packets, _ => model, _ => pose));
     }
 
     private static NativeBattleCuraResources Resources()
