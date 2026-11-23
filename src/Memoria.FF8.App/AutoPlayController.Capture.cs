@@ -20,7 +20,8 @@ internal sealed partial class AutoPlayController
 
     private bool captureDirty;
     private bool pendingLocationCheckpoint;
-    private const long MaximumCaptureBytes = 128L * 1024 * 1024;
+    internal const int DefaultCaptureBudgetMiB = 128;
+    internal int CaptureBudgetMiB { get; init; } = DefaultCaptureBudgetMiB;
     private sealed record CaptureRootSet(string[] Dependencies, string? Snapshot);
     private CaptureRootSet? bundleCaptureRoots;
     private (string Name, GameState State)? stagedAttempt;
@@ -132,7 +133,7 @@ internal sealed partial class AutoPlayController
         long remainingBytes = RemainingCaptureBytes(directory);
         if (remainingBytes <= 0)
         {
-            throw new IOException("Automatic exploration capture reached its 128 MiB storage budget");
+            throw new IOException($"Automatic exploration capture reached its {CaptureBudgetMiB} MiB storage budget");
         }
 
         GameState failure = CaptureFailureState(exception);
@@ -150,7 +151,7 @@ internal sealed partial class AutoPlayController
             remainingBytes -= new FileInfo(temporary).Length;
             if (remainingBytes < 0)
             {
-                throw new IOException("The failure bundle exceeds the remaining 128 MiB capture budget");
+                throw new IOException($"The failure bundle exceeds the remaining {CaptureBudgetMiB} MiB capture budget");
             }
             files.Add(filename);
         }
@@ -252,8 +253,8 @@ internal sealed partial class AutoPlayController
         }
     }
 
-    private static long RemainingCaptureBytes(string directory) =>
-        MaximumCaptureBytes - Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories).Sum(path => new FileInfo(path).Length);
+    private long RemainingCaptureBytes(string directory) =>
+        CaptureBudgetMiB * 1024L * 1024L - Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories).Sum(path => new FileInfo(path).Length);
 
     internal static void RetireClosedSearchSnapshots(AutoPlayRunState state)
     {
@@ -348,7 +349,7 @@ internal sealed partial class AutoPlayController
         }
         if (RemainingCaptureBytes(runDirectory) < 0)
         {
-            throw new IOException("Automatic exploration capture reached its 128 MiB storage budget. The last committed checkpoint remains available; stop and inspect the active search before continuing.");
+            throw new IOException($"Automatic exploration capture reached its {CaptureBudgetMiB} MiB storage budget. The last committed checkpoint remains available; stop and inspect the active search before continuing.");
         }
         captureDirty = false;
     }

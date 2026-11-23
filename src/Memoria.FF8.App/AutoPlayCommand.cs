@@ -12,6 +12,7 @@ internal static class AutoPlayCommand
         bool? battlePolicy = null;
         bool stopBeforeBattle = false;
         bool playMovies = false;
+        int captureBudgetMiB = AutoPlayController.DefaultCaptureBudgetMiB;
         List<string> launch = [];
         for (int index = 0; index < args.Length; index++)
         {
@@ -31,7 +32,7 @@ internal static class AutoPlayCommand
                 playMovies = true;
                 continue;
             }
-            if (argument is "--output" or "--resume" or "--max-steps")
+            if (argument is "--output" or "--resume" or "--max-steps" or "--capture-budget-mib")
             {
                 if (++index >= args.Length)
                 {
@@ -50,6 +51,12 @@ internal static class AutoPlayCommand
                         if (maxSteps < 1)
                         {
                             throw new ArgumentOutOfRangeException(nameof(args), "Maximum steps must be positive.");
+                        }
+                        break;
+                    case "--capture-budget-mib":
+                        if (!int.TryParse(args[index], out captureBudgetMiB) || captureBudgetMiB < 1)
+                        {
+                            throw new ArgumentOutOfRangeException(nameof(args), "The capture budget in MiB must be a positive integer.");
                         }
                         break;
                 }
@@ -90,7 +97,8 @@ internal static class AutoPlayCommand
         AutoPlayController controller = new(session, GetWorld, Restore, output, createColdProcess: () => GameWorld.CreateColdProcess(options.GameDirectory), fullBattlePlaythroughOverride: battlePolicy)
         {
             StopBeforeBattle = stopBeforeBattle,
-            PlayMovies = playMovies
+            PlayMovies = playMovies,
+            CaptureBudgetMiB = captureBudgetMiB
         };
         try
         {

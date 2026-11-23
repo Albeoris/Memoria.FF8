@@ -83,7 +83,7 @@ internal static class HeadlessControlHost
             {
                 session.SetDepartingFieldState(world.Events.Capture());
             }
-            session.Save(path);
+            session.Save(path, compact: Path.GetExtension(path).Equals(".ff8save", StringComparison.OrdinalIgnoreCase));
         }
         object Dispatch(ControlRequest request)
         {

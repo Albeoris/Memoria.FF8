@@ -172,7 +172,8 @@ internal sealed partial class AutoPlayController
     public string Status { get; private set; } = "Ready; fixed native cold-process seed 1.";
     public string? Error { get; private set; }
     public string? ReproductionPath { get; private set; }
-    public string? ResumeCommand => ReproductionPath is null ? null : $"--auto-play --resume \"{ReproductionPath}\"";
+    public string? ResumeCommand => ReproductionPath is null ? null : $"--auto-play --resume \"{ReproductionPath}\"" +
+        (CaptureBudgetMiB == DefaultCaptureBudgetMiB ? string.Empty : $" --capture-budget-mib {CaptureBudgetMiB}");
     internal AutoPlayRunState State => run;
     internal void WritePerformanceProfile() => performance.Write();
 
@@ -694,7 +695,7 @@ internal sealed partial class AutoPlayController
             Apply(new(PlayerActionKind.EnterName));
             return;
         }
-        if (session.State.Scene == SceneKind.Movie)
+        if (session.State.Scene == SceneKind.Movie && (!PlayMovies || world.CurrentDialogue is not { CanConfirm: true } movieDialogue || !world.Events.CanReceiveDialogueInput(movieDialogue)))
         {
             run.SettleFrames = 0;
             if (TryDriveCurrentLadderInput(world))

@@ -6,6 +6,9 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeSoftwareReciprocalTable([property: JsonRequired] ImmutableArray<float> Values)
 {
+    private const int FirstNormalizedByteIndex = -284;
+    private const int LastNormalizedByteIndex = -29;
+
     public static NativeSoftwareReciprocalTable Initialize463280()
     {
         ImmutableArray<float>.Builder values = ImmutableArray.CreateBuilder<float>(3000);
@@ -22,6 +25,12 @@ public sealed record NativeSoftwareReciprocalTable([property: JsonRequired] Immu
         if (Values.IsDefault || Values.Length != 3000 || height >= 3000)
         {
             throw new NotSupportedException($"Native software edge requires its initialized3000-float reciprocal owner and a physical height index0..2999; requested {height}.");
+        }
+        if (height is >= FirstNormalizedByteIndex and <= LastNormalizedByteIndex)
+        {
+            // The table immediately before the edge records is initialized by the renderer's byte normalization routine.
+            int index = height - FirstNormalizedByteIndex;
+            return Math.Clamp(index, 1, 254) / 256f;
         }
         if (height < 0)
         {

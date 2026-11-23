@@ -122,6 +122,20 @@ public sealed class NativeSoftwarePolygonEdgesTests
     }
 
     [Fact]
+    public void DescendingClippedChainUsesThePhysicalPredecessorOfTheEdgeRecords()
+    {
+        NativeSoftwarePolygonDescriptor raw = Polygon(0, [new(0, 0, 0, 0), new(4 << 16, 30, 0, 0), new(2 << 16, 1, 0, 0), new(0, 31, 0, 0)]);
+        NativeSoftwareClippedPolygon polygon = new(raw.Data.Slice(4, 8), [new(0, 0, null, null, null, null, null), new(4 << 16, 30, null, null, null, null, null), new(2 << 16, 1, null, null, null, null, null), new(0, 31, null, null, null, null, null)]);
+        byte[] image = new byte[32 * 2048];
+
+        NativeSoftwarePolygonRasterState state = NativeSoftwarePolygonEdges.Rasterize463DF0(image, State(), polygon, NativeSoftwareReciprocalTable.Initialize463280(), -1, -1, -1);
+
+        Assert.Same(polygon, state.PublishedClippedDescriptor);
+        Assert.Equal(30, state.SegmentY);
+        Assert.Equal(new ushort[] { 31, 31, 0 }, Enumerable.Range(0, 3).Select(x => Pixel(image, x, 30)));
+    }
+
+    [Fact]
     public void IndependentWholeCallRestorePreservesPublishedOwnerPhysicalAliasesAndNextPolygon()
     {
         NativeSoftwarePolygonDescriptor first = Polygon(0, [new(0, 0, 0, 0), new(4 << 16, 0, 0, 0), new(4 << 16, 2, 0, 0), new(0, 2, 0, 0)]);

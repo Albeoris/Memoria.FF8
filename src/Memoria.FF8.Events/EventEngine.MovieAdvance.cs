@@ -12,7 +12,7 @@ public sealed partial class EventEngine
         Func<int, int> advance = AdvanceMovieFrames ?? throw new NotSupportedException("Ordinary movie waiting requires its authenticated media clock callback owner.");
         NativeMovieSource? source = services.MovieSource;
         long firstFrame = Frame;
-        for (int index = 0; index < count && services.IsMoviePlaying && services.MovieSource == source && !transitionRequested && LastFault is null && !dialogues.Values.Any(dialogue => dialogue.CanConfirm); index++)
+        for (int index = 0; index < count && services.IsMoviePlaying && services.MovieSource == source && !transitionRequested && LastFault is null && !dialogues.Values.Any(dialogue => dialogue.CanConfirm && CanReceiveDialogueInput(dialogue)); index++)
         {
             int decoded = advance(1);
             if (decoded is < 0 or > 1)

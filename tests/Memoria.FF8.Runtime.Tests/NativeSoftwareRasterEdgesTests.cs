@@ -21,6 +21,24 @@ public sealed class NativeSoftwareRasterEdgesTests
     }
 
     [Fact]
+    public void NegativeHeightReadsTheRendererNormalizedByteTableBeforeTheLiveEdgeFields()
+    {
+        NativeSoftwareReciprocalTable table = NativeSoftwareReciprocalTable.Initialize463280();
+        int[] indices = [-284, -283, -282, -31, -30, -29];
+        int[] bits = [0x3B800000, 0x3B800000, 0x3C000000, 0x3F7D0000, 0x3F7E0000, 0x3F7E0000];
+        Assert.Equal(bits, indices.Select(height => BitConverter.SingleToInt32Bits(table.AtHeight(height))));
+        Assert.Throws<NotSupportedException>(() => table.AtHeight(-285));
+        Assert.Throws<NotSupportedException>(() => table.AtHeight(-28));
+
+        NativeSoftwareRasterVertex start = new(2 << 16, 30, 1024, 2048);
+        NativeSoftwareRasterVertex end = new(3 << 16, 1, 2048, 4096);
+        NativeSoftwareEdgeBuffers flat = NativeSoftwareRasterEdges.SetupUntextured463370(Buffers(), start, end, table);
+        NativeSoftwareEdgeBuffers textured = NativeSoftwareRasterEdges.SetupTextured4632C0(Buffers(), start, end, table);
+        Assert.Equal(65024, Read(flat.Step, 0));
+        Assert.Equal(new[] { 65024, 1016, 2032 }, new[] { 0, 0xC, 0x10 }.Select(offset => Read(textured.Step, offset)));
+    }
+
+    [Fact]
     public void TexturedSlopeUsesStoredFloatReciprocalBeforeBiasedRoundingAndRetainsOtherRecordBytes()
     {
         NativeSoftwareEdgeBuffers original = Buffers();
