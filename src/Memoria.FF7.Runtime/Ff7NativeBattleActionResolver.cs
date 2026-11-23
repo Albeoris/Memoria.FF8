@@ -293,10 +293,6 @@ public static class Ff7NativeBattleActionResolver
         int mode = Ff7NativeBattleStatuses.ReadRecordMode(record);
         uint mask = ReadStatusMask(record);
         uint supportedStatuses = guestContact ? Ff7GuestBattleStatuses.SupportedHost | Ff7GuestBattleStatuses.SupportedNativeOnly | Ff7NativeBattleStatuses.SupportedRecordStatuses : SupportedRecordStatuses;
-        if (mode == 1)
-        {
-            supportedStatuses |= 0x100 | Stop;
-        }
         action = ApplyFacingEffect(action, record, targetStats.NativeConditions);
         // The original 0x87 entry has no handler in any native damage-resolution phase.
         bool unsupportedEffect = record is { AdditionalEffect: not byte.MaxValue } && record is not ({ DamageCalculation: 0x6D, AdditionalEffect: 0x87 } or { AdditionalEffect: 4, AdditionalEffectModifier: <= 1 } or { AdditionalEffect: 0x06 or 0x07 or 0x19 or 0x1B });
@@ -355,7 +351,7 @@ public static class Ff7NativeBattleActionResolver
         {
             admittedMask = Ff7GuestBattleStatuses.ResistIncoming(admittedMask, target.Statuses, originStatusResistances, random);
         }
-        uint statuses = ApplyStatuses(target, targetStats.IsEnemy, targetStats.NativeConditions, record, action.Formula, admittedMask, mode, guestContact, action.IsItem, out uint pendingStatuses);
+        uint statuses = ApplyStatuses(target, targetStats.IsEnemy, targetStats.NativeConditions, record, action.Formula, admittedMask, mode, action.IsItem, out uint pendingStatuses);
         if (action.Formula == 0x83 && !action.IgnoreNativeAffinity && (pendingStatuses != 0 || (action.NativeElements & 8) != 0))
         {
             Ff7BattleDamageAffinity affinity = Ff7NativeBattleStatuses.ShieldAffinity(target.Statuses, action.NativeElements, action.IsItem, action.Affinity);
@@ -506,7 +502,7 @@ public static class Ff7NativeBattleActionResolver
         return roll < threshold;
     }
 
-    private static uint ApplyStatuses(Ff7BattleActionVitals target, bool enemy, uint conditions, Ff7BattleAttack? record, byte formula, uint mask, int mode, bool guestContact, bool item, out uint pendingStatuses)
+    private static uint ApplyStatuses(Ff7BattleActionVitals target, bool enemy, uint conditions, Ff7BattleAttack? record, byte formula, uint mask, int mode, bool item, out uint pendingStatuses)
     {
         uint immunity = target.StatusImmunities;
         if (!item && (target.Statuses & Resist) != 0)
@@ -545,11 +541,11 @@ public static class Ff7NativeBattleActionResolver
         {
             remove |= target.Statuses & PhysicalWakeStatuses;
         }
-        if ((add & Slow & ~immunity) != 0 || !guestContact && (add & Slow) != 0)
+        if ((add & Slow) != 0)
         {
-            remove |= 0x100;
+            remove |= Ff7NativeBattleStatuses.Haste;
         }
-        if (guestContact && (add & 0x100 & ~immunity) != 0)
+        if ((add & Ff7NativeBattleStatuses.Haste) != 0)
         {
             remove |= Slow;
         }

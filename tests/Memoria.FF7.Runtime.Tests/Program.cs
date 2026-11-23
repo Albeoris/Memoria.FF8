@@ -3224,6 +3224,7 @@ var tests = new (string Name, Action Run)[]
     ("installed Hammer Blaster support-model packed frames", NativeBattleTests.RunHammerBlasterClips),
     ("native opening enemy command banks and Grasslands continuation", EnemyCommandBankTests.Run),
     ("native opening combat damage", NativeBattleDamageTests.Run),
+    ("native Iron Man Adrenaline status transaction", NativeBattleDamageTests.InstalledAdrenaline),
     ("native opening flashback party storage and equipment", FlashbackPartyTests.Run),
     ("native opening request reward suppression", RewardSuppressionTests.Run),
     ("native opening character display names", CharacterDisplayNameTests.Run),

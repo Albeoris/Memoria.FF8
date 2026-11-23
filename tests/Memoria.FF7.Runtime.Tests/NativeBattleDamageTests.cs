@@ -13,6 +13,36 @@ internal static class NativeBattleDamageTests
         InstalledLevelDeath();
     }
 
+    public static void InstalledAdrenaline()
+    {
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        if (string.IsNullOrWhiteSpace(root))
+        {
+            return;
+        }
+
+        Ff7Installation installation = Ff7Installation.Discover(root);
+        IReadOnlyList<KernelSection> kernel = KernelArchive.Read(File.ReadAllBytes(installation.GetRequired(Ff7ResourceRole.Kernel).Path));
+        SceneBattleData data = SceneBattleData.Read(SceneArchive.Read(File.ReadAllBytes(installation.GetRequired(Ff7ResourceRole.BattleScenes).Path))[900]);
+        Ff7BattleAttack record = data.Attacks.Single(attack => attack.Id == 0x349).Data;
+        const uint haste = Ff7NativeBattleStatuses.Haste;
+        const uint slow = Ff7NativeBattleActionResolver.Slow;
+        const uint barrier = Ff7NativeBattleStatuses.Barrier;
+        Check(record is { DamageCalculation: 0x50, Power: 0, StatusChange: 63, StatusMask: 0x00010100, AdditionalEffect: byte.MaxValue, SpecialFlags: 0xFF7F }, "The installed Adrenaline record changed.");
+        Ff7BattleDamageActor actor = Ff7NativeBattleDamage.FromEnemy(data.Enemies[0]);
+        Ff7BattleActionVitals vitals = new(10000, 10000, 100, 100, slow, slow);
+        Ff7BattleDamageAction action = Ff7BattleDamageAction.FromAttack(record);
+        Ff7BattleRngState seed = Ff7BattleRng.BeginBattle();
+        Ff7BattleRng random = new(kernel[2].Data.Span, seed);
+        Ff7BattleActionReceipt applied = Ff7NativeBattleActionResolver.Resolve(actor, vitals, actor, vitals, action, record, random, sameActor: true);
+        Check(applied.Target.Statuses == (haste | barrier) && applied.RemovedStatuses == slow && applied.Target.Hp == vitals.Hp, "Adrenaline must bypass ordinary immunity, apply both statuses, and clear Slow without dealing damage.");
+        Check(Ff7NativeBattleStatusClock.Apply(default, vitals.Statuses, applied.Target.Statuses).Barrier == 127, "Adrenaline must initialize the native Barrier timer.");
+
+        Ff7BattleActionReceipt immune = Ff7NativeBattleActionResolver.Resolve(actor, vitals, actor, vitals, action, record with { SpecialFlags = ushort.MaxValue }, random, sameActor: true);
+        Check(immune.Target.Statuses == (slow | barrier) && immune.RemovedStatuses == 0, "Ordinary immunity to one time status must preserve the opposite status and still admit Barrier.");
+        Check(JsonSerializer.Serialize(random.Capture()) == JsonSerializer.Serialize(seed), "Adrenaline must not advance the native damage or status RNG.");
+    }
+
     private static void PhysicalRolls()
     {
         byte[] kernel = new byte[3988];

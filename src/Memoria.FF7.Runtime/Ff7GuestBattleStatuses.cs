@@ -5,7 +5,7 @@ namespace Memoria.FF7.Runtime;
 /// <summary>Projects common battle statuses between FFVIII records and the FFVII combat owner.</summary>
 public static class Ff7GuestBattleStatuses
 {
-    private const uint Haste = 0x100;
+    private const uint Haste = Ff7NativeBattleStatuses.Haste;
     private const uint Stop = 0x400;
     private const uint Petrify = 0x4000;
     private const uint Barrier = 0x10000;

@@ -8,6 +8,7 @@ public static class Ff7NativeBattleStatuses
     public const uint Fury = 0x20;
     public const uint Confusion = 0x40;
     public const uint Silence = 0x80;
+    public const uint Haste = 0x100;
     public const uint Frog = 0x800;
     public const uint SlowNumb = 0x2000;
     public const uint Regen = 0x8000;
@@ -51,7 +52,7 @@ public static class Ff7NativeBattleStatuses
         return ReadRecordMode(record) == 1 && (ReadRecordMask(record) & BeneficialDispelMask) == BeneficialDispelMask;
     }
 
-    public const uint SupportedRecordStatuses = Confusion | Silence | SlowNumb | Regen | Barrier | MagicBarrier | Reflect | Shield | DeathSentence | Peerless | Paralysis | DeathForce | Resist | Imprisoned;
+    public const uint SupportedRecordStatuses = Confusion | Silence | Haste | SlowNumb | Regen | Barrier | MagicBarrier | Reflect | Shield | DeathSentence | Peerless | Paralysis | DeathForce | Resist | Imprisoned;
 
     public static uint ReadRecordMask(Ff7BattleAttack? record)
     {

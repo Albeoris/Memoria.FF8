@@ -41,7 +41,7 @@ public static class Ff7NativeBattleStatusClock
     private const uint Sleep = Ff7NativeBattleActionResolver.Sleep;
     private const uint Poison = Ff7NativeBattleActionResolver.Poison;
     private const uint StopOrDeath = 0x401;
-    private const uint Haste = 0x100;
+    private const uint Haste = Ff7NativeBattleStatuses.Haste;
     private const uint Slow = Ff7NativeBattleActionResolver.Slow;
     private const int TimeUnit = 8192;
     private const byte SleepDuration = 100;
