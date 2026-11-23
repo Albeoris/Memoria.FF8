@@ -2,9 +2,26 @@
 
 Put one UTF-8 JSON file per movie in the `movies` directory of a native Memoria package. Use `movies/discDD_II.subtitles.json`, with the disc padded to two digits and the clip padded to at least two digits. The movie address is the same for installed and replacement video. For example, `movies/disc00_30.subtitles.json` accompanies `movies/disc00_30h.avi`, and `movies/disc04_00.subtitles.json` accompanies the startup clip.
 
-The enabled package with the highest effective priority for an address owns its whole track. Different movies can use tracks from different packages. An empty `cues` array supplies a blank track. A malformed selected track reports its owning package and document and keeps the last accepted mod publication. A playing clip keeps its selected track until playback ends. Movie timing and skip controls are owned by the existing player.
+For a standalone subtitle file, the enabled package with the highest effective priority for an address owns its whole track. Different movies can use tracks from different packages. An empty `cues` array supplies a blank track. A malformed selected track reports its owning package and document and keeps the last accepted mod publication. A playing clip keeps its selected track until playback ends. Movie timing and skip controls are owned by the existing player.
 
 You can supply a replacement in the same package as `movies/discDD_IIh.avi` or `movies/discDD_IIh.mp4`. Native Memoria movie replacements take priority over Junction videos for the same address. A same-package `movies/discDD_II.cam` can accompany the winning video. In its absence, the installed camera timeline remains active. If one package supplies both video extensions at the same address, AVI wins. See [movie lifetime and timing](file-replacements.md#movie-lifetime-and-timing) for the replacement contract.
+
+## Movie components
+
+Declare a complete movie component in `movies/components.json` when its video, camera and subtitles depend on each other.
+
+```json
+{
+  "version": 1,
+  "components": [
+    { "video": "movies/disc00_30h.avi", "priority": 100 }
+  ]
+}
+```
+
+The declared video must be at `movies/discDD_IIh.avi` or `movies/discDD_IIh.mp4`. The same package must supply `movies/discDD_II.cam` and `movies/discDD_II.subtitles.json`. The selected component owns all three resources for that movie. Loose replacements and subtitle tracks from any other package are ignored at that address, including Junction videos and cameras. Other movie addresses continue to use their own resolution rules.
+
+When enabled packages declare components for the same movie, the greatest signed 32-bit `priority` wins. Priority defaults to zero. Equal values follow normal native catalog order. Each package may declare a movie once, with up to 256 components per document. A missing component member, malformed declaration or malformed subtitle track rejects the candidate mod generation and retains the last accepted one. Disabling a package removes its component from the next publication. Playback already started retains its selected video, camera and subtitles.
 
 ## Cue timing and style
 

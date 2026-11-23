@@ -6,9 +6,9 @@ namespace Memoria.FF8;
 
 internal sealed partial class GameResourceHost
 {
-    internal sealed record MovieSubtitlePublication(IReadOnlyDictionary<(int Disc, int Movie), MovieSubtitleTrack> Tracks, IReadOnlyList<string> PackageIds);
+    internal sealed record MovieSubtitlePublication(IReadOnlyDictionary<(int Disc, int Movie), MovieSubtitleTrack> Tracks, IReadOnlyList<string> PackageIds, IReadOnlyDictionary<(int Disc, int Movie), MovieComponent> Components);
 
-    private MovieSubtitlePublication movieSubtitles = new(new Dictionary<(int, int), MovieSubtitleTrack>(), []);
+    private MovieSubtitlePublication movieSubtitles = new(new Dictionary<(int, int), MovieSubtitleTrack>(), [], new Dictionary<(int, int), MovieComponent>());
 
     public MovieSubtitleTrack? ResolveMovieSubtitles(int discIndex, int movieIndex) => movieSubtitles.Tracks.GetValueOrDefault((discIndex, movieIndex));
 
@@ -18,6 +18,13 @@ internal sealed partial class GameResourceHost
         HashSet<(int Disc, int Movie)> selected = [];
         HashSet<string> packageIds = new(StringComparer.OrdinalIgnoreCase);
         List<ModDiagnostic> failures = [];
+        IReadOnlyDictionary<(int Disc, int Movie), MovieComponent> components = PrepareMovieComponents(catalog, failures);
+        foreach (var (address, component) in components)
+        {
+            selected.Add(address);
+            tracks.Add(address, component.Track);
+            packageIds.Add(component.Video.PackageId);
+        }
         foreach (ModFile file in catalog.Files.Where(file => file.Format == ModFormat.Memoria && MoviePackagePaths.IsSubtitleDocument(file.RelativePath)))
         {
             try
@@ -39,13 +46,17 @@ internal sealed partial class GameResourceHost
                 failures.Add(new("Memoria.InvalidMovieSubtitles", exception.Message, file.PackageId, file.RelativePath));
             }
         }
-        publication = failures.Count == 0 ? new(tracks, packageIds.ToArray()) : new(new Dictionary<(int, int), MovieSubtitleTrack>(), []);
+        publication = failures.Count == 0 ? new(tracks, packageIds.ToArray(), components) : new(new Dictionary<(int, int), MovieSubtitleTrack>(), [], new Dictionary<(int, int), MovieComponent>());
         diagnostics = failures.AsReadOnly();
         return failures.Count == 0;
     }
 
-    internal static ModFile? FindFileReplacement(ModCatalogSnapshot catalog, string relative)
+    internal static ModFile? FindFileReplacement(ModCatalogSnapshot catalog, string relative, IReadOnlyDictionary<(int Disc, int Movie), MovieComponent>? components = null)
     {
+        if (components is not null && TryGetMovieComponentAddress(relative, out var address) && components.TryGetValue(address, out MovieComponent? component))
+        {
+            return relative.EndsWith(".cam", StringComparison.OrdinalIgnoreCase) ? component.Camera : component.Video;
+        }
         bool moviePath = IsMovieDirectoryPath(relative);
         bool camera = moviePath && relative.EndsWith(".cam", StringComparison.OrdinalIgnoreCase);
         if (camera)

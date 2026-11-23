@@ -4,6 +4,8 @@ namespace Memoria.FF8.Mods;
 
 public static class MoviePackagePaths
 {
+    public const string ComponentsDocument = "movies/components.json";
+
     private const string MovieDirectory = "movies/";
     private const string SubtitleExtension = ".subtitles.json";
 
@@ -44,6 +46,13 @@ public static class MoviePackagePaths
             stem = stem[..^1];
         }
         return TryReadMovieStem(stem, out _, out _);
+    }
+
+    public static bool TryGetMovieAddress(string stem, out (int Disc, int Movie) address)
+    {
+        bool valid = TryReadMovieStem(stem.AsSpan(), out int disc, out int movie);
+        address = (disc, movie);
+        return valid;
     }
 
     private static bool TryReadMovieStem(ReadOnlySpan<char> stem, out int disc, out int movie)

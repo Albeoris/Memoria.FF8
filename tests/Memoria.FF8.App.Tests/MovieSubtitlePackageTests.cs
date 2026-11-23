@@ -81,6 +81,50 @@ public sealed class MovieSubtitlePackageTests : IDisposable
         Assert.Same(nativeVideo, GameResourceHost.FindFileReplacement(catalog, path));
     }
 
+    [Fact]
+    public void MovieComponentWinsAsAUnitAndIncompleteRefreshRetainsIt()
+    {
+        const string path = "movies/disc00_30h.avi";
+        const string camera = "movies/disc00_30.cam";
+        WritePackage("loose", 1000);
+        Write("loose", path, "loose movie");
+        Write("loose", camera, "loose camera");
+        Write("loose", SubtitlePath, Document("loose subtitles"));
+        WriteMovieComponent("first", -2);
+        WriteMovieComponent("winner", 1);
+        using GameResourceHost host = OpenHost();
+
+        Assert.Equal("winner video", File.ReadAllText(host.ResolveGameFile(path)));
+        Assert.Equal("winner camera", File.ReadAllText(host.ResolveGameFile(camera)));
+        Assert.Equal("winner", Assert.Single(host.ResolveMovieSubtitles(0, 30)!.Cues).Text);
+        long generation = host.Mods.Catalog.Generation;
+
+        File.Delete(Path.Combine(root, "Mods", "Memoria", "winner", camera));
+        host.Mods.Refresh();
+        Assert.False(host.Pump(true));
+        Assert.Equal(generation, host.Mods.Catalog.Generation);
+        Assert.Equal("winner camera", File.ReadAllText(host.ResolveGameFile(camera)));
+        Assert.Equal("winner", Assert.Single(host.ResolveMovieSubtitles(0, 30)!.Cues).Text);
+        Assert.Contains(host.Mods.Diagnostics, diagnostic => diagnostic.Code == "Memoria.InvalidMovieComponents" && diagnostic.PackageId == "Memoria/winner");
+
+        Assert.True(host.Mods.SetEnabled("Memoria/winner", false).Success);
+        Assert.True(host.Pump(true));
+        Assert.Equal("first video", File.ReadAllText(host.ResolveGameFile(path)));
+        Assert.Equal("first camera", File.ReadAllText(host.ResolveGameFile(camera)));
+        Assert.Equal("first", Assert.Single(host.ResolveMovieSubtitles(0, 30)!.Cues).Text);
+    }
+
+    private void WriteMovieComponent(string id, int priority)
+    {
+        WritePackage(id, 0);
+        Write(id, MoviePackagePaths.ComponentsDocument, FormattableString.Invariant($$"""
+            { "version": 1, "components": [ { "video": "movies/disc00_30h.mp4", "priority": {{priority}} } ] }
+            """));
+        Write(id, "movies/disc00_30h.mp4", id + " video");
+        Write(id, "movies/disc00_30.cam", id + " camera");
+        Write(id, SubtitlePath, Document(id));
+    }
+
     [Theory]
     [InlineData("\"startSeconds\":0,\"startSeconds\":0,")]
     [InlineData("\"startSeconds\":-0.25,")]

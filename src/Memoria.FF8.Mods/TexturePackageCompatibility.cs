@@ -39,7 +39,7 @@ internal static class TexturePackageCompatibility
             {
                 continue;
             }
-            if (allowMovies && (MoviePackagePaths.IsSubtitleDocument(path) || MoviePackagePaths.IsNativeMovieVideo(path) || MoviePackagePaths.IsNativeMovieCamera(path)))
+            if (allowMovies && (path.Equals(MoviePackagePaths.ComponentsDocument, StringComparison.OrdinalIgnoreCase) || MoviePackagePaths.IsSubtitleDocument(path) || MoviePackagePaths.IsNativeMovieVideo(path) || MoviePackagePaths.IsNativeMovieCamera(path)))
             {
                 hasMovie = true;
                 continue;

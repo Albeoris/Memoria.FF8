@@ -20,12 +20,16 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
     private readonly string? modelSourceDirectory;
     private NativeTextureMods nativeTextureMods = NativeTextureMods.Empty;
 
-    public GameResourceHost(string gameDirectory, string? applicationBaseDirectory = null, bool watch = true, string? modsDirectory = null, string? resourceLanguage = null, string? modelSourceDirectory = null, ModDirectories? modLocations = null) : this(gameDirectory, CancellationToken.None, applicationBaseDirectory, watch, modsDirectory, resourceLanguage, modelSourceDirectory, modLocations)
+    public GameResourceHost(string gameDirectory, string? applicationBaseDirectory = null, bool watch = true, string? modsDirectory = null, string? resourceLanguage = null, string? modelSourceDirectory = null, ModDirectories? modLocations = null, bool connectEncounterMods = false) : this(gameDirectory, CancellationToken.None, applicationBaseDirectory, watch, modsDirectory, resourceLanguage, modelSourceDirectory, modLocations, connectEncounterMods)
     {
     }
 
-    private GameResourceHost(string gameDirectory, CancellationToken startupCancellationToken, string? applicationBaseDirectory = null, bool watch = true, string? modsDirectory = null, string? resourceLanguage = null, string? modelSourceDirectory = null, ModDirectories? modLocations = null)
+    private GameResourceHost(string gameDirectory, CancellationToken startupCancellationToken, string? applicationBaseDirectory = null, bool watch = true, string? modsDirectory = null, string? resourceLanguage = null, string? modelSourceDirectory = null, ModDirectories? modLocations = null, bool connectEncounterMods = false)
     {
+        if (connectEncounterMods)
+        {
+            PrepareEncounterPublication = PrepareEncounterModPublication;
+        }
         this.gameDirectory = gameDirectory;
         this.modelSourceDirectory = modelSourceDirectory;
         this.resourceLanguage = Memoria.FF8.Platform.GameResourceLanguages.Normalize(resourceLanguage);
@@ -84,7 +88,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
     public string ResolveGameFile(string dataRelativePath)
     {
         string relative = ModCatalogSnapshot.NormalizePath(dataRelativePath);
-        ModFile? replacement = FindFileReplacement(Mods.Catalog, relative);
+        ModFile? replacement = FindFileReplacement(Mods.Catalog, relative, movieSubtitles.Components);
         if (replacement is null)
         {
             if (Resources.GetSource<IGameFileSource>() is { } files)
