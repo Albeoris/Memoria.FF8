@@ -370,6 +370,13 @@ public sealed record BattleCombatantSnapshot(string Id, int CurrentHp, int Atb)
 
 public sealed record BattleSnapshot
 {
+    public ImmutableDictionary<string, NativeBattleVector> ReadPresentationInitialPositions()
+    {
+        return PresentationContinuation?.Resources.NativeGraphics?.Bindings.Where(binding => binding.InitialPosition.HasValue)
+            .ToImmutableDictionary(binding => binding.ActorId, binding => binding.InitialPosition!.Value, StringComparer.Ordinal)
+            ?? ImmutableDictionary<string, NativeBattleVector>.Empty;
+    }
+
     [JsonIgnore]
     internal BattlePresentationSnapshot? PresentationContinuation { get; init; }
     [JsonIgnore]

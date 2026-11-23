@@ -65,10 +65,11 @@ public sealed class MixedEnemyProvenanceTests
         GameWorld.ValidateBattleDefinition(current, world.CreateEncounterBattle(164, restoredDefinition: rebound));
 
         BattleSession battle = new(rebound, BattleAtbMode.TurnBased);
-        var positions = new BattleFormationPositions(rebound, encounter).ReadPositions(battle);
+        var positions = new BattleFormationPositions(rebound, encounter, assets.ReadEnemyNativeGraphicsResource).ReadPositions(battle);
         Assert.Equal(encounter.Slots[3].NativePosition, positions["enemy-3"]);
-        Assert.Equal(ExpandedBattleFormation.AddedEnemyPosition(8, sources.Count), positions["enemy-8"]);
-        Assert.Equal(ExpandedBattleFormation.AddedEnemyPosition(9, sources.Count), positions["enemy-9"]);
+        Assert.NotEqual(positions["enemy-8"], positions["enemy-9"]);
+        short front = encounter.Enemies.Max(slot => slot.NativePosition!.Value.Z);
+        Assert.All(new[] { positions["enemy-8"], positions["enemy-9"] }, position => Assert.True(position.Z <= front));
     }
 
     [Fact]

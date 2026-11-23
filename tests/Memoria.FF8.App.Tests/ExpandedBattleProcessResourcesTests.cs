@@ -86,7 +86,8 @@ public sealed class ExpandedBattleProcessResourcesTests
         Assert.True(entry.Combatants.Count(actor => actor.IsPlayer) > NativeBattleSlots.AllyCount || entry.AddedEnemySources is { Count: > 0 });
         Assert.True(entry.UsesOriginalEnemySlots);
 
-        Assert.Equal(world.BattleResources.LoadEncounter(formation).Flags, entry.NativeEntry!.FormationFlags);
+        BattleEncounter authored = world.BattleResources.LoadEncounter(formation);
+        Assert.Equal(authored.Flags, entry.NativeEntry!.FormationFlags);
         Assert.NotNull(logical.NativeEntryAdvantage);
         Assert.Equal(5, entry.AddedEnemySources!.Count);
         Assert.Equal(Enumerable.Range(8, 5), entry.AddedEnemySources.Keys);
@@ -113,6 +114,9 @@ public sealed class ExpandedBattleProcessResourcesTests
         Assert.Equal(4, roster.Party.Count());
         Assert.Equal(6, roster.Enemies.Count());
         Assert.Equal(world.BattleResources.ReadNativePcUiIcons().Binding, selected.NativeGraphics!.PcUiIcons);
+        BattleEnemyPlacement original = Assert.Single(authored.Enemies);
+        NativeBattleGraphicsBinding originalBinding = Assert.Single(selected.NativeGraphics.Bindings, binding => binding.ActorId == $"enemy-{original.Slot}");
+        Assert.Equal(original.NativePosition, originalBinding.InitialPosition);
         Assert.False(process.EntryReady);
 
         bool observedSparseModelLoad = false;
@@ -153,6 +157,15 @@ public sealed class ExpandedBattleProcessResourcesTests
         Assert.Equal(0, logical.Frame);
         Assert.Equal(process.Graphics.Callback, logical.NativeHostCallbacks);
         Assert.Same(process, logical.Presentation);
+
+        BattleSnapshot snapshot = logical.CaptureForContinuation();
+        BattleSession restored = InstalledBattlePresentation.Restore(snapshot, game, world.BattleResources);
+        BattlePresentationProcess restoredProcess = Assert.IsType<BattlePresentationProcess>(restored.Presentation);
+        var callbackTime = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + 29) / 30);
+        logical.AdvanceNativeGraphicsPresentation(callbackTime, TimeSpan.Zero);
+        restored.AdvanceNativeGraphicsPresentation(callbackTime, TimeSpan.Zero);
+        Assert.Equal(process.Graphics.Callback, restoredProcess.Graphics.Callback);
+        Assert.All(roster.Enemies, owner => Assert.Equal(process.Graphics.ActorModels.Get(owner).Transform, restoredProcess.Graphics.ActorModels.Get(owner).Transform));
         Assert.Same(process, world.Battle!.Presentation);
     }
 
@@ -199,7 +212,10 @@ public sealed class ExpandedBattleProcessResourcesTests
         }
         NativeBattleGraphicsBinding added = Assert.Single(selected.NativeGraphics!.Bindings, binding => binding.ActorId == "enemy-8");
         Assert.Equal(donor.NativeModelId, (int)added.ModelId);
-        Assert.Equal(ExpandedBattleFormation.AddedEnemyPosition(8, 1), added.InitialPosition);
+        NativeBattleVector originalPosition = encounter.Slots[0].NativePosition!.Value;
+        NativeBattleVector addedPosition = Assert.IsType<NativeBattleVector>(added.InitialPosition);
+        Assert.NotEqual(originalPosition, addedPosition);
+        Assert.True(addedPosition.Z <= originalPosition.Z);
         Assert.Equal(assets.ReadEnemyNativeInformation246(donor.ModelId), entry.Combatants.Single(actor => actor.Id == "enemy-8").Information246);
     }
 

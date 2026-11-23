@@ -4,13 +4,28 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8;
 
-internal sealed class InstalledBattlePresentation(GameAssets game, BattleAssets assets, BattleDefinition definition, BattleEncounter? encounter)
+internal sealed class InstalledBattlePresentation
 {
-    private readonly BattleFormationPositions positions = new(definition, encounter);
-    private readonly NativeBattlePrimitiveTables tables = assets.ReadNativePrimitiveTables();
-    private readonly NativeSoftwarePrimitiveTable softwareTable = assets.ReadNativeSoftwarePrimitiveTable();
-    private readonly NativeBattleGraphicsRules rules = game.ReadNativeBattleGraphicsRules();
-    private readonly Dictionary<(bool IsPlayer, int Model, int Costume, int? Weapon), NativeBattleGraphicsResource> actorResources = [];
+    private readonly GameAssets game;
+    private readonly BattleAssets assets;
+    private readonly BattleDefinition definition;
+    private readonly BattleFormationPositions positions;
+    private readonly NativeBattlePrimitiveTables tables;
+    private readonly NativeSoftwarePrimitiveTable softwareTable;
+    private readonly NativeBattleGraphicsRules rules;
+    private readonly Dictionary<(int Model, int Costume, int? Weapon), NativeBattleGraphicsResource> partyResources = [];
+    private readonly Dictionary<int, NativeBattleGraphicsResource> enemyResources = [];
+
+    private InstalledBattlePresentation(GameAssets game, BattleAssets assets, BattleDefinition definition, BattleEncounter? encounter, IReadOnlyDictionary<string, NativeBattleVector>? retainedPositions)
+    {
+        this.game = game;
+        this.assets = assets;
+        this.definition = definition;
+        positions = new(definition, encounter, ReadEnemyResource, retainedPositions);
+        tables = assets.ReadNativePrimitiveTables();
+        softwareTable = assets.ReadNativeSoftwarePrimitiveTable();
+        rules = game.ReadNativeBattleGraphicsRules();
+    }
 
     internal static BattleSession Attach(BattleSession owner, GameAssets game, BattleAssets assets, BattleEncounter? encounter = null)
     {
@@ -30,7 +45,7 @@ internal sealed class InstalledBattlePresentation(GameAssets game, BattleAssets 
         {
             encounter = assets.LoadEncounter(encounterId);
         }
-        InstalledBattlePresentation installed = new(game, assets, definition, encounter);
+        InstalledBattlePresentation installed = new(game, assets, definition, encounter, continuation?.ReadPresentationInitialPositions());
         BattlePresentationResources resources = installed.BindResources(owner);
         if (continuation is null)
         {
@@ -99,11 +114,25 @@ internal sealed class InstalledBattlePresentation(GameAssets game, BattleAssets 
 
     private NativeBattleGraphicsResource GetResource(BattleSession owner, BattleCombatant actor)
     {
-        (bool IsPlayer, int Model, int Costume, int? Weapon) key = (actor.IsPlayer, actor.ModelId, actor.Costume, actor.WeaponId);
-        if (!actorResources.TryGetValue(key, out NativeBattleGraphicsResource? resource))
+        if (!actor.IsPlayer)
         {
-            resource = key.IsPlayer ? assets.ReadNativeGraphicsResource(owner.GetCombatantDefinition(actor.Id)) : assets.ReadEnemyNativeGraphicsResource(key.Model);
-            actorResources.Add(key, resource);
+            return ReadEnemyResource(actor.ModelId);
+        }
+        var key = (actor.ModelId, actor.Costume, actor.WeaponId);
+        if (!partyResources.TryGetValue(key, out NativeBattleGraphicsResource? resource))
+        {
+            resource = assets.ReadNativeGraphicsResource(owner.GetCombatantDefinition(actor.Id));
+            partyResources.Add(key, resource);
+        }
+        return resource;
+    }
+
+    private NativeBattleGraphicsResource ReadEnemyResource(int model)
+    {
+        if (!enemyResources.TryGetValue(model, out NativeBattleGraphicsResource? resource))
+        {
+            resource = assets.ReadEnemyNativeGraphicsResource(model);
+            enemyResources.Add(model, resource);
         }
         return resource;
     }
