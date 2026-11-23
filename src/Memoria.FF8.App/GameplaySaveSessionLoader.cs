@@ -47,9 +47,9 @@ internal static class GameplaySaveSessionLoader
         using GameAssets? ownedAssets = sharedAssets is null ? new GameAssets(gameDirectory, resources: resources, modelOverrides: modelOverrides) : null;
         GameAssets assets = sharedAssets ?? ownedAssets!;
         ResourceService selectedResources = resources ?? assets.Resources;
-        if (modelOverrides is GameResourceHost host && !host.SetGameplayDifficulty(document.Progression!.Rules.Preferences.Difficulty))
+        if (modelOverrides is GameResourceHost host)
         {
-            throw new InvalidOperationException(GameResourceHost.GameplayDifficultyProfilePending);
+            host.PrepareStartupGameplayDifficulty(document.Progression!.Rules.Preferences.Difficulty);
         }
         GameplayTuningPolicy? policy = readGameplayPolicy?.Invoke() ?? (modelOverrides as GameResourceHost)?.GameplayPolicy;
         Func<GameplayTuningPolicy>? selectedPolicy = policy is null ? null : () => policy;

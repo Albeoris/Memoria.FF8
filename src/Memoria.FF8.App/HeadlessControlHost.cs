@@ -14,7 +14,8 @@ internal static class HeadlessControlHost
             throw new ArgumentException("Headless control requires --state <standalone.json> and --control-dir <queue-directory> for a field, world or movie checkpoint.");
         }
         GameSession session = new(options.InitialState);
-        using GameResourceHost resources = new(options.GameDirectory, modsDirectory: options.ModsDirectory, resourceLanguage: options.ResourceLanguage, modelSourceDirectory: options.ModelSourceDirectory, modLocations: options.ModLocations);
+        using GameResourceHost resources = new(options.GameDirectory, modsDirectory: options.ModsDirectory, resourceLanguage: options.ResourceLanguage, modelSourceDirectory: options.ModelSourceDirectory, modLocations: options.ModLocations, connectEncounterMods: true);
+        resources.PrepareStartupGameplayDifficulty(session.State.GameplayPreferences.Difficulty);
         using GameWorld world = new(session, options.GameDirectory, resources: resources.Resources, validateWorldPresentation: false, resolveGameFile: resources.ResolveGameFile, readSceneMods: () => resources.SceneMods, modelOverrides: resources, readGameplayPolicy: () => resources.GameplayPolicy);
         world.EnsureField();
         bool running = true;
