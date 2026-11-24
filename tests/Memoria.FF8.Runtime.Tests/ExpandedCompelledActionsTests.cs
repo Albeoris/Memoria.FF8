@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Reflection;
 using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -143,6 +144,53 @@ public sealed class ExpandedCompelledActionsTests
         Assert.Equal(queued.NativeItemInventory, battle.Capture().NativeItemInventory);
         Assert.Equal(JsonSerializer.Serialize(queued.Random), JsonSerializer.Serialize(battle.Capture().Random));
         Assert.Equal(1, Assert.Single(battle.Combatants[0].MagicStocks).Count);
+    }
+
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, false)]
+    [InlineData(true, true)]
+    public void ConfuseCountsOnlyAvailableBattleItemsAcrossTheWholeInventory(bool hasPotion, bool hasSavedOrder)
+    {
+        byte[] record = new byte[24];
+        record[21] = 1;
+        BattleNativeAction potion = new(4, 1, 7, 1) { Name = "Potion", MagicId = 0, AttackType = 4, Power = 20, HitCount = 1, TargetFlags = 0x50, AttackFlags = 2, DamagePresentation = 0, Element = 0, ElementPercent = null, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = null, Critical = null, PowerModifier = null, LevelModifier = null, RawRecord = [.. record], SupplementalRecord = [] };
+        BattleNativeAction other = potion with { ActionId = 2, KernelIndex = 2 };
+        BattleNativeAction ineligible = potion with { ActionId = 32, KernelIndex = 32, RawRecord = [.. new byte[24]] };
+        NativeItemStock[] items = new NativeItemStock[NativeEconomy.ItemSlotCount];
+        Array.Fill(items, new NativeItemStock(0, 0));
+        items[0] = new(33, 5);
+        items[2] = new(2, hasSavedOrder ? (byte)2 : (byte)0);
+        items[4] = new(32, 1);
+        items[6] = new(255, 1);
+        items[^1] = new(1, hasPotion ? (byte)2 : (byte)0);
+        BattleDefinition definition = new()
+        {
+            Combatants = [Combatant("caster") with { IsPlayer = true, InitialAtb = BattleSession.AtbMaximum, NativeStatus1 = 0x4000, NativeCommandSlots = [1, 4, 1, 1] }, Combatant("enemy")],
+            NativeActions = [potion, other, ineligible],
+            NativeItemInventory = items,
+            NativeBattleItemOrder = hasSavedOrder ? [3, 0, 1, 2, .. Enumerable.Range(4, 28).Select(rank => (byte)rank)] : default,
+            NativeFieldBattleRules = 0,
+            NativeCommandSequences = ImmutableArray.CreateRange(new byte[39]),
+            InitialRandom = NativeBattleRandomState.ForecastPhase(8)
+        };
+        BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+        BattleSession restored = BattleSession.Restore(battle.Capture());
+
+        MethodInfo dispatch = typeof(BattleSession).GetMethod("DispatchNativeCompelledActors", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        dispatch.Invoke(battle, null);
+        dispatch.Invoke(restored, null);
+
+        BattleAttackCommand action = Assert.Single(battle.QueuedActions);
+        Assert.Equal(hasPotion ? BattleAbility.Item : BattleAbility.Attack, action.Ability);
+        Assert.Equal(hasPotion ? 1 : 0, action.ActionId);
+        BattleSnapshot result = battle.Capture();
+        Assert.Equal(new NativeItemStock(33, 5), result.NativeItemInventory![0]);
+        Assert.Equal(items[2], result.NativeItemInventory[2]);
+        Assert.Equal(items[4], result.NativeItemInventory[4]);
+        Assert.Equal(items[6], result.NativeItemInventory[6]);
+        Assert.Equal(new NativeItemStock(1, hasPotion ? (byte)1 : (byte)0), result.NativeItemInventory[^1]);
+        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(restored.Capture()));
     }
 
     private static BattleCombatantDefinition Combatant(string id)

@@ -275,6 +275,7 @@ internal sealed partial class GameWorld
             UsesOriginalEnemySlots = useOriginalEnemySlots,
             AddedEnemySources = addedEnemySources,
             NativeGil = new(entryEconomy.Gil, entryEconomy.PastGil),
+            NativeBattleItemOrder = entryEconomy.ItemOrder is { } itemOrder ? [.. itemOrder] : default,
             Tuning = session.State.GameplayPreferences.Tuning,
             StatusStatModifiers = restoredDefinition?.StatusStatModifiers ?? GameplayPolicy.StatusStatModifiers,
             ChocoboWorldMode = session.State.GameplayPreferences.ChocoboWorldMode,

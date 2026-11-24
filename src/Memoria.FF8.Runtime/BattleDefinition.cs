@@ -236,6 +236,8 @@ public sealed record BattleDefinition
     public byte? NativeFieldBattleRules { get; init; }
     public BattleStock[] Items { get; init; } = [];
     public NativeItemStock[]? NativeItemInventory { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public ImmutableArray<byte> NativeBattleItemOrder { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleGil? NativeGil { get; init; }
     public byte NativeSeed { get; init; }

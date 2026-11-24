@@ -146,12 +146,10 @@ public sealed partial class BattleSession
                 case 4:
                     if ((rules & 1) == 0)
                     {
-                        int item = SelectNativeConfuseItem();
-                        if (item != 255)
+                        if (SelectNativeConfuseItem() is { } action)
                         {
-                            BattleNativeAction action = FindInstalledNativeAction(4, (ushort)item);
                             byte flags = action.TargetFlags ?? throw new InvalidDataException("Native Confuse item lacks original target flags.");
-                            return (4, (ushort)item, flags, side == 0);
+                            return (4, action.ActionId, flags, side == 0);
                         }
                     }
                     break;
@@ -314,36 +312,48 @@ public sealed partial class BattleSession
         return spell != 0 && (RequiredNativeSpellFlags(spell) & 0x40) != 0 && (owner is null || actor.MagicRecordId is not int row || MagicJunctionPolicy.CanAccess(owner, row, spell));
     }
 
-    private int SelectNativeConfuseItem()
+    private BattleNativeAction? SelectNativeConfuseItem()
     {
-        bool Eligible(NativeItemStock stock)
+        const int battleItemCount = 32;
+        var order = definition.NativeBattleItemOrder;
+        if (!order.IsDefaultOrEmpty && (order.Length != battleItemCount || order.Any(rank => rank >= battleItemCount) || order.Distinct().Count() != battleItemCount))
         {
-            if (stock.ItemId == 0)
+            throw new InvalidDataException("Native battle item order must be a permutation of its 32 slots.");
+        }
+
+        // Confuse scans the battle item slots, which the original fills from saved ranks.
+        // Battles without saved ranks use item ID order. Debits still use the shared inventory.
+        BattleNativeAction?[] eligible = new BattleNativeAction?[battleItemCount];
+        int count = 0;
+        foreach (NativeItemStock stock in nativeItems)
+        {
+            if (stock.ItemId is 0 or > battleItemCount || stock.Count == 0)
             {
-                return false;
+                continue;
             }
             BattleNativeAction action = FindInstalledNativeAction(4, stock.ItemId);
             if (action.RawRecord.Length != 24)
             {
                 throw new NotSupportedException("Native Confuse item eligibility requires the original24-byte kernel record.");
             }
-            return (action.RawRecord[21] & 1) != 0;
+            if ((action.RawRecord[21] & 1) != 0)
+            {
+                int idIndex = stock.ItemId - 1;
+                int rank = order.IsDefaultOrEmpty ? idIndex : order[idIndex];
+                eligible[rank] = action;
+                count++;
+            }
         }
-        int count = nativeItems.Count(Eligible);
         if (count == 0)
         {
-            return 255;
+            return null;
         }
         int index = NextRandomByte() % count;
-        for (int scanned = 0; scanned <= 32; scanned++)
+        while (eligible[index] is null)
         {
-            if (Eligible(nativeItems[index]))
-            {
-                return nativeItems[index].ItemId;
-            }
-            index = (index + 1) & 31;
+            index = (index + 1) % battleItemCount;
         }
-        throw new NotSupportedException("Native Confuse item rejection cannot reach an eligible physical inventory slot.");
+        return eligible[index];
     }
 
     private byte RequiredNativeSpellFlags(int spell)
