@@ -739,11 +739,15 @@ public sealed partial class BattleSession
         }
         if (!target.IsAlive && finalizeDeath)
         {
+            // 494410 clears removable statuses before publishing ordinary KO. Enemy Death AI owns its own transition.
+            if (target.IsPlayer || (target.NativeCombatantFlags & 0x20) == 0)
+            {
+                RemoveNativeStatuses(target, 0x37E, 0x38E7FFF);
+            }
             MarkNativeContactDeath(target);
             if (target.IsPlayer)
             {
                 target.NativeDeathCount = deathCount;
-                RemoveNativeStatuses(target, 0x37E, 0x38E7FFF);
             }
             ObserveEnemyDefeat(actor, target);
             if (target.IsPlayer && ShouldRunNativePlayerDeathSupport(target, actor))
