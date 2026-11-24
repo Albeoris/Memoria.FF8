@@ -35,6 +35,7 @@ public sealed partial class BattleAssets
         {
             SequenceSection = source.SequenceSection,
             SequenceSectionAddress = source.SequenceSectionAddress,
+            SequenceSoundModelId = checked((byte)sourceCharacter),
             AnimationFrames = motion.Animations.Select(animation => checked((byte)animation.Frames.Count)).ToImmutableArray(),
             PoseSource = motion.NativePoseSource,
             HasActionCamera = sourceBody.NativeActionCameraBank is not null,

@@ -40,6 +40,7 @@ public sealed class MenuJunctionPlanner
     private MenuData? before;
     private readonly string rulesFingerprint;
     private readonly string nativeFingerprint;
+    private readonly int[] equippedWeapons;
     private readonly Dictionary<int, BattleNativePlayerStatRules> sourceRules = [];
     private readonly Dictionary<int, IReadOnlyList<NativeMagicStock>> sourceInventories = [];
     private readonly Dictionary<MenuAction, MenuJunctionPlan> planCache = [];
@@ -55,7 +56,8 @@ public sealed class MenuJunctionPlanner
         this.names = names is null ? null : new Dictionary<int, string>(names);
         this.catalog = catalog;
         this.placeId = placeId;
-        rulesFingerprint = (catalog?.StatRulesFingerprint ?? "Unavailable");
+        equippedWeapons = Enumerable.Range(0, source.Records.Length).Select(row => state.BattleLoadouts?.Get(source.Records[row].CharacterId)?.WeaponId ?? source.GetBattleWeapon(row)).ToArray();
+        rulesFingerprint = (catalog?.StatRulesFingerprint ?? "Unavailable") + ":" + string.Join(",", equippedWeapons.Select(weapon => weapon.ToString(CultureInfo.InvariantCulture)));
         nativeFingerprint = NativeJunctionEdits.Fingerprint(source);
         SourceFingerprint = nativeFingerprint + ":" + rulesFingerprint;
     }
@@ -250,13 +252,13 @@ public sealed class MenuJunctionPlanner
     {
         if (!sourceRules.TryGetValue(row, out BattleNativePlayerStatRules? original))
         {
-            original = catalog!.ReadStatRules(source, row);
+            original = catalog!.ReadStatRules(source, row, equippedWeapons[row]);
             sourceRules.Add(row, original);
         }
         NativeCharacterJunction junction = vitals.Records[row].Junction;
         if (junction.Abilities != source.Records[row].Junction.Abilities)
         {
-            return catalog!.ReadStatRules(vitals, row);
+            return catalog!.ReadStatRules(vitals, row, equippedWeapons[row]);
         }
         return junction.MagicJunctions.AsSpan().SequenceEqual(source.Records[row].Junction.MagicJunctions) ? original : original with { MagicJunctions = junction.MagicJunctions.ToImmutableArray() };
     }

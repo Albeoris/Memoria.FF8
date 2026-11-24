@@ -49,7 +49,7 @@ public sealed partial class BattlePresentationProcess
         }
         void Sound(BattleModelOwner actor, int number, NativeBattleModuleAnchor anchor)
         {
-            byte model = graphics.ActorModels.Get(actor).ModelId4 ?? throw new NotSupportedException("Native501640 requires its actual model identity.");
+            byte model = ReadNativeActionSoundModelId(graphics, actor);
             ImmutableArray<uint> sounds = this.resources.NativeGraphics?.Rules.ActorSounds1120 ?? throw new NotSupportedException("Native501640 requires its actor sound table.");
             PublishNativeModuleSound(sounds[checked(model * 7 + number)], 0, anchor, ReadGraphicsPresentationId(actor));
         }

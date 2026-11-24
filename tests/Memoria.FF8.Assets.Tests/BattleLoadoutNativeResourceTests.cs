@@ -34,6 +34,10 @@ public sealed class BattleLoadoutNativeResourceTests
         NativeBattleGraphicsResource equipment = assets.ReadNativeGraphicsResource(actor);
         NativeBattleGraphicsResource action = assets.ReadNativeLimitPresentationResource(actor, family, equipment);
         int sourceCharacter = BattleLimitFamilyRules.SourceCharacter(family);
+        Assert.Equal((byte?)style, equipment.CombatStyleModelId);
+        Assert.Null(equipment.SequenceSoundModelId);
+        Assert.Equal((byte?)sourceCharacter, action.SequenceSoundModelId);
+        Assert.Equal(equipment.CombatStyleModelId, action.CombatStyleModelId);
         int sourceWeapon = assets.WeaponDefinitions.First(definition => definition.CharacterId == sourceCharacter).Id;
         BattleModel source = assets.ResolvePlayerRenderWeapon(sourceCharacter, sourceWeapon, assets.LoadPlayer(sourceCharacter))!;
         Assert.Equal(equipment.LinkedPoseSource!.Skeleton, action.LinkedPoseSource!.Skeleton);

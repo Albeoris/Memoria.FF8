@@ -137,6 +137,32 @@ public sealed class MenuJunctionPlannerTests
     }
 
     [Fact]
+    public void Junction_preview_and_plan_use_the_equipped_foreign_weapon()
+    {
+        using GameAssets assets = new(TestResources.GameDirectory);
+        using BattleAssets battle = new(TestResources.GameDirectory);
+        LiveMenuCatalog catalog = LiveMenuCatalog.ReadInstalled(assets);
+        NativeCharacterVitals source = Setup(assets, false);
+        BattleWeaponDefinition nativeWeapon = battle.WeaponDefinitions[source.GetBattleWeapon(0)];
+        BattleWeaponDefinition foreignWeapon = battle.WeaponDefinitions.First(weapon => weapon.CharacterId != nativeWeapon.CharacterId && weapon.Hit != nativeWeapon.Hit);
+        BattleLoadoutOverrides loadouts = new();
+        loadouts = loadouts with { Characters = loadouts.Characters.Add(source.Records[0].CharacterId, new() { WeaponId = foreignWeapon.Id }) };
+        MenuJunctionPlanner planner = new(new GameState { Scene = SceneKind.Field, CharacterVitals = source, BattleLoadouts = loadouts }, catalog: catalog);
+        MenuAction action = new("junction-magic", "magic-0-1", "character-0", "Mag");
+        MenuJunctionPlan nativePlan = Planner(source, catalog).Plan(action);
+        MenuJunctionPlan plan = planner.Plan(action);
+
+        Assert.True(plan.HasChanges, plan.UnavailableReason);
+        Assert.False(planner.IsCurrent(nativePlan));
+        MenuCharacter before = plan.Before.Characters.Single(character => character.Id == "character-0");
+        MenuCharacter after = plan.After.Characters.Single(character => character.Id == "character-0");
+        Assert.NotEqual(nativePlan.Before.Characters.Single(character => character.Id == "character-0").Stats["Hit"], before.Stats["Hit"]);
+        Assert.Equal(LiveMenuData.Statistics(catalog.ReadStatRules(source, 0, foreignWeapon.Id), source.Records[0], source.GetMagicInventory(0)), before.Stats);
+        Assert.Equal(LiveMenuData.Statistics(catalog.ReadStatRules(plan.Result, 0, foreignWeapon.Id), plan.Result.Records[0], plan.Result.GetMagicInventory(0)), after.Stats);
+        Assert.Equal(nativeWeapon.Id, plan.Result.GetBattleWeapon(0));
+    }
+
+    [Fact]
     public void Manual_move_reports_the_hidden_direction_loss_and_keeps_source_immutable()
     {
         using GameAssets assets = new(TestResources.GameDirectory);

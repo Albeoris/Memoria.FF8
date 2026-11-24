@@ -30,9 +30,11 @@ public sealed partial class BattlePresentationProcess
         return hostedFrameServices ?? throw new InvalidOperationException("Hosted native audio requires an active presentation frame.");
     }
 
-    private void PublishNativeSequenceSound(NativeBattleGraphicsState graphics, BattleModelOwner owner, NativeBattleGraphicsModel model, BattleCombatant actor, NativeBattleSequenceCue cue)
+    private byte ReadNativeActionSoundModelId(NativeBattleGraphicsState graphics, BattleModelOwner owner)
     {
-        PublishNativeSequenceSound(graphics, owner, model, actor.Id, cue);
+        byte identity = graphics.ActorModels.Get(owner).ModelId4 ?? throw new NotSupportedException("Native actor audio requires the actual loaded model BYTE4 identity.");
+        NativeBattleGraphicsResource? resource = identity < 16 ? ReadStandingPresentationModelResource(graphics, owner) : null;
+        return resource?.SequenceSoundModelId ?? resource?.CombatStyleModelId ?? identity;
     }
 
     private void PublishNativeSequenceSound(NativeBattleGraphicsState graphics, BattleModelOwner owner, NativeBattleGraphicsModel model, string actorId, NativeBattleSequenceCue cue)
@@ -40,7 +42,7 @@ public sealed partial class BattlePresentationProcess
         graphics = graphics with { ActorModels = graphics.ActorModels.Set(owner, model) };
         NativeBattleSequenceSound source = new(checked((byte)cue.First), cue.Kind == NativeBattleSequenceCueKind.ActorSound, checked((byte)cue.Second), checked((ushort)cue.Third)) { OverrideOnContact4 = cue.OverrideSoundOnContact4 };
         NativeBattleModuleSound? sound = NativeBattleSequenceAudio.Resolve505AB0(source, owner, () => graphics.ActionGraphics?.FirstTargetBinding?.Resolve(graphics.ActorModels, graphics.NativeBindings),
-            index => graphics.ActorModels.Get(index).ModelId4 ?? throw new NotSupportedException("Native5015A0 requires the actual loaded model BYTE4 identity."),
+            index => ReadNativeActionSoundModelId(graphics, index),
             index => ReadNativeGraphicsBone(graphics, index, 241, 0),
             point => (NativeCamera?.Projection ?? throw new NotSupportedException("Native505AB0 requires its actual5011B0 projection.")).ReadPan(point),
             this.resources.NativeGraphics?.Rules.ActorSounds1120, source.OverrideOnContact4 ? nativeActionPackets.ReadActiveContact().Primary.HitFlags : null);

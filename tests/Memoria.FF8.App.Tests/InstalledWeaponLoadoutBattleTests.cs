@@ -19,7 +19,6 @@ public sealed class InstalledWeaponLoadoutBattleTests
                 yield return [recipient, donor];
             }
         }
-        yield return [4, 1];
         yield return [10, 9];
     }
 
@@ -43,6 +42,20 @@ public sealed class InstalledWeaponLoadoutBattleTests
     public void Supplementary_Zell_launcher_preserves_own_hands_and_transferred_mount()
     {
         Run(1, 4);
+    }
+
+    [Fact]
+    public void Borrowed_knuckles_play_their_own_sequence_sounds()
+    {
+        Run(4, 1);
+    }
+
+    [Theory]
+    [InlineData(1, 0)]
+    [InlineData(0, 6)]
+    public void Borrowed_gunblade_plays_its_own_trigger_sound(int recipient, int donor)
+    {
+        Run(recipient, donor, checkBorrowedTrigger: true);
     }
 
     [Theory]
@@ -71,7 +84,7 @@ public sealed class InstalledWeaponLoadoutBattleTests
         Run(character, character, assignOverride: false, readyProbeOnly: true);
     }
 
-    private static void Run(int recipient, int donor, bool assignOverride = true, bool readyProbeOnly = false)
+    private static void Run(int recipient, int donor, bool assignOverride = true, bool readyProbeOnly = false, bool checkBorrowedTrigger = false)
     {
         string directory = TestResources.GameDirectory;
         string source = TestResources.FixturePath("weapon-limit-field-source");
@@ -90,10 +103,20 @@ public sealed class InstalledWeaponLoadoutBattleTests
         NativeCharacterVital[] records = vitals.Records.ToArray();
         records[recipient] = records[recipient] with { MemberFlags = (ushort)(records[recipient].MemberFlags | 1), Status = 0 };
         session.SetCharacterVitals((vitals with { Records = records, CombatParty = [checked((byte)recipient), 255, 255], AdditionalCombatParty = null, AdditionalCombatPartyMinimumCapacities = null }).RebuildParty().Rest());
-        world.ConfigureGameplayPreferences(session.State.GameplayPreferences with { BattleAllyCount = 3, AdditionalEnemies = 0 });
         BattleAssets resources = world.BattleResources;
         int weapon = assignOverride ? resources.WeaponDefinitions.First(definition => definition.CharacterId == donor).Id : session.CharacterVitals.GetBattleWeapon(recipient);
         donor = resources.WeaponDefinitions[weapon].CharacterId;
+        BattleWeaponDefinition equipped = resources.WeaponDefinitions[weapon];
+        bool gunblade = donor is 0 or 6;
+        GameplayPreferences preferences = session.State.GameplayPreferences with { BattleAllyCount = 3, AdditionalEnemies = 0 };
+        if (checkBorrowedTrigger)
+        {
+            NativeLimitProgress progress = session.State.LimitProgress ?? game.ReadNewGameLimitProgress();
+            session.SetLimitProgress(progress with { Options978 = (ushort)(progress.Options978.GetValueOrDefault() & ~1) });
+            preferences = preferences with { GunbladeMode = BattleGunbladeMode.Manual };
+        }
+        world.ConfigureGameplayPreferences(preferences);
+        ImmutableArray<uint> actorSounds = NativeMusicCatalog.ReadBattleActorSounds(GameDataResources.ReadNativeMemory(selected.Resources));
         BattleLoadoutDraft draft = session.CreateBattleLoadoutDraft([new(recipient, session.CharacterVitals.GetBattleWeapon(recipient), BattleLimitFamilyRules.NativeFamilies(recipient))]);
         if (assignOverride)
         {
@@ -128,6 +151,11 @@ public sealed class InstalledWeaponLoadoutBattleTests
             Assert.Equal(weapon, definition.WeaponId);
             Assert.Equal(donor, definition.WeaponProfile!.ResourceOwner);
             Assert.Equal(recipient, definition.NativePlayerStatRules!.CharacterId);
+            Assert.Equal(equipped.AttackPower, definition.PhysicalPower);
+            Assert.Equal(equipped.AttackPower, definition.NativeAttack!.Power);
+            Assert.Equal((byte?)equipped.Critical, definition.NativeAttack.Critical);
+            Assert.Equal(equipped.AttackPower, definition.NativePlayerStatRules.WeaponRecord[6]);
+            Assert.Equal(gunblade, definition.WeaponProfile.Supports(BattleWeaponCapabilities.Gunblade));
             BattleModel body = resources.LoadPlayer(recipient, definition.Costume);
             BattleModel composed = resources.LoadPlayerForWeapon(recipient, definition.Costume, weapon);
             Assert.Equal(body.Name, composed.Name);
@@ -166,8 +194,13 @@ public sealed class InstalledWeaponLoadoutBattleTests
             MotionPoint? stance = string.IsNullOrWhiteSpace(motionDirectory) ? null : ReadMotionPoint(battle, actor, target);
             MotionPoint? nearest = stance;
             MotionPoint? firstContact = null;
+            bool triggered = false;
             void ObserveMotion()
             {
+                if (checkBorrowedTrigger && !triggered && battle.GunbladeTriggerWindowOpen)
+                {
+                    triggered = battle.TriggerGunblade();
+                }
                 TraceMotion();
                 if (stance is null)
                 {
@@ -185,6 +218,30 @@ public sealed class InstalledWeaponLoadoutBattleTests
             }
             world.ApplyBattleInput(new(BattleInputKind.Attack, ActorId: actor.Id, TargetId: target.Id) { ForcePhysical = true });
             TickUntil(world, () => battle.Events.Skip(eventStart).Any(entry => entry.Kind == "ActionComplete" && entry.ActorId == actor.Id) && battle.ActiveAction is null && battle.Presentation?.HasActiveAction != true, $"recipient {recipient}, donor {donor}, weapon {weapon}: native attack completion", ObserveMotion);
+            BattleEvent[] attackSounds = battle.Events.Skip(eventStart).Where(entry => entry.ActorId == actor.Id && entry.NativeModuleSound is not null).ToArray();
+            BattleEvent[] actorSoundCues = attackSounds.Where(entry => entry.NativeSound is { ActorSound: true }).ToArray();
+            if (donor == 1)
+            {
+                Assert.NotEmpty(actorSoundCues);
+            }
+            foreach (BattleEvent entry in actorSoundCues)
+            {
+                NativeBattleSequenceSound cue = entry.NativeSound!;
+                uint sound = entry.NativeModuleSound!.Sound;
+                if (!cue.OverrideOnContact4 || sound != 31)
+                {
+                    Assert.Equal(actorSounds[donor * 7 + cue.SoundId], sound);
+                }
+            }
+            if (donor == 4)
+            {
+                Assert.Contains(attackSounds, entry => entry.NativeSound is null && entry.NativeModuleSound!.Sound == actorSounds[donor * 7 + 1]);
+            }
+            if (checkBorrowedTrigger)
+            {
+                Assert.True(triggered, $"Recipient {recipient} could not trigger the borrowed gunblade from style {donor}.");
+                Assert.Contains(attackSounds, entry => entry.NativeSound is null && entry.NativeModuleSound!.Sound == actorSounds[donor * 7 + (donor == 0 ? 1 : 0)]);
+            }
             if (stance is not null)
             {
                 Assert.NotNull(firstContact);
