@@ -9,7 +9,10 @@ internal sealed partial class GameWorld
     //Its departing VM deliberately retains the previous draw sample. Present the last
     //complete framebuffer until the destination is allocated; do not relabel that sample
     //with the new callback frame or ask the dormant field to produce another image.
-    internal bool CanPresentCurrentField => Field is not null && session.State.Scene is SceneKind.Field or SceneKind.Movie && Field.Id == session.State.FieldId && Events.FieldId == Field.Id && Events.NextTrigger.Kind is not (PlayerTriggerKind.FieldTransition or PlayerTriggerKind.WorldMap) && !HasPendingInitialModelCallback && !HasPendingMovieCompletionCallback;
+    internal bool CanPresentCurrentField => Field is not null && session.State.Scene is SceneKind.Field or SceneKind.Movie && Field.Id == session.State.FieldId && Events.FieldId == Field.Id && Events.NextTrigger.Kind is not (PlayerTriggerKind.FieldTransition or PlayerTriggerKind.WorldMap) && !HasPendingInitialModelCallback && !HasPendingMovieCompletionCallback && !HasPendingDefeatFadeCallback;
+
+    // The fresh actors set the black fade mode, but only the ordinary callback publishes its draw sample.
+    private bool HasPendingDefeatFadeCallback => session.State.FieldLoadContext?.Origin == NativeFieldLoadOrigin.BattleDefeat && Events.Scene.FieldCallbackClock is { OrdinaryCallbacks: 0 };
 
     //52C650/531980 initialize and register models without running472B30/530810.
     //A visible model can first be presented after the ordinary callback executes

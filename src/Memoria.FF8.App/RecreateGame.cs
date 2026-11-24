@@ -1806,7 +1806,7 @@ internal sealed partial class RecreateGame : GamePresentationHost
                 }
             }
         }
-        else if (session.State.Scene == SceneKind.WorldMap || session.State.Scene == SceneKind.Field && world?.Field is not null)
+        else if (session.State.Scene == SceneKind.WorldMap || session.State.Scene == SceneKind.Field && world?.Field is not null && CanDrawFieldSurface())
         {
             if (lightingEditor is not null)
             {
@@ -1899,6 +1899,13 @@ internal sealed partial class RecreateGame : GamePresentationHost
         CapturePresentedFrame(gameTime);
         base.Draw(gameTime);
         metrics.Draw();
+    }
+
+    private bool CanDrawFieldSurface()
+    {
+        // After terminal defeat, the field texture can still contain the pre-battle map.
+        return session.State.FieldLoadContext?.Origin != NativeFieldLoadOrigin.BattleDefeat ||
+            texturePresentedScene == SceneKind.Field && texturePresentedField == session.State.FieldId && ReferenceEquals(texturePresentedWorldOwner, world);
     }
 
     private void CapturePresentedFrame(GameTime gameTime)

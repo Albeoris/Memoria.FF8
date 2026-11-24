@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Albeoris.Games.FF8.Jsm;
@@ -10,6 +11,58 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class FieldPresentationReadinessTests
 {
+    [Fact]
+    public void DefeatFieldWaitsForItsFirstBlackDrawAndRunsItsAuthoredFadeIn()
+    {
+        string directory = GameDirectory();
+        GameSession session = GameWorld.CreateColdProcess(directory);
+        session.StartNewGame();
+        using var world = new GameWorld(session, directory);
+        world.EnsureField();
+
+        // Start at the presentation boundary with a declared, already settled defeat.
+        string sourceHash = Convert.ToHexString(SHA256.HashData(world.Field!.Jsm));
+        BattleEncounterOccurrence encounter = new("presentation-defeat", 94, world.BattleResources.FormationSourceHash(94), SceneKind.Field, world.Field.Id, world.Events.Frame, sourceHash, null);
+        long clock = session.ExamTimer!.ClockCalls;
+        NativeBattleAbandonment defeat = new(encounter, new(0), clock, clock, 0);
+        session.RequestField(75, 0);
+        session.Restore(session.State with { FieldLoadContext = NativeFieldLoadContext.FromBattleDefeat(defeat.Branch), AbandonedNativeBattles = [defeat], AppliedBattleResultIds = [encounter.OccurrenceId] });
+        world.EnsureField();
+        Assert.False(world.CanPresentCurrentField);
+        Assert.True(world.Apply(new(PlayerActionKind.Wait)).Accepted);
+        Assert.False(world.CanPresentCurrentField);
+        Assert.True(world.Apply(new(PlayerActionKind.Wait)).Accepted);
+        Assert.True(world.CanPresentCurrentField);
+        Assert.Equal(NativeFadeDrawMode.Black, world.Events.FieldFade!.Draw.Mode);
+        Assert.False(HasVisiblePixels(world.Render(TimeSpan.Zero)));
+
+        for (int callback = 0; callback < 32 && world.Events.FieldFade!.Draw.Mode == NativeFadeDrawMode.Black; callback++)
+        {
+            Assert.True(world.Apply(new(PlayerActionKind.Wait)).Accepted);
+        }
+        Assert.Null(world.Events.LastFault);
+        Assert.True(world.CanPresentCurrentField);
+        Assert.Equal(NativeFadeDrawMode.Subtract, world.Events.FieldFade!.Draw.Mode);
+        Assert.Equal((short)2, world.Events.FieldFade.Physical.Mode);
+        Assert.Equal((short)239, world.Events.FieldFade.Physical.Counter);
+
+        Assert.True(world.Apply(new(PlayerActionKind.Wait, Frames: 16)).Accepted);
+        Assert.Equal(NativeFadeDrawMode.None, world.Events.FieldFade.Draw.Mode);
+        Assert.True(HasVisiblePixels(world.Render(TimeSpan.Zero)));
+
+        static bool HasVisiblePixels(byte[] pixels)
+        {
+            for (int offset = 0; offset < pixels.Length; offset += 4)
+            {
+                if ((pixels[offset] | pixels[offset + 1] | pixels[offset + 2]) != 0)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+    }
+
     [Fact]
     public void ColdProcessHasOneKnownOutputBeforeAnyFieldCallback()
     {
