@@ -32,6 +32,8 @@ internal static class AutoPlayTraversalPolicy
         }
         return (visit.Key, item.Id) switch
         {
+            // NG-120: Prefer the original wardrobe after the Fire Cavern exam.
+            ("240:33", "240:line:12") => -1,
             // NG-009: This authored entry follows the other reachable Garden frontiers.
             ("137:142", "137:line:15") => 1,
             // NG-010: Complete the ordinary clothing interaction before the night entrances.
