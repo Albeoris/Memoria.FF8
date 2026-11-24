@@ -5,10 +5,22 @@ namespace Memoria.FF8.Assets.Remastered;
 
 public sealed partial class RemasteredGameDataSource : IGameRuntimeSource, IGameNativeImageSource
 {
+    private const string GuestImageName = "FFVIII_EN.exe.dat";
+    private const string GuestImageAlias = "ff8_en.exe.dat";
     private RemasteredGuestImage? guestImage;
     private bool runtimeCodeVerified;
 
-    public string? NativeExecutableHash => File.Exists(Path.Combine(gameDirectory, "FFVIII_EN.exe.dat")) ? SourceHash : null;
+    public string? NativeExecutableHash
+    {
+        get
+        {
+            lock (archiveGate)
+            {
+                ObjectDisposedException.ThrowIf(disposed, this);
+                return guestImage is not null || File.Exists(Path.Combine(gameDirectory, GuestImageName)) || Contains(GuestImageName) || Contains(GuestImageAlias) ? SourceHash : null;
+            }
+        }
+    }
     public string SourceHash
     {
         get
@@ -109,17 +121,47 @@ public sealed partial class RemasteredGameDataSource : IGameRuntimeSource, IGame
 
     private RemasteredGuestImage RequireGuestImage()
     {
-        ObjectDisposedException.ThrowIf(disposed, this);
-        if (guestImage is null)
+        lock (archiveGate)
         {
-            string path = Path.Combine(gameDirectory, "FFVIII_EN.exe.dat");
-            using FileStream file = File.OpenRead(path);
-            if (Convert.ToHexString(SHA256.HashData(file)) != Memoria.FF8.Runtime.NativeFieldRuntimeProfile.RemasteredEnImageHash)
-            {
-                throw new NotImplementedException("Native guest data requires an authenticated source image.");
-            }
-            guestImage = new RemasteredGuestImage(path);
+            ObjectDisposedException.ThrowIf(disposed, this);
+            return guestImage ??= LoadGuestImage();
         }
-        return guestImage;
+    }
+
+    private RemasteredGuestImage LoadGuestImage()
+    {
+        string path = Path.Combine(gameDirectory, GuestImageName);
+        if (File.Exists(path))
+        {
+            using FileStream looseImage = File.OpenRead(path);
+            if (ReadAuthenticatedGuestImage(looseImage) is { } image)
+            {
+                return image;
+            }
+        }
+
+        foreach (string name in new[] { GuestImageName, GuestImageAlias })
+        {
+            if (Contains(name))
+            {
+                using Stream archivedImage = Open(name);
+                if (ReadAuthenticatedGuestImage(archivedImage) is { } image)
+                {
+                    return image;
+                }
+            }
+        }
+
+        throw new NotImplementedException("The English Remastered guest image in FFVIII_EN.exe.dat and its mounted archive copies did not match a supported source. Verify the game files in Steam and try again.");
+    }
+
+    private static RemasteredGuestImage? ReadAuthenticatedGuestImage(Stream image)
+    {
+        if (Convert.ToHexString(SHA256.HashData(image)) != Memoria.FF8.Runtime.NativeFieldRuntimeProfile.RemasteredEnImageHash)
+        {
+            return null;
+        }
+        image.Position = 0;
+        return new RemasteredGuestImage(image, leaveOpen: true);
     }
 }

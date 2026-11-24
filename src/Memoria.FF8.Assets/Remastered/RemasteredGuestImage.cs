@@ -9,10 +9,13 @@ public sealed class RemasteredGuestImage
 {
     private readonly List<Section> sections = [];
 
-    public RemasteredGuestImage(string path)
+    public RemasteredGuestImage(string path) : this(File.OpenRead(path), leaveOpen: false)
     {
-        using FileStream file = new(path, FileMode.Open, FileAccess.Read, FileShare.Read);
-        using BinaryReader reader = new(file, Encoding.ASCII, true);
+    }
+
+    internal RemasteredGuestImage(Stream file, bool leaveOpen)
+    {
+        using BinaryReader reader = new(file, Encoding.ASCII, leaveOpen);
         byte[] coff = Take(reader, 20);
         ushort sectionCount = BinaryPrimitives.ReadUInt16LittleEndian(coff.AsSpan(2));
         if (BinaryPrimitives.ReadUInt16LittleEndian(coff) != 0x14C || BinaryPrimitives.ReadUInt16LittleEndian(coff.AsSpan(16)) != 224)

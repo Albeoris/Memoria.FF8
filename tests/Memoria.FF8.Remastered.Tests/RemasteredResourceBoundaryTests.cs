@@ -1,11 +1,64 @@
 using Memoria.FF8.Assets;
 using Memoria.FF8.Assets.Remastered;
 using Memoria.FF8.Resources;
+using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Remastered.Tests;
 
 public sealed class RemasteredResourceBoundaryTests
 {
+    [Theory]
+    [InlineData("ffviii_en.exe.dat", true)]
+    [InlineData("ff8_en.exe.dat", false)]
+    public void ColdBattleMemoryUsesAuthenticatedArchiveImageWhenLooseImageIsUnavailable(string archiveName, bool modifiedLooseImage)
+    {
+        string? installed = Environment.GetEnvironmentVariable("MEMORIA_FF8_REMASTERED_DIR");
+        Assert.SkipUnless(!string.IsNullOrWhiteSpace(installed) && Directory.Exists(installed), "Set MEMORIA_FF8_REMASTERED_DIR to run optional installed Remastered checks.");
+        using ZzzArchive archive = new(Path.Combine(installed!, "main.zzz"));
+        using Stream original = archive.Open("ffviii_en.exe.dat");
+        using MemoryStream bytes = new();
+        original.CopyTo(bytes);
+        byte[] originalBytes = bytes.ToArray();
+        byte[] modified = (byte[])originalBytes.Clone();
+        modified[^1] ^= 1;
+
+        using SyntheticResources files = new();
+        string directory = Path.GetDirectoryName(files.Write([]))!;
+        File.WriteAllBytes(Path.Combine(directory, "main.zzz"), SyntheticResources.Zzz((archiveName, originalBytes)));
+        File.WriteAllBytes(Path.Combine(directory, "other.zzz"), SyntheticResources.Zzz());
+        string looseImage = Path.Combine(directory, "FFVIII_EN.exe.dat");
+        if (modifiedLooseImage)
+        {
+            File.WriteAllBytes(looseImage, modified);
+        }
+
+        using RemasteredGameDataSource source = new(directory);
+        Assert.Equal(NativeFieldRuntimeProfile.RemasteredEnImageHash, source.NativeExecutableHash);
+        Assert.NotNull(NativeBattleRetainedMemoryReader.ReadColdProcess(source).EffectMemory);
+        if (modifiedLooseImage)
+        {
+            Assert.Equal(modified, File.ReadAllBytes(looseImage));
+        }
+        else
+        {
+            Assert.False(File.Exists(looseImage));
+        }
+    }
+
+    [Fact]
+    public void UnauthenticatedLooseAndArchiveImagesAreRejected()
+    {
+        using SyntheticResources files = new();
+        string directory = Path.GetDirectoryName(files.Write([]))!;
+        File.WriteAllBytes(Path.Combine(directory, "main.zzz"), SyntheticResources.Zzz(("ffviii_en.exe.dat", [3]), ("ff8_en.exe.dat", [5])));
+        File.WriteAllBytes(Path.Combine(directory, "other.zzz"), SyntheticResources.Zzz());
+        File.WriteAllBytes(Path.Combine(directory, "FFVIII_EN.exe.dat"), [1]);
+
+        using RemasteredGameDataSource source = new(directory);
+        NotImplementedException failure = Assert.Throws<NotImplementedException>(() => NativeBattleRetainedMemoryReader.ReadColdProcess(source));
+        Assert.Contains("Verify the game files in Steam", failure.Message);
+    }
+
     [Fact]
     public void RequiredRuntimeProfileIsRejectedByProviderWhileInspectionRemainsAvailable()
     {
