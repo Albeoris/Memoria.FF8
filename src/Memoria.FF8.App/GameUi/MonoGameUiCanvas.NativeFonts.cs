@@ -51,22 +51,36 @@ internal sealed partial class MonoGameUiCanvas : INativeButtonTextMetrics
         return new((layout?.Width ?? 0) * scale, (layout?.Height ?? line) * scale);
     }
 
-    private bool DrawNativeText(string value, float size, UiRect bounds, UiColor color, UiAlignment alignment, NativeTextContext? context = null)
+    private bool DrawNativeText(string value, float size, UiRect bounds, UiColor color, UiAlignment alignment, NativeTextContext? context = null, UiTextFlow flow = UiTextFlow.Auto)
     {
         if (!UseNativeFonts || NativeFont is null)
         {
             return false;
         }
         context ??= NativeContextFor(value);
-        UiSize measured = MeasureNativeText(value, size, bounds.Width, context);
+        float wrapWidth = bounds.Width;
+        float offsetX = 0;
+        UiSize measured;
+        if (flow == UiTextFlow.SingleLine)
+        {
+            UiTextViewport viewport = textOverflow.Layout(value, size, bounds, null, width => MeasureNativeText(value, size, width, context), flow);
+            measured = viewport.Content;
+            wrapWidth = viewport.WrapWidth;
+            offsetX = viewport.OffsetX;
+        }
+        else
+        {
+            measured = MeasureNativeText(value, size, wrapWidth, context);
+        }
         float y = alignment is UiAlignment.Center or UiAlignment.End ? Math.Max(0, bounds.Height - measured.Height) * (alignment == UiAlignment.Center ? 0.5f : 1) : 0;
         float nativeScale = size / NativeFont.LineHeightFor(context ?? NativeMenuTextContext);
-        bool drawn = NativeFont.Draw(batch, value, new(bounds.X, bounds.Y + y), nativeScale, ColorFor(color), context ?? NativeMenuTextContext, Rectangle.Intersect(RectangleFor(bounds), CurrentClip), bounds.Width / nativeScale, maximumHeight: bounds.Height / nativeScale);
+        Vector2 origin = new(bounds.X - offsetX, bounds.Y + y);
+        Rectangle clip = Rectangle.Intersect(RectangleFor(bounds), CurrentClip);
+        bool drawn = NativeFont.Draw(batch, value, origin, nativeScale, ColorFor(color), context ?? NativeMenuTextContext, clip, wrapWidth / nativeScale, maximumHeight: bounds.Height / nativeScale);
         if (drawn)
         {
-            float scale = nativeScale;
-            NativeFontLayoutResult layout = NativeFont.Layout(value, context ?? NativeMenuTextContext, bounds.Width / scale);
-            InspectNative(value, layout, new(bounds.X, bounds.Y + y), scale, Rectangle.Intersect(RectangleFor(bounds), CurrentClip), size, bounds.Width, NativeFont.ProfileFor(context ?? NativeMenuTextContext)?.Id, context);
+            NativeFontLayoutResult layout = NativeFont.Layout(value, context ?? NativeMenuTextContext, wrapWidth / nativeScale);
+            InspectNative(value, layout, origin, nativeScale, clip, size, bounds.Width, NativeFont.ProfileFor(context ?? NativeMenuTextContext)?.Id, context);
         }
         if (!drawn)
         {

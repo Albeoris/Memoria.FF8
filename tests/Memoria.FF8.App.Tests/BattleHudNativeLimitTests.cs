@@ -209,6 +209,47 @@ public sealed class BattleHudNativeLimitTests
         Assert.Equal(before, JsonSerializer.Serialize(battle.Capture()));
     }
 
+    [Theory]
+    [InlineData(1f)]
+    [InlineData(3f)]
+    public void Command_panel_fits_the_revealed_limit_name_up_to_its_width_limit(float textScale)
+    {
+        const string limitName = "Неудержимый комбоудар";
+        BattleHudController hud = Hud(Create(limitName: limitName));
+        hud.TextScale = textScale;
+        UiView view = hud.BuildView();
+        view.Resize(960, 672);
+        UiTheme theme = new();
+        BattleUiTests.TestCanvas canvas = new();
+        view.Draw(canvas, theme);
+        float attackWidth = Assert.Single(canvas.TextDraws, draw => draw.Text == "Attack").Bounds.Width;
+
+        hud.SetNativeCommandButtons(0x2000);
+        hud.AdvancePresentation(TimeSpan.FromMilliseconds(120));
+        canvas = new();
+        view.Draw(canvas, theme);
+        UiRect revealed = Assert.Single(canvas.TextDraws, draw => draw.Text == limitName).Bounds;
+        float fullWidth = canvas.MeasureText(limitName, 20 * textScale, float.PositiveInfinity).Width;
+        Assert.Equal(60, revealed.X);
+        Assert.Equal(Math.Min(fullWidth, 402), revealed.Width);
+        Assert.True(revealed.Width > attackWidth);
+
+        hud.SetNativeCommandButtons(0);
+        hud.AdvancePresentation(TimeSpan.FromMilliseconds(60));
+        canvas = new();
+        view.Draw(canvas, theme);
+        UiRect closing = Assert.Single(canvas.TextDraws, draw => draw.Text == limitName).Bounds;
+        Assert.True(closing.X > revealed.X);
+        Assert.Equal(Math.Min(fullWidth, 380), closing.Width);
+        Assert.Contains(canvas.Clips, clip => clip.X == closing.X && clip.Right < closing.Right);
+
+        hud.AdvancePresentation(TimeSpan.FromMilliseconds(60));
+        canvas = new();
+        view.Draw(canvas, theme);
+        Assert.DoesNotContain(limitName, canvas.Texts);
+        Assert.Equal(attackWidth, Assert.Single(canvas.TextDraws, draw => draw.Text == "Attack").Bounds.Width);
+    }
+
     [Fact]
     public void Moving_off_first_row_drops_the_replacement_and_Right_does_not_cycle_actors()
     {
@@ -332,10 +373,10 @@ public sealed class BattleHudNativeLimitTests
         return new(battle, (_, _) => { }, () => { }, () => { }, execute: execute, readPresentationUi: BattleHudTestPresentation.Visible);
     }
 
-    private static BattleSession Create(bool twoPlayers = false, byte crisis = 4, bool terminal = false)
+    private static BattleSession Create(bool twoPlayers = false, byte crisis = 4, bool terminal = false, string limitName = "Renzokuken")
     {
         ImmutableArray<byte> weights = Enumerable.Repeat((byte)0, 32).ToImmutableArray();
-        BattleNativeLimitDefinition limit = new(0, 5, 0, 250, weights) { InvocationChoices = [new(5, "Renzokuken", 0x50, 0)] };
+        BattleNativeLimitDefinition limit = new(0, 5, 0, 250, weights) { InvocationChoices = [new(5, limitName, 0x50, 0)] };
         List<BattleCombatantDefinition> actors = [new() { Id = "squall", Name = "Squall", IsPlayer = true, MaximumHp = 100, CurrentHp = 10, InitialAtb = BattleSession.AtbMaximum, NativeLimit = limit, Abilities = [BattleAbility.Attack, BattleAbility.Magic, BattleAbility.Item, BattleAbility.Draw] }];
         if (twoPlayers)
         {

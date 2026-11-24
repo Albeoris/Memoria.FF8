@@ -374,7 +374,7 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
             ButtonPromptText.Draw(this, value, size, bounds, color, fontFamily ?? text.FontFamily, verticalAlignment, textOverflow, flow);
             return;
         }
-        if (DrawNativeText(value, size, bounds, color, verticalAlignment))
+        if (DrawNativeText(value, size, bounds, color, verticalAlignment, flow: flow))
         {
             return;
         }

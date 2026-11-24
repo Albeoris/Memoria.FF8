@@ -48,7 +48,7 @@ public sealed class UiTextOverflow
         {
             distance = entry.Content.Height - bounds.Height;
         }
-        float offset = Offset(seconds - entry.Start, distance, size);
+        float offset = Offset(seconds - entry.Start, distance, size, entry.Horizontal);
         return new UiTextViewport(entry.Horizontal ? offset : 0, entry.Horizontal ? 0 : offset, entry.WrapWidth, entry.Content);
     }
 
@@ -62,8 +62,13 @@ public sealed class UiTextOverflow
         return fontSize * Math.Min(1, availableHeight / lineHeight);
     }
 
-    /// <summary>Pause at both ends, then restart; speed scales with the text rather than the output resolution.</summary>
+    /// <summary>Pause at both ends, then restart.</summary>
     public static float Offset(double elapsedSeconds, float distance, float fontSize)
+    {
+        return Offset(elapsedSeconds, distance, fontSize, false);
+    }
+
+    private static float Offset(double elapsedSeconds, float distance, float fontSize, bool scrollBack)
     {
         if (distance <= 0 || fontSize <= 0)
         {
@@ -73,7 +78,12 @@ public sealed class UiTextOverflow
         const double endPause = 2;
         double speed = fontSize * 1.5;
         double travel = distance / speed;
-        double phase = Math.Max(0, elapsedSeconds) % (startPause + travel + endPause);
+        double returnStart = startPause + travel + endPause;
+        double phase = Math.Max(0, elapsedSeconds) % (returnStart + (scrollBack ? travel : 0));
+        if (phase >= returnStart)
+        {
+            return (float)Math.Clamp(distance - (phase - returnStart) * speed, 0, distance);
+        }
         return (float)Math.Clamp((phase - startPause) * speed, 0, distance);
     }
 

@@ -67,12 +67,11 @@ public sealed class BattleUiTests
         view.Draw(canvas, new UiTheme());
 
         var name = Assert.Single(canvas.TextDraws, draw => draw.Text == "Shiva");
-        UiRect firstHp = Assert.Single(canvas.Clips, clip => clip.Y == name.Bounds.Y && clip.X > 216);
-        UiRect secondHp = Assert.Single(canvas.Clips, clip => clip.Y == name.Bounds.Y + 28 && clip.X > 216);
-        Assert.Contains(canvas.TextDraws, draw => draw.Text == "7" && draw.Bounds.X == firstHp.X);
-        Assert.Contains(canvas.TextDraws, draw => draw.Text == "1234" && draw.Bounds.X == secondHp.X);
+        UiRect firstHp = Assert.Single(canvas.TextDraws, draw => draw.Text == "7" && draw.Bounds.Y == name.Bounds.Y && draw.Bounds.X > 216).Bounds;
+        UiRect secondHp = Assert.Single(canvas.TextDraws, draw => draw.Text == "1234" && draw.Bounds.Y == name.Bounds.Y + 28 && draw.Bounds.X > 216).Bounds;
         Assert.Equal(firstHp.Right, secondHp.Right);
-        Assert.Contains(canvas.Clips, clip => clip.X == 60 && clip.Y == name.Bounds.Y && clip.Width == (guardianFormsEnabled ? 134 : 156));
+        Assert.Equal(60, name.Bounds.X);
+        Assert.Equal(guardianFormsEnabled ? 134 : 156, name.Bounds.Width);
         float panelRight = canvas.Fills.Where(fill => fill.Bounds.Y == 516).Max(fill => fill.Bounds.Right);
         Assert.Equal(276, panelRight);
         Assert.Equal(panelRight - 8, firstHp.Right);

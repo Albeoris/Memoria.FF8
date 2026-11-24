@@ -100,6 +100,26 @@ public sealed class TextOverflowTests
     }
 
     [Fact]
+    public void HorizontalScrollReachesTheLastCharacterAndReturnsToTheStart()
+    {
+        UiTextOverflow overflow = new();
+        UiRect bounds = new(0, 0, 100, 26);
+        UiTextViewport At(double seconds)
+        {
+            overflow.BeginFrame(TimeSpan.FromSeconds(seconds));
+            return overflow.Layout("Long row label", 20, bounds, null, _ => new UiSize(220, 20), UiTextFlow.SingleLine);
+        }
+
+        Assert.Equal(0, At(0).OffsetX);
+        Assert.Equal(120, At(5.5).OffsetX);
+        Assert.Equal(120, At(7.5).OffsetX);
+        Assert.Equal(60, At(9.5).OffsetX);
+        Assert.Equal(0, At(11.5).OffsetX);
+        Assert.Equal(0, At(12.5).OffsetX);
+        Assert.Equal(60, At(15).OffsetX);
+    }
+
+    [Fact]
     public void WrappedTextThatFitsRemainsStillAndKeepsWrapping()
     {
         UiTextOverflow overflow = new();

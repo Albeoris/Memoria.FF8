@@ -48,15 +48,7 @@ internal sealed partial class BattleHudElement : UiElement
 
     private void ChoiceText(IUiCanvas canvas, UiTheme theme, string value, float x, float y, float width, float size, bool muted)
     {
-        canvas.PushClip(Rect(x, y, width, 26));
-        try
-        {
-            Text(canvas, theme, value, x, y, Math.Max(width, CommandWidth), 26, size, muted);
-        }
-        finally
-        {
-            canvas.PopClip();
-        }
+        canvas.Text(value, size * Scale * controller.TextScale, Rect(x, y, width, 26), muted ? theme.Muted : theme.Foreground, UiAlignment.Start, UiTextFlow.SingleLine);
     }
 
     protected override void DrawSelf(IUiCanvas canvas, UiTheme theme)
@@ -140,6 +132,12 @@ internal sealed partial class BattleHudElement : UiElement
         float arrowWidth = rightArrows.Any(value => value) ? 22 : 0;
         float fontSize = 20 * controller.TextScale;
         float valueWidth = 0;
+        float maximumWidth = drewExpandedParty ? partyList.Panel.X - BattleHudLayout.CommandX - 12 : 440;
+        string? revealingLimit = canAttack && !controller.SelectingAction && !controller.SelectingTarget && controller.LimitCommandReveal > 0 && controller.NativeLimitAvailable
+            ? controller.CommandLabel(BattleAbility.LimitBreak)
+            : null;
+        string ordinaryFirstCommand = revealingLimit is null ? string.Empty : controller.OrdinaryFirstCommandLabel;
+        string? slotsLabel = controller.NativeSlotsLabel;
         if (actions.Count > 0)
         {
             float nameWidth = choices.Select(value => canvas.MeasureText(value, fontSize * Scale, 4096 * Scale).Width / Scale).DefaultIfEmpty(0).Max();
@@ -169,19 +167,16 @@ internal sealed partial class BattleHudElement : UiElement
         }
         else
         {
-            CommandWidth = 194;
-        }
-        if (controller.NativeSlotsLabel is { } slotsLabel)
-        {
-            CommandWidth = Math.Clamp(38 + canvas.MeasureText(slotsLabel, fontSize * Scale, 4096 * Scale).Width / Scale, 194, 440);
-        }
-        if (party.Count > 4 && !controller.SelectingAction)
-        {
-            CommandWidth = 194;
+            float nameWidth = 0;
+            if (canAttack && !controller.ShowingDrawList && !controller.ShowingMagicList)
+            {
+                nameWidth = choices.Append(revealingLimit).Append(ordinaryFirstCommand).Append(slotsLabel).Max(label =>
+                    label is null ? 0 : canvas.MeasureText(label, fontSize * Scale, float.PositiveInfinity).Width / Scale);
+            }
+            CommandWidth = Math.Clamp(38 + arrowWidth + nameWidth, 194, Math.Clamp(maximumWidth, 194, 440));
         }
         if (drewExpandedParty)
         {
-            float maximumWidth = partyList.Panel.X - BattleHudLayout.CommandX - 12;
             float fit = Math.Min(1, Math.Max(0, maximumWidth - 38) / Math.Max(1, CommandWidth - 38));
             CommandWidth = Math.Min(CommandWidth, maximumWidth);
             fontSize *= fit;
@@ -214,9 +209,9 @@ internal sealed partial class BattleHudElement : UiElement
         }
         else if (canAttack && !controller.ShowingDrawList && !controller.ShowingMagicList)
         {
-            if (controller.NativeSlotsLabel is { } rollLabel)
+            if (slotsLabel is not null)
             {
-                ChoiceText(canvas, theme, rollLabel, 60, CommandContentY - 28, CommandWidth - 38, 20, false);
+                ChoiceText(canvas, theme, slotsLabel, 60, CommandContentY - 28, CommandWidth - 38, 20, false);
             }
             int start = BattleHudLayout.CommandStart(controller.ChoiceIndex, choices.Count);
             for (int row = 0; row < BattleHudLayout.VisibleCommandRows && start + row < choices.Count; row++)
@@ -233,9 +228,14 @@ internal sealed partial class BattleHudElement : UiElement
                 unavailable |= !controller.SelectingAction && !controller.HasGuardianFormCommands && controller.Commands.ElementAtOrDefault(start + row) == BattleAbility.LimitBreak && !controller.NativeLimitAvailable;
                 float valueLeft = 30 + CommandWidth - 8 - valueWidth - (guardianHpColumn ? 0 : arrowWidth);
                 float ownerLeft = valueLeft - (valueWidth > 0 ? 12 : 0) - (guardianHpColumn ? arrowWidth : 0);
-                if (!DrawNativeLimitCommandRow(canvas, theme, start + row, y, Math.Max(0, ownerLeft - 60), fontSize / controller.TextScale, unavailable))
+                float labelWidth = Math.Max(0, ownerLeft - 60);
+                if (start + row == 0 && revealingLimit is not null)
                 {
-                    ChoiceText(canvas, theme, choices[start + row], 60, y, Math.Max(0, ownerLeft - 60), fontSize / controller.TextScale, unavailable);
+                    DrawNativeLimitCommandRow(canvas, theme, revealingLimit, ordinaryFirstCommand, y, labelWidth, fontSize / controller.TextScale, unavailable);
+                }
+                else
+                {
+                    ChoiceText(canvas, theme, choices[start + row], 60, y, labelWidth, fontSize / controller.TextScale, unavailable);
                 }
                 if (rightArrows[start + row])
                 {
