@@ -12,7 +12,7 @@ internal static class AutoPlayTraversalPolicy
         return ProgressionEntryOrder(visit, item, 0, false, 0);
     }
 
-    public static int ProgressionEntryOrder(AutoPlayVisit visit, AutoPlayEvent item, int galbadiaKeys, bool hasIntroductionLetter, int laboratoryProgress, bool sphinxDefeated = false)
+    public static int ProgressionEntryOrder(AutoPlayVisit visit, AutoPlayEvent item, int galbadiaKeys, bool hasIntroductionLetter, int laboratoryProgress, bool sphinxDefeated = false, bool inTrainingClothes = false)
     {
         if (visit.Key.EndsWith(":894", StringComparison.Ordinal) && GalbadiaKeyRouteOrder(galbadiaKeys, item.Id) is int keyOrder)
         {
@@ -43,6 +43,12 @@ internal static class AutoPlayTraversalPolicy
             // NG-010: Complete the ordinary clothing interaction before the night entrances.
             ("163:155", "163:line:17" or "163:line:18") => 1,
             ("241:155", "241:line:12") => -1,
+            // NG-123: Follow the original eastern training route after changing clothes.
+            ("163:155", "163:line:16" or "163:gateway:0") or ("165:155", "165:gateway:4") or ("170:155", "170:line:27") when inTrainingClothes => -1,
+            ("226:155", "226:gateway:0") or ("214:155", "214:gateway:0") or ("215:155", "215:line:12") or ("218:155", "218:line:10") when inTrainingClothes => -1,
+            // NG-124: Return to the original dormitory route after the training scene.
+            ("163:175", "163:line:16" or "163:gateway:0") or ("165:175", "165:gateway:3") or ("168:175", "168:gateway:0") => -1,
+            ("174:175", "174:line:24") or ("231:177", "231:line:11") => -1,
             // NG-019: Quistis advances this phase once the ordinary approach is available.
             ("679:324", "679:talk:3") => -1,
             // NG-020: Prefer the station exits toward Caraway's guard during this phase.

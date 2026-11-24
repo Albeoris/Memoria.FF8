@@ -1789,7 +1789,8 @@ internal sealed partial class AutoPlayController
         bool hasIntroductionLetter = session.State.WorldEntryMemory?.StoryWord == 1350 && session.State.EventMemory.Read(390, 1).RequireExact() != 0;
         int laboratoryProgress = session.State.WorldEntryMemory?.StoryWord == 1750 ? session.State.EventMemory.Read(684, 1).RequireExact() : 0;
         bool sphinxDefeated = session.State.WorldEntryMemory?.StoryWord == 4050 && (session.State.EventMemory.Read(372, 1).RequireExact() & 1) != 0;
-        return AutoPlayTraversalPolicy.ProgressionEntryOrder(visit, item, keys, hasIntroductionLetter, laboratoryProgress, sphinxDefeated);
+        bool inTrainingClothes = session.State.WorldEntryMemory?.StoryWord == 155 && session.State.EventMemory.Read(720, 1).Values is [0];
+        return AutoPlayTraversalPolicy.ProgressionEntryOrder(visit, item, keys, hasIntroductionLetter, laboratoryProgress, sphinxDefeated, inTrainingClothes);
     }
 
     private void ParkAutoPlayRental(WorldMapScene scene)
