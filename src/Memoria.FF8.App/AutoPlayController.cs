@@ -1348,6 +1348,8 @@ internal sealed partial class AutoPlayController
         bool controlled = world.Events.IsUserControlEnabled;
         int? player = world.Events.PlayerActor?.ObjectId;
         bool? pendingInteraction = objectId is int owner ? world.Events.HasPendingPlayerInteraction(owner) : null;
+        // A held line can retire its current callback before starting another one with the same input query.
+        bool heldContact = controlled && input.ObservedQueriesProven && objectId is int source && world.Events.HasAutoPlayHeldContact(source);
         DialogueState? dialogue = world.CurrentDialogue;
         ScriptCommand? matchedQuery = null;
         List<ScriptedInputQuery> observedQueries = [];
@@ -1356,7 +1358,7 @@ internal sealed partial class AutoPlayController
         long queryBeforeFrame = world.Events.Frame;
         bool HasProbeOwner()
         {
-            return HasScriptedInputOwner(world, field, allowControlled) && world.Events.FieldId == field && world.HasCurrentFieldAllocation && world.Events.IsUserControlEnabled == controlled && world.Events.PlayerActor?.ObjectId == player && (objectId is null || world.Events.HasPendingPlayerInteraction(objectId.Value) == pendingInteraction) && HasSameProbeDialogueOwner(world.CurrentDialogue, dialogue) && world.CurrentDialogue is not { CanConfirm: true } && world.PendingEntityName is null && !world.Events.HasPendingBattle && world.Events.PendingTripleTriad is null && world.Events.LastFault is null && world.NextTrigger.Kind is not (PlayerTriggerKind.Faulted or PlayerTriggerKind.Unloaded or PlayerTriggerKind.Movie or PlayerTriggerKind.FieldTransition or PlayerTriggerKind.WorldMap or PlayerTriggerKind.Battle);
+            return HasScriptedInputOwner(world, field, allowControlled) && world.Events.FieldId == field && world.HasCurrentFieldAllocation && world.Events.IsUserControlEnabled == controlled && world.Events.PlayerActor?.ObjectId == player && (objectId is null || (heldContact ? world.Events.HasAutoPlayHeldContact(objectId.Value) : world.Events.HasPendingPlayerInteraction(objectId.Value) == pendingInteraction)) && HasSameProbeDialogueOwner(world.CurrentDialogue, dialogue) && world.CurrentDialogue is not { CanConfirm: true } && world.PendingEntityName is null && !world.Events.HasPendingBattle && world.Events.PendingTripleTriad is null && world.Events.LastFault is null && world.NextTrigger.Kind is not (PlayerTriggerKind.Faulted or PlayerTriggerKind.Unloaded or PlayerTriggerKind.Movie or PlayerTriggerKind.FieldTransition or PlayerTriggerKind.WorldMap or PlayerTriggerKind.Battle);
         }
         bool HasMatchedQueryOwner()
         {
