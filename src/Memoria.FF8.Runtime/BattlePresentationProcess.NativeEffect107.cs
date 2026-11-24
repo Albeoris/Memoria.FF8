@@ -167,7 +167,7 @@ public sealed partial class BattlePresentationProcess
                 intensity = Math.Min(intensity, 31);
                 NativeBattleCameraProjection projection = NativeCamera!.Projection!;
                 NativeBattleModuleProjectedVertex center = NativeBattleModuleProjection.Project45FE10(projection.View!, anchor, projection);
-                if (center.Depth > 0)
+                if (center.ReadDepth45E250() > 0)
                 {
                     short x = unchecked((short)((short)center.Screen >> 3));
                     short y = unchecked((short)((short)(center.Screen >> 16) >> 3));

@@ -19,7 +19,8 @@ public static class NativeBattleEffect107Geometry
 
     public static NativeBattleProjectedVertex Deform6D1C30(NativeBattleModuleProjectedVertex projected, short centerX, short centerY, short radius, ref short extent, int intensity, Func<uint, int, ImmutableArray<byte>> readResource)
     {
-        if (projected.Depth == 0)
+        ushort depth = projected.ReadDepth45E250();
+        if (depth == 0)
         {
             //The original writes only the rejection WORD at scratch+6; rejected corners never consume its retained XY/depth.
             return new(0, 0x100000);
@@ -70,7 +71,7 @@ public static class NativeBattleEffect107Geometry
         {
             clip |= 8;
         }
-        return new(unchecked((ushort)x) | unchecked((uint)y << 16), projected.Depth | clip << 16);
+        return new(unchecked((ushort)x) | unchecked((uint)y << 16), depth | clip << 16);
     }
 
     public static NativeBattleGfGeometryBatch Emit6BCB50(ImmutableArray<NativeBattleRawPolygon> polygons, IReadOnlyList<NativeBattleProjectedVertex> vertices, uint color, NativeBattleModelTextureBinding? binding, int tableBaseBucket = 17, byte depthShift = 0, NativeBattlePilotVisualIdentity? pilotIdentity = null)

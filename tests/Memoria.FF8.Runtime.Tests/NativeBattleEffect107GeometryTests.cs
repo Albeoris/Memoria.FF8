@@ -15,7 +15,7 @@ public sealed class NativeBattleEffect107GeometryTests
         List<(uint Address, int Length)> reads = [];
         short extent = 3;
         NativeBattleProjectedVertex result = NativeBattleEffect107Geometry.Deform6D1C30(new(XY(160, 320), 1000, 0x80020000), 10, 20, 64, ref extent, 2, Read);
-        Assert.Equal(new NativeBattleProjectedVertex(XY(120, 240), 1000), result);
+        Assert.Equal(new NativeBattleProjectedVertex(XY(120, 240), 250), result);
         Assert.Equal(20, extent);
         Assert.Equal(new (uint, int)[] { (0x12F6382, 1), (0x12F3BB8, 2) }, reads);
 
@@ -35,7 +35,7 @@ public sealed class NativeBattleEffect107GeometryTests
         Assert.Equal(128, extent);
         Assert.Equal(0x12F99F8u, address);
         Assert.Equal(XY(320 * 8 + 3, 216 * 8 + 5), result.Screen);
-        Assert.Equal(0xA000Au, result.DepthAndClip);
+        Assert.Equal(0xA0002u, result.DepthAndClip);
 
         ImmutableArray<byte> Read(uint current, int length)
         {
@@ -45,11 +45,13 @@ public sealed class NativeBattleEffect107GeometryTests
         }
     }
 
-    [Fact]
-    public void ZeroDepthRejectsWithoutReadingLookupTablesOrChangingExtent()
+    [Theory]
+    [InlineData(0)]
+    [InlineData(3)]
+    public void ZeroStoredDepthRejectsWithoutReadingLookupTablesOrChangingExtent(ushort depth)
     {
         short extent = 91;
-        NativeBattleProjectedVertex result = NativeBattleEffect107Geometry.Deform6D1C30(new(XY(100, 100), 0, 0), 0, 0, 100, ref extent, 0, (_, _) => throw new InvalidOperationException());
+        NativeBattleProjectedVertex result = NativeBattleEffect107Geometry.Deform6D1C30(new(XY(100, 100), depth, 0), 0, 0, 100, ref extent, 0, (_, _) => throw new InvalidOperationException());
         Assert.Equal(91, extent);
         Assert.Equal(0x100000u, result.DepthAndClip);
     }
@@ -60,7 +62,7 @@ public sealed class NativeBattleEffect107GeometryTests
         short extent = 0;
         NativeBattleProjectedVertex result = NativeBattleEffect107Geometry.Deform6D1C30(new(XY(79, 79), 1000, 0), 10, 10, 64, ref extent, 0, (_, length) => length == 1 ? [1] : [0, 240]);
         Assert.Equal(XY(-40, -40), result.Screen);
-        Assert.Equal(0x50000u | 1000, result.DepthAndClip);
+        Assert.Equal(0x50000u | 250, result.DepthAndClip);
         Assert.Equal(1, extent);
     }
 
@@ -91,6 +93,26 @@ public sealed class NativeBattleEffect107GeometryTests
         Assert.Empty(NativeBattleEffect107Geometry.Emit6BCB50([polygon], [outside, outside, outside], 0, null).Attempts);
         NativeBattleRawPolygon colored = polygon with { Bytes = polygon.Bytes.AddRange(new byte[4]) };
         Assert.Empty(NativeBattleEffect107Geometry.Emit6BCB50([colored], [], 0, null).Attempts);
+    }
+
+    [Theory]
+    [InlineData(false, 1109)]
+    [InlineData(true, 1110)]
+    public void DeformedBodyUsesQuarterDepthForOrderingAndPerspective(bool quad, int bucket)
+    {
+        short extent = 0;
+        NativeBattleProjectedVertex[] vertices = [Project(80, 80), Project(160, 80), Project(80, 160), Project(160, 160)];
+        NativeBattleGfGeometryBatch batch = NativeBattleEffect107Geometry.Emit6BCB50([Body(quad)], vertices, 0x808080, null, pilotIdentity: new(107, 0x6D19A0, 0, 0, 0));
+        NativeBattleGeometryPrimitive primitive = Assert.Single(batch.Attempts).Primitive!;
+        int lastDepth = quad ? 4374 : 0;
+        Assert.Equal(bucket, primitive.Bucket);
+        Assert.Equal(new[] { 4374, 4374, 4374, lastDepth }, primitive.VertexPayload4);
+        Assert.Equal(new System.Numerics.Vector4(4374, 4374, 4374, lastDepth), primitive.PilotGeometry!.SourceDepths);
+
+        NativeBattleProjectedVertex Project(short x, short y)
+        {
+            return NativeBattleEffect107Geometry.Deform6D1C30(new(XY(x, y), 17498, 0), 0, 0, 0, ref extent, 0, (_, _) => [0]);
+        }
     }
 
     [Theory]
