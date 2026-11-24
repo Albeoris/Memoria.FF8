@@ -125,13 +125,13 @@ internal sealed partial class WorldMapScene
         return models;
     }
 
-    private bool HasStationContact(NativeFootWorldRuntimeState foot, int x, int rawZ, int nativeHeight)
+    private bool HasStationContact(NativeFootWorldRuntimeState foot, int x, int rawZ, int nativeHeight, int padding = 0)
     {
         NativeStationTrainProcess process = foot.StationTrainProcess ?? throw new InvalidDataException("Native station contact lost its active train banks.");
         NativeWorldFootCameraState camera = process.ProjectionCamera ?? throw new InvalidDataException("Native station contact requires the executed current foot camera.");
         NativeWorldPathProjectionCertificate context = NativeWorldPathProjectionCertificate.CreateFoot(camera);
         NativeWorldPathWords player = context.RelativeWords(new NativeWorldPathPosition(x, nativeHeight, -rawZ));
         NativeTrainRailBank[] banks = new[] { process.Primary, process.Alternate }.OfType<NativeTrainRailBank>().ToArray();
-        return WorldStationContactCertificate.Evaluate(assets, foot.StationTrains!.Load.Allocation, banks, player, nativeHeight, position => context.ProjectNode(position) ?? throw new NotSupportedException(context.UnsupportedReason), context.IsNear, appendedObjects: foot.StationTrains.Load.SavedVehicleObjects).Hit;
+        return WorldStationContactCertificate.Evaluate(assets, foot.StationTrains!.Load.Allocation, banks, player, nativeHeight, position => context.ProjectNode(position) ?? throw new NotSupportedException(context.UnsupportedReason), context.IsNear, padding, appendedObjects: foot.StationTrains.Load.SavedVehicleObjects).Hit;
     }
 }

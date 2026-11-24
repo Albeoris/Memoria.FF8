@@ -52,7 +52,7 @@ internal sealed partial class GameWorld
 
     private static bool IsSupportedGameplayWorld(WorldState current, GameState state)
     {
-        return current.NativeScriptedRuntime is null && current.NativeTrainRuntime is null && current.NativeGardenRuntime?.Transfer is not { Counter: < 31 } && current.NativeRagnarokRuntime?.Transfer is null && current.EventUi is not { ScriptMode: not (0 or 14) } && state.MoviePlayback is not { IsPlaying: true } && state.PendingEntityNames is not { Length: > 0 };
+        return current.DrawPoint is null && current.NativeScriptedRuntime is null && current.NativeTrainRuntime is null && current.NativeGardenRuntime?.Transfer is not { Counter: < 31 } && current.NativeRagnarokRuntime?.Transfer is null && current.EventUi is not { ScriptMode: not (0 or 14) } && state.MoviePlayback is not { IsPlaying: true } && state.PendingEntityNames is not { Length: > 0 };
     }
 
     /// <summary>Captures supported durable progress and the current resume authority from this live host.</summary>

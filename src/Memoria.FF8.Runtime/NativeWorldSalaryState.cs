@@ -177,7 +177,7 @@ public sealed partial record NativeWorldSalaryState
         {
             process = (process ?? throw new NotSupportedException("Car camera publication requires its persistent process owner.")) with { CameraCooldown = cooldown };
         }
-        return candidate with { World = candidate.World is { } world ? world with { EventUi = EventUi } : candidate.World, SeeD = SeeD, Economy = Economy?.DeepCopy(), SalaryPresentation = Presentation, GlobalSoundProcess = SoundProcess, EventRandom = EventRandom, RandomEncounters = RandomEncounters, VibrationProcess = VibrationProcess, WorldEntryMemory = WorldEntryMemory, SavedWorld = ApplySavedWorldOwners(candidate.SavedWorld), WorldProcess = process };
+        return candidate with { World = candidate.World is { } world ? world with { EventUi = EventUi } : candidate.World, CharacterVitals = DrawPointVitals ?? candidate.CharacterVitals, SeeD = SeeD, Economy = Economy?.DeepCopy(), SalaryPresentation = Presentation, GlobalSoundProcess = SoundProcess, EventRandom = EventRandom, RandomEncounters = RandomEncounters, VibrationProcess = VibrationProcess, WorldEntryMemory = WorldEntryMemory, SavedWorld = ApplySavedWorldOwners(candidate.SavedWorld), WorldProcess = process };
     }
 
     public NativeWorldSalaryState PrepareDrawPointAging(uint movementUnits)

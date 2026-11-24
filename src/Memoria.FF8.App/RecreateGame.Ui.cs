@@ -773,7 +773,7 @@ internal sealed partial class RecreateGame
             {
                 gameMenus.Open("config", false);
             }
-            else if (session.State.Scene == SceneKind.Title || session.State.Scene == SceneKind.WorldMap || session.State.Scene == SceneKind.Field && events?.CanOpenFieldMenu == true)
+            else if (session.State.Scene == SceneKind.Title || session.State.Scene == SceneKind.WorldMap && session.State.World?.DrawPoint is null || session.State.Scene == SceneKind.Field && events?.CanOpenFieldMenu == true)
             {
                 gameMenus.Open("main", false);
             }

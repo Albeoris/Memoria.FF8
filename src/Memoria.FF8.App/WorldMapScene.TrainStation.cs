@@ -29,6 +29,10 @@ internal sealed partial class WorldMapScene
     {
         get
         {
+            if (State.DrawPoint is { } drawPoint)
+            {
+                return DrawPointDialogue(drawPoint);
+            }
             if ((State.EventUi?.FocusedPageMessage ?? State.EventUi?.Windows.LastOrDefault()) is { } nativeMessage)
             {
                 NativeWorldMessage prepared = nativeMessage.FuelRemaining is byte remaining ? assets.ReadNativeFuelMessage(remaining) : assets.ReadNativeWorldMessage(nativeMessage.WindowId, nativeMessage.MessageId);

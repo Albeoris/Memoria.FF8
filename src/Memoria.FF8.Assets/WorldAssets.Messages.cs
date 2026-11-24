@@ -156,6 +156,46 @@ public sealed partial class WorldAssets
         return NativeTextEncoding.Create(resources.Source.Language).GetString(bytes.AsSpan(0, bytes.Length - 1));
     }
 
+    public string ComposeWorldMessage(int template, params string[] arguments)
+    {
+        // 54FC80 expands section33 into section13 text fragments and supplied arguments.
+        ReadOnlySpan<byte> section = wmset.AsSpan(sections[33], sections[34] - sections[33]);
+        int tableBytes = BinaryPrimitives.ReadInt32LittleEndian(section);
+        if (tableBytes < 4 || tableBytes % 4 != 0 || tableBytes > section.Length || (uint)template >= tableBytes / 4)
+        {
+            throw new InvalidDataException("World message template is outside its pointer table.");
+        }
+        int position = BinaryPrimitives.ReadInt32LittleEndian(section[(template * 4)..]);
+        if (position < tableBytes)
+        {
+            throw new InvalidDataException("World message template overlaps its pointer table.");
+        }
+        System.Text.StringBuilder text = new();
+        while ((uint)position < section.Length)
+        {
+            byte token = section[position++];
+            if (token != 10)
+            {
+                text.Append(ReadWorldMessage(token));
+                continue;
+            }
+            if (position >= section.Length)
+            {
+                break;
+            }
+            int parameter = section[position++];
+            if (parameter == 255)
+            {
+                return text.ToString();
+            }
+            if ((uint)(parameter - 32) < arguments.Length)
+            {
+                text.Append(arguments[parameter - 32]);
+            }
+        }
+        throw new InvalidDataException("World message template has no bounded terminator.");
+    }
+
     public string ReadWorldMessagePage(NativeWorldTextState text)
     {
         return NativeTextEncoding.Create(resources.Source.Language).GetString(text.CurrentPageBytes().AsSpan());

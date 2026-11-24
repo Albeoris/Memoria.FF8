@@ -318,10 +318,7 @@ public sealed partial class EventEngine
     {
         NativeEventRandomState random = services.EventRandom!;
         NativeDrawPointMemory bank = random.DrawPoints!;
-        int address = 116 + current.PointIndex / 4;
-        int shift = 2 * (current.PointIndex & 3);
-        int value = (bank.Read(address, 1) & ~(3 << shift)) | (((current.PointByte & 0x40) != 0 ? 2 : 3) << shift);
-        services.SetNativeEventOwners(services.WorldControls!, eventRandom: random with { DrawPoints = bank.Write(address, 1, value) });
+        services.SetNativeEventOwners(services.WorldControls!, eventRandom: random with { DrawPoints = bank.Deplete(current.PointIndex, current.PointByte) });
     }
 
     private int[] CompleteDrawPointInteraction(Fiber fiber, bool zeroResult)
@@ -452,7 +449,7 @@ public sealed partial class EventEngine
     private byte ReadDrawPointDepletion(byte index)
     {
         NativeDrawPointMemory bank = services.EventRandom!.DrawPoints!;
-        return (byte)((bank.Depletion[index / 4] >> (2 * (index & 3))) & 3);
+        return bank.GetDepletion(index);
     }
 
     private void ValidateDrawPointInteractionCheckpoint(Checkpoint saved)

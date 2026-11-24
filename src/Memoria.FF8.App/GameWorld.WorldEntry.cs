@@ -58,6 +58,7 @@ internal sealed partial class GameWorld
         scene.ResolveNativeAutoJunction = Events.ResolveNativeAutoJunction;
         scene.PrepareSalaryEffects = Events.PrepareSalaryEffects;
         scene.PrepareGlobalSound = Events.PrepareGlobalSound;
+        scene.ReadDrawPointCatalog = assets.ReadNativeDrawPointCatalog;
         scene.PublishSalaryEffects = Events.PublishSalaryEffects;
         scene.PrepareChocoboDismountMusic = Events.PrepareChocoboDismountMusic;
         scene.PublishChocoboDismountMusic = Events.PublishChocoboDismountMusic;

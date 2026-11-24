@@ -5,7 +5,7 @@ namespace Memoria.FF8.Assets.Tests;
 public sealed class WorldDrawPointReaderTests
 {
     [Fact]
-    public void OrderedSelectorsCompareSignedMapAndPolygonAndReturnGlobalRecordIndex()
+    public void OrderedSelectorsCompareSignedCellAndPolygonAndReturnGlobalRecordIndex()
     {
         byte[] section = Section();
         Assert.Equal(2, WorldDrawPointReader.Find(section, [1, 0, 255, 255], 300, 17));

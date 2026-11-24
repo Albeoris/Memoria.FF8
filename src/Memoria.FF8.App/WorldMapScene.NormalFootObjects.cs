@@ -157,13 +157,13 @@ internal sealed partial class WorldMapScene
         return foot with { NormalObjects = process with { PrimaryDistanceSquared = process.Primary is null ? null : NormalTrainDistance(process.Primary, player, context), AlternateDistanceSquared = process.Alternate is null ? null : NormalTrainDistance(process.Alternate, player, context) } };
     }
 
-    private bool HasNormalFootObjectContact(NativeFootWorldRuntimeState foot, int x, int rawZ, int height)
+    private bool HasNormalFootObjectContact(NativeFootWorldRuntimeState foot, int x, int rawZ, int height, int padding = 0)
     {
         NativeNormalFootObjectProcess process = foot.NormalObjects!;
         NativeWorldPathProjectionCertificate context = NativeWorldPathProjectionCertificate.CreateFoot(process.Camera);
         NativeWorldPathWords player = context.RelativeWords(new NativeWorldPathPosition(x, height, -rawZ));
         NativeTrainRailBank[] banks = new[] { process.Primary, process.Alternate }.OfType<NativeTrainRailBank>().ToArray();
-        return WorldStationContactCertificate.Evaluate(assets, process.Allocation, banks, player, height, node => context.ProjectNode(node) ?? throw new NotSupportedException(context.UnsupportedReason), context.IsNear).Hit;
+        return WorldStationContactCertificate.Evaluate(assets, process.Allocation, banks, player, height, node => context.ProjectNode(node) ?? throw new NotSupportedException(context.UnsupportedReason), context.IsNear, padding).Hit;
     }
 
     private IReadOnlyList<NativeWorldStaticModelDraw> ReadNormalFootObjectModels(WorldState world)

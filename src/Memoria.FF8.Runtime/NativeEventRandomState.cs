@@ -62,6 +62,19 @@ public sealed record NativeEventRandomState([property: JsonRequired] uint State,
 /// <summary>Actual event-bank bytes116..179 and WORD180, with no dictionary mirror.</summary>
 public sealed record NativeDrawPointMemory([property: JsonRequired] ImmutableArray<byte> Depletion, [property: JsonRequired] ushort RegenerationCounter180)
 {
+    public byte GetDepletion(byte point)
+    {
+        return (byte)((Read(116 + point / 4, 1) >> (2 * (point & 3))) & 3);
+    }
+
+    public NativeDrawPointMemory Deplete(byte point, byte definition)
+    {
+        int address = 116 + point / 4;
+        int shift = 2 * (point & 3);
+        int depletion = (definition & 0x40) == 0 ? 3 : 2;
+        return Write(address, 1, (Read(address, 1) & ~(3 << shift)) | (depletion << shift));
+    }
+
     public static NativeDrawPointMemory FromExecutedNewGame() => new(ImmutableArray.CreateRange(new byte[64]), 0);
 
     public bool Equals(NativeDrawPointMemory? other)

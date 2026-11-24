@@ -1034,6 +1034,7 @@ public sealed partial class GameSession : IEventServices
 
     private static void ValidateWorldState(WorldState world)
     {
+        world.DrawPoint?.Validate(world);
         world.NativeFootRuntime?.Validate();
         world.NativeCarRuntime?.Validate();
         if (world.NativeFootRuntime?.ParkedCar is { } parkedCar && parkedCar.DismountFrame > world.Frame)

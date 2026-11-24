@@ -10,6 +10,8 @@ public sealed record WorldState
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeWorldEventUi? EventUi { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeWorldDrawPoint? DrawPoint { get; init; }
 
     public long Frame { get; init; }
     public int X { get; init; }

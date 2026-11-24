@@ -57,21 +57,7 @@ internal sealed partial class WorldMapScene
         {
             return null;
         }
-        //54E9B0 only calls54F920 with broad contact-1. A missed boarding
-        //action still leaves559240's reset value when that lookup finds no point.
-        if (publication.BroadContact != -1)
-        {
-            return false;
-        }
-        NativeWorldGroundCacheState cache = state.NativeFootRuntime!.GroundCache ?? throw new InvalidDataException("Completed foot controls require their accepted ground owner.");
-        byte storyByte266 = salary.WorldEntryMemory?.StoryByte266 ?? throw new InvalidDataException("World draw-point lookup requires field byte266.");
-        foreach (NativeWorldGroundAlternative alternative in cache.Alternatives)
-        {
-            if (assets.FindNativeDrawPoint(alternative.CurrentGround, storyByte266) >= 0)
-            {
-                return null;
-            }
-        }
+        // Draw-point admission follows the transport action in the same callback.
         return false;
     }
 }

@@ -1,0 +1,71 @@
+using Memoria.FF8.Events;
+using Memoria.FF8.Runtime;
+
+namespace Memoria.FF8.App.Tests;
+
+public sealed class WorldDrawPointInteractionTests
+{
+    [Theory]
+    [InlineData("A", 197)]
+    [InlineData("B", 239)]
+    public void Saved_world_point_accepts_confirm_and_commits_stock_and_depletion_once(string fixture, int expectedPoint)
+    {
+        string directory = TestResources.GameDirectory;
+        string path = TestResources.FixturePath("App.Tests.WorldDrawPointInteractionTests." + fixture);
+        var session = new GameSession(PlayerStateLoader.Load(path, directory));
+        using var world = new GameWorld(session, directory);
+        world.EnsureField();
+        Assert.True(world.Apply(new PlayerAction(PlayerActionKind.Wait, Frames: 24)).Accepted);
+        var confirm = new PlayerAction(PlayerActionKind.Confirm);
+        PlayerAction input = ControllerGameplayInput.CreateWorldAction(default, session.State, 0x40);
+        Assert.True(world.Apply(input).Accepted);
+        NativeWorldDrawPoint point = Assert.IsType<NativeWorldDrawPoint>(session.State.World!.DrawPoint);
+        Assert.Equal(expectedPoint, point.PointIndex);
+        Assert.Equal(NativeWorldDrawPointPhase.Found, point.Phase);
+        Assert.Contains(world.ValidationAssets.ReadNativeDrawPointCatalog().MagicNames[point.MagicId], world.CurrentDialogue!.Text, StringComparison.OrdinalIgnoreCase);
+        Assert.True(world.Apply(confirm).Accepted);
+        Assert.Equal(NativeWorldDrawPointPhase.Found, session.State.World.DrawPoint!.Phase);
+        Assert.True(world.Apply(new PlayerAction(PlayerActionKind.Wait)).Accepted);
+        Assert.True(world.Apply(confirm).Accepted);
+        DialogueState choice = Assert.IsType<DialogueState>(world.CurrentDialogue);
+        Assert.Equal(1, choice.CancelChoice);
+        Assert.True(world.Apply(new PlayerAction(PlayerActionKind.Choose, choice.CancelChoice!.Value)).Accepted);
+        Assert.Null(session.State.World.DrawPoint);
+        Assert.True(session.State.EventRandom!.DrawPoints!.GetDepletion(point.PointIndex) < 2);
+
+        Assert.True(world.Apply(new PlayerAction(PlayerActionKind.Wait)).Accepted);
+        Assert.True(world.Apply(confirm).Accepted);
+        Assert.True(world.Apply(new PlayerAction(PlayerActionKind.Wait)).Accepted);
+        Assert.True(world.Apply(confirm).Accepted);
+        NativeCharacterVitals before = session.State.CharacterVitals!;
+        var catalog = world.ValidationAssets.ReadNativeDrawPointCatalog();
+        byte[] fieldParty = NativeWorldSaveCompatibility.InitialParty(session.State);
+        byte[] party = fieldParty.Where(identity => identity != 255).Select(identity => before.CombatParty.Single(row => row != 255 && before.Records[row].CharacterId == identity)).ToArray();
+        int slot = Array.FindIndex(party, row => catalog.HasDrawCommand(before.RebuildParty().Records[row]) && before.GetMagicCapacity(row, point.MagicId) == 0);
+        Assert.True(slot >= 0);
+        Assert.True(world.Apply(new PlayerAction(PlayerActionKind.Choose, slot + 2)).Accepted);
+        NativeWorldDrawPoint acquisition = session.State.World.DrawPoint!;
+        Assert.True(acquisition.Quantity > 0);
+        int stock = before.GetMagicCount(party[slot], point.MagicId) + acquisition.Quantity;
+        Assert.Equal(stock, session.State.CharacterVitals!.GetMagicCount(party[slot], point.MagicId));
+        Assert.Equal((point.Definition & 0x40) != 0 ? 2 : 3, session.State.EventRandom.DrawPoints!.GetDepletion(point.PointIndex));
+        Assert.True(world.Apply(new PlayerAction(PlayerActionKind.Wait, Frames: NativeWorldDrawPoint.AcquisitionCallbacks)).Accepted);
+        Assert.Equal(NativeWorldDrawPointPhase.Acquired, session.State.World.DrawPoint!.Phase);
+        Assert.True(world.Apply(confirm).Accepted);
+        Assert.Null(session.State.World.DrawPoint);
+        if (fixture == "A" && Environment.GetEnvironmentVariable("MEMORIA_FF8_WORLD_DRAW_OUTPUT") is { Length: > 0 } output)
+        {
+            session.Save(output, compact: true);
+            var resumed = new GameSession(GameSession.Load(output));
+            using var restored = new GameWorld(resumed, directory);
+            restored.EnsureField();
+            Assert.Null(restored.CurrentDialogue);
+            Assert.Equal(stock, resumed.State.CharacterVitals!.GetMagicCount(party[slot], point.MagicId));
+            Assert.True(restored.Apply(new PlayerAction(PlayerActionKind.Wait)).Accepted);
+        }
+        Assert.True(world.Apply(new PlayerAction(PlayerActionKind.Wait)).Accepted);
+        Assert.True(world.Apply(confirm).Accepted);
+        Assert.Equal(NativeWorldDrawPointPhase.Depleted, session.State.World.DrawPoint!.Phase);
+        Assert.Equal(stock, session.State.CharacterVitals!.GetMagicCount(party[slot], point.MagicId));
+    }
+}

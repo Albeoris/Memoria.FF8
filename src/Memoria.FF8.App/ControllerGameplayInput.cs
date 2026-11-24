@@ -10,6 +10,10 @@ internal static class ControllerGameplayInput
 
     public static PlayerAction CreateWorldAction(InputFrame input, GameState state, ushort buttons)
     {
+        if (state.World?.DrawPoint is not null)
+        {
+            return new PlayerAction(PlayerActionKind.Wait);
+        }
         // The dialogue UI handles Confirm separately. Keep advancing text while the tutorial owns world input.
         if (state.Scene == SceneKind.WorldMap && state.World?.EventUi is { ScriptMode: 14 } tutorial && tutorial.Windows.Any(window => window.WindowId is 9 or 11))
         {
@@ -32,8 +36,7 @@ internal static class ControllerGameplayInput
             float throttle = world.NativeGardenRuntime is not null && input.SecondaryVertical == 0 ? input.Vertical : input.SecondaryVertical;
             return new PlayerAction(PlayerActionKind.WorldButtons, vehicleButtons, Horizontal: input.Horizontal, Vertical: throttle, CameraHorizontal: input.CameraHorizontal);
         }
-        bool parkedVehicle = state.World?.NativeFootRuntime is not null && (state.World.NativeFootRuntime.ParkedCar is not null || state.World.NativeGardenRuntime is not null || state.World.NativeRagnarokRuntime is not null);
-        bool worldConfirm = parkedVehicle || state.World?.NativeChocoboRuntime is not null;
+        bool worldConfirm = state.World?.NativeFootRuntime is not null || state.World?.NativeChocoboRuntime is not null;
         ushort worldButtons = (ushort)(buttons & (state.Scene == SceneKind.WorldMap ? worldConfirm ? 0x142 : 0x102 : 0x02));
         return input.Horizontal != 0 || input.Vertical != 0 ? new PlayerAction(PlayerActionKind.Move, Horizontal: input.Horizontal, Vertical: input.Vertical, CameraHorizontal: input.CameraHorizontal, WorldButtons: worldButtons) : new PlayerAction(PlayerActionKind.Wait, CameraHorizontal: input.CameraHorizontal, WorldButtons: worldButtons);
     }
