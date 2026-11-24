@@ -15,7 +15,7 @@ public sealed partial class MenuController
     private void SelectBattleLoadoutEntry(string id)
     {
         UiView view = BuildView();
-        if (battleLoadoutWeaponList is { } list)
+        if (battleLoadoutSwap is null && battleLoadoutWeaponList is { } list)
         {
             int row = Array.FindIndex(BattleLoadoutWeaponRows(), candidate => candidate.Entry.Id == id);
             if (row >= 0 && battleLoadoutPreparation is null)
@@ -60,7 +60,7 @@ public sealed partial class MenuController
         }
         if (input is MenuInput.PageLeft or MenuInput.PageRight)
         {
-            if (BattleLoadoutAdjacentCharacter(input == MenuInput.PageLeft ? -1 : 1) is not null)
+            if (battleLoadoutSwap is null && BattleLoadoutAdjacentCharacter(input == MenuInput.PageLeft ? -1 : 1) is not null)
             {
                 SoundRequested?.Invoke(MenuSound.Move);
                 Execute(new("loadout-cycle", Value: input == MenuInput.PageLeft ? "-1" : "1"));
@@ -107,7 +107,7 @@ public sealed partial class MenuController
 
     internal void HandleBattleLoadoutWheel(int x, int y, int delta)
     {
-        if (!IsBattleLoadoutEditor || battleLoadoutPreparation is not null || delta == 0)
+        if (!IsBattleLoadoutEditor || battleLoadoutPreparation is not null || battleLoadoutSwap is not null || delta == 0)
         {
             return;
         }

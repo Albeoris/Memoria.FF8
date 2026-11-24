@@ -29,6 +29,14 @@ public sealed partial class MenuController
         }
         Place(page, columns, 1);
         Place(page, BuildBattleLoadoutFooter(), 2);
+        if (battleLoadoutSwap is { } swap)
+        {
+            page.Enabled = false;
+            UiElement layers = new();
+            layers.Children.Add(page);
+            layers.Children.Add(BuildBattleLoadoutSwap(swap));
+            return layers;
+        }
         return page;
     }
 
@@ -101,8 +109,10 @@ public sealed partial class MenuController
             Id = BattleLoadoutWeaponListId,
             Items = rows.Select(row => row.Entry.Action?.Kind == "loadout-type" ? row.Entry.Label : "          " + row.Entry.Label).ToArray(),
             Images = rows.Select(row => row.Icon).ToArray(),
+            TrailingImages = rows.Select(row => row.OwnerPortrait).ToArray(),
+            ItemTextColor = index => rows[index].Equipped ? AbilityActivationColor(true) : null,
             SecondaryItems = rows.Select(row => row.Status).ToArray(),
-            SecondaryWidth = 0.43f,
+            AutoSecondaryWidth = true,
             SecondaryAlignment = UiAlignment.End,
             TextInset = 12,
             FontSize = 15 * TextScale,
@@ -153,16 +163,24 @@ public sealed partial class MenuController
             BattleLimitFamily family = families[row];
             MenuEntry entry = BattleLoadoutLimitEntry(family);
             UiButton button = BattleLoadoutButton(entry.Id, () => Execute(entry.Action!));
-            UiGrid tile = JunctionRows([0], [33, 280, 48], 8);
+            UiGrid tile = JunctionRows([0], [33, 32, 248, 48], 5);
             bool assigned = active.Contains(family);
+            bool supported = BattleLoadoutSupportsLimit(equipped, family);
             Place(tile, new BattleLoadoutDrawing((canvas, theme, bounds) => DrawBattleLoadoutCheckbox(canvas, theme, bounds, assigned)) { Id = entry.Id + "-check" }, 0);
-            Place(tile, JunctionLabel(entry.Label, 16), 0, 1);
+            UiImage portrait = BattleLoadoutPortrait(BattleLimitFamilyRules.SourceCharacter(family));
+            portrait.Id = entry.Id + "-portrait";
+            portrait.Margin = new UiThickness(0, 3);
+            Place(tile, portrait, 0, 1);
+            UiLabel label = JunctionLabel(entry.Label, 16);
+            if (assigned)
+            {
+                label.Color = AbilityActivationColor(supported);
+            }
+            Place(tile, label, 0, 2);
             if (WeaponIconAtlas.RequiredWeaponOwner(family) is int owner)
             {
-                BattleWeaponCapabilities requirement = BattleLimitFamilyRules.RequiredWeapon(family);
-                bool supported = equipped is not null && (equipped.Capabilities & requirement) == requirement;
                 UiColor border = supported ? new(114, 224, 140) : new(255, 120, 124);
-                Place(tile, new BattleLoadoutDrawing((canvas, _, bounds) => DrawBattleLoadoutRequirement(canvas, bounds, owner, border)) { Id = entry.Id + "-weapon" }, 0, 2);
+                Place(tile, new BattleLoadoutDrawing((canvas, _, bounds) => DrawBattleLoadoutRequirement(canvas, bounds, owner, border)) { Id = entry.Id + "-weapon" }, 0, 3);
             }
             button.Children.Add(tile);
             button.Margin = new UiThickness(10, 0, 2, 0);

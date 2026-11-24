@@ -23,6 +23,11 @@ public sealed partial class MenuController
 
     private static UiColor GuardianForcePassiveColor(MenuAbilityChoice choice)
     {
-        return choice.PassiveEnabled ? new UiColor(112, 232, 144) : new UiColor(232, 184, 96);
+        return AbilityActivationColor(choice.PassiveEnabled);
+    }
+
+    private static UiColor AbilityActivationColor(bool active)
+    {
+        return active ? new UiColor(112, 232, 144) : new UiColor(232, 184, 96);
     }
 }

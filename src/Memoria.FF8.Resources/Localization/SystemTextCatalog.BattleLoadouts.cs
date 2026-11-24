@@ -8,14 +8,16 @@ public static partial class SystemTextCatalog
         defaults.Add("debug.loadout.scene.open", "Change equipment and Limit Breaks for the current game.");
         defaults.Add("debug.loadout.scene.weapon-types", "Weapon types");
         defaults.Add("debug.loadout.scene.limit-breaks", "Limit Breaks");
+        defaults.Add("debug.loadout.scene.swap-question", "Exchange weapons?");
+        defaults.Add("debug.loadout.scene.swap-lost-limits", "Loses access to");
         defaults.Add("debug.loadout.scene.type-help", "Choose a weapon from this type.");
         defaults.Add("debug.loadout.scene.equipped", "Equipped");
         defaults.Add("debug.loadout.scene.equipped-help", "This weapon is equipped.");
         defaults.Add("debug.loadout.scene.inventory", "Inventory");
         defaults.Add("debug.loadout.scene.inventory-help", "Equip this weapon from inventory.");
-        defaults.Add("debug.loadout.scene.swap-owner", "Swap with {0}");
+        defaults.Add("debug.loadout.scene.owner-inventory", "{0}’s inventory");
         defaults.Add("debug.loadout.scene.swap-help", "Trade your equipped weapon with {0}.");
-        defaults.Add("debug.loadout.scene.new", "New · base grade");
+        defaults.Add("debug.loadout.scene.new", "Base");
         defaults.Add("debug.loadout.scene.new-help", "Create and equip a new base-grade weapon.");
         defaults.Add("debug.loadout.scene.no-weapon-required", "Any equipped weapon supports this Limit Break.");
         defaults.Add("debug.loadout.scene.requirement-met", "Your equipped weapon supports this Limit Break.");

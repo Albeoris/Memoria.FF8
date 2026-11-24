@@ -204,16 +204,18 @@ public sealed partial class MenuController
         return new JunctionTransferOverlay(panel, TextScale) { Id = "junction-transfer-modal" };
     }
 
-    private sealed class JunctionTransferArrow : UiElement
+    private sealed class JunctionTransferArrow(bool pointsLeft = false) : UiElement
     {
         protected override void DrawSelf(IUiCanvas canvas, UiTheme theme)
         {
             float y = Bounds.Y + Bounds.Height / 2;
             float tip = Math.Min(12, Bounds.Width / 3);
+            float head = pointsLeft ? Bounds.X : Bounds.Right;
+            float tail = pointsLeft ? head + tip : head - tip;
             UiColor color = new(225, 230, 235);
             canvas.Line(Bounds.X, y, Bounds.Right, y, color, 2);
-            canvas.Line(Bounds.Right - tip, y - tip / 2, Bounds.Right, y, color, 2);
-            canvas.Line(Bounds.Right - tip, y + tip / 2, Bounds.Right, y, color, 2);
+            canvas.Line(tail, y - tip / 2, head, y, color, 2);
+            canvas.Line(tail, y + tip / 2, head, y, color, 2);
         }
     }
 

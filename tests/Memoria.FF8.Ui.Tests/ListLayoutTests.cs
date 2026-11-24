@@ -121,6 +121,39 @@ public sealed class ListLayoutTests
         Assert.True(canvas.Texts[0].Bounds.Right <= canvas.Texts[1].Bounds.X);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void TrailingPortraitRemainsVisibleBesideLongNamesWithoutAStatus(bool hasStatusColumn)
+    {
+        UiImageSource portrait = new(UiImageKind.CharacterPortrait, 1);
+        UiList list = new()
+        {
+            Items = ["A weapon with a very long localized name"],
+            Images = [new UiImageSource(UiImageKind.WeaponVariant, 1)],
+            SecondaryItems = hasStatusColumn ? [""] : [],
+            TrailingImages = [portrait],
+            AutoRowHeight = false,
+            SecondaryAlignment = UiAlignment.End,
+            AutoSecondaryWidth = true,
+            RowHeight = 36,
+            FontSize = 15,
+            TextInset = 12
+        };
+        list.Arrange(new UiRect(0, 0, 228, 36));
+        MeasuringCanvas canvas = new();
+
+        list.Draw(canvas, new UiTheme());
+
+        UiRect portraitBounds = Assert.Single(canvas.Images, image => image.Source == portrait).Bounds;
+        UiRect nameBounds = Assert.Single(canvas.Texts, text => text.Text == list.Items[0]).Bounds;
+        Assert.True(nameBounds.Width > 0);
+        Assert.True(nameBounds.Right <= portraitBounds.X);
+        Assert.True(portraitBounds.Width > 0);
+        Assert.Equal(portraitBounds, portraitBounds.Intersect(list.Bounds));
+        Assert.Equal(UiTextFlow.SingleLine, canvas.Flows[0]);
+    }
+
     [Fact]
     public void Wrapped_rows_share_geometry_for_drawing_scrolling_and_pointer_selection()
     {

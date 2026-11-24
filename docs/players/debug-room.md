@@ -43,11 +43,13 @@ This edits the running session without advancing simulation frames. Save the gam
 
 ## Weapons & Limit Breaks
 
-Choose **Battle / Weapons & Limit Breaks** for the **Current game** editor. Select an available character, assign an installed weapon, and add, remove or reorder its Limit families. Weapons and families are independent. Several characters may share the same definition. **Remove All Limits** stores an explicit empty set; **Reset Character** stages native defaults without erasing learning.
+Choose **Battle / Weapons & Limit Breaks** to edit the current party. Expand a weapon type to see its individual weapons. Green marks the character’s equipped type and weapon. **Base** creates and equips a new weapon of that type at its starting grade.
 
-**Swap Weapons**, **Move Limit** and **Swap Limit Sets** stage both participants together. Choose a different destination; a family already on the destination is kept once. Asterisks identify changed characters. Review each changed recipient's equipment, key statistics and family requirements before applying. An incompatible family stays assigned with an explanation.
+Another character’s portrait beside a weapon means they have it equipped. Selecting a weapon owned by someone else opens an exchange. The arrows show which weapon each character gives, and the list under each name shows which Limit Breaks that character will lose access to. **Yes** stages the exchange. **No** returns to the same weapon.
 
-**Apply** validates the complete draft and publishes it together. **Cancel** discards it. Apply is unavailable during active/pending battles, field transitions, scripted party changes and tutorials. Reopen stale drafts after session or resource changes. Opening the editor does not save or advance the game. Save normally to retain applied assignments. At Title, use the isolated laboratory instead. While the FFVII world is active, FFVIII loadouts stay dormant and the live editor is disabled; return to FFVIII to edit them.
+In the Limit Break list, each portrait identifies the family’s original character. Toggle a checkbox to change the assignment. Green means the equipped weapon supports an assigned family. Amber means the family stays assigned and becomes available again with a compatible weapon.
+
+Back collapses an open weapon type. Leaving the editor prepares the selected equipment and applies the staged changes for all characters. Save normally to retain them. Changes require an active FFVIII game with no battle, field transition, scripted party change or tutorial in progress. At Title, use the isolated laboratory.
 
 The laboratory's **Equipment and abilities** group has its own weapon and family controls. Installed character prototypes initialize native statistics, and weapon changes recompute equipment contributions while retaining the recipient's own stat inputs. Laboratory changes and explicit presets remain separate from the current game.
 

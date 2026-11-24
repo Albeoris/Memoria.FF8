@@ -101,7 +101,7 @@ public sealed partial class MenuController
         return "weapon-type-" + type.ToString(CultureInfo.InvariantCulture);
     }
 
-    private readonly record struct BattleLoadoutWeaponRow(MenuEntry Entry, string Status, UiImageSource? Icon);
+    private readonly record struct BattleLoadoutWeaponRow(MenuEntry Entry, string Status, UiImageSource? Icon, bool Equipped = false, UiImageSource? OwnerPortrait = null);
 
     private BattleLoadoutWeaponRow[] BattleLoadoutWeaponRows()
     {
@@ -122,7 +122,7 @@ public sealed partial class MenuController
             string typeId = BattleLoadoutTypeId(type);
             bool equippedType = current is not null && BattleLoadoutWeaponType(current) == type;
             string typeLabel = (expanded ? "▾  " : "▸  ") + BattleLoadoutLabels.Style(type, localizeInterface);
-            rows.Add(new(new(typeId, typeLabel, LoadoutText("scene.type-help", "Choose a weapon from this type."), Action: new("loadout-type", Value: type.ToString(CultureInfo.InvariantCulture))), equippedType ? LoadoutText("scene.equipped", "Equipped") : "", new UiImageSource(UiImageKind.Weapon, starter.CharacterId)));
+            rows.Add(new(new(typeId, typeLabel, LoadoutText("scene.type-help", "Choose a weapon from this type."), Action: new("loadout-type", Value: type.ToString(CultureInfo.InvariantCulture))), equippedType ? LoadoutText("scene.equipped", "Equipped") : "", new UiImageSource(UiImageKind.Weapon, starter.CharacterId), Equipped: equippedType));
             if (!expanded)
             {
                 continue;
@@ -134,15 +134,38 @@ public sealed partial class MenuController
                 {
                     BattleLoadoutEditorWeapon weapon = definitions[instance.WeaponId];
                     bool currentInstance = instance.Id == equipped;
-                    bool own = instance.OwnerCharacterId == battleLoadoutCharacter;
                     string id = instance.Id.ToString(CultureInfo.InvariantCulture);
-                    string owner = owners[instance.OwnerCharacterId];
-                    string status = currentInstance ? LoadoutText("scene.equipped", "Equipped") : own ? LoadoutText("scene.inventory", "Inventory") : LoadoutFormat("scene.swap-owner", "Swap with {0}", owner);
-                    string help = currentInstance ? LoadoutText("scene.equipped-help", "This weapon is equipped.") : own ? LoadoutText("scene.inventory-help", "Equip this weapon from inventory.") : LoadoutFormat("scene.swap-help", "Trade your equipped weapon with {0}.", owner);
-                    rows.Add(new(new("weapon-instance-" + id, weapon.Name, help, Action: new("loadout-equip", Value: id)), status, new UiImageSource(UiImageKind.WeaponVariant, weapon.WeaponId)));
+                    string status;
+                    string help;
+                    UiImageSource? ownerPortrait = null;
+                    if (currentInstance)
+                    {
+                        status = LoadoutText("scene.equipped", "Equipped");
+                        help = LoadoutText("scene.equipped-help", "This weapon is equipped.");
+                    }
+                    else if (instance.OwnerCharacterId == battleLoadoutCharacter)
+                    {
+                        status = LoadoutText("scene.inventory", "Inventory");
+                        help = LoadoutText("scene.inventory-help", "Equip this weapon from inventory.");
+                    }
+                    else
+                    {
+                        string owner = owners[instance.OwnerCharacterId];
+                        help = LoadoutFormat("scene.swap-help", "Trade your equipped weapon with {0}.", owner);
+                        if (inventory.Equipped.GetValueOrDefault(instance.OwnerCharacterId) == instance.Id)
+                        {
+                            status = "";
+                            ownerPortrait = new UiImageSource(UiImageKind.CharacterPortrait, instance.OwnerCharacterId);
+                        }
+                        else
+                        {
+                            status = LoadoutFormat("scene.owner-inventory", "{0}’s inventory", owner);
+                        }
+                    }
+                    rows.Add(new(new("weapon-instance-" + id, weapon.Name, help, Action: new("loadout-equip", Value: id)), status, new UiImageSource(UiImageKind.WeaponVariant, weapon.WeaponId), currentInstance, ownerPortrait));
                 }
             }
-            rows.Add(new(new("weapon-new-" + starter.WeaponId.ToString(CultureInfo.InvariantCulture), starter.Name, LoadoutText("scene.new-help", "Create and equip a new base-grade weapon."), Action: new("loadout-create", Value: starter.WeaponId.ToString(CultureInfo.InvariantCulture))), LoadoutText("scene.new", "New · base grade"), new UiImageSource(UiImageKind.WeaponVariant, starter.WeaponId)));
+            rows.Add(new(new("weapon-new-" + starter.WeaponId.ToString(CultureInfo.InvariantCulture), starter.Name, LoadoutText("scene.new-help", "Create and equip a new base-grade weapon."), Action: new("loadout-create", Value: starter.WeaponId.ToString(CultureInfo.InvariantCulture))), LoadoutText("scene.new", "Base"), new UiImageSource(UiImageKind.WeaponVariant, starter.WeaponId)));
         }
         return rows.ToArray();
     }
@@ -152,13 +175,19 @@ public sealed partial class MenuController
         return "limit-" + family;
     }
 
+    private static bool BattleLoadoutSupportsLimit(BattleLoadoutEditorWeapon? weapon, BattleLimitFamily family)
+    {
+        BattleWeaponCapabilities required = BattleLimitFamilyRules.RequiredWeapon(family);
+        BattleWeaponCapabilities equipped = weapon?.Capabilities ?? BattleWeaponCapabilities.None;
+        return (equipped & required) == required;
+    }
+
     private MenuEntry BattleLoadoutLimitEntry(BattleLimitFamily family)
     {
         BattleWeaponCapabilities requirement = BattleLimitFamilyRules.RequiredWeapon(family);
-        BattleWeaponCapabilities equipped = BattleLoadoutEquippedWeapon()?.Capabilities ?? BattleWeaponCapabilities.None;
         string help = requirement == BattleWeaponCapabilities.None
             ? LoadoutText("scene.no-weapon-required", "Any equipped weapon supports this Limit Break.")
-            : (equipped & requirement) == requirement
+            : BattleLoadoutSupportsLimit(BattleLoadoutEquippedWeapon(), family)
                 ? LoadoutText("scene.requirement-met", "Your equipped weapon supports this Limit Break.")
                 : LoadoutFormat("scene.requires-weapon", "Requires {0}.", BattleLoadoutLabels.Capabilities(requirement, localizeInterface));
         return new(BattleLoadoutLimitId(family), BattleLoadoutLabels.Family(family, localizeInterface), help, Action: new("loadout-toggle", Value: family.ToString()));
@@ -169,6 +198,10 @@ public sealed partial class MenuController
         if (battleLoadoutEditor is null || battleLoadoutPreparation is not null)
         {
             return [];
+        }
+        if (battleLoadoutSwap is not null)
+        {
+            return BattleLoadoutSwapChoices();
         }
         List<MenuEntry> entries = BattleLoadoutWeaponRows().Select(row => row.Entry).ToList();
         entries.AddRange(Enum.GetValues<BattleLimitFamily>().Select(BattleLoadoutLimitEntry));
@@ -209,6 +242,20 @@ public sealed partial class MenuController
                 return true;
             }
             Message = "";
+            if (battleLoadoutSwap is { } swap)
+            {
+                if (action.Kind == "loadout-swap-yes")
+                {
+                    draft.EquipWeapon(battleLoadoutCharacter, swap.InstanceId);
+                    DismissBattleLoadoutSwap();
+                    CollapseBattleLoadoutWeapons();
+                }
+                else if (action.Kind == "loadout-swap-no")
+                {
+                    DismissBattleLoadoutSwap();
+                }
+                return true;
+            }
             if (action.Kind == "loadout-toggle" && Enum.TryParse(action.Value, out BattleLimitFamily family) && Enum.IsDefined(family))
             {
                 if (draft.ResolveFamilies(battleLoadoutCharacter).Contains(family))
@@ -244,6 +291,11 @@ public sealed partial class MenuController
                     }
                     break;
                 case "loadout-equip":
+                    if (draft.WeaponInstances?.Instances.GetValueOrDefault(value) is { } selected && selected.OwnerCharacterId != battleLoadoutCharacter)
+                    {
+                        PreviewBattleLoadoutSwap(battleLoadoutEditor, selected);
+                        break;
+                    }
                     draft.EquipWeapon(battleLoadoutCharacter, value);
                     CollapseBattleLoadoutWeapons();
                     break;
@@ -288,6 +340,13 @@ public sealed partial class MenuController
         {
             return false;
         }
+        if (battleLoadoutSwap is not null)
+        {
+            DismissBattleLoadoutSwap();
+            _view = null;
+            SoundRequested?.Invoke(MenuSound.Cancel);
+            return true;
+        }
         if (battleLoadoutExpandedType.HasValue && battleLoadoutPreparation is null)
         {
             CollapseBattleLoadoutWeapons();
@@ -308,6 +367,10 @@ public sealed partial class MenuController
         if (battleLoadoutPreparation is not null)
         {
             return true;
+        }
+        if (battleLoadoutSwap is not null)
+        {
+            DismissBattleLoadoutSwap();
         }
         if (draft.ChangedCharacters.Count == 0)
         {
@@ -378,6 +441,7 @@ public sealed partial class MenuController
     private void ReleaseBattleLoadoutEditor()
     {
         ReleaseBattleLoadoutPreview();
+        battleLoadoutSwap = null;
         battleLoadoutEditor = null;
         battleLoadoutExpandedType = null;
         battleLoadoutWeaponList = null;
