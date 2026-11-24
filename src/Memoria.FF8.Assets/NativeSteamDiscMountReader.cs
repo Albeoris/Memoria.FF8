@@ -24,10 +24,10 @@ public static class NativeSteamDiscMountReader
         {
             throw new NotSupportedException("Remastered DISCJUMP requires the rejected-marker path to remain unavailable.");
         }
-        string expectedWrapper = version == 2 ? NativeSteamDiscMount.VerifiedRemasteredWrapperSha256 : NativeSteamDiscMount.VerifiedWrapperSha256;
-        if (wrapper != expectedWrapper)
+        bool verifiedWrapper = version == 2 ? NativeSteamDiscMount.IsVerifiedRemasteredWrapper(wrapper) : wrapper == NativeSteamDiscMount.VerifiedWrapperSha256;
+        if (!verifiedWrapper)
         {
-            throw new NotSupportedException("Steam DISCJUMP requires the original verified disc callback wrapper.");
+            throw new NotSupportedException("Steam DISCJUMP requires a verified disc callback wrapper for the selected edition.");
         }
         using Stream marker = resources.Get(new ResourceKey($"files/disk/disk{selectedDisc}")).OpenRead();
         long markerLength = marker.Length;

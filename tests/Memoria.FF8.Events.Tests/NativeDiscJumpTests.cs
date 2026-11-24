@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text.Json;
 using Albeoris.Games.FF8.Jsm;
 using Memoria.FF8.Assets;
@@ -16,7 +17,13 @@ internal static partial class Program
         Require(mount.SelectedDisc == 2 && mount.MarkerLength > 0 && NativeSteamDiscMountReader.Read(gameDirectory, 1).MarkerLength > 0, "Steam marker selection inferred the first available marker instead of the requested second disc.");
         Require(NativeSteamDiscMountReader.Read(gameDirectory, 3).SelectedDisc == 3, "Steam marker selection retained the earlier mounted number.");
         bool remastered = profile.ExecutableHash == NativeFieldRuntimeProfile.RemasteredEnImageHash;
-        Require(mount.Version == (remastered ? 2 : 1) && mount.WrapperSha256 == (remastered ? NativeSteamDiscMount.VerifiedRemasteredWrapperSha256 : NativeSteamDiscMount.VerifiedWrapperSha256), "Steam marker provenance did not retain its authenticated edition wrapper.");
+        string expectedWrapper = NativeSteamDiscMount.VerifiedWrapperSha256;
+        if (remastered)
+        {
+            using FileStream file = File.OpenRead(Path.Combine(gameDirectory, "FFVIII_EFIGS.dll"));
+            expectedWrapper = Convert.ToHexString(SHA256.HashData(file));
+        }
+        Require(mount.Version == (remastered ? 2 : 1) && mount.WrapperSha256 == expectedWrapper, "Steam marker provenance did not retain its authenticated edition wrapper.");
         NativeSteamDiscMount historical = mount with { Version = 1, WrapperSha256 = NativeSteamDiscMount.VerifiedWrapperSha256 };
         NativeSteamDiscMount restoredHistorical = JsonSerializer.Deserialize<NativeSteamDiscMount>(JsonSerializer.Serialize(historical))!;
         restoredHistorical.Validate(2, NativeFieldRuntimeProfile.FF8EnExecutableHash);

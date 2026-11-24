@@ -8,12 +8,14 @@ public sealed record NativeSteamDiscMount([property: JsonRequired] int Version, 
     public const string VerifiedWrapperSha256 = "539558E4F5CF495735CCC8D5E98A185E3660CEB8D5DDF21EB7558B02FBB21FEC";
     public const string VerifiedRemasteredWrapperSha256 = "B0097E4EDD96FA2C32745B04328939EB8D182C2E89121D51405BC486B13F9108";
 
+    public static bool IsVerifiedRemasteredWrapper(string sha256) => sha256 is VerifiedRemasteredWrapperSha256 or "542001FF2A097B7FFE8154D34B051A846B336291FB55094EF6F9FACD61F3F51C";
+
     public void Validate(byte expectedDisc)
     {
         bool verifiedWrapper = Version switch
         {
             1 => WrapperSha256 == VerifiedWrapperSha256,
-            2 => WrapperSha256 == VerifiedRemasteredWrapperSha256,
+            2 => IsVerifiedRemasteredWrapper(WrapperSha256),
             _ => false
         };
         if (!verifiedWrapper || SelectedDisc is < 1 or > 4 || SelectedDisc != expectedDisc || MarkerLength <= 0 || !ValidHash(MarkerSha256) || !ValidHash(WorldFieldTableSha256))

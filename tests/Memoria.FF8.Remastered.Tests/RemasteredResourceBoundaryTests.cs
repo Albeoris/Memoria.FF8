@@ -78,7 +78,9 @@ public sealed class RemasteredResourceBoundaryTests
         Assert.Contains("FFVIII_EFIGS.dll is missing", missing.Message);
 
         string dll = Path.Combine(directory, "FFVIII_EFIGS.dll");
-        File.WriteAllBytes(dll, [0x4D, 0x5A, 0]);
+        byte[] wrapper = File.ReadAllBytes(Path.Combine(installed!, "FFVIII_EFIGS.dll"));
+        wrapper[^1] ^= 1;
+        File.WriteAllBytes(dll, wrapper);
         NotImplementedException unsupported = Assert.Throws<NotImplementedException>(() => source.RequireNativeRuntimeProfile());
         Assert.Contains("verify its game files in Steam", unsupported.Message);
 
@@ -97,6 +99,7 @@ public sealed class RemasteredResourceBoundaryTests
         Assert.Null(source.NativeRuntimeProfile);
         Assert.Throws<NotImplementedException>(() => source.RequireNativeRuntimeProfile());
         Assert.Throws<NotImplementedException>(() => GameDataResources.RequireNativeRuntimeProfile(new ResourceService(source)));
+        Assert.Throws<NotImplementedException>(() => new ResourceService(source).Read(new ResourceKey("runtime/disc-wrapper")));
     }
 
     [Theory]
@@ -117,7 +120,6 @@ public sealed class RemasteredResourceBoundaryTests
 
     [Theory]
     [InlineData("runtime/native-executable")]
-    [InlineData("runtime/disc-wrapper")]
     [InlineData("runtime/unknown")]
     public void UnsupportedRuntimeResourcesFailWithoutOpeningClassicFiles(string key)
     {

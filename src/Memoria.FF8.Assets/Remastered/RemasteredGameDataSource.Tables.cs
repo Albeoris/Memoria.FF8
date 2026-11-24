@@ -64,7 +64,7 @@ public sealed partial class RemasteredGameDataSource : IGameRuntimeSource, IGame
         try
         {
             string hash = Convert.ToHexString(SHA256.HashData(file));
-            if (hash != "B0097E4EDD96FA2C32745B04328939EB8D182C2E89121D51405BC486B13F9108")
+            if (!Memoria.FF8.Runtime.NativeSteamDiscMount.IsVerifiedRemasteredWrapper(hash))
             {
                 throw new NotImplementedException($"FFVIII_EFIGS.dll in the selected Remastered installation is unsupported (SHA-256 {hash}). Select the English Steam Remastered installation or verify its game files in Steam.");
             }

@@ -1,4 +1,6 @@
 using Memoria.FF8.Assets;
+using Memoria.FF8.Assets.Remastered;
+using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Remastered.Tests;
 
@@ -14,13 +16,17 @@ public sealed class InstalledProviderEntryPointTests
     }
 
     [Fact]
-    public void SupportedNativeResourcesUseRemasteredWhileDiscMountRemainsExplicit()
+    public void SupportedNativeResourcesAndDiscMountUseRemastered()
     {
         string directory = InstalledDirectory();
         Assert.EndsWith(".sgt", new NativeMusicCatalog(directory).MusicFileResolved(0));
         Assert.NotEmpty(new NativeWorldForestTables(directory).Effects);
         Assert.Equal(192, NativeTripleTriadArtwork.Load(directory).Back.Width);
-        Assert.Throws<NotImplementedException>(() => NativeSteamDiscMountReader.Read(directory, 1));
+        using RemasteredGameDataSource source = new(directory);
+        Assert.Equal(121, source.ReadBattleImageTable().Length);
+        NativeSteamDiscMount mount = NativeSteamDiscMountReader.Read(directory, 1);
+        mount.Validate(1, NativeFieldRuntimeProfile.RemasteredEnImageHash);
+        Assert.Equal(2, mount.Version);
     }
 
     [Fact]
