@@ -31,7 +31,7 @@ public sealed class NativeBattleBadBreath113CaptureTests
         Assert.True(geometry.UseSourceDepths);
         Assert.Equal(125f, geometry.A.X);
         Assert.Equal(375f, geometry.B.X);
-        Assert.Equal(1000f, geometry.SourceDepths!.Value.X);
+        Assert.Equal(new System.Numerics.Vector4(250, 275, 300, quad ? 325 : 0), geometry.SourceDepths!.Value);
         Assert.Equal(identity.ResourceGeneration, geometry.Identity.ResourceGeneration);
         Assert.Equal(quad ? 4 : 3, geometry.CornerCount);
     }

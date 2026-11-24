@@ -37,10 +37,14 @@ public sealed class NativeBattleXatmDeath276BodyTests
         var capturedProjection = NativeBattleXatmDeath276Body.Project6A2A90(mesh, [matrix], projection, retained, new HashSet<int> { 1 }, true);
         Assert.Equal(nativeProjection.Bytes, capturedProjection.Bytes);
         Assert.Null(capturedProjection.World[3]);
+        Assert.Equal((ushort)1024, BinaryPrimitives.ReadUInt16LittleEndian(nativeProjection.Bytes.AsSpan(4, 2)));
         var native = NativeBattleXatmDeath276Body.Packets6859D0(mesh.Polygons, nativeProjection.Vertices, 0x123456, null, 341, 256);
         var captured = NativeBattleXatmDeath276Body.CapturedPackets6859D0(mesh.Polygons, capturedProjection, 0x123456, null, 341, 256, new(276, 0x1000, 0, 1, 0));
         Assert.Equal(System.Text.Json.JsonSerializer.Serialize(native), System.Text.Json.JsonSerializer.Serialize(captured));
-        var visual = Assert.IsType<NativeBattlePilotVisualGeometry>(Assert.Single(captured.Attempts).Primitive!.PilotGeometry);
+        NativeBattleGeometryPrimitive primitive = Assert.IsType<NativeBattleGeometryPrimitive>(Assert.Single(captured.Attempts).Primitive);
+        Assert.Equal(272, primitive.Bucket);
+        Assert.Equal(new[] { 1024, 1024, 1024, 0 }, primitive.VertexPayload4);
+        var visual = Assert.IsType<NativeBattlePilotVisualGeometry>(primitive.PilotGeometry);
         Assert.Equal(new System.Numerics.Vector3(-20, -20, 4096), visual.A);
         Assert.False(visual.ScreenSpace);
         Assert.True(visual.UseSourceDepths);
@@ -76,8 +80,10 @@ public sealed class NativeBattleXatmDeath276BodyTests
         Assert.Equal(new System.Numerics.Vector3(-20, -30, 4096), a.A);
     }
 
-    [Fact]
-    public void HiddenAndZeroDepthVerticesWriteOnlyTheActualRejectionWord()
+    [Theory]
+    [InlineData(0)]
+    [InlineData(3)]
+    public void HiddenAndZeroStoredDepthVerticesWriteOnlyTheActualRejectionWord(int rawDepth)
     {
         NativeBattleRawMesh mesh = new([new(new(0, 0, 0), 0)], []);
         NativeBattleActionMatrix identity = NativeBattleCuragaMatrices.Identity8DD770();
@@ -85,7 +91,7 @@ public sealed class NativeBattleXatmDeath276BodyTests
         ImmutableArray<byte> retained = new byte[] { 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88 }.ToImmutableArray();
         NativeBattleXatmDeath276BodyProjection hidden = NativeBattleXatmDeath276Body.Project6A2A90(mesh, [identity], projection, retained, new HashSet<int> { 0 });
         Assert.Equal(new byte[] { 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x10, 0 }, hidden.Bytes);
-        NativeBattleXatmDeath276BodyProjection zero = NativeBattleXatmDeath276Body.Project6A2A90(mesh, [identity], projection, retained, new HashSet<int>());
+        NativeBattleXatmDeath276BodyProjection zero = NativeBattleXatmDeath276Body.Project6A2A90(mesh, [identity with { Z = rawDepth }], projection, retained, new HashSet<int>());
         Assert.Equal(hidden.Bytes, zero.Bytes);
     }
 

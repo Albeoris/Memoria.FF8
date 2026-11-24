@@ -24,7 +24,8 @@ public static class NativeBattleDiablos325BodyProjection
             byte[] xyz = writer.ReadCurrent(offset, 6);
             NativeBattleVector world = new(BinaryPrimitives.ReadInt16LittleEndian(xyz), BinaryPrimitives.ReadInt16LittleEndian(xyz.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(xyz.AsSpan(4)));
             NativeBattleModuleProjectedVertex projected = NativeBattleModuleProjection.Project45FE10(camera, world, projection);
-            if (projected.Depth == 0)
+            ushort depth = projected.ReadDepth45E250();
+            if (depth == 0)
             {
                 writer.Write(offset + 4, new byte[2]);
                 continue;
@@ -59,7 +60,7 @@ public static class NativeBattleDiablos325BodyProjection
             }
             byte[] record = new byte[8];
             BinaryPrimitives.WriteUInt32LittleEndian(record, projected.Screen);
-            BinaryPrimitives.WriteUInt16LittleEndian(record.AsSpan(4), projected.Depth);
+            BinaryPrimitives.WriteUInt16LittleEndian(record.AsSpan(4), depth);
             record[6] = clip;
             record[7] = unchecked((byte)shade);
             writer.Write(offset, record);

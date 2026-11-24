@@ -83,12 +83,13 @@ public sealed class NativeBattleFlare124Tests
         NativeBattleModuleProjectedVertex actual = NativeBattleFlare124ActorPackets.Ripple(input, 0, 0, 0, 0, 0, 0, resources, out short extent);
         Assert.Equal((short)128, extent);
         Assert.Equal(input.Screen, actual.Screen);
+        Assert.Equal((ushort)250, actual.Depth);
         Assert.Equal(0u, actual.Flags);
-        Assert.Equal(16u, NativeBattleFlare124ActorPackets.Ripple(input with { Depth = 0 }, 0, 0, 0, 0, 0, 0, resources, out _).Flags);
+        Assert.Equal(16u, NativeBattleFlare124ActorPackets.Ripple(input with { Depth = 3 }, 0, 0, 0, 0, 0, 0, resources, out _).Flags);
     }
 
     [Fact]
-    public void Silhouette_keeps_native_unshifted_depth_and_moves_page_blending_into_the_command()
+    public void Silhouette_uses_stored_quarter_depth_and_moves_page_blending_into_the_command()
     {
         NativeBattleFlare124Resources resources = new(new byte[0x12652A4 - (int)NativeBattleFlare124Resources.BaseAddress].ToImmutableArray());
         byte[] face = new byte[16];
@@ -100,7 +101,9 @@ public sealed class NativeBattleFlare124Tests
         NativeBattleCameraProjection projection = new(matrix, 256, 160, 108);
         NativeBattleFlare124ActorDraw result = NativeBattleFlare124ActorPackets.Emit(mesh, [matrix], projection, 0x2020FF, 160, 108, 0, 0, 0, 0, resources, 341, 256);
         NativeBattleGeometryPrimitive primitive = Assert.Single(result.Packets.Attempts).Primitive!;
-        Assert.Equal(272, primitive.Bucket);
+        Assert.Equal(80, primitive.Bucket);
+        Assert.Equal(new[] { 256, 256, 256, 0 }, primitive.VertexPayload4);
+        Assert.Equal((ushort)256, BinaryPrimitives.ReadUInt16LittleEndian(result.Vertices.AsSpan(4, 2)));
         Assert.Equal(0x262020FFu, primitive.Words[1]);
         Assert.Equal(0x00560000u, primitive.Words[5]);
         Assert.Equal(32, result.Packets.AllocationBytes);

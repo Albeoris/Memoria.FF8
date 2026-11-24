@@ -152,7 +152,7 @@ public sealed partial class BattlePresentationProcess
             else if ((uint)elapsed < 40)
             {
                 NativeBattleModuleProjectedVertex center = NativeBattleModuleProjection.Project45FE10(view, anchor, projection);
-                if (center.Depth != 0)
+                if (center.ReadDepth45E250() != 0)
                 {
                     int step = elapsed >= 20 ? 39 - elapsed : elapsed;
                     int amplitude = NativeBattleCameraMath.Sine((elapsed << 11) / 40);

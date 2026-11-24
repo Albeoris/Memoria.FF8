@@ -415,7 +415,7 @@ public sealed partial class BattlePresentationProcess
             NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actorIndex);
             NativeBattleActionMatrix main = NativeBattleGfMatrices.Compose56C2F0(view, actor.GeometryWorldMatrix ?? throw new NotSupportedException("Native Bad Breath requires its retained actor world matrix."));
             NativeBattleModuleProjectedVertex origin = NativeBattleModuleProjection.Project45FE10(main, default, projection);
-            if (origin.Depth == 0)
+            if (origin.ReadDepth45E250() == 0)
             {
                 return;
             }

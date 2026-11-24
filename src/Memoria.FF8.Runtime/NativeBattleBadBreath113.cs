@@ -20,7 +20,8 @@ public static class NativeBattleBadBreath113
 
     public static NativeBattleProjectedVertex Sway6CB7D0(NativeBattleModuleProjectedVertex projected, short ir2, short originX, short amplitude, short phase, ImmutableArray<short> wave, NativeBattleProjectedVertex retained)
     {
-        if (projected.Depth == 0)
+        ushort depth = projected.ReadDepth45E250();
+        if (depth == 0)
         {
             return retained with { DepthAndClip = (retained.DepthAndClip & 0xFFFF) | 0x100000 };
         }
@@ -32,7 +33,7 @@ public static class NativeBattleBadBreath113
         x = unchecked((short)(x + delta));
         uint clip = x < 0 ? 1u : x >= 2560 ? 2u : 0u;
         clip |= y < 0 ? 4u : y >= 1728 ? 8u : 0u;
-        return new((ushort)x | unchecked((uint)y << 16), projected.Depth | clip << 16);
+        return new((ushort)x | unchecked((uint)y << 16), depth | clip << 16);
     }
 
     public static int RiseHeight(int random, short height)

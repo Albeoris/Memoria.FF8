@@ -9,10 +9,11 @@ public static class NativeBattleFlare124ActorPackets
 {
     public static NativeBattleModuleProjectedVertex Ripple(NativeBattleModuleProjectedVertex vertex, short centerX, short centerY, short radius, int step, int amplitude, int phase, NativeBattleFlare124Resources resources, out short extent)
     {
-        if (vertex.Depth == 0)
+        ushort depth = vertex.ReadDepth45E250();
+        if (depth == 0)
         {
             extent = 0;
-            return vertex with { Flags = 16 };
+            return vertex with { Depth = depth, Flags = 16 };
         }
         short x = unchecked((short)vertex.Screen);
         short y = unchecked((short)(vertex.Screen >> 16));
@@ -37,7 +38,7 @@ public static class NativeBattleFlare124ActorPackets
         }
         uint flags = x < 0 ? 1u : x >= 320 ? 2u : 0u;
         flags |= y < 0 ? 4u : y >= 216 ? 8u : 0u;
-        return new(unchecked((ushort)(x << 3)) | unchecked((uint)(y << 3) << 16), vertex.Depth, flags);
+        return new(unchecked((ushort)(x << 3)) | unchecked((uint)(y << 3) << 16), depth, flags);
     }
 
     public static NativeBattleFlare124ActorDraw Emit(NativeBattleRawMesh mesh, IReadOnlyList<NativeBattleActionMatrix> cameraBones, NativeBattleCameraProjection projection, uint color, short centerX, short centerY, short radius, int step, int amplitude, int phase, NativeBattleFlare124Resources resources, short zsf3, short zsf4, NativeBattlePilotVisualIdentity? pilotIdentity = null)

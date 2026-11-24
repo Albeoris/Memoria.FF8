@@ -39,7 +39,8 @@ public static class NativeBattleXatmDeath276Body
                     world[index] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(bones[vertex.Bone], vertex.Position), projection);
                 }
                 NativeBattleModuleProjectedVertex point = NativeBattleModuleProjection.Project45FE10(bones[vertex.Bone], vertex.Position, projection);
-                if (point.Depth == 0)
+                ushort depth = point.ReadDepth45E250();
+                if (depth == 0)
                 {
                     BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(index * 8 + 6), 16);
                 }
@@ -50,7 +51,7 @@ public static class NativeBattleXatmDeath276Body
                     ushort flags = x < 0 ? (ushort)1 : x >= 2560 ? (ushort)2 : (ushort)0;
                     flags |= y < 0 ? (ushort)4 : y >= 1728 ? (ushort)8 : (ushort)0;
                     BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(index * 8), point.Screen);
-                    BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(index * 8 + 4), point.Depth);
+                    BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(index * 8 + 4), depth);
                     BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(index * 8 + 6), flags);
                 }
             }

@@ -31,15 +31,20 @@ public sealed class NativeBattleBadBreath113Tests
         NativeBattleGeometryPrimitive handPacket = Assert.Single(intrinsic.Attempts.Where(attempt => attempt.Primitive is not null)).Primitive!;
         Assert.Equal(originalPacket.Words.ToArray(), handPacket.Words.ToArray());
         Assert.Equal(bodyScratch, handScratch);
+        Assert.Equal((ushort)256, BinaryPrimitives.ReadUInt16LittleEndian(bodyScratch.AsSpan(4)));
+        Assert.Equal(new[] { 256, 256, 256, 0 }, originalPacket.VertexPayload4);
+        Assert.Equal(80, originalPacket.Bucket);
         Assert.Null(originalPacket.ModelTextureOwner);
         Assert.Equal(material, handPacket.ModelTextureOwner);
     }
 
-    [Fact]
-    public void Zero_depth_sway_writes_only_the_rejection_word()
+    [Theory]
+    [InlineData(0)]
+    [InlineData(3)]
+    public void Zero_stored_depth_sway_writes_only_the_rejection_word(ushort depth)
     {
         NativeBattleProjectedVertex prior = new(0x12345678, 0xABCD4321);
-        NativeBattleProjectedVertex result = NativeBattleBadBreath113.Sway6CB7D0(new(0, 0, 0), 0, 0, 0, 0, new short[4096].ToImmutableArray(), prior);
+        NativeBattleProjectedVertex result = NativeBattleBadBreath113.Sway6CB7D0(new(0, depth, 0), 0, 0, 0, 0, new short[4096].ToImmutableArray(), prior);
         Assert.Equal(0x12345678u, result.Screen);
         Assert.Equal(0x00104321u, result.DepthAndClip);
     }
@@ -51,7 +56,7 @@ public sealed class NativeBattleBadBreath113Tests
         wave[4095] = 4096;
         NativeBattleProjectedVertex result = NativeBattleBadBreath113.Sway6CB7D0(new(1024u | 800u << 16, 1000, 0x80020000), -1, 0, 1024, 3, wave.ToImmutableArray(), default);
         Assert.Equal(1536u | 800u << 16, result.Screen);
-        Assert.Equal(1000u, result.DepthAndClip);
+        Assert.Equal(250u, result.DepthAndClip);
     }
 
     [Fact]
