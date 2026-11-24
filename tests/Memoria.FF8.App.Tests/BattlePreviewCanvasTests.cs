@@ -132,6 +132,55 @@ public sealed class BattlePreviewCanvasTests
         Assert.InRange((left + right) / 2f, 196, 204);
     }
 
+    [Theory]
+    [InlineData("Stole 1 Cura!", 3)]
+    [InlineData("Stole 1 Cura!{Line}Ready", 3)]
+    [InlineData("Fire", 1)]
+    public void Themed_battle_hud_centers_monster_messages_in_the_panel(string message, int mode)
+    {
+        BattleSession original = new(new BattleDefinition
+        {
+            Combatants = [new() { Id = "party", Name = "Squall", IsPlayer = true }, new() { Id = "enemy", Name = "Bite Bug" }]
+        }, BattleAtbMode.TurnBased);
+        BattleEvent notice = new(original.Frame, "NativeText", "enemy", "party", 30, message) { NativeMessageMode = (byte)mode, IsEnemyActionTitle = mode == 1 };
+        BattleSession session = BattleSession.Restore(original.Capture() with { Events = [notice] });
+        BattleHudController hud = new(session, session.QueueAttack, () => { }, () => { }, readPresentationUi: BattleHudTestPresentation.Visible) { ShowEnemySpellNames = true };
+        using Bitmap bitmap = new(960, 672, SkiaSharp.SKColorType.Rgba8888, SkiaSharp.SKAlphaType.Unpremul);
+        using (BattlePreviewCanvas canvas = new(bitmap))
+        {
+            UiView view = hud.BuildView();
+            view.Resize(bitmap.Width, bitmap.Height);
+            view.Draw(canvas, new VectorUiTheme { FontFamily = SystemFontCatalog.DefaultFamily });
+        }
+
+        BattleHudLayout layout = new(new(0, 0, bitmap.Width, bitmap.Height));
+        UiRect content = layout.MessageText;
+        int top = (int)content.Bottom;
+        int bottom = -1;
+        int left = (int)content.Right;
+        int right = -1;
+        for (int y = (int)content.Y; y < content.Bottom; y++)
+        {
+            for (int x = (int)content.X; x < content.Right; x++)
+            {
+                if (bitmap.GetPixel(x, y).R > 200)
+                {
+                    top = Math.Min(top, y);
+                    bottom = Math.Max(bottom, y);
+                    left = Math.Min(left, x);
+                    right = Math.Max(right, x);
+                }
+            }
+        }
+
+        Assert.True(bottom > top);
+        UiRect panel = layout.MessagePanel;
+        float centerY = panel.Y + panel.Height / 2;
+        float centerX = panel.X + panel.Width / 2;
+        Assert.InRange((top + bottom + 1) / 2f, centerY - 4, centerY + 4);
+        Assert.InRange((left + right + 1) / 2f, centerX - 4, centerX + 4);
+    }
+
     [Fact]
     public void Rgba_conversion_preserves_channel_order_and_transparency()
     {

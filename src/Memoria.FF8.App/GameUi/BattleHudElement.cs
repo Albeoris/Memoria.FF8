@@ -113,7 +113,11 @@ internal sealed partial class BattleHudElement : UiElement
             }
             else
             {
-                canvas.AlignedText(battleMessage.Text, messageSize, Layout.MessageText, theme.Foreground, UiAlignment.Center);
+                UiRect bounds = Layout.MessageText;
+                string message = battleMessage.Text;
+                float width = canvas.MeasureText(message, messageSize, bounds.Width).Width;
+                float inset = Math.Max(0, (bounds.Width - width) / 2);
+                canvas.Text(message, messageSize, bounds with { X = bounds.X + inset, Width = bounds.Width - inset }, theme.Foreground, UiAlignment.Center);
             }
         }
         BattleCombatant? selectedActor = controller.SelectedActor;
