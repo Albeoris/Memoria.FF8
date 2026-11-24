@@ -85,19 +85,33 @@ public sealed class TexturePreparationTests
     }
 
     [Fact]
-    public void SourceRevisionUpdateRebuildsDerivedValuesBeforePublishing()
+    public void SourceRevisionUpdateRebuildsOnlyTransitiveDependentsBeforePublishing()
     {
         using InMemoryResourceSource source = Source();
         ResourceService service = new(source);
         TextureBuildContext context = Context("source", 1, new(1, 2, 3));
         AssetHandle<TextureValue> original = service.GetTexture(context);
         AssetHandle<TextureValue> atlas = service.GetTransformedTexture(new(Key("atlas"), [context.Key], Pack));
+        AssetHandle<TextureValue> combined = service.GetTransformedTexture(new(Key("combined"), [Key("atlas")], Pack));
+        TextureBuildContext unrelatedContext = Context("unrelated-source", 1, new(4, 5, 6));
+        service.GetTexture(unrelatedContext);
+        AssetHandle<TextureValue> unrelated = service.GetTransformedTexture(new(Key("unrelated-atlas"), [unrelatedContext.Key], Pack));
         TextureValue oldAtlas = atlas.Value;
+        TextureValue oldUnrelated = unrelated.Value;
+        ResourceChangeSet? change = null;
+        using IDisposable subscription = service.Subscribe(value => change = value);
         TextureBuildContext update = Context("source", 2, new(9, 8, 7));
         Assert.Same(original, service.GetTexture(update));
         Assert.Equal(new Rgba32(9, 8, 7), original.Value.Image[0, 0]);
         Assert.Equal(new Rgba32(9, 8, 7), atlas.Value.Image[0, 0]);
         Assert.NotSame(oldAtlas, atlas.Value);
+        Assert.Equal(new Rgba32(9, 8, 7), combined.Value.Image[0, 0]);
+        Assert.Same(oldUnrelated, unrelated.Value);
+        Assert.NotNull(change);
+        Assert.Equal(3, change.Textures.Length);
+        Assert.Contains(context.Key, change.Textures);
+        Assert.Contains(Key("atlas"), change.Textures);
+        Assert.Contains(Key("combined"), change.Textures);
         Assert.Equal(original.Generation, atlas.Generation);
         Assert.Equal(1, service.Generation);
     }

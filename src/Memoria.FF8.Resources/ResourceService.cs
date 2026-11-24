@@ -352,9 +352,11 @@ public sealed class ResourceService : IResourceChangeFeed, IResourceLanguageSour
         Publication current = published;
         ImmutableDictionary<TextureKey, TextureValue>.Builder candidate = current.Values.ToBuilder();
         candidate[context.Key] = value;
+        HashSet<TextureKey>? affected = null;
         if (exists)
         {
-            BuildTransforms(candidate);
+            affected = [context.Key];
+            BuildTransforms(candidate, affected);
         }
         if (mutationVersion != expectedVersion)
         {
@@ -374,9 +376,9 @@ public sealed class ResourceService : IResourceChangeFeed, IResourceLanguageSour
         {
             owners[context.Key]++;
         }
-        if (exists)
+        if (affected is not null)
         {
-            Notify(new ResourceChangeSet(current.Generation, current.Generation + 1, [context.Key, .. transforms.Keys], "Original texture source changed"));
+            Notify(new ResourceChangeSet(current.Generation, current.Generation + 1, [.. affected], "Original texture source changed"));
         }
         return handle;
     }
@@ -677,14 +679,12 @@ public sealed class ResourceService : IResourceChangeFeed, IResourceLanguageSour
 
     private static bool HiddenByScope(ResourceKey key, ImmutableDictionary<ResourceKey, EncodedResource> encoded, ImmutableArray<string> exclusiveScopes) => !encoded.ContainsKey(key) && EncodedResource.IsInScope(key, exclusiveScopes);
 
-    private void BuildTransforms(ImmutableDictionary<TextureKey, TextureValue>.Builder next, ISet<TextureKey>? affected = null)
+    private void BuildTransforms(ImmutableDictionary<TextureKey, TextureValue>.Builder next, HashSet<TextureKey> affected)
     {
         Dictionary<TextureKey, TextureTransformContext> preparation = new(transforms);
-        HashSet<TextureKey> closure = affected is null ? preparation.Keys.ToHashSet() : affected.ToHashSet();
-        IReadOnlyList<TextureKey> ordered = OrderAffectedTransforms(preparation, closure);
+        IReadOnlyList<TextureKey> ordered = OrderAffectedTransforms(preparation, affected);
         foreach (TextureKey key in ordered)
         {
-            affected?.Add(key);
             next[key] = BuildPreparedTransform(next, preparation[key]);
         }
     }

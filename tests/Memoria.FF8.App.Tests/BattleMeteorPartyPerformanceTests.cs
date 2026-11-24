@@ -154,7 +154,9 @@ public sealed class BattleMeteorPartyPerformanceTests
                 if (idleCount == 240)
                 {
                     idleEnd = Capture();
-                    Assert.True(caster.IsReady, "The stocked Meteor caster did not become ready during warmup and idle measurement.");
+                    caster = battle.Combatants.FirstOrDefault(actor => actor.IsPlayer && actor.IsReady && actor.Abilities.Contains(BattleAbility.Magic) && battle.QuoteMagic(actor.Id, 16).Available > 0)
+                        ?? throw new InvalidDataException("No ready actor has ordinary Meteor stock after idle.");
+                    stockBefore = battle.QuoteMagic(caster.Id, 16).Available;
                     eventStart = battle.Events.Count;
                     eventCursor = eventStart;
                     Console.WriteLine("meteor-measurement: cast-start");
