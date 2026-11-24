@@ -12,14 +12,16 @@ namespace Memoria.FF8.App.Tests;
 public sealed class LocalizationDialogueSourceTests
 {
     [Theory]
-    [InlineData(SceneKind.Field, false)]
-    [InlineData(SceneKind.Field, true)]
-    [InlineData(SceneKind.WorldMap, false)]
-    [InlineData(SceneKind.WorldMap, true)]
-    public void GeneratedMessagesKeepTheirTextChoicesAndWindowAcrossLocalizationReload(SceneKind scene, bool selection)
+    [InlineData(SceneKind.Field, -1, false)]
+    [InlineData(SceneKind.Field, -1, true)]
+    [InlineData(SceneKind.WorldMap, -1, false)]
+    [InlineData(SceneKind.WorldMap, -1, true)]
+    [InlineData(SceneKind.WorldMap, -2, false)]
+    [InlineData(SceneKind.WorldMap, -2, true)]
+    public void GeneratedMessagesKeepTheirTextChoicesAndWindowAcrossLocalizationReload(SceneKind scene, int message, bool selection)
     {
         var (host, resources) = CreateHost(scene);
-        DialogueState native = new(6, -1, selection ? "Choose{Line}Cancel{Line}{Char Squall}" : "Found Fire!", 0, 0, selection ? 1 : null, selection ? 2 : null, selection ? 2 : null, selection ? 1 : null, Operation: 12);
+        DialogueState native = new(6, message, selection ? "Choose{Line}Cancel{Line}{Char Squall}" : "Found Fire!", 0, 0, selection ? 1 : null, selection ? 2 : null, selection ? 2 : null, selection ? 1 : null, Operation: 12);
         DialogueWindow window = new(6, 20, 30, 200, 80);
         foreach (bool translated in new[] { false, true, false })
         {

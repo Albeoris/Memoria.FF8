@@ -1,4 +1,9 @@
+using System.Globalization;
+using Memoria.FF8.Assets;
+using Memoria.FF8.Assets.Localization;
 using Memoria.FF8.Events;
+using Memoria.FF8.Resources;
+using Memoria.FF8.Resources.Localization;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.App.Tests;
@@ -13,7 +18,9 @@ public sealed class WorldDrawPointInteractionTests
         string directory = TestResources.GameDirectory;
         string path = TestResources.FixturePath("App.Tests.WorldDrawPointInteractionTests." + fixture);
         var session = new GameSession(PlayerStateLoader.Load(path, directory));
-        using var world = new GameWorld(session, directory);
+        using IResourceSource source = GameDataSourceFactory.Open(directory);
+        ResourceService resources = new(source);
+        using var world = new GameWorld(session, directory, resources: resources);
         world.EnsureField();
         Assert.True(world.Apply(new PlayerAction(PlayerActionKind.Wait, Frames: 24)).Accepted);
         var confirm = new PlayerAction(PlayerActionKind.Confirm);
@@ -22,12 +29,32 @@ public sealed class WorldDrawPointInteractionTests
         NativeWorldDrawPoint point = Assert.IsType<NativeWorldDrawPoint>(session.State.World!.DrawPoint);
         Assert.Equal(expectedPoint, point.PointIndex);
         Assert.Equal(NativeWorldDrawPointPhase.Found, point.Phase);
-        Assert.Contains(world.ValidationAssets.ReadNativeDrawPointCatalog().MagicNames[point.MagicId], world.CurrentDialogue!.Text, StringComparison.OrdinalIgnoreCase);
+        string originalSpell = world.ValidationAssets.ReadNativeDrawPointCatalog().MagicNames[point.MagicId];
+        Assert.Contains(originalSpell, world.CurrentDialogue!.Text, StringComparison.OrdinalIgnoreCase);
+        string magicKey = LocalizationSourceExporter.IndexedKey(resources.Source.Language, LocalizationSourceExporter.KernelTable("MagicSpells", "Name"), point.MagicId);
+        resources.PrepareLocalization(new LocalizationCatalog(new Dictionary<string, LocalizationValue>
+        {
+            [WorldKey(1)] = Translation("Station name"),
+            [WorldKey(3)] = Translation("Airstation name"),
+            [WorldKey(4)] = Translation("Get off?{Line}Yes{Line}No"),
+            [WorldKey(20)] = Translation("Draw point discovered!{Line}"),
+            [WorldKey(24)] = Translation("Select the recipient{Line}"),
+            [WorldKey(25)] = Translation("Skip this point"),
+            [WorldKey(26)] = Translation(LocalizationValue.InvalidTarget),
+            [WorldKey(27)] = Translation(" added to stock "),
+            [magicKey] = Translation("Localized spell")
+        })).Commit();
+        DialogueState found = Assert.IsType<DialogueState>(world.CurrentDialogue);
+        Assert.Equal(-2, found.MessageId);
+        Assert.StartsWith("Draw point discovered!{Line}Localized spell", found.Text);
         Assert.True(world.Apply(confirm).Accepted);
         Assert.Equal(NativeWorldDrawPointPhase.Found, session.State.World.DrawPoint!.Phase);
         Assert.True(world.Apply(new PlayerAction(PlayerActionKind.Wait)).Accepted);
         Assert.True(world.Apply(confirm).Accepted);
         DialogueState choice = Assert.IsType<DialogueState>(world.CurrentDialogue);
+        Assert.Equal(-2, choice.MessageId);
+        Assert.StartsWith("Select the recipient{Line}Skip this point", choice.Text);
+        Assert.Equal(choice.LastChoice!.Value + 1, choice.Text.Split("{Line}").Length);
         Assert.Equal(1, choice.CancelChoice);
         Assert.True(world.Apply(new PlayerAction(PlayerActionKind.Choose, choice.CancelChoice!.Value)).Accepted);
         Assert.Null(session.State.World.DrawPoint);
@@ -51,6 +78,12 @@ public sealed class WorldDrawPointInteractionTests
         Assert.Equal((point.Definition & 0x40) != 0 ? 2 : 3, session.State.EventRandom.DrawPoints!.GetDepletion(point.PointIndex));
         Assert.True(world.Apply(new PlayerAction(PlayerActionKind.Wait, Frames: NativeWorldDrawPoint.AcquisitionCallbacks)).Accepted);
         Assert.Equal(NativeWorldDrawPointPhase.Acquired, session.State.World.DrawPoint!.Phase);
+        DialogueState acquired = Assert.IsType<DialogueState>(world.CurrentDialogue);
+        Assert.Equal(-2, acquired.MessageId);
+        Assert.Contains(" added to stock ", acquired.Text);
+        Assert.Contains("Localized spell", acquired.Text);
+        Assert.Contains(acquisition.Quantity.ToString(CultureInfo.InvariantCulture), acquired.Text);
+        Assert.DoesNotContain("[", acquired.Text);
         Assert.True(world.Apply(confirm).Accepted);
         Assert.Null(session.State.World.DrawPoint);
         if (fixture == "A" && Environment.GetEnvironmentVariable("MEMORIA_FF8_WORLD_DRAW_OUTPUT") is { Length: > 0 } output)
@@ -66,6 +99,11 @@ public sealed class WorldDrawPointInteractionTests
         Assert.True(world.Apply(new PlayerAction(PlayerActionKind.Wait)).Accepted);
         Assert.True(world.Apply(confirm).Accepted);
         Assert.Equal(NativeWorldDrawPointPhase.Depleted, session.State.World.DrawPoint!.Phase);
+        Assert.Equal(19, world.CurrentDialogue!.MessageId);
         Assert.Equal(stock, session.State.CharacterVitals!.GetMagicCount(party[slot], point.MagicId));
+
+        string WorldKey(int message) => LocalizationSourceExporter.IndexedKey(resources.Source.Language, "messages_world", message);
+
+        static LocalizationValue Translation(string value) => new(value, "fixture", "fixture");
     }
 }

@@ -143,11 +143,21 @@ public sealed partial class WorldAssets
             return cached;
         }
         _ = ReadWorldMessage(message);
-        ReadOnlySpan<byte> record = NativeWorldMemory.Read(0xC761A0u + (uint)window * 16, 8);
-        NativeWorldMessage result = new(window, (byte)message, record[2], record[1], record[3], BinaryPrimitives.ReadInt16LittleEndian(record[4..]), BinaryPrimitives.ReadInt16LittleEndian(record[6..]), Convert.ToHexString(SHA256.HashData(wmset)), false);
+        var layout = ReadWorldMessageWindow(window);
+        NativeWorldMessage result = new(window, (byte)message, layout.Channel, layout.Alignment, layout.Mode, layout.X, layout.Y, Convert.ToHexString(SHA256.HashData(wmset)), false);
         result.Validate();
         worldMessageBindings.Add((window, message), result);
         return result;
+    }
+
+    public (byte Channel, byte Alignment, byte Mode, short X, short Y) ReadWorldMessageWindow(int window)
+    {
+        if (window is < 0 or > 12)
+        {
+            throw new NotSupportedException("World message layout requires an original window 0..12.");
+        }
+        ReadOnlySpan<byte> record = NativeWorldMemory.Read(0xC761A0u + (uint)window * 16, 8);
+        return (record[2], record[1], record[3], BinaryPrimitives.ReadInt16LittleEndian(record[4..]), BinaryPrimitives.ReadInt16LittleEndian(record[6..]));
     }
 
     public string ReadWorldMessage(int message)
@@ -156,7 +166,9 @@ public sealed partial class WorldAssets
         return NativeTextEncoding.Create(resources.Source.Language).GetString(bytes.AsSpan(0, bytes.Length - 1));
     }
 
-    public string ComposeWorldMessage(int template, params string[] arguments)
+    public string ComposeWorldMessage(int template, params string[] arguments) => ComposeWorldMessage(template, ReadWorldMessage, arguments);
+
+    public string ComposeWorldMessage(int template, Func<int, string> readFragment, params string[] arguments)
     {
         // 54FC80 expands section33 into section13 text fragments and supplied arguments.
         ReadOnlySpan<byte> section = wmset.AsSpan(sections[33], sections[34] - sections[33]);
@@ -176,7 +188,7 @@ public sealed partial class WorldAssets
             byte token = section[position++];
             if (token != 10)
             {
-                text.Append(ReadWorldMessage(token));
+                text.Append(readFragment(token));
                 continue;
             }
             if (position >= section.Length)

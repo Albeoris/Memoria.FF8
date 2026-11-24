@@ -15,6 +15,7 @@ internal sealed partial class WorldMapScene : IDisposable
     private const double NativeAtanScale = 651.8986206054688;
     private GameSession session;
     private readonly WorldAssets assets;
+    private readonly ResourceService? resources;
     private readonly IReadOnlyDictionary<int, int> replacements;
     private readonly byte storyByte;
     private WorldTerrainRenderer? renderer;
@@ -46,6 +47,7 @@ internal sealed partial class WorldMapScene : IDisposable
     public WorldMapScene(GameSession session, string gameDirectory, ResourceService? resources = null, NativeSavedWorldFootReturn? battleReload = null, IModelOverrideSource? modelOverrides = null, string? nativeSourceFieldName = null)
     {
         this.session = session;
+        this.resources = resources;
         if (session.State.Scene != SceneKind.WorldMap || session.State.WorldArrival is not WorldTransition arrival)
         {
             throw new InvalidOperationException("A world scene requires its original field-to-world transition.");

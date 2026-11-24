@@ -1,5 +1,7 @@
 using System.Globalization;
+using Memoria.FF8.Assets.Localization;
 using Memoria.FF8.Events;
+using Memoria.FF8.Resources.Localization;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8;
@@ -40,6 +42,9 @@ internal sealed partial class WorldMapScene
     private DialogueState? DrawPointDialogue(NativeWorldDrawPoint point)
     {
         const int operation = 0x54E9B0;
+        const int customMessage = -2; // The original window receives a composed text buffer with this selector.
+        LocalizationCatalog? localization = resources?.Localization;
+        string? language = resources?.Source.Language;
         switch (point.Phase)
         {
             case NativeWorldDrawPointPhase.NoDraw:
@@ -47,30 +52,43 @@ internal sealed partial class WorldMapScene
             case NativeWorldDrawPointPhase.Depleted:
                 return Message(3, 19, assets.ReadWorldMessage(19));
             case NativeWorldDrawPointPhase.Found:
-                return Message(3, 3, assets.ComposeWorldMessage(3, DrawPointCatalog.MagicNames[point.MagicId]));
+                return Message(3, customMessage, assets.ComposeWorldMessage(3, Fragment, MagicName()));
             case NativeWorldDrawPointPhase.Choose:
                 WorldDrawRecipient[] party = DrawPointParty(point);
-                string text = assets.ComposeWorldMessage(1);
+                string text = assets.ComposeWorldMessage(1, Fragment);
                 foreach (WorldDrawRecipient member in party)
                 {
-                    text += assets.ComposeWorldMessage(2, assets.ReadWorldMessage(member.CanDraw && member.Capacity == 0 ? 41 : 42), assets.ReadWorldMessage(30 + member.Identity), assets.ReadWorldMessage(member.Junctioned ? 47 : 48));
+                    text += assets.ComposeWorldMessage(2, Fragment, Fragment(member.CanDraw && member.Capacity == 0 ? 41 : 42), Fragment(30 + member.Identity), Fragment(member.Junctioned ? 47 : 48));
                 }
-                return Message(4, 1, text) with { FirstChoice = 1, LastChoice = party.Length + 1, InitialChoice = 2, CancelChoice = 1 };
+                return Message(4, customMessage, text) with { FirstChoice = 1, LastChoice = party.Length + 1, InitialChoice = 2, CancelChoice = 1 };
             case NativeWorldDrawPointPhase.StockFull:
                 return Message(point.Receiver + 5, 22, assets.ReadWorldMessage(22));
             case NativeWorldDrawPointPhase.DrawUnavailable:
                 return Message(point.Receiver + 5, 23, assets.ReadWorldMessage(23));
             case NativeWorldDrawPointPhase.Acquired:
                 int identity = session.State.CharacterVitals!.Records[point.Receiver].CharacterId;
-                return Message(3, 4, assets.ComposeWorldMessage(4, assets.ReadWorldMessage(30 + identity), DrawPointCatalog.MagicNames[point.MagicId], point.Quantity.ToString(CultureInfo.InvariantCulture)));
+                return Message(3, customMessage, assets.ComposeWorldMessage(4, Fragment, Fragment(30 + identity), MagicName(), point.Quantity.ToString(CultureInfo.InvariantCulture)));
             default:
                 return null;
         }
 
         DialogueState Message(int window, int message, string text)
         {
-            NativeWorldMessage binding = assets.ReadNativeWorldMessage(window, message);
-            return new DialogueState(binding.Channel, message, text, binding.X, binding.Y, Operation: operation);
+            var layout = assets.ReadWorldMessageWindow(window);
+            return new DialogueState(layout.Channel, message, text, layout.X, layout.Y, Operation: operation);
+        }
+
+        string Fragment(int id) => Translate("messages_world", id, assets.ReadWorldMessage(id));
+
+        string MagicName() => Translate(LocalizationSourceExporter.KernelTable("MagicSpells", "Name"), point.MagicId, DrawPointCatalog.MagicNames[point.MagicId]);
+
+        string Translate(string table, int id, string original)
+        {
+            if (localization is null || language is null || !localization.Values.TryGetValue(LocalizationSourceExporter.IndexedKey(language, table, id), out LocalizationValue? value) || value.Text == LocalizationValue.InvalidTarget)
+            {
+                return original;
+            }
+            return value.RenderedText;
         }
     }
 
