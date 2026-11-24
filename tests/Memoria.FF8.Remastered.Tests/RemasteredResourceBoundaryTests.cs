@@ -60,6 +60,33 @@ public sealed class RemasteredResourceBoundaryTests
     }
 
     [Fact]
+    public void RuntimeProfileRequiresTheSupportedDllEvenWithAnAuthenticatedGuestImage()
+    {
+        string? installed = Environment.GetEnvironmentVariable("MEMORIA_FF8_REMASTERED_DIR");
+        Assert.SkipUnless(!string.IsNullOrWhiteSpace(installed) && Directory.Exists(installed), "Set MEMORIA_FF8_REMASTERED_DIR to run optional installed Remastered checks.");
+        using ZzzArchive archive = new(Path.Combine(installed!, "main.zzz"));
+        using Stream original = archive.Open("ffviii_en.exe.dat");
+        using MemoryStream bytes = new();
+        original.CopyTo(bytes);
+
+        using SyntheticResources files = new();
+        string directory = Path.GetDirectoryName(files.Write([]))!;
+        File.WriteAllBytes(Path.Combine(directory, "main.zzz"), SyntheticResources.Zzz(("ffviii_en.exe.dat", bytes.ToArray())));
+        File.WriteAllBytes(Path.Combine(directory, "other.zzz"), SyntheticResources.Zzz());
+        using RemasteredGameDataSource source = new(directory);
+        FileNotFoundException missing = Assert.Throws<FileNotFoundException>(() => source.RequireNativeRuntimeProfile());
+        Assert.Contains("FFVIII_EFIGS.dll is missing", missing.Message);
+
+        string dll = Path.Combine(directory, "FFVIII_EFIGS.dll");
+        File.WriteAllBytes(dll, [0x4D, 0x5A, 0]);
+        NotImplementedException unsupported = Assert.Throws<NotImplementedException>(() => source.RequireNativeRuntimeProfile());
+        Assert.Contains("verify its game files in Steam", unsupported.Message);
+
+        File.Copy(Path.Combine(installed!, "FFVIII_EFIGS.dll"), dll, overwrite: true);
+        Assert.Same(NativeFieldRuntimeProfile.RemasteredEn, source.RequireNativeRuntimeProfile());
+    }
+
+    [Fact]
     public void RequiredRuntimeProfileIsRejectedByProviderWhileInspectionRemainsAvailable()
     {
         using SyntheticResources files = new();

@@ -58,18 +58,18 @@ internal static class GameInstallationSelection
         }
         if (ResolveEdition(path) == GameDataEdition.Remastered)
         {
-            foreach (string relative in new[] { "main.zzz", "other.zzz", "FFVIII_EN.exe.dat" })
+            foreach (string relative in new[] { "main.zzz", "other.zzz", "FFVIII_EFIGS.dll" })
             {
                 if (!File.Exists(Path.Combine(path, relative)))
                 {
-                    return $"The selected Remastered installation is missing {relative}. Select the complete English Remastered game folder.";
+                    return $"The selected Remastered installation is missing {relative}. Select the complete English Steam Remastered game folder or verify its game files in Steam.";
                 }
             }
             return null;
         }
         if (!File.Exists(Path.Combine(path, "FF8_EN.exe")))
         {
-            return "Select English Steam (2013) game files including FF8_EN.exe and Data/lang-en, or English Remastered game files including main.zzz, other.zzz and FFVIII_EN.exe.dat. Remastered support is partial; unimplemented engine features stop with an explicit error.";
+            return "Select English Steam (2013) game files including FF8_EN.exe and Data/lang-en, or English Steam Remastered game files including main.zzz, other.zzz and FFVIII_EFIGS.dll. Remastered support is partial.";
         }
         foreach (string archive in new[] { "main", "menu", "field", "battle", "world", "magic" })
         {

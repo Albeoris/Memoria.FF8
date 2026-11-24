@@ -394,14 +394,15 @@ public sealed class LauncherTests : IDisposable
     }
 
     [Fact]
-    public void CompleteRemasteredInstallationDoesNotRequireClassicExecutableOrArchives()
+    public void RemasteredInstallationAllowsTheGuestImageToComeFromArchives()
     {
-        foreach (string file in new[] { "main.zzz", "other.zzz", "FFVIII_EN.exe.dat" })
+        foreach (string file in new[] { "main.zzz", "other.zzz", "FFVIII_EFIGS.dll" })
         {
             File.WriteAllText(Path.Combine(directory, file), "");
         }
 
         Assert.Null(GameInstallationSelection.ValidateForEngine(directory));
+        Assert.False(File.Exists(Path.Combine(directory, "FFVIII_EN.exe.dat")));
         Assert.False(File.Exists(Path.Combine(directory, "FF8_EN.exe")));
         Assert.False(Directory.Exists(Path.Combine(directory, "Data")));
     }
@@ -409,10 +410,10 @@ public sealed class LauncherTests : IDisposable
     [Theory]
     [InlineData("main.zzz")]
     [InlineData("other.zzz")]
-    [InlineData("FFVIII_EN.exe.dat")]
+    [InlineData("FFVIII_EFIGS.dll")]
     public void RemasteredValidationNamesEachMissingRequiredFile(string missing)
     {
-        foreach (string file in new[] { "main.zzz", "other.zzz", "FFVIII_EN.exe.dat" })
+        foreach (string file in new[] { "main.zzz", "other.zzz", "FFVIII_EFIGS.dll" })
         {
             if (file != missing)
             {

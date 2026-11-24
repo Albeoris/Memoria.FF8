@@ -47,6 +47,10 @@ internal sealed partial class GameWorld : IDisposable
 
     private static GameSession CreateColdProcess(GameAssets assets, string? selectedExecutionStackPath)
     {
+        if (assets.Resources.Source.Edition == GameDataEdition.Remastered)
+        {
+            _ = GameDataResources.RequireNativeRuntimeProfile(assets.Resources);
+        }
         NativeBattleRetainedMemory memory = assets.ReadColdProcessNativeBattleMemory();
         return GameSession.CreateColdProcess(NativeExecutionStackSelection.Apply(memory, NativeExecutionStackSelection.Read(selectedExecutionStackPath)));
     }

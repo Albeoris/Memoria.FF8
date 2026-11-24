@@ -35,15 +35,7 @@ public sealed partial class RemasteredGameDataSource : IGameRuntimeSource, IGame
     public bool IsWritableRange(uint address, int count) => RequireGuestImage().IsWritableRange(address, count);
     public Memoria.FF8.Runtime.NativeFieldRuntimeProfile? NativeRuntimeProfile
     {
-        get
-        {
-            if (NativeExecutableHash is null)
-            {
-                return null;
-            }
-            RequireRuntimeCode();
-            return Memoria.FF8.Runtime.NativeFieldRuntimeProfile.RemasteredEn;
-        }
+        get => NativeExecutableHash is null ? null : RequireNativeRuntimeProfile();
     }
 
     private void RequireRuntimeCode()
@@ -59,12 +51,22 @@ public sealed partial class RemasteredGameDataSource : IGameRuntimeSource, IGame
     private FileStream OpenAuthenticatedRuntimeCode()
     {
         ObjectDisposedException.ThrowIf(disposed, this);
-        FileStream file = File.OpenRead(Path.Combine(gameDirectory, "FFVIII_EFIGS.dll"));
+        string path = Path.Combine(gameDirectory, "FFVIII_EFIGS.dll");
+        FileStream file;
         try
         {
-            if (Convert.ToHexString(SHA256.HashData(file)) != "B0097E4EDD96FA2C32745B04328939EB8D182C2E89121D51405BC486B13F9108")
+            file = File.OpenRead(path);
+        }
+        catch (FileNotFoundException exception)
+        {
+            throw new FileNotFoundException("FFVIII_EFIGS.dll is missing from the selected Remastered installation. Select the English Steam Remastered installation or verify its game files in Steam.", path, exception);
+        }
+        try
+        {
+            string hash = Convert.ToHexString(SHA256.HashData(file));
+            if (hash != "B0097E4EDD96FA2C32745B04328939EB8D182C2E89121D51405BC486B13F9108")
             {
-                throw new NotImplementedException("Remastered runtime contracts require authenticated translated English code.");
+                throw new NotImplementedException($"FFVIII_EFIGS.dll in the selected Remastered installation is unsupported (SHA-256 {hash}). Select the English Steam Remastered installation or verify its game files in Steam.");
             }
             file.Position = 0;
             return file;
@@ -78,8 +80,9 @@ public sealed partial class RemasteredGameDataSource : IGameRuntimeSource, IGame
 
     public Memoria.FF8.Runtime.NativeFieldRuntimeProfile RequireNativeRuntimeProfile()
     {
-        ObjectDisposedException.ThrowIf(disposed, this);
-        return NativeRuntimeProfile ?? throw new NotImplementedException("Remastered runtime contracts require the authenticated English image.");
+        _ = RequireGuestImage();
+        RequireRuntimeCode();
+        return Memoria.FF8.Runtime.NativeFieldRuntimeProfile.RemasteredEn;
     }
 
     private ResourceContent? FindNamedTable(ResourceKey key)
