@@ -18,7 +18,7 @@ internal sealed partial class WorldMapScene
         NativeCharacterVitals vitals = session.State.CharacterVitals ?? throw new NotSupportedException("World item use requires authentic saved characters.");
         NativeEconomy economy = session.State.Economy ?? throw new NotSupportedException("World item use requires authentic saved inventory.");
         NativeInputConfiguration input = session.State.InputConfiguration ?? throw new NotSupportedException("World items require the actual saved menu context flags.");
-        NativeFieldItemContext context = new(false, (byte)(input.Options >> 24));
+        NativeFieldItemContext context = new(NativeFieldItemContext.AllowsRest(session.State.Scene, null), (byte)(input.Options >> 24));
         NativeLimitProgress? progress = null;
         (NativeCharacterVitals Vitals, NativeEconomy Economy, bool Changed) next;
         if (item.Type == 19)

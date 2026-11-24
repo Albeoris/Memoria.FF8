@@ -55,6 +55,7 @@ public static class LiveMenuData
             {
                 result.SupportedActions.Add("item-sort");
             }
+            bool restAllowed = NativeFieldItemContext.AllowsRest(state.Scene, state.WorldControls?.Menu209);
             foreach (NativeItemStock item in economy.Items.Where(item => item.ItemId != 0 && item.Count != 0))
             {
                 bool canUseInMenu = state.Scene is SceneKind.Field or SceneKind.WorldMap;
@@ -71,7 +72,7 @@ public static class LiveMenuData
                     NativeMagazinePages = canUseInMenu && !useImage.HasValue ? catalog?.MagazinePages(item.ItemId) ?? [] : [],
                     NativeMagazinePageUnavailableReasons = useImage.HasValue ? [] : catalog?.MagazineUnavailableReasons(item.ItemId, state) ?? [],
                     Description = catalog?.ItemDescription(item.ItemId) ?? Text("projection.item.effect-unavailable", "Item effect unavailable; using, discarding and refining are unsupported."),
-                    NativeFieldUseSupported = canUseInMenu && definition is not null && (definition.SupportsNameUse && (definition.Type != 13 || state.PocketStation?.ChocoboName is not null || names?.ContainsKey(GameNames.BokoSubject) == true || SavedName(state, GameNames.BokoSubject) is not null) || definition.SupportsBattleUse && state.CharacterVitals?.DreamEnabled == false && !MenuBattleTimerBlocked(state) || definition.SupportsCharacterUse || definition.SupportsGuardianForceUse || definition.SupportsInventoryUse || definition.SupportsRestUse && state.Scene == SceneKind.Field && (state.WorldControls?.Menu209 & 1) != 0 || definition.CanLearnBlueMagic(state.LimitProgress) && state.CharacterVitals?.DreamEnabled == false),
+                    NativeFieldUseSupported = canUseInMenu && definition is not null && (definition.SupportsNameUse && (definition.Type != 13 || state.PocketStation?.ChocoboName is not null || names?.ContainsKey(GameNames.BokoSubject) == true || SavedName(state, GameNames.BokoSubject) is not null) || definition.SupportsBattleUse && state.CharacterVitals?.DreamEnabled == false && !MenuBattleTimerBlocked(state) || definition.SupportsCharacterUse || definition.SupportsGuardianForceUse || definition.SupportsInventoryUse || definition.SupportsRestUse && restAllowed || definition.CanLearnBlueMagic(state.LimitProgress) && state.CharacterVitals?.DreamEnabled == false),
                     NativeFieldBattleUse = definition?.SupportsBattleUse == true,
                     NativeFieldNameConfirmation = definition?.Type is 12 or 13,
                     NativeFieldNameSubject = definition?.Type switch { 12 => 2, 13 => GameNames.BokoSubject, _ => null },

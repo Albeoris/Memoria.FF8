@@ -18,7 +18,7 @@ public sealed partial class EventEngine
         NativeEconomy economy = services.Economy ?? throw new NotSupportedException("Field item use requires authentic saved inventory.");
         NativeFieldItem item = ResolveNativeFieldItem?.Invoke(action.Value) ?? throw new NotSupportedException("Field item use requires original installed item metadata.");
         NativeInputConfiguration input = services.InputConfiguration ?? throw new NotSupportedException("Field items require the actual saved menu context flags.");
-        bool restAllowed = (((activeMenu ? partyMenu!.NativeEntrySelection : services.WorldControls?.Menu209) ?? 0) & 1) != 0;
+        bool restAllowed = NativeFieldItemContext.AllowsRest(SceneKind.Field, activeMenu ? partyMenu!.NativeEntrySelection : services.WorldControls?.Menu209);
         NativeFieldItemContext context = new(restAllowed, (byte)(input.Options >> 24));
         BattleNativePlayerStatRules? rules = item.Type == 20 ? ResolveNativeFieldItemStatRules?.Invoke(vitals, action.Quantity!.Value) : null;
         NativeLimitProgress? progress = null;

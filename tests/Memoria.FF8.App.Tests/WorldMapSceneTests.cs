@@ -1,12 +1,69 @@
 using System.Text.Json;
+using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
+using Memoria.FF8.GameUi;
 using Memoria.FF8.Runtime;
+using Memoria.FF8.Ui;
 
 namespace Memoria.FF8.App.Tests;
 
 /// <summary>Selected original-world component fixtures; these do not advance or establish a natural player exit.</summary>
 public sealed class WorldMapSceneTests
 {
+    [Theory]
+    [InlineData(33, true, false)]
+    [InlineData(34, false, true)]
+    [InlineData(35, true, true)]
+    public void WorldInventoryUsesRestItemsWithoutTheFieldSaveBit(int itemId, bool healsCharacters, bool healsGuardianForces)
+    {
+        string directory = GameDirectory();
+        var session = ComponentSession();
+        using var scene = new WorldMapScene(session, directory);
+        using var assets = new GameAssets(directory);
+        LiveMenuCatalog catalog = LiveMenuCatalog.ReadInstalled(assets);
+        NativeCharacterVitals vitals = session.State.CharacterVitals!.WithSavedHitPoints(0, 1).AcquireGuardianForce(0);
+        vitals.Records[0] = vitals.Records[0] with { Status = 0x82 };
+        vitals.GuardianForces[0] = vitals.GuardianForces[0] with { HitPoints = 1 };
+        NativeEconomy economy = session.State.Economy!.AddItem(itemId, 2, out _);
+        GameState initial = session.State with { CharacterVitals = vitals, Economy = economy, WorldControls = session.State.WorldControls! with { Menu209 = 2 } };
+        session.Restore(initial);
+
+        string menuItemId = $"item-{itemId}";
+        GameState field = initial with { Scene = SceneKind.Field };
+        Assert.False(LiveMenuData.Build(field, catalog: catalog).Items.Single(item => item.Id == menuItemId).NativeFieldUseSupported);
+        GameState savePoint = field with { WorldControls = field.WorldControls! with { Menu209 = 1 } };
+        Assert.True(LiveMenuData.Build(savePoint, catalog: catalog).Items.Single(item => item.Id == menuItemId).NativeFieldUseSupported);
+
+        int beforeCount = economy.Items.Single(item => item.ItemId == itemId).Count;
+        int uses = 0;
+        MenuController menu = new(() => LiveMenuData.Build(session.State, catalog: catalog), action =>
+        {
+            Assert.Equal("item-use", action.Kind);
+            Assert.Equal(menuItemId, action.SubjectId);
+            Assert.Equal("character-0", action.TargetId);
+            PlayerActionResult result = scene.UseFieldItem(new(PlayerActionKind.UseFieldItem, itemId, Quantity: 0), catalog.FieldItem(itemId)!, assets.ReadFieldItemStatRules);
+            Assert.True(result.Accepted);
+            Assert.Equal(0, result.FramesAdvanced);
+            uses++;
+        });
+        menu.Open("item-use", false);
+        Assert.True(menu.Entries.Single(entry => entry.Id == menuItemId).Enabled);
+        menu.SelectEntry("item-use", menuItemId);
+        menu.Navigate(MenuInput.Confirm);
+        menu.Navigate(MenuInput.Confirm);
+
+        Assert.Equal(1, uses);
+        NativeCharacterVitals healed = session.State.CharacterVitals!;
+        Assert.Equal(healsCharacters ? vitals.GetMagicMaximumHitPoints(0) : 1, healed.Records[0].HitPoints.Minimum);
+        Assert.Equal(healsCharacters ? 0x80 : 0x82, healed.Records[0].Status);
+        Assert.Equal(healsGuardianForces ? vitals.Definitions.GuardianForceMaximum(0, vitals.GuardianForces[0]) : 1, healed.GuardianForces[0].HitPoints);
+        Assert.Equal(beforeCount - 1, session.State.Economy!.Items.Single(item => item.ItemId == itemId).Count);
+        Assert.Equal(initial.World!.Frame, scene.State.Frame);
+
+        scene.UseFieldItem(new(PlayerActionKind.UseFieldItem, itemId, Quantity: 0), catalog.FieldItem(itemId)!, assets.ReadFieldItemStatRules);
+        Assert.Equal(beforeCount - 1, session.State.Economy!.Items.Single(item => item.ItemId == itemId).Count);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

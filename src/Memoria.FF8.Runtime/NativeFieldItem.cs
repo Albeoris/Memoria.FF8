@@ -1,6 +1,13 @@
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeFieldItemContext(bool RestAllowed, byte MenuFlags);
+public sealed record NativeFieldItemContext(bool RestAllowed, byte MenuFlags)
+{
+    public static bool AllowsRest(SceneKind scene, byte? fieldMenuSelection)
+    {
+        // The original world map opens the normal menu with selection 0xFFFF.
+        return scene == SceneKind.WorldMap || scene == SceneKind.Field && (fieldMenuSelection.GetValueOrDefault() & 1) != 0;
+    }
+}
 
 /// <summary>The four original menu/mitem.bin bytes consumed by4F9365.</summary>
 public sealed record NativeFieldItem(byte Type, byte TargetFlags, byte Power, byte StatusMask)
