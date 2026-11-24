@@ -603,6 +603,7 @@ internal sealed partial class RecreateGame : GamePresentationHost
     {
         resourceHost?.PrepareStartupGameplayDifficulty(session.State.GameplayPreferences.Difficulty);
         var next = new GameWorld(session, options.GameDirectory, movieClock, resourceHost?.Resources, options.AudioEnabled, readSceneMods: () => resourceHost?.SceneMods ?? Memoria.FF8.Mods.FieldSceneMods.Empty, modelOverrides: resourceHost, readGameplayPolicy: () => resourceHost?.GameplayPolicy ?? GameplayTuningPolicy.Empty, applyEncounterMods: resourceHost is null ? null : resourceHost.ApplyEncounterMods, audioOutput: audioOutput);
+        next.PrepareSavedBattleLoadouts();
         next.ConfigureMovementSpeeds(uiPreferences.FieldMovementSpeedPercent, uiPreferences.WorldMovementSpeedPercent);
         fieldAudio?.Attach(next.Events);
         drawPointNoticeSeconds = 0;

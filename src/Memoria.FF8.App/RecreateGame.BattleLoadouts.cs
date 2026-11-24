@@ -28,11 +28,19 @@ internal sealed partial class RecreateGame
             {
                 throw new InvalidOperationException(unavailable);
             }
+            GameState proposed = session.State with { BattleLoadouts = draft.Overrides };
+            IReadOnlyList<int> changed = draft.ChangedCharacters;
             session.ApplyBattleLoadoutDraft(draft, BattleLoadoutResourceRevision, (character, assignment) =>
             {
                 NativeCharacterVitals vitals = session.State.CharacterVitals!;
+                int row = BattleLoadoutRow(character);
+                if (changed.Contains(character) && row >= 0 && world is { } currentWorld)
+                {
+                    currentWorld.PrepareBattleLoadout(proposed, row);
+                    return;
+                }
                 int nativeWeapon = assignment.WeaponId ?? (character < NativeCharacterVitals.NativeRecordCount ? vitals.Records[character].Weapon : vitals.DreamWeapons[character - NativeCharacterVitals.NativeRecordCount]);
-                _ = PresentationBattleResources.ResolveBattleLoadout(session.State with { BattleLoadouts = draft.Overrides }, character, nativeWeapon);
+                _ = PresentationBattleResources.ResolveBattleLoadout(proposed, character, nativeWeapon);
             });
         }, BattleLoadoutEditorBoundary, DescribeBattleLoadout, () => !InFf7 && session.State.Scene != SceneKind.Title && session.State.CharacterVitals is not null, DescribeBattleLoadoutFamily);
     }

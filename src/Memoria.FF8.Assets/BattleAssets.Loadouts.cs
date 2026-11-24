@@ -6,6 +6,28 @@ public sealed record BattleResolvedLoadout(int CharacterId, BattleWeaponDefiniti
 
 public sealed partial class BattleAssets
 {
+    public void PreparePlayerLoadout(int costume, BattleResolvedLoadout loadout, bool hasLimitOverride)
+    {
+        if (!hasLimitOverride && loadout.WeaponProfile.ResourceOwner == loadout.CharacterId)
+        {
+            return;
+        }
+        BattleCombatantDefinition actor = new()
+        {
+            IsPlayer = true,
+            ModelId = loadout.CharacterId,
+            Costume = costume,
+            WeaponId = loadout.Weapon.Id,
+            WeaponProfile = loadout.WeaponProfile
+        };
+        // The normal battle resource readers populate the asset owner's motion caches.
+        NativeBattleGraphicsResource standing = ReadNativeGraphicsResource(actor);
+        foreach (BattleNativeLimitFamilyDefinition family in loadout.Families)
+        {
+            _ = ReadNativeLimitPresentationResource(actor, family.Family, standing);
+        }
+    }
+
     public BattleCombatantDefinition ApplyBattleWeapon(BattleCombatantDefinition actor, int weaponId)
     {
         ArgumentNullException.ThrowIfNull(actor);
