@@ -103,7 +103,12 @@ public sealed class NativeBattleHostedPreparedPresentationTests
         Publish(child, owner.CaptureModelLifecycleServices(graphics.ActorModels.Roster));
 
         NativeBattlePreparedScan prepared = Assert.IsType<NativeBattlePreparedScan>(child.PreparedPresentation!.Scan);
-        Assert.Equal(new NativeBattlePreparedScanActor(61, "Known alias", false, true), prepared.Actor);
+        NativeBattlePreparedScanActor actor = Assert.IsType<NativeBattlePreparedScanActor>(prepared.Actor);
+        Assert.Equal(new NativeBattlePreparedScanActor(61, "Known alias", false, true), actor with { TargetData = null });
+        NativeBattleScanTargetData target = Assert.IsType<NativeBattleScanTargetData>(actor.TargetData);
+        Assert.Equal(77, target.DescriptionIndex);
+        Assert.Equal(enemy.CurrentHp, target.Hp);
+        Assert.Equal(enemy.Attack, target.Strength);
         Assert.Equal((byte)65, prepared.BoundEnemyExtra[extraTextAddress].ReadByte(0));
         Assert.Equal(new[] { 3, 4, 5, 6 }, prepared.EnemyExtra.Keys.Order());
         enemy.SetNativeDisplayName(null);
@@ -150,6 +155,7 @@ public sealed class NativeBattleHostedPreparedPresentationTests
             LinkedTextureSlots = modelOwner == Ally ? linked : null
         }) with { Callback = 11, PrimitiveFrame = NativeBattlePrimitiveFrame.Clear() };
         BattlePresentationProcess child = NativeBattleHostedTestFixture.SeedProcess(owner, graphics);
+        child.RestoreEncounterArrivals([]);
         NativeBattleHostedTestFixture.SetProperty(child, nameof(BattlePresentationProcess.NativeStage), NativeBattleStageState.FromColdProcess() with { ResourceStageId = 22 });
         NativeBattleHostedTestFixture.SetProperty(child, nameof(BattlePresentationProcess.NativeEffectMemory), NativeBattleEffectMemory.FromColdProcess() with { PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400() });
         return (owner, child, graphics);

@@ -54,7 +54,7 @@ internal sealed partial class Ff7Scene
         bool mouseHeld = pointerState.LeftButton == ButtonState.Pressed;
         bool mouseClicked = mouseHeld && !battlePointerPressed;
         battlePointerPressed = mouseHeld;
-        if (UpdateEnemyScan())
+        if (UpdateEnemyScan(battle, gameTime.ElapsedGameTime.TotalSeconds))
         {
             UpdateAudio();
             return;
@@ -231,7 +231,7 @@ internal sealed partial class Ff7Scene
                 }
                 break;
             }
-            if (battle.GuestAbilityFailure is { } failure && failure != presentedGuestAbilityFailure)
+            if (UpdateEnemyScan(battle, 0) || battle.GuestAbilityFailure is { } failure && failure != presentedGuestAbilityFailure)
             {
                 break;
             }
@@ -540,6 +540,11 @@ internal sealed partial class Ff7Scene
     {
         EnsureMixedBattle(battle);
         Ff7BattleRenderer renderer = BattleRenderer(battle);
+        if (displayedEnemyScan is not null)
+        {
+            RenderEnemyScanModel();
+            return;
+        }
         List<Ff7BattleActorVisual> visuals = [];
         foreach (Ff7BattleActorState actor in battle.Actors)
         {
@@ -572,6 +577,11 @@ internal sealed partial class Ff7Scene
     private void ResetBattlePresentation()
     {
         battleRenderer = null;
+        displayedEnemyScan = null;
+        dismissedEnemyScan = null;
+        enemyScanModel = null;
+        enemyScanRenderer?.Dispose();
+        enemyScanRenderer = null;
         arenaSurfaceCapture?.Dispose();
         arenaSurfaceCapture = null;
         presentedBattle = null;

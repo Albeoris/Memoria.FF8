@@ -82,33 +82,9 @@ internal sealed class LocalizationBattlePresentation(ResourceService resources)
         {
             return original;
         }
-        BoundLocalizationText? description = null;
-        if (!actor.IsPlayer && (uint)actor.ModelId < scan.Resources.DescriptionOffsets.Length)
-        {
-            int offset = scan.Resources.DescriptionOffsets[actor.ModelId];
-            if ((uint)offset >= scan.Resources.DescriptionBytes.Length)
-            {
-                throw new InvalidDataException("Scan description leaves its retained source bank.");
-            }
-            int length = scan.Resources.DescriptionBytes.AsSpan()[offset..].IndexOf((byte)0);
-            if (length < 0)
-            {
-                throw new InvalidDataException("Scan description has no bounded native terminator.");
-            }
-            string source = Memoria.FF8.Assets.NativeTextEncoding.Create(resources.Source.Language).GetString(scan.Resources.DescriptionBytes.AsSpan().Slice(offset, length));
-            description = BoundTable("scan_monsters", actor.ModelId, source);
-        }
-        BoundLocalizationText? name = actor.IsPlayer || actor.HasNativeDisplayNameOverride ? null : BoundTable($"c0m{actor.ModelId:000}_names", 0, actor.Name);
-        var encoding = Memoria.FF8.Assets.NativeTextEncoding.Create(resources.Source.Language);
-        Dictionary<int, string> names = [];
-        foreach (var pair in scan.Names)
-        {
-            int subject = pair.Key switch { >= 0x30 and <= 0x3A => GameNames.CharacterSubject(pair.Key - 0x30), 0x3B or 0x40 => 2, 0x50 => GameNames.GrieverSubject, _ => -1 };
-            if (subject >= 0)
-            {
-                names[subject] = DialogueTextFormatter.Format(encoding.GetString(pair.Value.AsSpan()));
-            }
-        }
+        BoundLocalizationText? description = actor.IsPlayer ? null : ScanDescription(scan, actor.TargetData?.DescriptionIndex ?? actor.ModelId + 16);
+        BoundLocalizationText? name = ScanName(actor);
+        Dictionary<int, string> names = ScanNames(scan);
         return original.Select(window =>
         {
             BoundLocalizationText? bound = window.Index == 0 ? description : window.Index == 2 ? name : null;
@@ -126,6 +102,64 @@ internal sealed class LocalizationBattlePresentation(ResourceService resources)
             LocalizationTextBinding replacementBinding = bound.Binding with { Text = replacement.Document.Text, Arguments = [names] };
             return replacement with { Binding = replacementBinding, Lines = replacement.Lines.Select(line => line with { Binding = replacementBinding }).ToArray() };
         }).ToArray();
+    }
+
+    public (string Name, string Description) TargetScanText(NativeBattlePreparedScan scan, NativeBattlePreparedScanActor actor, int descriptionIndex)
+    {
+        BoundLocalizationText? boundName = ScanName(actor);
+        BoundLocalizationText? description = ScanDescription(scan, descriptionIndex);
+        Dictionary<int, string> names = ScanNames(scan);
+        return (Format(boundName) ?? actor.Name, Format(description) ?? "");
+
+        string? Format(BoundLocalizationText? text)
+        {
+            if (text is null)
+            {
+                return null;
+            }
+            string formatted = DialogueTextFormatter.Parse(text.Text, names, originalCompatible: true).Text.Trim();
+            return LocalizationTextTrace.Attach(formatted, text.Binding with { Text = formatted, Arguments = [names] });
+        }
+    }
+
+    private BoundLocalizationText? ScanName(NativeBattlePreparedScanActor actor)
+    {
+        return actor.IsPlayer || actor.HasNativeDisplayNameOverride ? null : BoundTable($"c0m{actor.ModelId:000}_names", 0, actor.Name);
+    }
+
+    private BoundLocalizationText? ScanDescription(NativeBattlePreparedScan scan, int descriptionIndex)
+    {
+        if (scan.Resources is not { } text || (uint)descriptionIndex >= text.DescriptionOffsets.Length)
+        {
+            return null;
+        }
+        int offset = text.DescriptionOffsets[descriptionIndex];
+        if ((uint)offset >= text.DescriptionBytes.Length)
+        {
+            throw new InvalidDataException("Scan description leaves its retained source bank.");
+        }
+        int length = text.DescriptionBytes.AsSpan()[offset..].IndexOf((byte)0);
+        if (length < 0)
+        {
+            throw new InvalidDataException("Scan description has no bounded native terminator.");
+        }
+        string source = Memoria.FF8.Assets.NativeTextEncoding.Create(resources.Source.Language).GetString(text.DescriptionBytes.AsSpan().Slice(offset, length));
+        return BoundTable("scan_monsters", descriptionIndex, source);
+    }
+
+    private Dictionary<int, string> ScanNames(NativeBattlePreparedScan scan)
+    {
+        var encoding = Memoria.FF8.Assets.NativeTextEncoding.Create(resources.Source.Language);
+        Dictionary<int, string> names = [];
+        foreach (var pair in scan.Names)
+        {
+            int subject = pair.Key switch { >= 0x30 and <= 0x3A => GameNames.CharacterSubject(pair.Key - 0x30), 0x3B or 0x40 => 2, 0x50 => GameNames.GrieverSubject, _ => -1 };
+            if (subject >= 0)
+            {
+                names[subject] = DialogueTextFormatter.Format(encoding.GetString(pair.Value.AsSpan()));
+            }
+        }
+        return names;
     }
 
     internal static NativeScanWindowText ScanWindow(NativeScanWindowText window, NativeBattleScanByteOwner row, string replacement, IReadOnlyDictionary<int, string>? names = null)

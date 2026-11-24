@@ -38,7 +38,7 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
     private Effect? centreCaptureEffect;
     private SpriteBatch? centreCaptureBatch;
     private readonly record struct CachedTexture(WeakReference<PixelImage> Image, Texture2D Texture, long Bytes, bool Orphaned = false);
-    private readonly Dictionary<(TriangleBlend, bool, bool), BlendState> blends = [];
+    private readonly Dictionary<(TriangleBlend, bool, bool, bool), BlendState> blends = [];
     private readonly Dictionary<(TriangleDepthComparison, bool), DepthStencilState> depths = [];
     private const int MaximumStreamVertices = 32768;
     private const int MaximumStreamBatches = 2048;
@@ -556,7 +556,7 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
 
     private SamplerState ApplyMaterialState(in TriangleMaterial material)
     {
-        device.BlendState = Blend(material.Blend, material.ColorWrite, material.PreserveTargetAlpha);
+        device.BlendState = Blend(material.Blend, material.ColorWrite, material.PreserveTargetAlpha, material.CompositeTargetAlpha);
         device.DepthStencilState = Depth(material.DepthComparison, material.DepthWrite);
         SamplerState sampler = material.Sampler switch
         {
@@ -725,13 +725,13 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
         return null;
     }
 
-    private BlendState Blend(TriangleBlend blend, bool colorWrite, bool preserveTargetAlpha)
+    private BlendState Blend(TriangleBlend blend, bool colorWrite, bool preserveTargetAlpha, bool compositeTargetAlpha)
     {
         if (!Enum.IsDefined(blend))
         {
             throw new NotSupportedException("Unsupported triangle blend equation.");
         }
-        if (blends.TryGetValue((blend, colorWrite, preserveTargetAlpha), out BlendState? state))
+        if (blends.TryGetValue((blend, colorWrite, preserveTargetAlpha, compositeTargetAlpha), out BlendState? state))
         {
             return state;
         }
@@ -741,10 +741,10 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
             ColorDestinationBlend = blend == TriangleBlend.Replace ? Microsoft.Xna.Framework.Graphics.Blend.Zero : blend == TriangleBlend.SourceAlphaBoth ? Microsoft.Xna.Framework.Graphics.Blend.SourceAlpha : blend is TriangleBlend.Alpha or TriangleBlend.HalfAdd ? Microsoft.Xna.Framework.Graphics.Blend.InverseSourceAlpha : Microsoft.Xna.Framework.Graphics.Blend.One,
             ColorBlendFunction = blend == TriangleBlend.Subtract ? BlendFunction.ReverseSubtract : BlendFunction.Add,
             AlphaSourceBlend = preserveTargetAlpha ? Microsoft.Xna.Framework.Graphics.Blend.Zero : Microsoft.Xna.Framework.Graphics.Blend.One,
-            AlphaDestinationBlend = preserveTargetAlpha ? Microsoft.Xna.Framework.Graphics.Blend.One : Microsoft.Xna.Framework.Graphics.Blend.Zero,
+            AlphaDestinationBlend = preserveTargetAlpha ? Microsoft.Xna.Framework.Graphics.Blend.One : compositeTargetAlpha ? Microsoft.Xna.Framework.Graphics.Blend.InverseSourceAlpha : Microsoft.Xna.Framework.Graphics.Blend.Zero,
             ColorWriteChannels = colorWrite ? ColorWriteChannels.All : ColorWriteChannels.None
         };
-        blends.Add((blend, colorWrite, preserveTargetAlpha), state);
+        blends.Add((blend, colorWrite, preserveTargetAlpha, compositeTargetAlpha), state);
         return state;
     }
 

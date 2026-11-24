@@ -7,6 +7,7 @@ using Memoria.FF8.Rendering;
 using Memoria.FF8.Runtime;
 using Memoria.FF8.Ui;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 
 namespace Memoria.FF8;
 
@@ -15,7 +16,7 @@ internal sealed partial class Ff7Scene
     internal readonly record struct BattleChoiceRow(string Name, string Value = "", bool Unsupported = false);
     internal readonly record struct BattleTargetRow(int Slot, string Name, string? UnsupportedReason = null, uint Statuses = 0);
 
-    private void DrawBattle(Rectangle bounds, Rectangle sceneBounds, Ff7BattleSession battle)
+    private void DrawBattle(SpriteBatch batch, Rectangle bounds, Rectangle sceneBounds, Ff7BattleSession battle)
     {
         IUiCanvas canvas = dialogueCanvas ?? throw new InvalidOperationException("FFVII battle requires the shared host presentation context.");
         UiTheme theme = SharedTheme();
@@ -23,6 +24,10 @@ internal sealed partial class Ff7Scene
         UiPreferences preferences = PresentationPreferences;
         float textScale = preferences.TextScale / 100f * preferences.UiFontSize / 24f;
         battlePointerRows.Clear();
+        if (DrawEnemyScan(batch, canvas, theme, layout, textScale))
+        {
+            return;
+        }
         if (battle.ResultReady)
         {
             DrawBattleResult(canvas, theme, layout, textScale, battle);
@@ -70,7 +75,6 @@ internal sealed partial class Ff7Scene
         {
             DrawBattleUnsupportedAbility(canvas, theme, layout, textScale, unavailable);
         }
-        DrawEnemyScan(canvas, theme, layout, textScale);
     }
 
     internal static string BattleCommandValue(Ff7BattleCommandOption option, bool guest)

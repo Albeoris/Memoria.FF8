@@ -416,7 +416,7 @@ internal sealed partial class Ff7Scene : IDisposable
                 {
                     DrawMovie(batch, bounds);
                 }
-                if (!bufferingMovie && (renderer is not null || Session.World is not null || Session.Battle is not null || Session.Highway is not null || Session.ChocoboRace is not null || Session.Snowboard is not null || Session.Condor is not null || Session.Submarine is not null) && error is null)
+                if (displayedEnemyScan is null && !bufferingMovie && (renderer is not null || Session.World is not null || Session.Battle is not null || Session.Highway is not null || Session.ChocoboRace is not null || Session.Snowboard is not null || Session.Condor is not null || Session.Submarine is not null) && error is null)
                 {
                     PixelBounds fieldFit = ViewportLayout.Fit(triangles.Target.Width, triangles.Target.Height, windowBounds.Width, windowBounds.Height);
                     sceneBounds = new(windowBounds.X + fieldFit.X, windowBounds.Y + fieldFit.Y, fieldFit.Width, fieldFit.Height);
@@ -426,7 +426,7 @@ internal sealed partial class Ff7Scene : IDisposable
                 {
                     if (Session.Battle is { } battle)
                     {
-                        DrawBattle(windowBounds, sceneBounds, battle);
+                        DrawBattle(batch, windowBounds, sceneBounds, battle);
                     }
                     else if (Session.Highway is { } highway)
                     {
@@ -883,6 +883,7 @@ internal sealed partial class Ff7Scene : IDisposable
             audioOutput.Dispose();
         }
         triangles.Dispose();
+        enemyScanRenderer?.Dispose();
         titleBackground?.Dispose();
         titleArtwork?.Dispose();
         numberWindowAtlas?.Dispose();

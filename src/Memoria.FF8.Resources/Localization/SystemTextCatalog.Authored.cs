@@ -23,6 +23,12 @@ public static partial class SystemTextCatalog
         defaults["battle.results.level"] = "Lv. {0}";
         defaults["battle.results.level-label"] = "Lv.";
         defaults["battle.results.standalone"] = "Standalone battle: rewards are not saved.";
+        defaults["battle.scan.title"] = "Scan";
+        defaults["battle.scan.level"] = "Lv {0}";
+        defaults["battle.scan.hp"] = "{0} {1} / {2}";
+        defaults["battle.scan.status-resistance"] = "Status resistance";
+        defaults["battle.scan.gravity"] = "Gravity";
+        defaults["battle.status.eject"] = "Eject";
         defaults["battle.status.angel-wing"] = "Angel Wing";
         defaults["battle.status.aura"] = "Aura";
         defaults["battle.status.berserk"] = "Berserk";

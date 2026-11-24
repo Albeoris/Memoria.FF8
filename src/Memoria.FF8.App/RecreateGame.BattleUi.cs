@@ -665,7 +665,7 @@ internal sealed partial class RecreateGame
     private void DrawBattle(Rectangle bounds)
     {
         BattleSession active = ActiveBattle!;
-        PixelBounds viewport = ViewportLayout.Fit(320, 240, bounds.Width, bounds.Height);
+        UiRect viewport = new(bounds.X, bounds.Y, bounds.Width, bounds.Height);
         batch.Draw(battleGpu?.Target ?? battleTexture!, bounds, Color.White);
         battleScene!.DrawEffects(active, uiCanvas!, new UiRect(bounds.X, bounds.Y, bounds.Width, bounds.Height));
         UiView view = battleHud!.BuildView();
@@ -674,12 +674,20 @@ internal sealed partial class RecreateGame
         view.Draw(uiCanvas!, uiTheme);
         if (!SlotsModalBlocksGameplay && battleScene.PresentedNativeFrame is { Scan: { } scan } presentation)
         {
-            IReadOnlyList<NativeScanWindowText> windows = NativeScanWindowTextProjection.ProjectForViewport(scan.Text, scan.CreateExpansionServices(), new(0, 0, 320, 224), (resourceHost ?? throw new InvalidOperationException("Native scan text requires its resource source.")).Resources.Source.Language);
-            if (resourceHost is not null)
+            var resources = (resourceHost ?? throw new InvalidOperationException("Native scan text requires its resource source.")).Resources;
+            LocalizationBattlePresentation localization = new(resources);
+            IReadOnlyList<NativeScanWindowText> windows = NativeScanWindowTextProjection.ProjectForViewport(scan.Text, scan.CreateExpansionServices(), new(0, 0, 320, 224), resources.Source.Language);
+            float textScale = uiPreferences.TextScale / 100f * uiPreferences.UiFontSize / 24f;
+            if (scan.Actor is { TargetData: { } target } actor && windows.Any(window => window.Index is 0 or 1 or 2))
             {
-                windows = new LocalizationBattlePresentation(resourceHost.Resources).Scan(scan, windows);
+                var (name, description) = localization.TargetScanText(scan, actor, target.DescriptionIndex);
+                TargetScanData data = Ff8TargetScan.Create(scan, target, name, description, resources.Source.Language, LocalizeUiText);
+                TargetScanScreen.Draw(uiCanvas!, uiTheme, new(viewport), textScale, data, LocalizeUiText);
+                return;
             }
-            NativeScanWindowDrawing.Draw(uiCanvas!, uiTheme, windows, new UiRect(viewport.X, viewport.Y, viewport.Width, viewport.Height), BattlePresentationTiming.ElapsedForCallbacks(presentation.Callback).TotalSeconds, uiPreferences.TextScale / 100f * uiPreferences.UiFontSize / 24f);
+            PixelBounds fit = ViewportLayout.Fit(320, 240, bounds.Width, bounds.Height);
+            UiRect nativeViewport = new(bounds.X + fit.X, bounds.Y + fit.Y, fit.Width, fit.Height);
+            NativeScanWindowDrawing.Draw(uiCanvas!, uiTheme, localization.Scan(scan, windows), nativeViewport, BattlePresentationTiming.ElapsedForCallbacks(presentation.Callback).TotalSeconds, textScale);
         }
         if (!SlotsModalBlocksGameplay && active.NativeExamTimer is { DisplayEnabled: true } timer)
         {

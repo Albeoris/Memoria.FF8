@@ -78,6 +78,10 @@ public sealed partial class BattlePresentationProcess
         NativeBattleOriginalEffectState? effect = graphics.OriginalEffect;
         BattleModelOwner? selectedOwner = effect?.ScanSelectedModel;
         NativeBattlePreparedScanActor? identity = selectedOwner is null ? null : host.ReadPreparedScanActor(selectedOwner);
+        if (effect?.Binding.Effect != 40 && identity is not null)
+        {
+            identity = identity with { TargetData = null };
+        }
         return new(scan.Text.ReadFrame(services.Flags942), scan.Results, scan.Presentation.Name269AA78, originalExtras.ToImmutable(), this.resources.NativeScanNames.ToImmutableDictionary(pair => pair.Key, pair => pair.Value.ToImmutableArray()), effect?.Binding.ScanTextResources, empty, identity)
         {
             BoundEnemyExtra = boundExtras.ToImmutable()

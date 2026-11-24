@@ -96,7 +96,16 @@ internal static class NativeCommandProjectionTests
         Ff7Progress senseProgress = progress with { Characters = progress.Characters.Select(character => character.Id == cait.Id ? sense : character).ToArray() };
         Ff7BattleSession senseInitial = new(formation, senseProgress, kernel, executable.NativeMateriaStatModifiers, 1, commandResources: names);
         Ff7BattleSession senseBattle = new(formation, senseProgress, kernel, executable.NativeMateriaStatModifiers, 1, snapshot: Ready(senseInitial.Capture(), slot), commandResources: names);
-        Check(senseBattle.NativeCommandGrants(slot).Any(grant => grant.Command == 6) && senseBattle.Commands(slot).Any(value => (byte)value.Command == 6 && value.ValidTargets == 0 && value.DisplayName == names.Name(6) && value.UnsupportedReason is not null), "Original Sense did not share the generic command projection and explicit action boundary.");
+        Ff7BattleCommandOption senseOption = senseBattle.Commands(slot).Single(value => value.Command == Ff7BattleCommand.Sense);
+        Check(senseBattle.NativeCommandGrants(slot).Any(grant => grant.Command == 6) && senseOption.ValidTargets != 0 && (senseOption.ValidTargets & 15) == 0 && senseOption.DisplayName == names.Name(6) && senseOption.UnsupportedReason is null, "Original Sense must use the resource-backed command and select living enemies.");
+        ushort senseTarget = (ushort)(senseOption.ValidTargets & -senseOption.ValidTargets);
+        int senseSlot = System.Numerics.BitOperations.TrailingZeroCount(senseTarget);
+        Check(senseBattle.Submit(slot, Ff7BattleCommand.Sense, 0, senseTarget), "Sense did not enter the ordinary command queue.");
+        for (int tick = 0; tick < 120 && senseBattle.LastSense is null; tick++)
+        {
+            senseBattle.Advance();
+        }
+        Check(senseBattle.LastSense is { } scan && scan.Slot == senseSlot && scan.Name == senseBattle.Name(senseSlot) && scan.ElementResistances.Length == 9, "Sense did not publish the target's live inspection data.");
 
         KernelSection[] duplicateKernel = kernel.ToArray();
         byte[] duplicateMateria = kernel[8].Data.ToArray();

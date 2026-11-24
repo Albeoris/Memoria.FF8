@@ -28,7 +28,12 @@ public sealed record NativeBattlePreparedPrimitiveFrame(NativeBattleResolvedComm
 }
 
 public sealed record NativeBattlePreparedActor(string Id, string Name, bool IsPlayer, int ModelId, int Costume, int? WeaponId, int? SceneSlot, int? GuardianFormVisual, NativeBattleModelTextureBinding BodyTextures, NativeBattleModelTextureBinding? LinkedTextures);
-public sealed record NativeBattlePreparedScanActor(int ModelId, string Name, bool IsPlayer, bool HasNativeDisplayNameOverride);
+public sealed record NativeBattlePreparedScanActor(int ModelId, string Name, bool IsPlayer, bool HasNativeDisplayNameOverride)
+{
+    public NativeBattleScanTargetData? TargetData { get; init; }
+}
+
+public sealed record NativeBattleScanTargetData(int DescriptionIndex, int Level, int? Hp, int? MaximumHp, int Strength, int Vitality, int Speed, int Magic, int Spirit, int Evasion, ImmutableArray<int> ElementDefenses, ImmutableArray<byte> StatusResistances);
 public enum NativeBattlePreparedScanExtraFailure
 {
     None,

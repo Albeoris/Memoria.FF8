@@ -3,7 +3,6 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8;
 
-internal sealed record CrossoverEnemyScan(long Tick, int Slot, string Name, string Description, int Level, uint HitPoints, uint MaximumHitPoints, ushort MagicPoints, ushort MaximumMagicPoints, string CombatStatistics);
 internal sealed record CrossoverDrawCastReceipt(ushort Ability, int SourceSlot, byte Magic, int Quantity);
 
 internal sealed partial class CrossoverGuestHostActions
@@ -11,7 +10,7 @@ internal sealed partial class CrossoverGuestHostActions
     private const ushort DrawStockKey = 0xE000;
     private CrossoverDrawCastReceipt? preparedDrawCast;
     private ushort? completedDrawStock;
-    public CrossoverEnemyScan? LastScan { get; private set; }
+    public Ff7TargetScan? LastScan { get; private set; }
 
     private IReadOnlyList<CrossoverGuestAbility> ReadIntegratedAbilities(IReadOnlyList<CrossoverGuestAbility> original)
     {
@@ -49,7 +48,7 @@ internal sealed partial class CrossoverGuestHostActions
         return choices;
     }
 
-    public bool HandlesOperation(ushort ability) => IsProcessInvocation(ability) || (ability & 0xFF00) == DrawStockKey || ability == 50 && host.Actors.Any(actor => actor.Actor.Slot >= 4 && host.EnemyExtension(actor.Actor.Slot) is not null);
+    public bool HandlesOperation(ushort ability) => IsProcessInvocation(ability) || (ability & 0xFF00) == DrawStockKey || ability == 50;
 
     private static bool IsDrawCast(ushort ability) => (ability & 0xFC00) == 0xD000;
     private static int DrawSource(ushort ability) => 4 + ((ability & 0x3FF) >> 6);
@@ -90,16 +89,16 @@ internal sealed partial class CrossoverGuestHostActions
         {
             return ProcessInvocationUnsupportedReason(ReadOriginAbilities().Single(choice => choice.Key == ability)) is null;
         }
-        if (target < 4 || host.EnemyExtension(target) is not { } profile || !host.Actors.Any(actor => actor.Actor.Slot == target && actor.Actor.HitPoints > 0 && (actor.Actor.Conditions & 8) != 0))
+        if (target < 4 || !host.Actors.Any(actor => actor.Actor.Slot == target && actor.Actor.HitPoints > 0 && (actor.Actor.Conditions & 8) != 0))
         {
             return false;
         }
         if (ability == 50)
         {
-            return kit.Commands.Contains((byte)2) && encounter.Working.GetMagicCount(kit.RecordRow, 50) > 0 && !string.IsNullOrWhiteSpace(profile.ScanDescription);
+            return kit.Commands.Contains((byte)2) && encounter.Working.GetMagicCount(kit.RecordRow, 50) > 0;
         }
         byte magic = (byte)(ability & 255);
-        return kit.Commands.Contains((byte)6) && profile.DrawSlots.Any(slot => slot.MagicId == magic);
+        return kit.Commands.Contains((byte)6) && host.EnemyExtension(target)?.DrawSlots.Any(slot => slot.MagicId == magic) == true;
     }
 
     public string ExecuteOperation(ushort ability, int targetSlot, Func<byte> nextRandomByte)
@@ -113,7 +112,6 @@ internal sealed partial class CrossoverGuestHostActions
         {
             return "The enemy is no longer available.";
         }
-        var source = host.EnemyExtension(targetSlot)!;
         if (ability == 50)
         {
             CrossoverBattleActorId targetId = roster.Participants.Single(participant => participant.HostSlot == targetSlot).Combat;
@@ -125,18 +123,11 @@ internal sealed partial class CrossoverGuestHostActions
             encounter.Working = CrossoverBattleBridge.CommitStock(roster, admission.Vitals, action);
             encounter.CommittedSpells = encounter.CommittedSpells.Add(new(encounter.NextOrdinal++, 50, kit.RecordRow));
             encounter.ReprojectKits(ActorSlot);
-            var enemy = host.Actors.Single(actor => actor.Actor.Slot == targetSlot).Actor;
-            var native = host.GuestAbilityTarget(targetSlot).Native ?? throw new InvalidDataException("Scan requires the FFVII target definition.");
-            string[] elements = ["Fire", "Ice", "Lightning", "Earth", "Poison", "Gravity", "Water", "Wind", "Holy"];
-            string affinities = string.Join("; ", native.Affinities.Where(affinity => affinity.Type < elements.Length).Select(affinity => $"{elements[affinity.Type]}: {affinity.Rate switch { 2 => "Weak", 4 => "Resist", 5 => "Immune", 6 => "Absorb", _ => "Special" }}"));
-            string statistics = $"ATK {source.Attack}   MAG {source.Magic}   DEF {enemy.Defense}   MDEF {enemy.MagicDefense}   SPD {native.Speed}   EVA {native.Evasion}   LUCK {native.Luck}";
-            if (affinities.Length > 0)
-            {
-                statistics += "\n" + affinities;
-            }
-            LastScan = new(host.Tick, targetSlot, host.Name(targetSlot), source.ScanDescription ?? throw new InvalidDataException("Scan requires the resolved description."), source.Level, enemy.HitPoints, enemy.MaxHitPoints, enemy.MagicPoints, enemy.MaxMagicPoints, statistics);
+            BattleActionDefinition scan = assets.ActionDefinitions.Single(action => action.Ability == BattleAbility.Magic && action.Id == ability);
+            LastScan = host.ReadTargetScan(targetSlot, scan.DisplayName ?? scan.Name);
             return "Scan complete.";
         }
+        var source = host.EnemyExtension(targetSlot)!;
         byte magic = (byte)(ability & 255);
         var slot = source.DrawSlots.Single(entry => entry.MagicId == magic);
         BattleActionDefinition spell = assets.ActionDefinitions.Single(action => action.Ability == BattleAbility.Magic && action.Id == magic);

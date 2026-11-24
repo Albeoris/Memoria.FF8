@@ -21,9 +21,18 @@ public sealed partial class BattleSession
 
     private NativeBattlePreparedScanActor? ReadPreparedScanActor(BattleModelOwner owner)
     {
-        return byId.TryGetValue(RequireCanonicalGraphicsActorId(owner), out BattleCombatant? actor)
-            ? new(actor.ModelId, actor.Name, actor.IsPlayer, actor.HasNativeDisplayNameOverride)
-            : null;
+        if (!byId.TryGetValue(RequireCanonicalGraphicsActorId(owner), out BattleCombatant? actor))
+        {
+            return null;
+        }
+        bool hidden = (actor.NativeCombatantFlags & 0x2000) != 0;
+        return new(actor.ModelId, actor.Name, actor.IsPlayer, actor.HasNativeDisplayNameOverride)
+        {
+            TargetData = new(NativeModelId(actor), actor.Level, ScanHp(actor.CurrentHp), ScanHp(actor.MaximumHp), EffectiveStat(actor, BattleStatId.Strength), EffectiveStat(actor, BattleStatId.Vitality), actor.Speed, actor.Magic, EffectiveStat(actor, BattleStatId.Spirit), actor.Evasion,
+                hidden ? [] : [.. actor.ElementDefenses], !hidden && actor.NativeStatusResistances.Count == 40 ? [.. actor.NativeStatusResistances] : [])
+        };
+
+        int? ScanHp(int hp) => !hidden && hp < 100000 ? hp : null;
     }
 
     private NativeBattlePreparedScanExtra ReadPreparedScanExtra(BattleModelOwner owner)

@@ -260,6 +260,11 @@ public sealed partial class Ff7BattleSession
                 continue;
             }
             string name = commandResources?.Name(grant.Command) ?? command.ToString();
+            if (command == Ff7BattleCommand.Sense)
+            {
+                commands.Add(Option(command, 0, 0x13) with { DisplayName = name, Category = name });
+                continue;
+            }
             commands.Add(new(command, 0, 0, true, false) { DisplayName = name, Category = "Command", UnsupportedReason = $"{name} is not supported yet." });
         }
         return commands.Where(option => Ff7NativeBattleStatuses.CanUseCommand(actor.Actor.Statuses, (byte)option.Command, option.Argument, option.Command is Ff7BattleCommand.Magic or Ff7BattleCommand.Summon ? option.Cost : 0, actor.Actor.Conditions)).ToArray();
@@ -776,6 +781,9 @@ public sealed partial class Ff7BattleSession
                     poison = poison with { Affinity = ResolveNativeEnemyAffinity(command.ActorSlot, Ff7NativeBattleStatusClock.PoisonElement) };
                 }
                 ApplyHit(command, command.ActorSlot, poison, null, Ff7NativeBattleStatusClock.PoisonElement);
+                break;
+            case (byte)Ff7BattleCommand.Sense:
+                ApplySense(command);
                 break;
             case (byte)Ff7BattleCommand.Defend:
                 Replace(source with { Defending = true });

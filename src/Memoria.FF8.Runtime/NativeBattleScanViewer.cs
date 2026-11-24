@@ -12,6 +12,11 @@ public sealed record NativeBattleScanViewerStep(NativeBattleScanViewerFrame Fram
 
 public static class NativeBattleScanViewer
 {
+    private const int ManualRotationStep = 16;
+    public const int AutoRotationStep = 64;
+    public const int DigitalRotationStep = 8 * ManualRotationStep;
+    public const int RotationRevolution = 4096;
+    public const int ManualRotationTimeout = 75;
     public static NativeBattleScanViewerStep Advance84F860(NativeBattleScanViewerFrame frame, uint address, NativeBattleScanViewerInputs inputs)
     {
         Validate(frame);
@@ -161,10 +166,10 @@ public static class NativeBattleScanViewer
         NativeBattleScanByteOwner model = ReadModel(frame, selected);
         if (unchecked((short)task.ReadWord(0x70)) == 0)
         {
-            task = task.WriteWord(0x72, 75);
+            task = task.WriteWord(0x72, ManualRotationTimeout);
             if (inputs.UnrestrictedRotation || profile.Bytes16.ReadByte(0x0D) == 1)
             {
-                model = model.WriteWord(0x0E, unchecked((ushort)(model.ReadWord(0x0E) + 64)));
+                model = model.WriteWord(0x0E, unchecked((ushort)(model.ReadWord(0x0E) + AutoRotationStep)));
             }
         }
         else
@@ -176,10 +181,10 @@ public static class NativeBattleScanViewer
                 model = ReadModel(frame, selected);
             }
         }
-        Rotate(0x20, 0x0E, 0x0D, 16);
-        Rotate(0x22, 0x0E, 0x0D, -16);
-        Rotate(0x24, 0x0C, 0x0C, -16);
-        Rotate(0x26, 0x0C, 0x0C, 16);
+        Rotate(0x20, 0x0E, 0x0D, ManualRotationStep);
+        Rotate(0x22, 0x0E, 0x0D, -ManualRotationStep);
+        Rotate(0x24, 0x0C, 0x0C, -ManualRotationStep);
+        Rotate(0x26, 0x0C, 0x0C, ManualRotationStep);
         int axis = Axis(0x1C);
         if (axis > 0)
         {
@@ -222,7 +227,7 @@ public static class NativeBattleScanViewer
         return frame;
 
         int Axis(int offset) => Word(process.InteractiveInput269AAA8, offset);
-        void Manual() => task = task.WriteWord(0x70, 1).WriteWord(0x72, 75);
+        void Manual() => task = task.WriteWord(0x70, 1).WriteWord(0x72, ManualRotationTimeout);
         void Rotate(int input, int angle, int permission, int factor)
         {
             int value = Axis(input);

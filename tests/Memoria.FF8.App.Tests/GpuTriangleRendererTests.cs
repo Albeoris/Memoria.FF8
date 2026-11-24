@@ -3,6 +3,10 @@ using System.Reflection;
 using System.Text.Json;
 using System.Numerics;
 using Albeoris.Games.FF8.Imaging;
+using Memoria.FF7.Formats;
+using Memoria.FF7.Resources;
+using Memoria.FF7.Runtime;
+using Memoria.FF8.GameUi;
 using Memoria.FF8.Rendering;
 using Memoria.FF8.Runtime;
 using Microsoft.Xna.Framework.Graphics;
@@ -43,6 +47,53 @@ public sealed class GpuTriangleRendererTests
             Assert.Equal(pixel.R, pixel.B);
             Assert.Equal(255, pixel.A);
         }
+    }
+
+    [Fact]
+    public void Scan_model_composites_alpha_for_a_transparent_preview()
+    {
+        using GpuTestDevice device = new();
+        using GpuTriangleRenderer renderer = new(device.Device);
+        TriangleMaterial material = new(null, TriangleBlend.Alpha) { PreserveTargetAlpha = false, CompositeTargetAlpha = true };
+        renderer.Begin(16, 16, Vector4.Zero);
+        Quad(renderer, material, new Vector4(1, 0, 0, 0.5f));
+        Quad(renderer, material, new Vector4(0, 1, 0, 0.5f));
+        renderer.End();
+        Assert.All(GpuTestDevice.Read(renderer.Target), pixel =>
+        {
+            Assert.InRange((int)pixel.R, 63, 65);
+            Assert.InRange((int)pixel.G, 127, 129);
+            Assert.Equal(0, pixel.B);
+            Assert.InRange((int)pixel.A, 190, 192);
+        });
+    }
+
+    [Fact]
+    public void Scan_model_uses_original_ff7_geometry_and_rotates_over_a_transparent_surface()
+    {
+        string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        Assert.SkipUnless(!string.IsNullOrWhiteSpace(directory), "Select the original FFVII installation.");
+        Ff7Installation installation = Ff7Installation.Discover(directory!);
+        using Ff7Session session = Ff7Session.NewGame(installation);
+        IReadOnlyList<KernelSection> kernel = KernelArchive.Read(File.ReadAllBytes(installation.GetRequired(Ff7ResourceRole.Kernel).Path));
+        SceneFormation formation = SceneArchive.Read(File.ReadAllBytes(installation.GetRequired(Ff7ResourceRole.BattleScenes).Path)).Single(scene => scene.FormationId == 300);
+        Ff7BattleSession battle = new(formation, session.Progress, kernel, Ff7PcExecutableData.Load(installation).NativeMateriaStatModifiers, 1);
+        using LgpArchive archive = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.BattleArchive).Path);
+        Ff7BattleRenderer models = new(archive, formation.LocationId);
+        Ff7TargetScanModel model = new(models.CaptureActorGeometry(new(battle.ActorModelPrefix(4), Vector3.Zero, 0, 0, 0)));
+        Assert.True(model.IsVisible);
+
+        using GpuTestDevice device = new();
+        using GpuTriangleRenderer renderer = new(device.Device);
+        model.Render(renderer, 0, 0);
+        Color[] first = GpuTestDevice.Read(renderer.Target);
+        model.Render(renderer, MathF.PI / 2, 0);
+        Color[] second = GpuTestDevice.Read(renderer.Target);
+        Assert.Contains(first, pixel => pixel.A == 255);
+        Assert.Contains(second, pixel => pixel.A == 255);
+        Assert.Equal(Color.Transparent, first[0]);
+        Assert.Equal(Color.Transparent, second[0]);
+        Assert.False(first.AsSpan().SequenceEqual(second));
     }
 
     [Fact]
