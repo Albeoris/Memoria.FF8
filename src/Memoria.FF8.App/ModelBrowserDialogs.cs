@@ -32,7 +32,7 @@ internal static class ModelBrowserDialogs
         {
             directory += Path.DirectorySeparatorChar;
         }
-        string? result = await PathAsync(Desktop.OpenFileAsync(new(title, directory, ModelFilters(localizeText))));
+        string? result = await PathAsync(Desktop.OpenFileAsync(new(title, directory, [.. ModelFilters(localizeText), new("VRM model (*.vrm)", ["vrm"])])));
         RememberDirectory(settings.ModelImportDirectoryPath, result);
         return result;
     }

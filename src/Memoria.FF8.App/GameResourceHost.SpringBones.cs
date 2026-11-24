@@ -22,14 +22,14 @@ internal sealed partial class GameResourceHost
             {
                 if (definition.MainCharacter is { } name)
                 {
-                    definition.ValidateRig(assets.ReadFieldMainCharacterParents(name));
+                    definition.ValidateRig(assets.ReadFieldMainCharacterModel(name));
                 }
                 else if (definition.Entry is int entry)
                 {
                     ModelCatalogEntry target = assets.GetFieldModelSource(definition.Field, entry);
                     FieldModel original = assets.LoadCatalogFieldModel(target);
                     FieldModel selected = modelMods.Apply(target.Id, original);
-                    definition.ValidateRig(selected.GetSpringBoneParents());
+                    definition.ValidateRig(selected);
                 }
             }
             catch (Exception exception) when (IsSpringTargetError(exception))
@@ -64,7 +64,7 @@ internal sealed partial class GameResourceHost
                 FieldModel original = assets.LoadCatalogFieldModel(target);
                 if (ReferenceEquals(springMods.Resolve(modelId, original), definition))
                 {
-                    definition.ValidateRig(modelMods.Apply(modelId, original).GetSpringBoneParents());
+                    definition.ValidateRig(modelMods.Apply(modelId, original));
                 }
             }
             catch (Exception exception) when (IsSpringTargetError(exception))

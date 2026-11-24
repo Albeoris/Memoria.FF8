@@ -37,7 +37,7 @@ public sealed class FieldSpringBoneTests
         ];
         Matrix4x4 actorTransform = Matrix4x4.CreateScale(-0.27f, 0.83f, 2.1f) * Matrix4x4.CreateRotationZ(0.23f) * Matrix4x4.CreateTranslation(15, -12, 30);
         Vector3 gravity = Vector3.TransformNormal(new Vector3(0, -25, 0), actorTransform);
-        FieldSpringBoneSimulation simulation = new([2, -1, 1], [new FieldSpringBoneJoint(1, Vector3.UnitX, 20, 5, gravity)]);
+        FieldSpringBoneSimulation simulation = new([2, -1, 1], [new FieldSpringBoneJoint(1, Vector3.UnitX, 1, 0.4f, gravity)]);
 
         Matrix4x4[] posed = simulation.Step(animated, actorTransform, Tick);
 
@@ -52,7 +52,7 @@ public sealed class FieldSpringBoneTests
     [Fact]
     public void CapturedTailInterpolationIsStableAndDoesNotAdvanceSimulation()
     {
-        FieldSpringBoneJoint joint = new(0, Vector3.UnitX, 20, 5, new Vector3(0, -25, 0));
+        FieldSpringBoneJoint joint = new(0, Vector3.UnitX, 1, 0.4f, new Vector3(0, -5, 0));
         FieldSpringBoneSimulation simulation = new([-1, 0], [joint]);
         FieldSpringBoneSimulation control = new([-1, 0], [joint]);
         Matrix4x4[] animated = [Matrix4x4.Identity, Matrix4x4.CreateTranslation(Vector3.UnitX)];
@@ -77,7 +77,7 @@ public sealed class FieldSpringBoneTests
     [Fact]
     public void SimulationRejectsInvalidRigAndJointDefinitions()
     {
-        FieldSpringBoneJoint joint = new(0, Vector3.UnitX, 20, 5, Vector3.Zero);
+        FieldSpringBoneJoint joint = new(0, Vector3.UnitX, 1, 0.4f, Vector3.Zero);
 
         Assert.Throws<ArgumentException>(() => new FieldSpringBoneSimulation([1, 0], [joint]));
         Assert.Throws<ArgumentException>(() => new FieldSpringBoneSimulation([2, -1], [joint]));
@@ -85,8 +85,12 @@ public sealed class FieldSpringBoneTests
         Assert.Throws<ArgumentException>(() => new FieldSpringBoneSimulation([-1], [joint with { Bone = 1 }]));
         Assert.Throws<ArgumentException>(() => new FieldSpringBoneSimulation([-1], [joint with { LocalTail = Vector3.Zero }]));
         Assert.Throws<ArgumentException>(() => new FieldSpringBoneSimulation([-1], [joint with { Stiffness = -1 }]));
-        Assert.Throws<ArgumentException>(() => new FieldSpringBoneSimulation([-1], [joint with { Damping = float.NaN }]));
+        Assert.Throws<ArgumentException>(() => new FieldSpringBoneSimulation([-1], [joint with { DragForce = float.NaN }]));
+        Assert.Throws<ArgumentException>(() => new FieldSpringBoneSimulation([-1], [joint with { DragForce = 1.1f }]));
         Assert.Throws<ArgumentException>(() => new FieldSpringBoneSimulation([-1], [joint with { WorldGravity = new Vector3(float.PositiveInfinity) }]));
+        Assert.Throws<ArgumentException>(() => new FieldSpringBoneSimulation([-1], [joint with { HitRadius = -1 }]));
+        Assert.Throws<ArgumentException>(() => new FieldSpringBoneSimulation([-1, 0], [joint with { Center = 1 }]));
+        Assert.Throws<ArgumentException>(() => new FieldSpringBoneSimulation([-1], [joint with { Colliders = [new FieldSpringBoneCollider(1, Vector3.Zero, 0.1f)] }]));
     }
 
     [Fact]
@@ -105,12 +109,101 @@ public sealed class FieldSpringBoneTests
         AssertNear(Assert.Single(field.PosePresentationBones(animated, null)), Assert.Single(field.Pose(0, 0, rootTranslationZ: 3)));
         AssertNear(Assert.Single(field.PosePresentationNormals(animated)!), Assert.Single(ModelExchange.PoseNativeNormals(edited, 0, 0)));
 
-        FieldSpringBoneSimulation simulation = new(field.GetSpringBoneParents(), [new(1, Vector3.UnitZ, 20, 5, new(50, 0, 0))]);
+        FieldSpringBoneSimulation simulation = new(field.GetSpringBoneParents(), [new(1, Vector3.UnitZ, 1, 0.4f, new(5, 0, 0))]);
         Matrix4x4[] bent = simulation.Step(animated, Matrix4x4.Identity, Tick);
         Vector3 normal = Assert.Single(field.PosePresentationNormals(bent)!);
         Vector3 position = Assert.Single(field.PosePresentationBones(bent, null));
         Assert.True(normal.X > 0.01f);
         AssertNear(position - bent[1].Translation, normal);
+    }
+
+    [Fact]
+    public void VerletStepUsesTheAnimatedAxisWorldGravityAndPerTickDrag()
+    {
+        FieldSpringBoneJoint joint = new(0, Vector3.UnitX, 2, 0.25f, Vector3.UnitX * 3);
+        FieldSpringBoneSimulation simulation = new([-1, 0], [joint]);
+        Matrix4x4[] animated = [Matrix4x4.CreateRotationZ(MathF.PI / 2), Matrix4x4.CreateTranslation(Vector3.UnitY)];
+
+        Vector3 forceStep = (Vector3.UnitY * joint.Stiffness + joint.WorldGravity) * Tick;
+        Vector3 first = Vector3.Normalize(Vector3.UnitY + forceStep);
+        Vector3 second = Vector3.Normalize(first + (first - Vector3.UnitY) * (1 - joint.DragForce) + forceStep);
+
+        AssertNear(simulation.Step(animated, Matrix4x4.Identity, Tick)[1].Translation, first);
+        AssertNear(simulation.Step(animated, Matrix4x4.Identity, Tick)[1].Translation, second);
+    }
+
+    [Fact]
+    public void StationaryClipRetainsRotatedJointPoseWithoutExternalForces()
+    {
+        Matrix4x4 root = Matrix4x4.CreateRotationX(0.4f) * Matrix4x4.CreateTranslation(5, -3, 7);
+        Matrix4x4 head = Matrix4x4.CreateRotationY(1.4f) * Matrix4x4.CreateTranslation(Vector3.UnitX) * root;
+        Matrix4x4 tip = Matrix4x4.CreateRotationZ(0.8f) * Matrix4x4.CreateTranslation(Vector3.UnitX) * head;
+        Matrix4x4[] animated = [root, head, tip];
+        FieldSpringBoneSimulation simulation = new([-1, 0, 1], [new FieldSpringBoneJoint(1, Vector3.UnitX, 1, 0.4f, Vector3.Zero)]);
+        for (int frame = 0; frame < 30; frame++)
+        {
+            Matrix4x4[] posed = simulation.Step(animated, Matrix4x4.Identity, Tick);
+
+            AssertNear(posed[1].Translation, head.Translation);
+            AssertNear(posed[2].Translation, tip.Translation);
+            AssertNear(Vector3.TransformNormal(Vector3.UnitY, posed[1]), Vector3.TransformNormal(Vector3.UnitY, head));
+        }
+    }
+
+    [Fact]
+    public void CenterRemovesActorMotionFromInertiaAndInterpolatesInCenterSpace()
+    {
+        Vector3 gravity = -Vector3.UnitZ * 3;
+        FieldSpringBoneJoint joint = new(1, Vector3.UnitX, 1, 0.4f, gravity) { Center = 0 };
+        FieldSpringBoneSimulation simulation = new([-1, 0, 1], [joint]);
+        FieldSpringBoneSimulation stationary = new([-1, 0, 1], [joint]);
+        Matrix4x4[] animated = [Matrix4x4.Identity, Matrix4x4.Identity, Matrix4x4.CreateTranslation(Vector3.UnitX)];
+        Matrix4x4 moved = Matrix4x4.CreateRotationZ(MathF.PI / 2) * Matrix4x4.CreateTranslation(new Vector3(6, -2, 5));
+
+        Matrix4x4[] first = simulation.Step(animated, Matrix4x4.Identity, Tick);
+        FieldSpringBoneSimulation.FieldSpringBonePose previous = simulation.Capture();
+        Matrix4x4[] second = simulation.Step(animated, moved, Tick);
+        FieldSpringBoneSimulation.FieldSpringBonePose current = simulation.Capture();
+        stationary.Step(animated, Matrix4x4.Identity, Tick);
+
+        Assert.True(first[2].Translation.Z < 0);
+        AssertNear(second[2].Translation, stationary.Step(animated, Matrix4x4.Identity, Tick)[2].Translation);
+        AssertNear(simulation.Pose(animated, moved, previous, current, 0.5f)[2].Translation, Vector3.Normalize(first[2].Translation + second[2].Translation));
+    }
+
+    [Fact]
+    public void CenterKeepsGravityInWorldSpace()
+    {
+        FieldSpringBoneJoint joint = new(0, Vector3.UnitX, 1, 0.4f, -Vector3.UnitY * 3) { Center = 0 };
+        FieldSpringBoneSimulation simulation = new([-1, 0], [joint]);
+        Matrix4x4[] animated = [Matrix4x4.Identity, Matrix4x4.CreateTranslation(Vector3.UnitX)];
+        Matrix4x4 turned = Matrix4x4.CreateRotationX(MathF.PI / 2);
+
+        Matrix4x4[] posed = simulation.Step(animated, turned, Tick);
+        Vector3 worldTail = Vector3.Transform(posed[1].Translation, turned);
+
+        Assert.True(worldTail.Y < -0.01f);
+        Assert.InRange(MathF.Abs(worldTail.Z), 0, 1e-4f);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void SphereAndCapsulePushJointTailAndPreserveLength(bool capsule)
+    {
+        Vector3 offset = new(0.5f, -0.2f, capsule ? -1 : 0);
+        Vector3? end = capsule ? offset + Vector3.UnitZ * 2 : null;
+        FieldSpringBoneJoint joint = new(0, Vector3.UnitX, 0, 1, Vector3.Zero)
+        {
+            HitRadius = 0.1f,
+            Colliders = [new FieldSpringBoneCollider(2, offset, 0.2f, end)],
+        };
+        FieldSpringBoneSimulation simulation = new([-1, 0, -1], [joint]);
+        Matrix4x4[] animated = [Matrix4x4.Identity, Matrix4x4.CreateTranslation(Vector3.UnitX), Matrix4x4.CreateTranslation(Vector3.UnitX * 0.5f)];
+
+        Matrix4x4[] posed = simulation.Step(animated, Matrix4x4.Identity, Tick);
+
+        AssertNear(posed[1].Translation, Vector3.Normalize(new Vector3(1, 0.1f, 0)));
     }
 
     private static void AssertNear(Vector3 actual, Vector3 expected)

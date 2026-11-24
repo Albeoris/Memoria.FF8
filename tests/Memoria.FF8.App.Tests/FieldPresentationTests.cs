@@ -68,7 +68,7 @@ public sealed class FieldPresentationTests
     {
         object scene = new();
         FieldActorSample actor = Actor(new object(), 10);
-        FieldSpringBoneSimulation simulation = new([-1, 0], [new(1, Vector3.UnitZ, 25, 5, Vector3.Zero)]);
+        FieldSpringBoneSimulation simulation = new([-1, 0], [new(1, Vector3.UnitZ, 0.8f, 0.4f, Vector3.Zero)]);
         Matrix4x4[] transforms = [Matrix4x4.Identity, Matrix4x4.Identity];
         simulation.Step(transforms, Matrix4x4.Identity, 1f / EventEngine.SimulationFps);
         FieldSpringBoneVisual oldSprings = new(simulation, simulation.Capture());

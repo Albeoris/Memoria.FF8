@@ -33,7 +33,7 @@ public sealed class ModelMods : IModelOverrideSource
         List<(ModelModVariant Variant, ModFile File)> files = [];
         List<ModDiagnostic> notices = [];
         bool valid = true;
-        foreach (ModFile file in catalog.Files.Where(file => file.Format == ModFormat.Memoria && file.RelativePath.EndsWith(".glb", StringComparison.OrdinalIgnoreCase) && !file.RelativePath.StartsWith("scene3d/", StringComparison.OrdinalIgnoreCase)))
+        foreach (ModFile file in catalog.Files.Where(file => file.Format == ModFormat.Memoria && file.RelativePath.EndsWith(".glb", StringComparison.OrdinalIgnoreCase) && !file.RelativePath.StartsWith("scene3d/", StringComparison.OrdinalIgnoreCase) && !FieldSpringBoneMods.IsSpringDocumentPath(file.RelativePath)))
         {
             try
             {

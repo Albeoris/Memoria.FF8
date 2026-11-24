@@ -325,7 +325,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         {
             return ModPreparationResult.RejectPackagePayloads(modelDiagnostics.Where(diagnostic => diagnostic.Code == "Memoria.InvalidModel").ToArray());
         }
-        if (!FieldSpringBoneMods.TryPrepare(catalog, out FieldSpringBoneMods springMods, out IReadOnlyList<ModDiagnostic> springDiagnostics))
+        if (!FieldSpringBoneMods.TryPrepare(catalog, out FieldSpringBoneMods springMods, out IReadOnlyList<ModDiagnostic> springDiagnostics, modelMods.Variants))
         {
             return ModPreparationResult.RejectPackagePayloads(springDiagnostics);
         }

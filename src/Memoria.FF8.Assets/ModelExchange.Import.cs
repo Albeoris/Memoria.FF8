@@ -27,7 +27,7 @@ public static partial class ModelExchange
         return exception is JsonException or KeyNotFoundException or IndexOutOfRangeException or ArgumentException or OverflowException or InvalidOperationException or MagickException;
     }
 
-    private static (byte[] Json, byte[] Binary) ReadGlbChunks(ReadOnlySpan<byte> content)
+    private static (byte[] Json, byte[] Binary) ReadGlbChunks(ReadOnlySpan<byte> content, bool readBinary = true)
     {
         if (content.Length < 20 || content.Length > 256 * 1024 * 1024 || BinaryPrimitives.ReadUInt32LittleEndian(content) != 0x46546c67 || BinaryPrimitives.ReadUInt32LittleEndian(content[4..]) != 2 || BinaryPrimitives.ReadUInt32LittleEndian(content[8..]) != content.Length)
         {
@@ -35,6 +35,7 @@ public static partial class ModelExchange
         }
         byte[]? json = null;
         byte[]? binary = null;
+        bool binarySeen = false;
         int offset = 12;
         while (offset < content.Length)
         {
@@ -59,11 +60,15 @@ public static partial class ModelExchange
             }
             else if (kind == 0x004e4942)
             {
-                if (binary is not null || json is null)
+                if (binarySeen || json is null)
                 {
                     throw new InvalidDataException("Invalid binary chunk order.");
                 }
-                binary = content.Slice(offset, (int)length).ToArray();
+                binarySeen = true;
+                if (readBinary)
+                {
+                    binary = content.Slice(offset, (int)length).ToArray();
+                }
             }
             offset += (int)length;
         }
@@ -267,7 +272,7 @@ public static partial class ModelExchange
             {
                 throw new InvalidDataException("Only glTF 2.0 is supported.");
             }
-            if (root.TryGetProperty("extensionsRequired", out JsonElement required) && required.GetArrayLength() != 0)
+            if (root.TryGetProperty("extensionsRequired", out JsonElement required) && required.EnumerateArray().Any(extension => extension.GetString() != VrmSpringBones.ExtensionName))
             {
                 throw new InvalidDataException("Required glTF extensions are unsupported; export standard, uncompressed glTF 2.0.");
             }
@@ -514,7 +519,7 @@ public static partial class ModelExchange
             return new ModelExchangeImportResult(result, _warnings.Distinct().ToArray(), mismatch && !allowBoneCountChange);
         }
 
-        private static (Vector3 Translation, Quaternion Rotation, Vector3 Scale) ReadNodeTransform(JsonElement node)
+        internal static (Vector3 Translation, Quaternion Rotation, Vector3 Scale) ReadNodeTransform(JsonElement node)
         {
             Vector3 translation = Vec3(node, "translation", Vector3.Zero);
             Vector3 scale = Vec3(node, "scale", Vector3.One);

@@ -16,6 +16,16 @@ public sealed record ModelModInstallPlan(IReadOnlyList<ModelModOutput> Files)
 /// <summary>Plans independent geometry/clip outputs and installs only selected replacements.</summary>
 public static class ModelModInstaller
 {
+    public static ModelModInstallPlan PlanSpringBones(string modelId, FieldSpringBoneAsset asset)
+    {
+        string path = $"models/{modelId.ToLowerInvariant()}.springs.glb";
+        if (!FieldSpringBoneMods.IsSpringDocumentPath(path))
+        {
+            throw new InvalidDataException("Spring bones require a field model target.");
+        }
+        return new([new(path, ModelExchange.ExportFieldSpringBoneAsset(asset))]);
+    }
+
     public static ModelModInstallPlan Plan(IEnumerable<ModelModReplacement> replacements)
     {
         List<ModelModOutput> outputs = [];
@@ -86,7 +96,14 @@ public static class ModelModInstaller
             foreach (ModelModOutput file in plan.Files)
             {
                 _ = OutputPath(root, file.RelativePath);
-                _ = ModelExchange.ImportGlb(file.Content, allowBoneCountChange: true);
+                if (FieldSpringBoneMods.IsSpringDocumentPath(file.RelativePath))
+                {
+                    _ = ModelExchange.ReadFieldSpringBoneAsset(file.Content) ?? throw new InvalidDataException("The GLB has no VRMC_springBone extension.");
+                }
+                else
+                {
+                    _ = ModelExchange.ImportGlb(file.Content, allowBoneCountChange: true);
+                }
             }
             CreateDirectories(stage, createdDirectories);
             for (int index = 0; index < plan.Files.Count; index++)

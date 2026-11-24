@@ -82,32 +82,28 @@ Installation stages and validates all selected files, shows conflicts and rolls 
 
 ## Spring bones for field models
 
-A Memoria package can apply spring motion to an existing field rig. The physics uses the animated pose as its target, so a single setup covers idle, movement and scripted animations. The **Rinoa Hair Physics** component is an opt-in example for Classic and Remastered. Enable it in the mod manager before entering the field that uses it.
+A Memoria package can apply spring motion to a field rig using the [VRMC_springBone 1.0 glTF extension](https://github.com/vrm-c/vrm-specification/tree/master/specification/VRMC_springBone-1.0). The engine uses the configured joint chain, stiffness, drag, gravity, optional center and sphere or capsule colliders. Each actor has its own spring state. The field updates that state on committed callbacks and interpolates it at higher presentation rates.
 
-Put a version 1 JSON document at `models/field/<field>/<entry>.springs.json` for one field model entry. Use `models/field/main_chr/<dNNN>.springs.json` to cover occurrences that load a specific installed main character model source. Both selectors use the usual package priority. An exact field entry wins over a main character selector in the same package. The winning document supplies the joint list as a whole.
+To install physics from Blender, select the destination field model in the model browser, choose **Import from Blender (as mod)** and open the GLB or VRM export. Accept **Install Spring Bones** to install the rig and extension. Memoria writes a spring-only GLB so the package can use the installed mesh, textures and clips. Import geometry and clips separately through the existing selection dialog. An existing field geometry GLB can also carry the extension directly when it identifies one field model.
 
-```json
-{
-  "version": 1,
-  "expectedBoneCount": 3,
-  "expectedParents": [-1, 0, 1],
-  "joints": [
-    {
-      "bone": 1,
-      "localTail": [0, 0, 12],
-      "stiffness": 90,
-      "damping": 12,
-      "gravity": [0, 0, 0]
-    }
-  ]
-}
+In a package, `models/field/<field>/<entry>.springs.glb` applies the extension to one entry. Use `models/field/main_chr/<dNNN>.springs.glb` for all entries using that installed character model source. A binary VRM file can use the same paths with the `.springs.vrm` suffix. Both selectors use package priority, with an exact entry taking precedence within the same package. Preserve bone names or the exported `FF8_bone_index` properties so the importer can bind the chain to the selected rig. In VRM 1.0 the final joint is the endpoint of the last simulated segment.
+
+**Rinoa Hair Physics** is an opt-in example for Classic and Remastered. To edit one of its spring-only GLBs, export the matching field model to Blender, import it and select its armature in Object Mode. In Blender's Python Console, add the product's `tools/blender` directory to the Python path and load the profile with the [spring-bone helper](../../tools/blender/spring_bones.py). The [VRM Add-on for Blender](https://extensions.blender.org/add-ons/vrm/) must be enabled.
+
+```python
+import sys
+sys.path.insert(0, r"<product>/tools/blender")
+import spring_bones
+spring_bones.load_profile(r"<path>/d025.springs.glb")
 ```
 
-- Use zero-based indices in the selected rig. Each simulated bone must have a parent and appear only once. `expectedParents` records the rig topology in bone index order, with `-1` for roots. It is required for main character sources and optional for exact entries.
-- `localTail` is a finite, nonzero offset in the bone's local axes, in native field units. For a native chain, the next joint is placed at `[0, 0, boneLength]` in those axes. Choose an explicit endpoint for a leaf. Apply weights to the relevant bones when authoring an edited mesh.
-- `stiffness` is the spring strength in s⁻² and `damping` is the velocity decay rate in s⁻¹. Both must be finite and nonnegative. `gravity` is a finite field-space acceleration in field units per second squared, with Z up. Use `[0, 0, 0]` to keep the animated pose as the resting target.
+Tune the values in **Spring Bone** and turn on **Enable Animation** to preview them. Then return to the console and write the edited extension to a package GLB:
 
-Use Blender to set up the rig and weights. The [VRM add-on](https://extensions.blender.org/add-ons/vrm/) can preview the general effect. For Memoria, enter the bone indices and tune the settings in this JSON. The runtime reads the package document and updates the chains at the field callback rate. Higher presentation rates interpolate the committed samples. Each actor has its own spring state, and the field initializes it from the current pose on load. Version 1 models the motion of the bone chain with inertia, damping and gravity.
+```python
+spring_bones.save_profile(r"<path>/d025.springs.glb", r"<mod>/models/field/main_chr/d025.springs.glb")
+```
+
+The helper saves edits to existing chains, including stiffness, drag, gravity and hit radius. Use the VRM export workflow when authoring new chains, centers or colliders. Reload the field to apply the updated package.
 
 
 The normal mod precedence and enable settings apply. Disabled packages can be previewed without activation. Reload an already loaded scene or battle to apply a changed model to existing actors.

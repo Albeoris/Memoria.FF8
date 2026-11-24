@@ -1,31 +1,25 @@
 using System.Globalization;
-using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using Memoria.FF8.Assets;
 
 namespace Memoria.FF8.Mods;
 
 public sealed class FieldSpringBoneMod
 {
-    private readonly int expectedBoneCount;
-    private readonly int[]? expectedParents;
-    private readonly IReadOnlyList<FieldSpringBoneJoint> joints;
+    private readonly FieldSpringBoneAsset asset;
     private readonly ConditionalWeakTable<FieldModel, FieldModel> replacements = new();
 
-    internal FieldSpringBoneMod(ModFile file, string field, int? entry, string? mainCharacter, int packageOrder, int expectedBoneCount, int[]? expectedParents, IReadOnlyList<FieldSpringBoneJoint> joints)
+    internal FieldSpringBoneMod(ModFile file, string modelId, string field, int? entry, string? mainCharacter, int packageOrder, FieldSpringBoneAsset asset)
     {
         PackageId = file.PackageId;
         RelativePath = file.RelativePath;
-        ModelId = RelativePath["models/".Length..^".springs.json".Length];
+        ModelId = modelId;
         Field = field;
         Entry = entry;
         MainCharacter = mainCharacter;
         PackageOrder = packageOrder;
-        this.expectedBoneCount = expectedBoneCount;
-        this.expectedParents = expectedParents;
-        this.joints = joints;
+        this.asset = asset;
     }
 
     public string PackageId { get; }
@@ -36,42 +30,21 @@ public sealed class FieldSpringBoneMod
     public string ModelId { get; }
     internal int PackageOrder { get; }
 
-    public void ValidateRig(int[] parents)
+    public void ValidateRig(FieldModel model)
     {
-        if (parents.Length != expectedBoneCount)
-        {
-            throw new InvalidDataException($"{ModelId} requires {expectedBoneCount} bones, but the selected rig has {parents.Length}.");
-        }
-        if (expectedParents is not null && !parents.SequenceEqual(expectedParents))
-        {
-            throw new InvalidDataException($"{ModelId} does not match the declared ordered parent indices.");
-        }
-        if (joints.Any(joint => parents[joint.Bone] == -1))
-        {
-            throw new InvalidDataException($"{ModelId} cannot attach spring joints to root bones.");
-        }
-        _ = new FieldSpringBoneSimulation(parents, joints);
+        _ = Apply(model);
     }
 
-    internal FieldModel Apply(FieldModel model) => replacements.GetValue(model, candidate =>
-    {
-        ValidateRig(candidate.GetSpringBoneParents());
-        return candidate with { SpringBones = joints };
-    });
+    internal FieldModel Apply(FieldModel model) => replacements.GetValue(model, candidate => candidate with { SpringBones = asset.Bind(candidate) });
 }
 
-/// <summary>Prepared field presentation data in package precedence order.</summary>
+/// <summary>Resolves standard VRMC_springBone rigs in package precedence order.</summary>
 public sealed class FieldSpringBoneMods
 {
     private const string Prefix = "models/field/";
-    private const string Suffix = ".springs.json";
+    private const string GlbSuffix = ".springs.glb";
+    private const string VrmSuffix = ".springs.vrm";
     private const string MainCharacterDirectory = "main_chr";
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
-        AllowDuplicateProperties = false
-    };
 
     private readonly Dictionary<string, FieldSpringBoneMod> exactProfiles;
     private readonly Dictionary<string, FieldSpringBoneMod> sharedProfiles;
@@ -88,35 +61,65 @@ public sealed class FieldSpringBoneMods
     public IReadOnlyList<FieldSpringBoneMod> Definitions { get; }
     public IReadOnlyList<string> PackageIds { get; }
 
-    public static bool IsSpringDocumentPath(string relativePath) => TryParseAddress(relativePath, out _, out _, out _);
+    public static bool IsSpringDocumentPath(string relativePath)
+    {
+        return SpringPathAddress(relativePath) is { } id && TryParseAddress(id, out _, out _, out _);
+    }
 
-    public static bool TryPrepare(ModCatalogSnapshot catalog, out FieldSpringBoneMods result, out IReadOnlyList<ModDiagnostic> diagnostics)
+    internal static bool IsObsoleteSpringDocumentPath(string relativePath)
+    {
+        const string suffix = ".springs.json";
+        return relativePath.StartsWith(Prefix, StringComparison.OrdinalIgnoreCase) && relativePath.EndsWith(suffix, StringComparison.OrdinalIgnoreCase) &&
+            TryParseAddress(relativePath["models/".Length..^suffix.Length].ToLowerInvariant(), out _, out _, out _);
+    }
+
+    public static bool TryPrepare(ModCatalogSnapshot catalog, out FieldSpringBoneMods result, out IReadOnlyList<ModDiagnostic> diagnostics, IReadOnlyList<ModelModVariant>? modelVariants = null)
     {
         Dictionary<string, FieldSpringBoneMod> profiles = new(StringComparer.OrdinalIgnoreCase);
         Dictionary<string, int> packageOrder = new(StringComparer.OrdinalIgnoreCase);
         HashSet<(int PackageOrder, string ModelId)> packageSelectors = [];
         List<ModDiagnostic> errors = [];
-        foreach (ModFile file in catalog.Files.Where(file => file.Format == ModFormat.Memoria && HasSpringDocumentShape(file.RelativePath)))
+        var geometry = (modelVariants ?? []).Where(variant => variant.ClipSlot is null && variant.ModelId.StartsWith("field/", StringComparison.OrdinalIgnoreCase)).ToLookup(variant => (variant.PackageId, variant.RelativePath));
+        foreach (ModFile file in catalog.Files.Where(file => file.Format == ModFormat.Memoria))
         {
+            string? address = SpringPathAddress(file.RelativePath);
+            ModelModVariant[] variants = geometry[(file.PackageId, file.RelativePath)].ToArray();
+            if (address is null && variants.Length == 0)
+            {
+                continue;
+            }
             try
             {
-                if (!TryParseAddress(file.RelativePath, out string field, out int? entry, out string? mainCharacter))
+                FieldSpringBoneAsset? asset = ModelExchange.ReadFieldSpringBoneAsset(file.ReadBytes());
+                if (address is null && asset is null)
                 {
-                    throw new InvalidDataException("Spring definitions require models/field/<field>/<entry>.springs.json or models/field/main_chr/<dNNN>.springs.json.");
+                    continue;
+                }
+                if (asset is null)
+                {
+                    throw new InvalidDataException("Expected a VRMC_springBone 1.0 extension in the spring GLB.");
+                }
+                if (address is null && variants.Length != 1)
+                {
+                    throw new InvalidDataException("A model with spring bones must identify one field rig. Use a spring GLB for a specific field model when the file contains multiple model destinations.");
+                }
+                string modelId = address ?? variants[0].ModelId;
+                if (!TryParseAddress(modelId, out string field, out int? entry, out string? mainCharacter))
+                {
+                    throw new InvalidDataException("Use models/field/<field>/<entry>.springs.glb or models/field/main_chr/<dNNN>.springs.glb.");
                 }
                 if (!packageOrder.TryGetValue(file.PackageId, out int order))
                 {
                     order = packageOrder.Count;
                     packageOrder.Add(file.PackageId, order);
                 }
-                FieldSpringBoneMod profile = ReadProfile(file, field, entry, mainCharacter, order);
-                if (!packageSelectors.Add((order, profile.ModelId.ToLowerInvariant())))
+                if (!packageSelectors.Add((order, modelId.ToLowerInvariant())))
                 {
-                    throw new InvalidDataException($"The package defines spring bones for {profile.ModelId} more than once.");
+                    throw new InvalidDataException($"The package defines spring bones for {modelId} more than once.");
                 }
-                profiles.TryAdd(profile.ModelId, profile);
+                profiles.TryAdd(modelId, new(file, modelId, field, entry, mainCharacter, order, asset));
             }
-            catch (Exception exception) when (exception is JsonException or InvalidDataException or IOException or UnauthorizedAccessException or ArgumentException)
+            catch (Exception exception) when (exception is JsonException or InvalidDataException or IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
             {
                 errors.Add(new("Memoria.InvalidFieldSpringBones", exception.Message, file.PackageId, file.RelativePath));
             }
@@ -139,20 +142,23 @@ public sealed class FieldSpringBoneMods
 
     public FieldModel Apply(string modelId, FieldModel original, FieldModel model) => Resolve(modelId, original)?.Apply(model) ?? model;
 
-    private static bool HasSpringDocumentShape(string path) => path.StartsWith(Prefix, StringComparison.OrdinalIgnoreCase) && path.EndsWith(Suffix, StringComparison.OrdinalIgnoreCase);
+    private static string? SpringPathAddress(string path)
+    {
+        if (!path.StartsWith(Prefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+        int suffixLength = path.EndsWith(GlbSuffix, StringComparison.OrdinalIgnoreCase) ? GlbSuffix.Length : path.EndsWith(VrmSuffix, StringComparison.OrdinalIgnoreCase) ? VrmSuffix.Length : 0;
+        return suffixLength == 0 ? null : path["models/".Length..^suffixLength].ToLowerInvariant();
+    }
 
-    private static bool TryParseAddress(string path, out string field, out int? entry, out string? mainCharacter)
+    private static bool TryParseAddress(string address, out string field, out int? entry, out string? mainCharacter)
     {
         field = string.Empty;
         entry = null;
         mainCharacter = null;
-        if (!HasSpringDocumentShape(path))
-        {
-            return false;
-        }
-        string address = path["models/".Length..^Suffix.Length].ToLowerInvariant();
         string[] parts = address.Split('/');
-        if (parts.Length != 3)
+        if (parts.Length != 3 || parts[0] != "field")
         {
             return false;
         }
@@ -173,75 +179,5 @@ public sealed class FieldSpringBoneMods
         }
         entry = index;
         return true;
-    }
-
-    private static FieldSpringBoneMod ReadProfile(ModFile file, string field, int? entry, string? mainCharacter, int order)
-    {
-        SpringDocument document = JsonSerializer.Deserialize<SpringDocument>(file.ReadBytes(), JsonOptions) ?? throw new InvalidDataException("A spring definition must be a JSON object.");
-        if (document.Version != 1)
-        {
-            throw new InvalidDataException($"Unsupported spring definition version {document.Version}. Expected version 1.");
-        }
-        if (document.ExpectedBoneCount < 2 || document.Joints is null || document.Joints.Length == 0 || document.Joints.Length >= document.ExpectedBoneCount)
-        {
-            throw new InvalidDataException("expectedBoneCount must be at least two and joints must contain one or more non-root bones.");
-        }
-        if (document.ExpectedParents is { } parents && parents.Length != document.ExpectedBoneCount)
-        {
-            throw new InvalidDataException("expectedParents must contain one parent index per bone, using -1 for roots.");
-        }
-        if (mainCharacter is not null && document.ExpectedParents is null)
-        {
-            throw new InvalidDataException("A main character spring definition requires expectedParents.");
-        }
-        FieldSpringBoneJoint[] joints = new FieldSpringBoneJoint[document.Joints.Length];
-        HashSet<int> seen = [];
-        for (int i = 0; i < joints.Length; i++)
-        {
-            SpringJoint? joint = document.Joints[i];
-            if (joint is null || (uint)joint.Bone >= document.ExpectedBoneCount || !seen.Add(joint.Bone))
-            {
-                throw new InvalidDataException($"joints[{i}] must identify a unique bone in the expected rig.");
-            }
-            Vector3 tail = ReadVector(joint.LocalTail, $"joints[{i}].localTail");
-            float length = tail.Length();
-            if (!float.IsFinite(length) || length <= 0 || !float.IsFinite(joint.Stiffness) || joint.Stiffness < 0 || !float.IsFinite(joint.Damping) || joint.Damping < 0)
-            {
-                throw new InvalidDataException($"joints[{i}] requires a finite, nonzero localTail and finite, nonnegative stiffness and damping.");
-            }
-            joints[i] = new(joint.Bone, tail, joint.Stiffness, joint.Damping, ReadVector(joint.Gravity, $"joints[{i}].gravity"));
-        }
-        FieldSpringBoneMod profile = new(file, field, entry, mainCharacter, order, document.ExpectedBoneCount, document.ExpectedParents, Array.AsReadOnly(joints));
-        if (document.ExpectedParents is { } expectedParents)
-        {
-            profile.ValidateRig(expectedParents);
-        }
-        return profile;
-    }
-
-    private static Vector3 ReadVector(float[]? values, string name)
-    {
-        if (values is not { Length: 3 } || !values.All(float.IsFinite))
-        {
-            throw new InvalidDataException($"{name} must contain three finite coordinates.");
-        }
-        return new(values[0], values[1], values[2]);
-    }
-
-    private sealed class SpringDocument
-    {
-        public required int Version { get; init; }
-        public required int ExpectedBoneCount { get; init; }
-        public int[]? ExpectedParents { get; init; }
-        public required SpringJoint?[]? Joints { get; init; }
-    }
-
-    private sealed class SpringJoint
-    {
-        public required int Bone { get; init; }
-        public required float[]? LocalTail { get; init; }
-        public required float Stiffness { get; init; }
-        public required float Damping { get; init; }
-        public required float[]? Gravity { get; init; }
     }
 }

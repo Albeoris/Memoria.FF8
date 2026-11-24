@@ -23,6 +23,29 @@ internal sealed partial class RecreateGame
                 throw new InvalidDataException("The GLB must be no larger than 256 MiB.");
             }
             byte[] bytes = File.ReadAllBytes(path);
+            if (ModelExchange.ReadFieldSpringBoneAsset(bytes) is { } springAsset)
+            {
+                string target = springAsset.Destination?.ModelId ?? entry.Id;
+                if (!target.StartsWith("field/", StringComparison.OrdinalIgnoreCase) || !ModelMods.IsModelId(target))
+                {
+                    throw new NotSupportedException("Select a field model to install Spring Bones.");
+                }
+                string description = springAsset.HasModelContent
+                    ? $"Install Spring Bones for {target}? Choose No to continue with mesh and clip import."
+                    : $"Install Spring Bones for {target}?";
+                if (await ModelBrowserDialogs.ConfirmAsync(Window.Handle, description, "Install Spring Bones", localizeText: LocalizeUiText))
+                {
+                    ModelCatalogEntry modelEntry = modelCatalog.GetValueOrDefault(target) ?? CatalogEntryForTarget(target);
+                    FieldModel original = modelBrowserAssets!.LoadCatalogFieldModel(modelEntry);
+                    _ = springAsset.Bind(resourceHost!.ModelMods.Apply(target, original));
+                    await InstallBrowserModelPlanAsync(ModelModInstaller.PlanSpringBones(target, springAsset));
+                    return;
+                }
+                if (!springAsset.HasModelContent)
+                {
+                    return;
+                }
+            }
             ModelAssetImportInventory inventory = InspectBrowserModelImport(bytes);
             string edition = resourceHost!.Resources.Source.Edition.ToString();
             if (inventory.Objects.Count == 0)
@@ -313,24 +336,7 @@ internal sealed partial class RecreateGame
             {
                 return;
             }
-            string root = Path.Combine(resourceHost!.Mods.PrimaryModsDirectory, "Memoria");
-            string? destination = await ModelBrowserDialogs.DestinationAsync(Window.Handle, root, LocalizeUiText);
-            if (destination is null)
-            {
-                return;
-            }
-            IReadOnlyList<string> conflicts = plan.GetConflicts(root, destination);
-            if (conflicts.Count != 0 && !await ModelBrowserDialogs.ConfirmAsync(Window.Handle, FormatAuthored("model.import.existing-replacements", "{0} selected replacement files already exist. Unselected files and package settings will be retained.", conflicts.Count), LocalizeAuthored("model.import.replace-content", "Replace selected mod content"), LocalizeAuthored("model.import.replace-question", "Replace these files?"), LocalizeUiText))
-            {
-                return;
-            }
-            ModelModInstaller.Install(root, destination, plan);
-            resourceHost.Mods.RequestRefresh();
-            bool published = resourceHost.Pump(true);
-            modelBrowser!.CloseAssetPanel();
-            RefreshModelBrowserEntries(refreshVariants: true);
-            modelPreviewIdentity = null;
-            modelBrowser.SetMessage(() => published ? LocalizeAuthored("model-browser.import.published", "Selected replacements installed. Reload the scene to apply them.") : LocalizeAuthored("model-browser.import.pending", "Files installed; inspect Mods diagnostics before use."));
+            await InstallBrowserModelPlanAsync(plan);
         }
         catch (Exception exception) when (IsModelBrowserError(exception))
         {
@@ -341,5 +347,27 @@ internal sealed partial class RecreateGame
             keyboard.SuppressHeldNameInput();
             modelBrowserDialogInputDrain = true;
         }
+    }
+
+    private async Task InstallBrowserModelPlanAsync(ModelModInstallPlan plan)
+    {
+        string root = Path.Combine(resourceHost!.Mods.PrimaryModsDirectory, "Memoria");
+        string? destination = await ModelBrowserDialogs.DestinationAsync(Window.Handle, root, LocalizeUiText);
+        if (destination is null)
+        {
+            return;
+        }
+        IReadOnlyList<string> conflicts = plan.GetConflicts(root, destination);
+        if (conflicts.Count != 0 && !await ModelBrowserDialogs.ConfirmAsync(Window.Handle, FormatAuthored("model.import.existing-replacements", "{0} selected replacement files already exist. Unselected files and package settings will be retained.", conflicts.Count), LocalizeAuthored("model.import.replace-content", "Replace selected mod content"), LocalizeAuthored("model.import.replace-question", "Replace these files?"), LocalizeUiText))
+        {
+            return;
+        }
+        ModelModInstaller.Install(root, destination, plan);
+        resourceHost.Mods.RequestRefresh();
+        bool published = resourceHost.Pump(true);
+        modelBrowser!.CloseAssetPanel();
+        RefreshModelBrowserEntries(refreshVariants: true);
+        modelPreviewIdentity = null;
+        modelBrowser.SetMessage(() => published ? LocalizeAuthored("model-browser.import.published", "Selected replacements installed. Reload the scene to apply them.") : LocalizeAuthored("model-browser.import.pending", "Files installed; inspect Mods diagnostics before use."));
     }
 }
