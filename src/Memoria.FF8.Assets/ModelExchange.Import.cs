@@ -8,9 +8,22 @@ namespace Memoria.FF8.Assets;
 
 public static partial class ModelExchange
 {
+    internal const int MaximumGlbBytes = 256 * 1024 * 1024;
+
     public static ModelExchangeImportResult ImportGlb(ReadOnlySpan<byte> content, EditableModel? original = null, bool allowBoneCountChange = false)
     {
         (byte[] json, byte[] binary) = ReadGlbChunks(content);
+        return DecodeGlb(json, binary, original, allowBoneCountChange);
+    }
+
+    internal static ModelExchangeImportResult ImportGlbBuffer(ReadOnlyMemory<byte> content)
+    {
+        (Range json, Range binary) = LocateGlbChunks(content.Span);
+        return DecodeGlb(content[json], content[binary], null, false);
+    }
+
+    private static ModelExchangeImportResult DecodeGlb(ReadOnlyMemory<byte> json, ReadOnlyMemory<byte> binary, EditableModel? original, bool allowBoneCountChange)
+    {
         try
         {
             using JsonDocument document = JsonDocument.Parse(json, new JsonDocumentOptions { MaxDepth = 128 });
@@ -29,13 +42,18 @@ public static partial class ModelExchange
 
     private static (byte[] Json, byte[] Binary) ReadGlbChunks(ReadOnlySpan<byte> content, bool readBinary = true)
     {
-        if (content.Length < 20 || content.Length > 256 * 1024 * 1024 || BinaryPrimitives.ReadUInt32LittleEndian(content) != 0x46546c67 || BinaryPrimitives.ReadUInt32LittleEndian(content[4..]) != 2 || BinaryPrimitives.ReadUInt32LittleEndian(content[8..]) != content.Length)
+        (Range json, Range binary) = LocateGlbChunks(content);
+        return (content[json].ToArray(), readBinary ? content[binary].ToArray() : []);
+    }
+
+    private static (Range Json, Range Binary) LocateGlbChunks(ReadOnlySpan<byte> content)
+    {
+        if (content.Length < 20 || content.Length > MaximumGlbBytes || BinaryPrimitives.ReadUInt32LittleEndian(content) != 0x46546c67 || BinaryPrimitives.ReadUInt32LittleEndian(content[4..]) != 2 || BinaryPrimitives.ReadUInt32LittleEndian(content[8..]) != content.Length)
         {
             throw new InvalidDataException("Expected a complete glTF 2.0 binary file no larger than 256 MiB.");
         }
-        byte[]? json = null;
-        byte[]? binary = null;
-        bool binarySeen = false;
+        Range? json = null;
+        Range? binary = null;
         int offset = 12;
         while (offset < content.Length)
         {
@@ -56,19 +74,15 @@ public static partial class ModelExchange
                 {
                     throw new InvalidDataException("The JSON chunk must occur exactly once and first.");
                 }
-                json = content.Slice(offset, (int)length).ToArray();
+                json = offset..(offset + (int)length);
             }
             else if (kind == 0x004e4942)
             {
-                if (binarySeen || json is null)
+                if (binary is not null || json is null)
                 {
                     throw new InvalidDataException("Invalid binary chunk order.");
                 }
-                binarySeen = true;
-                if (readBinary)
-                {
-                    binary = content.Slice(offset, (int)length).ToArray();
-                }
+                binary = offset..(offset + (int)length);
             }
             offset += (int)length;
         }
@@ -76,7 +90,7 @@ public static partial class ModelExchange
         {
             throw new InvalidDataException("The GLB JSON chunk is missing.");
         }
-        return (json, binary ?? []);
+        return (json.Value, binary ?? (0..0));
     }
 
     private static ModelImportTarget? ReadImportTarget(JsonElement owner, ModelImportTarget? previous)
@@ -257,7 +271,7 @@ public static partial class ModelExchange
         }
     }
 
-    private sealed partial class GlbReader(JsonElement root, byte[] binary)
+    private sealed partial class GlbReader(JsonElement root, ReadOnlyMemory<byte> binary)
     {
         private JsonElement Root => root;
         private int BinaryLength => binary.Length;
@@ -265,6 +279,7 @@ public static partial class ModelExchange
 
         private readonly List<string> _warnings = [];
         private readonly Dictionary<int, float[][]> _accessorCache = [];
+        private readonly Dictionary<string, JsonElement[]> _indexedTables = new(StringComparer.Ordinal);
 
         public ModelExchangeImportResult Read(EditableModel? original, bool allowBoneCountChange)
         {
@@ -464,7 +479,15 @@ public static partial class ModelExchange
                         {
                             throw new InvalidDataException("Only skeletal translation, rotation and scale animations are supported.");
                         }
-                        channels.Add(new EditableAnimationChannel(Int(target, "node"), path, Accessor(Int(sampler, "input"), "SCALAR", 5126).Select(value => value[0]).ToArray(), Accessor(Int(sampler, "output"), path == "rotation" ? "VEC4" : "VEC3", 5126).Select(value => Vector(value, 0)).ToArray(), String(sampler, "interpolation", "LINEAR")));
+                        float[] times = ReadAccessor(Int(sampler, "input"), "SCALAR", 5126).Values;
+                        DecodedAccessor output = ReadAccessor(Int(sampler, "output"), path == "rotation" ? "VEC4" : "VEC3", 5126);
+                        Vector4[] values = new Vector4[output.Values.Length / output.Size];
+                        for (int index = 0; index < values.Length; index++)
+                        {
+                            int offset = index * output.Size;
+                            values[index] = new(output.Values[offset], output.Values[offset + 1], output.Values[offset + 2], output.Size == 4 ? output.Values[offset + 3] : 0);
+                        }
+                        channels.Add(new EditableAnimationChannel(Int(target, "node"), path, times, values, String(sampler, "interpolation", "LINEAR")));
                     }
                     animations.Add(new EditableAnimation(String(animation, "name", $"animation_{animations.Count}"), channels));
                 }
@@ -491,7 +514,20 @@ public static partial class ModelExchange
             EditableModel result = new(name, kind, bones, meshes, textures, animations, metadata) { ExchangeManifest = manifest, ImportTarget = importTarget, NativeFramesPerSecond = nativeFramesPerSecond };
             if (authoringBasis == 2)
             {
-                result = ChangeAuthoringBasis(result, importing: true);
+                Dictionary<string, string> kinds = AuthoringKinds(result);
+                foreach (EditableAnimation animation in animations)
+                {
+                    foreach (EditableAnimationChannel channel in animation.Channels)
+                    {
+                        // Each channel owns the values decoded for this import.
+                        Matrix4x4 basis = Matrix4x4.Transpose(AuthoringBasis(result.Kind, bones[channel.Bone].RigId, kinds));
+                        for (int index = 0; index < channel.Values.Length; index++)
+                        {
+                            channel.Values[index] = ChangeAnimationBasis(channel.Values[index], channel.Path, basis);
+                        }
+                    }
+                }
+                result = ChangeAuthoringBasis(result, importing: true, kinds);
             }
             if (meshes.Count == 0 && animations.Count == 0)
             {
@@ -694,12 +730,17 @@ public static partial class ModelExchange
 
         private JsonElement At(string property, int index)
         {
-            JsonElement array = root.GetProperty(property);
-            if ((uint)index >= array.GetArrayLength())
+            if (!_indexedTables.TryGetValue(property, out JsonElement[]? entries))
+            {
+                // Objects in a JSON array are variable-width. Repeated indexing otherwise scans from the start.
+                entries = root.GetProperty(property).EnumerateArray().ToArray();
+                _indexedTables.Add(property, entries);
+            }
+            if ((uint)index >= entries.Length)
             {
                 throw new InvalidDataException($"A {property} reference is out of range.");
             }
-            return array[index];
+            return entries[index];
         }
 
         private ReadOnlySpan<byte> ViewBytes(int index)
@@ -711,7 +752,7 @@ public static partial class ModelExchange
             {
                 throw new InvalidDataException("A buffer view exceeds the embedded buffer.");
             }
-            return binary.AsSpan(offset, length);
+            return binary.Span.Slice(offset, length);
         }
 
         private float[][]? OptionalAccessor(JsonElement attributes, string name, string? type = null, int component = 0)
@@ -719,19 +760,46 @@ public static partial class ModelExchange
             return attributes.TryGetProperty(name, out JsonElement reference) ? Accessor(reference.GetInt32(), type, component) : null;
         }
 
+        private readonly record struct DecodedAccessor(float[] Values, int Size);
+
         private float[][] Accessor(int index, string? expectedType = null, int expectedComponent = 0)
         {
             JsonElement accessor = At("accessors", index);
+            (string type, int component) = AccessorEncoding(accessor, expectedType, expectedComponent);
+            if (_accessorCache.TryGetValue(index, out float[][]? cached))
+            {
+                return cached;
+            }
+            DecodedAccessor decoded = ReadAccessor(accessor, type, component);
+            float[][] rows = new float[decoded.Values.Length / decoded.Size][];
+            for (int indexInAccessor = 0; indexInAccessor < rows.Length; indexInAccessor++)
+            {
+                rows[indexInAccessor] = decoded.Values.AsSpan(indexInAccessor * decoded.Size, decoded.Size).ToArray();
+            }
+            _accessorCache.Add(index, rows);
+            return rows;
+        }
+
+        private DecodedAccessor ReadAccessor(int index, string expectedType, int expectedComponent)
+        {
+            JsonElement accessor = At("accessors", index);
+            (string type, int component) = AccessorEncoding(accessor, expectedType, expectedComponent);
+            return ReadAccessor(accessor, type, component);
+        }
+
+        private static (string Type, int Component) AccessorEncoding(JsonElement accessor, string? expectedType, int expectedComponent)
+        {
             string type = String(accessor, "type", "");
             int component = Int(accessor, "componentType");
             if (expectedType is not null && type != expectedType || expectedComponent != 0 && component != expectedComponent)
             {
                 throw new InvalidDataException("Unexpected accessor type or component encoding.");
             }
-            if (_accessorCache.TryGetValue(index, out float[][]? cached))
-            {
-                return cached;
-            }
+            return (type, component);
+        }
+
+        private DecodedAccessor ReadAccessor(JsonElement accessor, string type, int component)
+        {
             int size = type switch { "SCALAR" => 1, "VEC2" => 2, "VEC3" => 3, "VEC4" => 4, "MAT4" => 16, _ => throw new InvalidDataException("Unsupported accessor shape.") };
             int width = component switch { 5120 or 5121 => 1, 5122 or 5123 => 2, 5125 or 5126 => 4, _ => throw new InvalidDataException("Unsupported accessor component.") };
             int count = Int(accessor, "count");
@@ -753,7 +821,7 @@ public static partial class ModelExchange
                     throw new InvalidDataException("Decoded field scene accessors exceed 256 MiB.");
                 }
             }
-            float[][] values = Enumerable.Range(0, count).Select(_ => new float[size]).ToArray();
+            float[] values = new float[checked(count * size)];
             if (accessor.TryGetProperty("bufferView", out JsonElement reference))
             {
                 int viewIndex = reference.GetInt32();
@@ -769,7 +837,7 @@ public static partial class ModelExchange
                 {
                     for (int column = 0; column < size; column++)
                     {
-                        values[row][column] = Component(bytes[(start + row * stride + column * width)..], component, normalized);
+                        values[row * size + column] = Component(bytes[(start + row * stride + column * width)..], component, normalized);
                     }
                 }
             }
@@ -799,12 +867,11 @@ public static partial class ModelExchange
                     previous = target;
                     for (int column = 0; column < size; column++)
                     {
-                        values[target][column] = Component(valueBytes[(valueStart + (row * size + column) * width)..], component, normalized);
+                        values[target * size + column] = Component(valueBytes[(valueStart + (row * size + column) * width)..], component, normalized);
                     }
                 }
             }
-            _accessorCache.Add(index, values);
-            return values;
+            return new(values, size);
         }
 
         private static float Component(ReadOnlySpan<byte> bytes, int type, bool normalized)

@@ -66,6 +66,16 @@ public static partial class ModelExchange
 
     public static EditableModel FromField(FieldModel model, float framesPerSecond = FramesPerSecond)
     {
+        return FromField(model, framesPerSecond, retainPayload: true);
+    }
+
+    internal static EditableModel FromFieldForExchange(FieldModel model)
+    {
+        return FromField(model, FramesPerSecond, retainPayload: false);
+    }
+
+    private static EditableModel FromField(FieldModel model, float framesPerSecond, bool retainPayload)
+    {
         if (model.EditableOverride is { } edited)
         {
             return edited;
@@ -100,7 +110,7 @@ public static partial class ModelExchange
             }
             return ConvertTransform(local);
         }, framesPerSecond)).ToArray();
-        return new EditableModel(model.Name, "field", bones, meshes, model.Textures, animations, Metadata(model)) { NativeFramesPerSecond = framesPerSecond };
+        return new EditableModel(model.Name, "field", bones, meshes, model.Textures, animations, retainPayload ? Metadata(model) : FieldBindingMetadata(model)) { NativeFramesPerSecond = framesPerSecond };
     }
 
     public static EditableModel FromBattle(BattleModel model)

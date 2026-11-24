@@ -7,18 +7,20 @@ namespace Memoria.FF8;
 
 internal sealed partial class RecreateGame
 {
+    private const string RetainedModelFingerprintPrefix = "retained-glb:";
     private IEnumerator<ModelAssetDiscoveryItem>? browserAssetReader;
     private readonly Dictionary<string, ModelAssetDiscoveryItem[]> browserDiscoveryCache = new(StringComparer.Ordinal);
     private readonly List<ModelAssetDiscoveryItem> browserPendingDiscovery = [];
     private string? browserDiscoveryKey;
     private readonly Dictionary<string, ModelAssetDiscoveryItem> browserAssets = new(StringComparer.Ordinal);
     private readonly Dictionary<string, EditableModel> browserAssetModels = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, string> browserAssetFingerprints = new(StringComparer.Ordinal);
     private string? browserAssetIdentity;
     private string? browserAssemblyIdentity;
     private bool browserAssetsComplete;
     private bool previousBrowserSpace;
     private ModelAssetImportInventory? browserImport;
+    private Task? browserExportWork;
+    private CancellationTokenSource? browserExportCancellation;
 
     private void UpdateBrowserAssemblyPreview()
     {
@@ -31,7 +33,7 @@ internal sealed partial class RecreateGame
         {
             return;
         }
-        ModelAssetSelection selection = browserImport is null ? BrowserAssetSelection(preview: true) : BrowserImportSelection(preview: true);
+        ModelAssetSelection selection = browserImport is null ? ReadBrowserPreviewSelection() : BrowserImportSelection(preview: true);
         if (selection.Objects.Count == 0 || !selection.Objects.Any(item => item.GeometrySelected))
         {
             return;
@@ -47,7 +49,6 @@ internal sealed partial class RecreateGame
         browserAssetReader?.Dispose();
         browserAssets.Clear();
         browserAssetModels.Clear();
-        browserAssetFingerprints.Clear();
         browserAssetIdentity = entry.Id + "\0" + variant.Id;
         browserAssemblyIdentity = null;
         browserAssetsComplete = false;
@@ -57,7 +58,7 @@ internal sealed partial class RecreateGame
         browserPendingDiscovery.Clear();
         browserAssetReader = browserDiscoveryCache.TryGetValue(browserDiscoveryKey, out ModelAssetDiscoveryItem[]? cached)
             ? ((IEnumerable<ModelAssetDiscoveryItem>)cached).GetEnumerator()
-            : modelBrowserAssets!.DiscoverModelAssets(modelCatalog[entry.Id]).GetEnumerator();
+            : modelBrowserAssets!.DiscoverModelAssetsForExchange(modelCatalog[entry.Id]).GetEnumerator();
     }
 
     private void ReadMoreBrowserAssets()
@@ -132,78 +133,114 @@ internal sealed partial class RecreateGame
         return marker > 0 ? address[..marker] : throw new InvalidDataException("A clip has no logical replacement target.");
     }
 
-    private EditableModel ReadDiscoveredModel(ModelAssetDiscoveryItem item)
+    private static string BrowserModelKey(ModelAssetDiscoveryItem item)
     {
-        string key = item.Kind == ModelAssetDiscoveryKind.Clip ? ClipModelTarget(item.Id) + "/" + item.Bank : item.Id;
-        if (browserAssetModels.TryGetValue(key, out EditableModel? cached))
+        return item.Kind == ModelAssetDiscoveryKind.Clip ? ClipModelTarget(item.Id) + "/" + item.Bank : item.Id;
+    }
+
+    private static EditableModel ReadDiscoveredModel(ModelAssetDiscoveryItem item, string variant, ModelMods providers, Dictionary<string, EditableModel> models)
+    {
+        string key = BrowserModelKey(item);
+        if (models.TryGetValue(key, out EditableModel? cached))
         {
             return cached;
         }
+
         EditableModel original = item.Load?.Invoke() ?? throw new NotSupportedException(item.Error ?? "This source has no independently decodable model.");
         string target = item.Kind == ModelAssetDiscoveryKind.Clip ? ClipModelTarget(item.Id) : item.Id;
-        EditableModel model = ResolveBrowserModel(target, original, modelBrowser!.CurrentVariant!, item.Bank);
-        browserAssetModels.Add(key, model);
+        EditableModel model = variant == "original" ? original : providers.Resolve(target, original, variant == "resolved" ? null : variant, item.Bank);
+        models.Add(key, model);
         return model;
     }
 
-    private EditableModel ResolveBrowserModel(string target, EditableModel original, ModelBrowserVariant variant, string bank = "embedded")
+    private ModelMods BrowserModelProviders(string variant)
     {
-        if (variant.Id == "original")
+        return variant switch
         {
-            return original;
-        }
-        return (variant.Id == "resolved" ? resourceHost!.ModelMods : browserInstalledModelMods).Resolve(target, original, variant.Id == "resolved" ? null : variant.Id, bank);
+            "original" => ModelMods.Empty,
+            "resolved" => resourceHost!.ModelMods,
+            _ => browserInstalledModelMods
+        };
+    }
+
+    private EditableModel ResolveBrowserModel(string target, EditableModel original, ModelBrowserVariant variant)
+    {
+        return variant.Id == "original" ? original : BrowserModelProviders(variant.Id).Resolve(target, original, variant.Id == "resolved" ? null : variant.Id);
     }
 
     private string BrowserAssetSource(ModelAssetDiscoveryItem item)
     {
-        ModelBrowserVariant? variant = modelBrowser?.CurrentVariant;
-        if (variant is null || variant.Id == "original")
+        string variant = modelBrowser?.CurrentVariant?.Id ?? "original";
+        return BrowserAssetSource(item, variant, BrowserModelProviders(variant));
+    }
+
+    private static string BrowserAssetSource(ModelAssetDiscoveryItem item, string variant, ModelMods providers)
+    {
+        if (variant == "original")
         {
             return "Original";
         }
+
         string target = item.Kind == ModelAssetDiscoveryKind.Clip ? ClipModelTarget(item.Id) : item.Id;
-        IEnumerable<ModelModVariant> variants = (variant.Id == "resolved" ? resourceHost!.ModelMods : browserInstalledModelMods).Variants;
-        ModelModVariant? provider = variants.FirstOrDefault(candidate => candidate.ModelId.Equals(target, StringComparison.OrdinalIgnoreCase) && candidate.Bank == item.Bank && (variant.Id == "resolved" || candidate.PackageId.Equals(variant.Id, StringComparison.OrdinalIgnoreCase)) && (item.Kind != ModelAssetDiscoveryKind.Clip ? candidate.ClipSlot is null : !candidate.GeometryOnly && (candidate.ClipSlot is null || candidate.ClipSlot == item.ClipIndex)));
+        ModelModVariant? provider = providers.Variants.FirstOrDefault(candidate => candidate.ModelId.Equals(target, StringComparison.OrdinalIgnoreCase) && candidate.Bank == item.Bank && (variant == "resolved" || candidate.PackageId.Equals(variant, StringComparison.OrdinalIgnoreCase)) && (item.Kind != ModelAssetDiscoveryKind.Clip ? candidate.ClipSlot is null : !candidate.GeometryOnly && (candidate.ClipSlot is null || candidate.ClipSlot == item.ClipIndex)));
         return provider?.PackageId ?? "Original (fallback)";
     }
 
-    private string BrowserFingerprint(ModelAssetDiscoveryItem item, EditableModel model)
-    {
-        string key = item.Kind == ModelAssetDiscoveryKind.Clip ? ClipModelTarget(item.Id) + "/" + item.Bank : item.Id;
-        if (!browserAssetFingerprints.TryGetValue(key, out string? fingerprint))
-        {
-            fingerprint = Convert.ToHexString(SHA256.HashData(ModelExchange.ExportGlb(model))).ToLowerInvariant();
-            browserAssetFingerprints.Add(key, fingerprint);
-        }
-        return fingerprint;
-    }
-
-    private ModelAssetSelection BrowserAssetSelection(bool preview = false)
+    private ModelAssetSelection ReadBrowserPreviewSelection()
     {
         ModelBrowserController browser = modelBrowser!;
+        string variant = browser.CurrentVariant!.Id;
+        ModelAssetDiscoveryItem? activeClip = browser.ActiveClip is { } active ? browserAssets.GetValueOrDefault(active) : null;
+        string? activeWeapon = browser.ActiveObject is { } activeObject && browserAssets.GetValueOrDefault(activeObject)?.AlternativeGroup is not null ? activeObject : null;
+        activeWeapon ??= browser.Assets.FirstOrDefault(row => !row.IsClip && row.Supported && browserAssets.GetValueOrDefault(row.Id)?.AlternativeGroup is not null)?.Id;
+        IEnumerable<ModelAssetDiscoveryItem> objects = browserAssets.Values.Where(item => item.Kind == ModelAssetDiscoveryKind.Object && (item.Id == browser.Selected?.Id || item.Id == browser.ActiveObject || item.Id == activeWeapon));
+        IEnumerable<ModelAssetDiscoveryItem> clips = browserAssets.Values.Where(item =>
+        {
+            if (item.Kind != ModelAssetDiscoveryKind.Clip || activeClip is null || item.GroupId != activeClip.GroupId)
+            {
+                return false;
+            }
+            string target = ClipModelTarget(item.Id);
+            return browserAssets.GetValueOrDefault(target)?.AlternativeGroup is null || target == activeWeapon;
+        });
+        ModelAssetSelection selection = ReadBrowserAssetSelection(objects.Concat(clips), variant, BrowserModelProviders(variant), resourceHost!.Resources.Source.Edition.ToString(), browserAssetModels, includeFingerprints: false, CancellationToken.None);
+        if (activeClip is not null && selection.Objects.Where(item => item.GeometrySelected && item.Model.Bones.Any(bone => bone.IsJoint)).Select(item => item.RigId).Distinct().Any(rig => !selection.Clips.Any(clip => clip.RigId == rig)))
+        {
+            browser.SetMessage(() => LocalizeAuthored("model-browser.clip.missing-pair", "Missing paired clip component. Its rig remains in the base pose."));
+        }
+        return selection;
+    }
+
+    private static ModelAssetSelection ReadBrowserAssetSelection(IEnumerable<ModelAssetDiscoveryItem> items, string variant, ModelMods providers, string edition, Dictionary<string, EditableModel> models, bool includeFingerprints, CancellationToken cancellationToken)
+    {
         Dictionary<string, ModelAssetObject> objects = new(StringComparer.Ordinal);
         List<ModelAssetClip> clips = [];
-        ModelAssetDiscoveryItem? activeClip = browser.ActiveClip is { } active ? browserAssets.GetValueOrDefault(active) : null;
-        string? activeWeapon = browser.ActiveObject is { } activeObject ? browserAssets.GetValueOrDefault(activeObject)?.AlternativeGroup is not null ? activeObject : null : null;
-        if (activeWeapon is null)
+        Dictionary<string, string> fingerprints = new(StringComparer.Ordinal);
+        foreach (ModelAssetDiscoveryItem item in items)
         {
-            activeWeapon = browser.Assets.FirstOrDefault(row => !row.IsClip && row.Supported && browserAssets.GetValueOrDefault(row.Id)?.AlternativeGroup is not null)?.Id;
-        }
-        bool IncludeObject(ModelAssetDiscoveryItem item) => preview ? item.Id == browser.Selected?.Id || item.Id == browser.ActiveObject || item.Id == activeWeapon : browser.SelectedAssets.Contains(item.Id);
-        foreach (ModelAssetDiscoveryItem item in browserAssets.Values.Where(item => item.Kind == ModelAssetDiscoveryKind.Object && IncludeObject(item)))
-        {
-            AddObject(item, true);
-        }
-        IEnumerable<ModelAssetDiscoveryItem> selectedClips = browserAssets.Values.Where(item => item.Kind == ModelAssetDiscoveryKind.Clip && (preview ? activeClip is not null && item.GroupId == activeClip.GroupId : browser.SelectedAssets.Contains(item.Id)));
-        foreach (ModelAssetDiscoveryItem item in selectedClips)
-        {
-            string target = ClipModelTarget(item.Id);
-            if (preview && browserAssets.Values.FirstOrDefault(asset => asset.Kind == ModelAssetDiscoveryKind.Object && asset.Id == target)?.AlternativeGroup is not null && target != activeWeapon)
+            cancellationToken.ThrowIfCancellationRequested();
+            EditableModel source = ReadDiscoveredModel(item, variant, providers, models);
+            string sourceVariant = BrowserAssetSource(item, variant, providers);
+            string fingerprint = "";
+            if (includeFingerprints)
             {
+                string key = BrowserModelKey(item);
+                if (!fingerprints.TryGetValue(key, out string? cachedFingerprint))
+                {
+                    cachedFingerprint = BrowserSourceFingerprint(source, retainedMetadata: true);
+                    fingerprints.Add(key, cachedFingerprint);
+                }
+                fingerprint = cachedFingerprint;
+            }
+
+            if (item.Kind == ModelAssetDiscoveryKind.Object)
+            {
+                string objectRig = item.RigOwnerId ?? (item.UsesOwnerSkeleton ? item.OwnerId : item.Id);
+                objects[item.Id] = new(item.Id, sourceVariant, fingerprint, objectRig, source with { Animations = [] }, true, item.AlternativeGroup, item.ReplacementPart);
                 continue;
             }
-            EditableModel source = ReadDiscoveredModel(item);
+
+            string target = ClipModelTarget(item.Id);
             if ((uint)item.ClipIndex >= source.Animations.Count)
             {
                 throw new InvalidDataException("The selected clip is absent from its source bank.");
@@ -211,51 +248,92 @@ internal sealed partial class RecreateGame
             string rig = item.RigOwnerId ?? target;
             if (!objects.ContainsKey(target))
             {
-                objects.Add(target, new(target, BrowserAssetSource(item), BrowserFingerprint(item, source), rig, source, false));
+                objects.Add(target, new(target, sourceVariant, fingerprint, rig, source with { Meshes = [], Textures = [], Animations = [] }, false));
             }
-            clips.Add(new(item.Id, target, rig, item.GroupId ?? item.Id, BrowserAssetSource(item), BrowserFingerprint(item, source), source.Animations[item.ClipIndex], (int)MathF.Round(source.Animations[item.ClipIndex].Duration * source.NativeFramesPerSecond) + 1, 1f / source.NativeFramesPerSecond));
+            EditableAnimation animation = source.Animations[item.ClipIndex];
+            clips.Add(new(item.Id, target, rig, item.GroupId ?? item.Id, sourceVariant, fingerprint, animation, (int)MathF.Round(animation.Duration * source.NativeFramesPerSecond) + 1, 1f / source.NativeFramesPerSecond));
         }
-        if (preview && activeClip is not null && objects.Values.Where(item => item.GeometrySelected && item.Model.Bones.Any(bone => bone.IsJoint)).Select(item => item.RigId).Distinct().Any(rig => !clips.Any(clip => clip.RigId == rig)))
-        {
-            browser.SetMessage(() => LocalizeAuthored("model-browser.clip.missing-pair", "Missing paired clip component. Its rig remains in the base pose."));
-        }
-        return new(objects.Values.ToArray(), clips) { Edition = resourceHost!.Resources.Source.Edition.ToString() };
+        return new(objects.Values.ToArray(), clips) { Edition = edition };
+    }
 
-        void AddObject(ModelAssetDiscoveryItem item, bool geometry)
+    internal static string BrowserSourceFingerprint(EditableModel source, bool retainedMetadata)
+    {
+        string prefix = "";
+        if (retainedMetadata)
         {
-            EditableModel source = ReadDiscoveredModel(item);
-            string rig = item.RigOwnerId ?? (item.UsesOwnerSkeleton ? item.OwnerId : item.Id);
-            objects[item.Id] = new(item.Id, BrowserAssetSource(item), BrowserFingerprint(item, source), rig, source, geometry, item.AlternativeGroup, item.ReplacementPart);
+            source = source with { NativeMetadata = ModelExchange.RetainedNativeMetadata(source.NativeMetadata) };
+            prefix = RetainedModelFingerprintPrefix;
         }
+        return prefix + Convert.ToHexString(SHA256.HashData(ModelExchange.ExportGlb(source))).ToLowerInvariant();
+    }
+
+    internal static Task ExportBrowserSelectionAsync(string path, ModelAssetDiscoveryItem[] selection, string variant, ModelMods providers, string edition, Dictionary<string, EditableModel> models, CancellationToken cancellationToken)
+    {
+        return Task.Run(() =>
+        {
+            ModelAssetSelection assets = ReadBrowserAssetSelection(selection, variant, providers, edition, models, includeFingerprints: true, cancellationToken);
+            models.Clear();
+            ModelAssetExchange.ExportGlbAtomic(path, assets, cancellationToken);
+        }, cancellationToken);
     }
 
     private async void CompleteBrowserExport()
     {
+        if (browserExportCancellation is not null)
+        {
+            return;
+        }
+
+        ModelBrowserController browser = modelBrowser!;
+        using CancellationTokenSource cancellation = new();
+        browserExportCancellation = cancellation;
         try
         {
             if (!browserAssetsComplete && !await ModelBrowserDialogs.ConfirmAsync(Window.Handle, LocalizeAuthored("model.export.incomplete-discovery", "Discovery has not finished. Export only the currently discovered selection?"), LocalizeAuthored("model.export.selection", "Export selection"), LocalizeAuthored("common.continue-question", "Continue?"), LocalizeUiText))
             {
                 return;
             }
-            ModelAssetSelection selection = BrowserAssetSelection();
-            if (selection.Objects.All(item => !item.GeometrySelected) && selection.Clips.Count == 0)
-            {
-                throw new InvalidDataException("Select geometry or at least one clip component.");
-            }
-            string? path = await ModelBrowserDialogs.ExportAsync(Window.Handle, modelBrowser!.Selected!.Id.Replace('/', '_'), globalSettings, LocalizeUiText);
-            if (path is null)
+            if (!ReferenceEquals(modelBrowser, browser) || cancellation.IsCancellationRequested)
             {
                 return;
             }
-            ModelAssetExchange.ExportGlbAtomic(path, selection);
-            modelBrowser.SetMessage(() => LocalizeAuthored("model-browser.export.completed", "Selection exported to one self-contained GLB."));
+
+            ModelAssetDiscoveryItem[] selection = browserAssets.Values
+                .Where(item => (item.Kind is ModelAssetDiscoveryKind.Object or ModelAssetDiscoveryKind.Clip) && browser.SelectedAssets.Contains(item.Id))
+                .OrderBy(item => item.Kind == ModelAssetDiscoveryKind.Clip)
+                .ToArray();
+            if (selection.Length == 0)
+            {
+                throw new InvalidDataException("Select geometry or at least one clip component.");
+            }
+            string variant = browser.CurrentVariant!.Id;
+            ModelMods providers = BrowserModelProviders(variant);
+            string edition = resourceHost!.Resources.Source.Edition.ToString();
+            string? path = await ModelBrowserDialogs.ExportAsync(Window.Handle, browser.Selected!.Id.Replace('/', '_'), globalSettings, LocalizeUiText, cancellation.Token);
+            if (path is null || cancellation.IsCancellationRequested)
+            {
+                return;
+            }
+
+            Dictionary<string, EditableModel> models = new(browserAssetModels, StringComparer.Ordinal);
+            browser.SetMessage(() => LocalizeAuthored("model-browser.export.in-progress", "Exporting GLB…"));
+            Console.WriteLine($"model-export started assets={selection.Length}");
+            browserExportWork = ExportBrowserSelectionAsync(path, selection, variant, providers, edition, models, cancellation.Token);
+            await browserExportWork;
+            Console.WriteLine("model-export completed");
+            browser.SetMessage(() => LocalizeAuthored("model-browser.export.completed", "Selection exported to one self-contained GLB."));
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        {
         }
         catch (Exception exception) when (IsModelBrowserError(exception))
         {
-            modelBrowser?.SetMessage(exception.Message);
+            browser.SetMessage(exception.Message);
         }
         finally
         {
+            browserExportWork = null;
+            browserExportCancellation = null;
             keyboard.SuppressHeldNameInput();
             modelBrowserDialogInputDrain = true;
         }

@@ -13,14 +13,18 @@ internal static class ModelBrowserDialogs
         return [new(SystemTextCatalog.Translate(localizeText, "model.dialog.filter.glb", "glTF binary model (*.glb)"), ["glb"])];
     }
 
-    public static async Task<string?> ExportAsync(nint owner, string name, GlobalSettingsPaths settings, Func<string, string, string>? localizeText = null)
+    public static async Task<string?> ExportAsync(nint owner, string name, GlobalSettingsPaths settings, Func<string, string, string>? localizeText = null, CancellationToken cancellationToken = default)
     {
         string title = SystemTextCatalog.Translate(localizeText, "model.dialog.export.title", "Export to Blender");
         string filename = string.Concat(name.Select(character => Path.GetInvalidFileNameChars().Contains(character) ? '_' : character)) + ".glb";
-        string? directory = ReadDirectory(settings.ModelExportDirectoryPath);
+        string historyPath = settings.ModelExportDirectoryPath;
+        string? directory = await Task.Run(() => ReadDirectory(historyPath), cancellationToken);
         string initialPath = directory is null ? filename : Path.Combine(directory, filename);
-        string? result = await PathAsync(Desktop.SaveFileAsync(new(title, initialPath, ModelFilters(localizeText))));
-        RememberDirectory(settings.ModelExportDirectoryPath, result);
+        string? result = await PathAsync(Desktop.SaveFileAsync(new(title, initialPath, ModelFilters(localizeText)), cancellationToken));
+        if (result is not null)
+        {
+            await Task.Run(() => RememberDirectory(historyPath, result), cancellationToken);
+        }
         return result is null || Path.HasExtension(result) ? result : result + ".glb";
     }
 

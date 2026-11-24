@@ -13,9 +13,21 @@ public static partial class ModelExchange
 {
     public static byte[] ExportGlb(EditableModel model)
     {
-        Validate(model);
-        model = ChangeAuthoringBasis(model);
         using MemoryStream binary = new();
+        return EncodeGlb(model, binary, null, CancellationToken.None)!;
+    }
+
+    internal static void WriteGlb(EditableModel model, Stream binary, Stream output, CancellationToken cancellationToken)
+    {
+        EncodeGlb(model, binary, output, cancellationToken);
+    }
+
+    private static byte[]? EncodeGlb(EditableModel model, Stream binary, Stream? output, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        Validate(model);
+        Dictionary<string, string> kinds = AuthoringKinds(model);
+        model = ChangeAuthoringBasis(model, kinds: kinds);
         using BinaryWriter writer = new(binary, Encoding.UTF8, true);
         JsonArray views = [];
         JsonArray accessors = [];
@@ -26,11 +38,15 @@ public static partial class ModelExchange
         JsonArray images = [];
         JsonArray textures = [];
         JsonArray animations = [];
-        int View(byte[] data)
+        int View(ReadOnlySpan<byte> data)
         {
             while (binary.Position % 4 != 0)
             {
                 writer.Write((byte)0);
+            }
+            if (output is not null && binary.Position + data.Length > MaximumGlbBytes)
+            {
+                throw new InvalidDataException("The GLB exceeds 256 MiB. Export fewer objects or clips.");
             }
             int result = views.Count;
             views.Add(new JsonObject { ["buffer"] = 0, ["byteOffset"] = checked((int)binary.Position), ["byteLength"] = data.Length });
@@ -39,12 +55,29 @@ public static partial class ModelExchange
         }
         int Accessor(float[] values, int size, bool bounds = false)
         {
-            int view = View(MemoryMarshal.AsBytes(values.AsSpan()).ToArray());
+            int view = View(MemoryMarshal.AsBytes(values.AsSpan()));
             JsonObject accessor = new() { ["bufferView"] = view, ["componentType"] = 5126, ["count"] = values.Length / size, ["type"] = size == 1 ? "SCALAR" : size == 16 ? "MAT4" : $"VEC{size}" };
             if (bounds)
             {
-                accessor["min"] = JsonSerializer.SerializeToNode(Enumerable.Range(0, size).Select(component => values.Where((_, index) => index % size == component).Min()).ToArray());
-                accessor["max"] = JsonSerializer.SerializeToNode(Enumerable.Range(0, size).Select(component => values.Where((_, index) => index % size == component).Max()).ToArray());
+                float[] minimum = values.AsSpan(0, size).ToArray();
+                float[] maximum = minimum.ToArray();
+                for (int offset = size; offset < values.Length; offset += size)
+                {
+                    for (int component = 0; component < size; component++)
+                    {
+                        float value = values[offset + component];
+                        if (value < minimum[component])
+                        {
+                            minimum[component] = value;
+                        }
+                        if (value > maximum[component])
+                        {
+                            maximum[component] = value;
+                        }
+                    }
+                }
+                accessor["min"] = JsonSerializer.SerializeToNode(minimum);
+                accessor["max"] = JsonSerializer.SerializeToNode(maximum);
             }
             int result = accessors.Count;
             accessors.Add(accessor);
@@ -176,13 +209,28 @@ public static partial class ModelExchange
         }
         foreach (EditableAnimation animation in model.Animations.Where(animation => animation.Channels.Count != 0))
         {
+            cancellationToken.ThrowIfCancellationRequested();
             JsonArray samplers = [];
             JsonArray channels = [];
             foreach (EditableAnimationChannel channel in animation.Channels)
             {
                 int size = channel.Path == "rotation" ? 4 : 3;
                 channels.Add(new JsonObject { ["sampler"] = samplers.Count, ["target"] = new JsonObject { ["node"] = channel.Bone, ["path"] = channel.Path } });
-                samplers.Add(new JsonObject { ["input"] = Accessor(channel.Times, 1, true), ["output"] = Accessor(channel.Values.SelectMany(value => Enumerable.Range(0, size).Select(index => value[index])).ToArray(), size), ["interpolation"] = channel.Interpolation });
+                Matrix4x4 basis = AuthoringBasis(model.Kind, model.Bones[channel.Bone].RigId, kinds);
+                float[] values = new float[checked(channel.Values.Length * size)];
+                for (int index = 0; index < channel.Values.Length; index++)
+                {
+                    Vector4 value = ChangeAnimationBasis(channel.Values[index], channel.Path, basis);
+                    int offset = index * size;
+                    values[offset] = value.X;
+                    values[offset + 1] = value.Y;
+                    values[offset + 2] = value.Z;
+                    if (size == 4)
+                    {
+                        values[offset + 3] = value.W;
+                    }
+                }
+                samplers.Add(new JsonObject { ["input"] = Accessor(channel.Times, 1, true), ["output"] = Accessor(values, size), ["interpolation"] = channel.Interpolation });
             }
             animations.Add(new JsonObject { ["name"] = animation.Name, ["channels"] = channels, ["samplers"] = samplers });
         }
@@ -225,24 +273,107 @@ public static partial class ModelExchange
         {
             document["animations"] = animations;
         }
+        if (output is not null)
+        {
+            WriteGlbContainer(output, binary, document, cancellationToken);
+            return null;
+        }
+
         byte[] json = Encoding.UTF8.GetBytes(document.ToJsonString());
         int jsonLength = (json.Length + 3) & ~3;
-        using MemoryStream output = new();
-        using BinaryWriter container = new(output);
+        int length = checked((int)(12 + 8 + jsonLength + 8 + binary.Length));
+        byte[] result = new byte[length];
+        using MemoryStream memory = new(result);
+        using BinaryWriter container = new(memory);
+        WriteGlbHeader(container, length, jsonLength);
+        container.Write(json);
+        WriteGlbBinary(container, binary);
+        return result;
+    }
+
+    private static void WriteGlbContainer(Stream output, Stream binary, JsonObject document, CancellationToken cancellationToken)
+    {
+        using BinaryWriter container = new(output, Encoding.UTF8, leaveOpen: true);
+        WriteGlbHeader(container, 0, 0);
+        long jsonStart = output.Position;
+        using (Utf8JsonWriter writer = new(output))
+        {
+            writer.WriteStartObject();
+            foreach ((string name, JsonNode? node) in document)
+            {
+                writer.WritePropertyName(name);
+                if (node is JsonArray array)
+                {
+                    writer.WriteStartArray();
+                    foreach (JsonNode? item in array)
+                    {
+                        WriteNode(item);
+                        if (writer.BytesPending >= 64 * 1024)
+                        {
+                            FlushJson();
+                        }
+                    }
+                    writer.WriteEndArray();
+                }
+                else
+                {
+                    WriteNode(node);
+                }
+                FlushJson();
+            }
+            writer.WriteEndObject();
+            FlushJson();
+
+            void WriteNode(JsonNode? node)
+            {
+                if (node is null)
+                {
+                    writer.WriteNullValue();
+                }
+                else
+                {
+                    node.WriteTo(writer);
+                }
+            }
+
+            void FlushJson()
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                writer.Flush();
+                if (((output.Position + 3) & ~3L) + 8 + binary.Length > MaximumGlbBytes)
+                {
+                    throw new InvalidDataException("The GLB exceeds 256 MiB. Export fewer objects or clips.");
+                }
+            }
+        }
+        long jsonEnd = output.Position;
+        WriteGlbBinary(container, binary);
+        long length = output.Position;
+        output.Position = 0;
+        WriteGlbHeader(container, checked((int)length), checked(((int)(jsonEnd - jsonStart) + 3) & ~3));
+        output.Position = length;
+    }
+
+    private static void WriteGlbHeader(BinaryWriter container, int length, int jsonLength)
+    {
         container.Write(0x46546c67u);
         container.Write(2u);
-        container.Write(checked((uint)(12 + 8 + jsonLength + 8 + binary.Length)));
+        container.Write((uint)length);
         container.Write(jsonLength);
         container.Write(0x4e4f534au);
-        container.Write(json);
-        for (int index = json.Length; index < jsonLength; index++)
+    }
+
+    private static void WriteGlbBinary(BinaryWriter container, Stream binary)
+    {
+        Stream destination = container.BaseStream;
+        while (destination.Position % 4 != 0)
         {
             container.Write((byte)32);
         }
         container.Write(checked((int)binary.Length));
         container.Write(0x004e4942u);
-        container.Write(binary.ToArray());
-        return output.ToArray();
+        binary.Position = 0;
+        binary.CopyTo(destination);
     }
 
     private static JsonObject TransformNode(string name, Vector3 translation, Quaternion rotation, Vector3 scale)

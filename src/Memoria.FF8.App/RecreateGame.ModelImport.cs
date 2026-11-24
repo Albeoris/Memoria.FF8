@@ -7,6 +7,7 @@ namespace Memoria.FF8;
 internal sealed partial class RecreateGame
 {
     private readonly Dictionary<string, EditableModel> browserImportOriginals = new(StringComparer.Ordinal);
+    private readonly Dictionary<(string Target, string Bank, bool RetainedMetadata), string> browserImportFingerprints = [];
     private readonly List<Func<string>> browserImportWarnings = [];
 
     private async void OpenBrowserImport(ModelBrowserEntry entry, ModelBrowserVariant variant)
@@ -66,6 +67,7 @@ internal sealed partial class RecreateGame
             browserAssetReader = null;
             browserAssetsComplete = true;
             browserImportOriginals.Clear();
+            browserImportFingerprints.Clear();
             browserImportWarnings.Clear();
             browserImportWarnings.AddRange(inventory.Warnings.Select(warning => (Func<string>)(() => warning)));
             browserImport = inventory;
@@ -148,7 +150,7 @@ internal sealed partial class RecreateGame
                 browserImportWarnings.Add(() => FormatAuthored("model.import.joint-count-changed", "{0}: native joint count changed from {1} to {2}.", target, before, after));
             }
             _ = ModelMods.Preview(original, new(target, imported, !clip, clip && animation is not null ? [new(bank, slot, animation)] : []));
-            if (fingerprint.Length != 0 && !Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(ModelExchange.ExportGlb(original))).Equals(fingerprint, StringComparison.OrdinalIgnoreCase))
+            if (fingerprint.Length != 0 && !ReadImportSourceFingerprint(target, bank, original, fingerprint).Equals(fingerprint, StringComparison.OrdinalIgnoreCase))
             {
                 browserImportWarnings.Add(() => FormatAuthored("model.import.source-revision", "{0} / {1}: source revision differs from the exported provider; retained target content is resolved from the current mod stack.", target, bank));
                 status = "Warning: source revision differs · " + target;
@@ -172,6 +174,23 @@ internal sealed partial class RecreateGame
         modelBrowser!.AddAsset(new(id, name, group, clip, supported, status + " · Scope: all consumers of this exact target slot · Retained target rig is required", supported) { RigId = target, ReadGroup = readGroup, ReadDetail = () => FormatAuthored("model.import.target-scope", "{0} · Scope: all consumers of this exact target slot · Retained target rig is required", readStatus()) });
     }
 
+    private string ReadImportSourceFingerprint(string target, string bank, EditableModel original, string fingerprint)
+    {
+        bool retainedMetadata = fingerprint.StartsWith(RetainedModelFingerprintPrefix, StringComparison.OrdinalIgnoreCase);
+        var key = (target, bank, retainedMetadata);
+        if (!browserImportFingerprints.TryGetValue(key, out string? current))
+        {
+            if (!retainedMetadata && bank == "embedded" && target.StartsWith("field/", StringComparison.Ordinal))
+            {
+                ModelCatalogEntry entry = modelCatalog.GetValueOrDefault(target) ?? CatalogEntryForTarget(target);
+                original = resourceHost!.ModelMods.Resolve(target, modelBrowserAssets!.LoadCatalogModel(entry));
+            }
+            current = BrowserSourceFingerprint(original, retainedMetadata);
+            browserImportFingerprints.Add(key, current);
+        }
+        return current;
+    }
+
     private EditableModel ReadImportOriginal(string target, string bank)
     {
         string key = target + "/" + bank;
@@ -186,7 +205,7 @@ internal sealed partial class RecreateGame
         ModelCatalogEntry entry = modelCatalog.GetValueOrDefault(target) ?? CatalogEntryForTarget(target);
         if (bank == "embedded")
         {
-            model = modelBrowserAssets!.LoadCatalogModel(entry);
+            model = modelBrowserAssets!.LoadCatalogModelForExchange(entry);
         }
         else
         {

@@ -53,6 +53,25 @@ public static partial class ModelExchange
         return JsonSerializer.SerializeToElement(retained);
     }
 
+    private static JsonElement FieldBindingMetadata(FieldModel model)
+    {
+        var eyes = model.NativeEyes;
+        var texture = eyes?.Texture;
+        return Metadata(new
+        {
+            model.Bones,
+            model.ControlBones,
+            model.NativeParts,
+            NativeEyes = eyes is null ? null : new
+            {
+                eyes.ModelHash,
+                eyes.ModelOffset,
+                eyes.BankOffset,
+                Texture = texture is null ? null : new { texture.Depth, texture.WidthWords, texture.Height }
+            }
+        });
+    }
+
     private static JsonObject MetadataObject(JsonElement source, params string[] properties)
     {
         JsonObject result = new();

@@ -42,12 +42,28 @@ public static partial class ModelExchange
         return kinds;
     }
 
-    private static EditableModel ChangeAuthoringBasis(EditableModel model, bool importing = false)
+    private static Matrix4x4 AuthoringBasis(string kind, string? rig, IReadOnlyDictionary<string, string> kinds)
     {
-        Dictionary<string, string> kinds = AuthoringKinds(model);
+        return AuthoringTransform(rig is not null && kinds.TryGetValue(rig, out string? rigKind) ? rigKind : kind);
+    }
+
+    private static Vector4 ChangeAnimationBasis(Vector4 value, string path, Matrix4x4 basis)
+    {
+        Vector3 xyz = new(value.X, value.Y, value.Z);
+        if (path == "rotation")
+        {
+            // CUBICSPLINE tangents are quaternion derivatives, not unit rotations.
+            return new(Vector3.TransformNormal(xyz, basis), value.W);
+        }
+        return new(Vector3.Transform(xyz, path == "scale" ? Absolute(basis) : basis), value.W);
+    }
+
+    private static EditableModel ChangeAuthoringBasis(EditableModel model, bool importing = false, IReadOnlyDictionary<string, string>? kinds = null)
+    {
+        kinds ??= AuthoringKinds(model);
         Matrix4x4 Basis(string? rig)
         {
-            Matrix4x4 result = AuthoringTransform(rig is not null && kinds.TryGetValue(rig, out string? kind) ? kind : model.Kind);
+            Matrix4x4 result = AuthoringBasis(model.Kind, rig, kinds);
             return importing ? Matrix4x4.Transpose(result) : result;
         }
         Matrix4x4 Transform(Matrix4x4 value, Matrix4x4 basis) => Matrix4x4.Transpose(basis) * value * basis;
@@ -56,20 +72,6 @@ public static partial class ModelExchange
             Matrix4x4 basis = Basis(bone.RigId);
             Quaternion rotation = Quaternion.CreateFromRotationMatrix(Transform(Matrix4x4.CreateFromQuaternion(bone.Rotation), basis));
             return bone with { Translation = Vector3.Transform(bone.Translation, basis), Rotation = Quaternion.Normalize(rotation), Scale = Vector3.TransformNormal(bone.Scale, Absolute(basis)) };
-        }
-        EditableAnimationChannel Channel(EditableAnimationChannel channel)
-        {
-            Matrix4x4 basis = Basis(model.Bones[channel.Bone].RigId);
-            return channel with { Values = channel.Values.Select(value =>
-            {
-                if (channel.Path == "rotation")
-                {
-                    // CUBICSPLINE tangents are quaternion derivatives, not unit rotations.
-                    Vector3 converted = Vector3.TransformNormal(new Vector3(value.X, value.Y, value.Z), basis);
-                    return new Vector4(converted, value.W);
-                }
-                return new Vector4(Vector3.Transform(new Vector3(value.X, value.Y, value.Z), channel.Path == "scale" ? Absolute(basis) : basis), value.W);
-            }).ToArray() };
         }
         return model with
         {
@@ -83,8 +85,7 @@ public static partial class ModelExchange
                     Transform = Transform(mesh.Transform, basis),
                     InverseBindMatrices = mesh.InverseBindMatrices?.ToDictionary(pair => pair.Key, pair => Transform(pair.Value, basis))
                 };
-            }).ToArray(),
-            Animations = model.Animations.Select(animation => animation with { Channels = animation.Channels.Select(Channel).ToArray() }).ToArray()
+            }).ToArray()
         };
     }
 

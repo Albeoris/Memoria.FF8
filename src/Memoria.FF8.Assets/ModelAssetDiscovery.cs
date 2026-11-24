@@ -110,6 +110,16 @@ public sealed partial class GameAssets
     /// <summary>Discovers explicit loader bindings on demand without constructing a gameplay session.</summary>
     public IEnumerable<ModelAssetDiscoveryItem> DiscoverModelAssets(ModelCatalogEntry entry, CancellationToken cancellationToken = default)
     {
+        return DiscoverModelAssets(entry, forExchange: false, cancellationToken);
+    }
+
+    public IEnumerable<ModelAssetDiscoveryItem> DiscoverModelAssetsForExchange(ModelCatalogEntry entry, CancellationToken cancellationToken = default)
+    {
+        return DiscoverModelAssets(entry, forExchange: true, cancellationToken);
+    }
+
+    private IEnumerable<ModelAssetDiscoveryItem> DiscoverModelAssets(ModelCatalogEntry entry, bool forExchange, CancellationToken cancellationToken)
+    {
         cancellationToken.ThrowIfCancellationRequested();
         yield return new(entry.Id + "/discovering", "Discovering", ModelAssetDiscoveryKind.Progress, entry.Id, entry.ResourcePath, "", -1, "selected resource") { Progress = new(ModelAssetProgressKind.Discovering) };
         bool incomplete = false;
@@ -117,7 +127,7 @@ public sealed partial class GameAssets
         string? error = null;
         try
         {
-            selected = LoadCatalogModel(entry);
+            selected = forExchange ? LoadCatalogModelForExchange(entry) : LoadCatalogModel(entry);
         }
         catch (Exception exception) when (CatalogError(exception))
         {
@@ -136,7 +146,7 @@ public sealed partial class GameAssets
         }
         if (entry.Category == "Field")
         {
-            foreach (ModelAssetDiscoveryItem item in DiscoverFieldReferences(entry, cancellationToken))
+            foreach (ModelAssetDiscoveryItem item in DiscoverFieldReferences(entry, forExchange, cancellationToken))
             {
                 incomplete |= item.Kind == ModelAssetDiscoveryKind.Diagnostic;
                 yield return item;

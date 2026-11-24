@@ -21,12 +21,15 @@ public sealed class AsyncDialogLocalizationTests
             Dictionary<string, string> translations = Translations();
             string Translate(string key, string fallback) => translations.GetValueOrDefault(key, fallback);
             Assert.Null(await ModelBrowserDialogs.ImportAsync(0, settings, Translate));
-            Assert.Null(await ModelBrowserDialogs.ExportAsync(0, "model", settings, Translate));
+            Assert.Null(await ModelBrowserDialogs.ExportAsync(0, "model", settings, Translate, TestContext.Current.CancellationToken));
             Assert.Null(await ModelBrowserDialogs.DestinationAsync(0, directory, Translate));
             Assert.Equal("訳 Import from Blender (as mod)", desktop.Requests[0].Title);
             Assert.Equal("訳 Export to Blender", desktop.Requests[1].Title);
             Assert.Equal("訳 Choose a mod package folder (or create one)", desktop.Requests[2].Title);
-            Assert.All(desktop.Requests.Take(2), request => Assert.Equal("訳 glTF binary model (*.glb)", Assert.Single(request.Filters!).Name));
+            Assert.Collection(desktop.Requests[0].Filters!,
+                filter => Assert.Equal("訳 glTF binary model (*.glb)", filter.Name),
+                filter => Assert.Equal("vrm", Assert.Single(filter.Extensions)));
+            Assert.Equal("訳 glTF binary model (*.glb)", Assert.Single(desktop.Requests[1].Filters!).Name);
             Assert.Null(desktop.Requests[0].InitialPath);
             Assert.Equal("model.glb", desktop.Requests[1].InitialPath);
             Assert.Equal(directory, desktop.Requests[2].InitialPath);
@@ -59,20 +62,20 @@ public sealed class AsyncDialogLocalizationTests
             desktop.Result = new(DialogStatus.Selected, importPath);
             Assert.Equal(importPath, await ModelBrowserDialogs.ImportAsync(0, settings));
             desktop.Result = new(DialogStatus.Selected, exportPath);
-            Assert.Equal(exportPath + ".glb", await ModelBrowserDialogs.ExportAsync(0, "first", settings));
+            Assert.Equal(exportPath + ".glb", await ModelBrowserDialogs.ExportAsync(0, "first", settings, cancellationToken: TestContext.Current.CancellationToken));
             Assert.Equal("first.glb", desktop.Requests[1].InitialPath);
 
             settings = new(isolatedDirectory: settingsDirectory);
             desktop.Result = new(DialogStatus.Cancelled);
             Assert.Null(await ModelBrowserDialogs.ImportAsync(0, settings));
             Assert.Equal(importDirectory + Path.DirectorySeparatorChar, desktop.Requests[2].InitialPath);
-            Assert.Null(await ModelBrowserDialogs.ExportAsync(0, "second", settings));
+            Assert.Null(await ModelBrowserDialogs.ExportAsync(0, "second", settings, cancellationToken: TestContext.Current.CancellationToken));
             Assert.Equal(Path.Combine(exportDirectory, "second.glb"), desktop.Requests[3].InitialPath);
 
             Assert.Null(await ModelBrowserDialogs.ImportAsync(0, settings));
             Assert.Equal(importDirectory + Path.DirectorySeparatorChar, desktop.Requests[4].InitialPath);
             Directory.Delete(exportDirectory);
-            Assert.Null(await ModelBrowserDialogs.ExportAsync(0, "third", settings));
+            Assert.Null(await ModelBrowserDialogs.ExportAsync(0, "third", settings, cancellationToken: TestContext.Current.CancellationToken));
             Assert.Equal("third.glb", desktop.Requests[5].InitialPath);
         }
         finally

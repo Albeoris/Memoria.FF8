@@ -80,13 +80,25 @@ public static class ModelAssetExchange
 
     public static void ExportGlbAtomic(string path, ModelAssetSelection selection)
     {
-        byte[] bytes = ExportGlb(selection);
-        InspectGlb(bytes);
+        ExportGlbAtomic(path, selection, CancellationToken.None);
+    }
+
+    public static void ExportGlbAtomic(string path, ModelAssetSelection selection, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
         string destination = Path.GetFullPath(path);
         string temporary = Path.Combine(Path.GetDirectoryName(destination)!, $".{Path.GetFileName(destination)}.{Guid.NewGuid():N}.tmp");
         try
         {
-            File.WriteAllBytes(temporary, bytes);
+            string bufferPath = Path.Combine(Path.GetTempPath(), $"memoria-glb-{Guid.NewGuid():N}.bin");
+            using (FileStream binary = new(bufferPath, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None, 65536, FileOptions.DeleteOnClose | FileOptions.SequentialScan))
+            using (FileStream output = new(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            {
+                ModelExchange.WriteGlb(Compose(selection), binary, output, cancellationToken);
+            }
+            cancellationToken.ThrowIfCancellationRequested();
+            InspectGlb(File.ReadAllBytes(temporary));
+            cancellationToken.ThrowIfCancellationRequested();
             File.Move(temporary, destination, true);
         }
         finally
@@ -98,9 +110,18 @@ public static class ModelAssetExchange
         }
     }
 
+    public static ModelAssetImportInventory InspectGlb(byte[] bytes)
+    {
+        return InspectGlb(ModelExchange.ImportGlbBuffer(bytes));
+    }
+
     public static ModelAssetImportInventory InspectGlb(ReadOnlySpan<byte> bytes)
     {
-        ModelExchangeImportResult imported = ModelExchange.ImportGlb(bytes);
+        return InspectGlb(ModelExchange.ImportGlb(bytes));
+    }
+
+    private static ModelAssetImportInventory InspectGlb(ModelExchangeImportResult imported)
+    {
         EditableModel combined = imported.Model;
         if (combined.ImportTarget is { } target)
         {

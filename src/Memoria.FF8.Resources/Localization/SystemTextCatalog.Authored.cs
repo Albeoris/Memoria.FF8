@@ -494,6 +494,7 @@ public static partial class SystemTextCatalog
         defaults["model-browser.clip.missing-pair"] = "Missing paired clip component. Its rig remains in the base pose.";
         defaults["model-browser.discovery.failed"] = "Catalog discovery: {0}";
         defaults["model-browser.discovery.incomplete"] = "Incomplete: {0}";
+        defaults["model-browser.export.in-progress"] = "Exporting GLB…";
         defaults["model-browser.export.completed"] = "Selection exported to one self-contained GLB.";
         defaults["model-browser.import.hints"] = "Tab: preview / list \u00B7 Arrows: navigate \u00B7 Confirm / Space: checkbox \u00B7 Click label: preview\nUnchecked leaves unchanged \u00B7 Rigs are validation context \u00B7 Back: cancel without installation";
         defaults["model-browser.import.inventory"] = "Import inventory: actual surviving objects and channels";

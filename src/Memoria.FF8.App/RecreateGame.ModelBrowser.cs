@@ -71,10 +71,10 @@ internal sealed partial class RecreateGame
         browserAssetReader = null;
         browserAssets.Clear();
         browserAssetModels.Clear();
-        browserAssetFingerprints.Clear();
         browserDiscoveryCache.Clear();
         browserPendingDiscovery.Clear();
         browserImportOriginals.Clear();
+        browserImportFingerprints.Clear();
         browserImport = null;
         modelBrowser = null;
         modelPreview = null;
@@ -266,7 +266,7 @@ internal sealed partial class RecreateGame
 
     private EditableModel ReadBrowserModel(ModelBrowserEntry entry, ModelBrowserVariant variant)
     {
-        EditableModel original = modelBrowserAssets!.LoadCatalogModel(modelCatalog[entry.Id]);
+        EditableModel original = modelBrowserAssets!.LoadCatalogModelForExchange(modelCatalog[entry.Id]);
         return ResolveBrowserModel(entry.Id, original, variant);
     }
 
@@ -280,7 +280,7 @@ internal sealed partial class RecreateGame
         try
         {
             string identity = entry.Id + "\0" + variant.Id;
-            if (modelPreviewIdentity != identity)
+            if (browserExportWork is null && modelPreviewIdentity != identity)
             {
                 modelPreviewIdentity = identity;
                 modelPreview = null;
@@ -297,7 +297,10 @@ internal sealed partial class RecreateGame
             }
             Rectangle rectangle = ModelBrowserPreviewBounds(GraphicsDevice.Viewport.Bounds);
             modelPreviewGpu ??= new GpuTriangleRenderer(GraphicsDevice);
-            UpdateBrowserAssemblyPreview();
+            if (browserExportWork is null)
+            {
+                UpdateBrowserAssemblyPreview();
+            }
             ModelPreviewRenderer.Render(modelPreviewGpu, modelPreview, rectangle.Width, rectangle.Height, modelBrowser.Camera, modelBrowser.AssetsOpen ? modelBrowser.PlaybackSeconds : (float)time.TotalSeconds, modelBrowser.AssetsOpen && modelPreview.Animations.Count == 0 ? -1 : 0, !modelBrowser.AssetsOpen);
             modelPreviewRendered = true;
         }
@@ -425,8 +428,20 @@ internal sealed partial class RecreateGame
         browserAssetReader = null;
         modelCatalogReader?.Dispose();
         modelCatalogReader = null;
-        modelBrowserAssets?.Dispose();
-        modelBrowserAssets = null;
+        browserExportCancellation?.Cancel();
+        if (modelBrowserAssets is { } assets)
+        {
+            if (browserExportWork is { IsCompleted: false } export)
+            {
+                // Discovery loaders still own reads from the browser's archives.
+                _ = export.ContinueWith(_ => assets.Dispose(), CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+            }
+            else
+            {
+                assets.Dispose();
+            }
+            modelBrowserAssets = null;
+        }
         modelPreviewGpu?.Dispose();
         modelPreviewGpu = null;
         modelBrowser = null;

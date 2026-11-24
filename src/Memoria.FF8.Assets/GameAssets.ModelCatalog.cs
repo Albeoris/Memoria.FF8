@@ -186,6 +186,11 @@ public sealed partial class GameAssets
         return ModelExchange.FromBattle(resources.GetSource<IBattleModelSource>()?.ReadModel(new ResourceKey(entry.ResourcePath), bytes) ?? BattleResourceReader.ReadModel(filename, bytes));
     }
 
+    public EditableModel LoadCatalogModelForExchange(ModelCatalogEntry entry)
+    {
+        return entry.Category == "Field" ? ModelExchange.FromFieldForExchange(LoadCatalogFieldModel(entry)) : LoadCatalogModel(entry);
+    }
+
     public FieldModel LoadCatalogFieldModel(ModelCatalogEntry entry)
     {
         if (entry.LoadError is not null)

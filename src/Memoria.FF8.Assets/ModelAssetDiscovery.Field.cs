@@ -5,7 +5,7 @@ namespace Memoria.FF8.Assets;
 
 public sealed partial class GameAssets
 {
-    private IEnumerable<ModelAssetDiscoveryItem> DiscoverFieldReferences(ModelCatalogEntry selected, CancellationToken cancellationToken)
+    private IEnumerable<ModelAssetDiscoveryItem> DiscoverFieldReferences(ModelCatalogEntry selected, bool forExchange, CancellationToken cancellationToken)
     {
         string? reference = null;
         string? error = null;
@@ -85,11 +85,11 @@ public sealed partial class GameAssets
                     yield return DiscoveryDiagnostic(occurrence, "clips", error ?? "The referring entry cannot be decoded.");
                     continue;
                 }
-                Lazy<EditableModel> model = new(() => LoadCatalogModel(occurrence));
+                EditableModel LoadModel() => forExchange ? LoadCatalogModelForExchange(occurrence) : LoadCatalogModel(occurrence);
                 for (int clip = 0; clip < frames.Length; clip++)
                 {
                     string target = ModelAssetDiscoveryBindings.ClipTarget(occurrence.Id, "embedded", clip);
-                    yield return new(target, $"{name}/{index} / Clip {clip:000}", ModelAssetDiscoveryKind.Clip, selected.Id, path, "embedded", clip, "field main_chr reference " + reference + "; source entry " + index, () => model.Value)
+                    yield return new(target, $"{name}/{index} / Clip {clip:000}", ModelAssetDiscoveryKind.Clip, selected.Id, path, "embedded", clip, "field main_chr reference " + reference + "; source entry " + index, LoadModel)
                     {
                         GroupId = target,
                         RigOwnerId = selected.Id,
