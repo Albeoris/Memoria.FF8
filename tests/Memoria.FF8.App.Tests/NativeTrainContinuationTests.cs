@@ -7,6 +7,47 @@ namespace Memoria.FF8.App.Tests;
 public sealed class NativeTrainContinuationTests
 {
     [Fact]
+    public void Gameplay_save_with_foot_return_boards_and_resumes_the_train()
+    {
+        string directory = TestResources.GameDirectory;
+        string source = TestResources.FixturePath("App.Tests.NativeTrainContinuationTests.2");
+        var session = new GameSession(PlayerStateLoader.Load(source, directory));
+        Assert.Equal(104, session.State.FieldId);
+        Assert.Null(session.State.DepartingWorldState);
+        NativeSavedWorldState saved = session.State.SavedWorld!;
+        NativeSavedWorldFootReturn foot = saved.FootReturn!;
+        Assert.Equal(NativeSavedWorldFootReturn.GameplaySaveRule, foot.Rule);
+        using var world = new GameWorld(session, directory, validateWorldPresentation: false);
+        world.EnsureField();
+        foreach ((float horizontal, float vertical, int frames) in new[] { (-1f, 0f, 5), (0f, 1f, 5), (0f, -1f, 12), (1f, 0f, 17), (1f, -1f, 12), (1f, 0f, 9), (1f, -1f, 18) })
+        {
+            Assert.True(world.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: horizontal, Vertical: vertical, Frames: frames)).Accepted);
+        }
+        Assert.True(world.Apply(new PlayerAction(PlayerActionKind.Wait, Frames: 300)).Accepted);
+        Assert.Equal(new WorldTransition(9, 22, 59), session.State.WorldArrival);
+        NativeScriptedWorldLoadReceipt load = session.State.World!.NativeScriptedRuntime!.Load;
+        Assert.Equal(0, load.SourceWorldFrame);
+        Assert.Equal(foot.Pose0.Yaw, load.RetainedBodyYaw);
+        Assert.Equal(foot.MapDisplayMode110, load.MapDisplayMode);
+        Assert.Equal(saved.Slot4, load.Slot4);
+        Assert.Equal(saved.Slot5, load.Slot5);
+        Assert.Equal(0, load.RetainedCameraVelocity);
+
+        world.Apply(new PlayerAction(PlayerActionKind.Wait, Frames: 3));
+        string temporary = Path.Combine(TestResources.ArtifactDirectory, "scripted-train.ff8save");
+        session.Save(temporary, compact: true);
+        var restoredSession = new GameSession(GameSession.Load(temporary));
+        using var restored = new GameWorld(restoredSession, directory, validateWorldPresentation: false);
+        restored.EnsureField();
+        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.State.World), JsonSerializer.SerializeToElement(restoredSession.State.World)));
+        Assert.Equal(session.State.SavedWorld, restoredSession.State.SavedWorld);
+        Assert.True(restored.Apply(new PlayerAction(PlayerActionKind.Wait, Frames: 3000)).Accepted);
+        Assert.Equal(SceneKind.Field, restoredSession.State.Scene);
+        Assert.Equal(new FieldTransition(265, 296, -371, 21, 0), restoredSession.State.FieldArrival);
+        Assert.Equal(load, restoredSession.State.SavedWorld!.ScriptedReturn!.Load);
+    }
+
+    [Fact]
     public void Station_snapshot_boards_the_five_node_train_and_recreates_its_actual_field_endpoint()
     {
         string directory = TestResources.GameDirectory;

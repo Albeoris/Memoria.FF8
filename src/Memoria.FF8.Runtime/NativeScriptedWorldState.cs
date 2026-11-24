@@ -27,11 +27,7 @@ public sealed record NativeScriptedWorldLoadReceipt([property: JsonRequired] int
         if (previousWorld is null)
         {
             saved.Validate();
-            GameplaySaveWorldReturn endpoint = saved.DormantScriptedReturn ?? throw new NotSupportedException("Scripted entry requires preceding native world globals or a saved scripted endpoint.");
-            // Mode 2 saves the controlled foot yaw. Mode 1 saves the static foot record, so
-            // the missing live yaw and camera velocity use their cold-process values.
-            ushort yaw = endpoint.EntityType is >= 16 and <= 22 ? endpoint.Pose.Yaw : (ushort)0;
-            var restored = new NativeScriptedWorldLoadReceipt(1, LoadRule, 0, yaw, footRecord, saved.Slot4, saved.Slot5, 0, endpoint.MapDisplayMode!.Value, 0);
+            NativeScriptedWorldLoadReceipt restored = RestoreFromGameplaySave(saved, footRecord) ?? throw new NotSupportedException("Scripted entry requires preceding native world globals or a supported gameplay save return.");
             restored.Validate();
             return restored;
         }
@@ -41,6 +37,28 @@ public sealed record NativeScriptedWorldLoadReceipt([property: JsonRequired] int
         var receipt = new NativeScriptedWorldLoadReceipt(1, LoadRule, sourceFrame, bodyYaw, footRecord, saved.Slot4, saved.Slot5, 0, mapDisplay, previousWorld.CameraVelocity);
         receipt.Validate();
         return receipt;
+    }
+
+    internal static NativeScriptedWorldLoadReceipt? RestoreFromGameplaySave(NativeSavedWorldState saved, NativeScriptedWorldFootRecord footRecord)
+    {
+        if (saved.Origin.Kind != NativeSavedWorldOriginKind.GameplaySave)
+        {
+            return null;
+        }
+        // Mode 1 stores the static foot record. Its live body yaw and the camera velocity
+        // (which no gameplay return stores) start at their cold-process values.
+        ushort? yaw = saved switch
+        {
+            { FootReturn: { Rule: NativeSavedWorldFootReturn.GameplaySaveRule } foot } => foot.Pose0.Yaw,
+            { CarReturn: { Rule: NativeSavedWorldCarReturn.GameplaySaveRule } car } => car.Pose.Yaw,
+            { DormantScriptedReturn: { } endpoint } => endpoint.EntityType is >= 16 and <= 22 ? endpoint.Pose.Yaw : (ushort)0,
+            _ => null
+        };
+        if (yaw is null)
+        {
+            return null;
+        }
+        return new(1, LoadRule, 0, yaw.Value, footRecord, saved.Slot4, saved.Slot5, 0, saved.ReadMapDisplayModeForFreshFootLoader(), 0);
     }
 
     public static (long SourceFrame, ushort BodyYaw, byte MapDisplay) ResolveRetained(NativeSavedWorldState saved, WorldState previousWorld)
@@ -61,7 +79,7 @@ public sealed record NativeScriptedWorldLoadReceipt([property: JsonRequired] int
             bodyYaw = prior.Load.RetainedBodyYaw;
             mapDisplay = priorReturn.MapDisplayMode110;
         }
-        else if (saved.CarReturn is NativeSavedWorldCarReturn car)
+        else if (saved.CarReturn is { Rule: not NativeSavedWorldCarReturn.GameplaySaveRule } car)
         {
             previousWorld.NativeCarRuntime?.Validate();
             if (previousWorld.NativeCarRuntime is null || previousWorld.Frame != car.SourceWorldFrame || CurrentPose(previousWorld) != car.Pose)
@@ -72,7 +90,7 @@ public sealed record NativeScriptedWorldLoadReceipt([property: JsonRequired] int
             bodyYaw = car.Pose.Yaw;
             mapDisplay = car.MapDisplayMode110;
         }
-        else if (saved.FootReturn is NativeSavedWorldFootReturn foot)
+        else if (saved.FootReturn is { Rule: not NativeSavedWorldFootReturn.GameplaySaveRule } foot)
         {
             foot.RequireCompleteFootReload();
             previousWorld.NativeFootRuntime?.Validate();

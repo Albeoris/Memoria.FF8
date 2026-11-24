@@ -274,11 +274,11 @@ public sealed partial record NativeSavedWorldState
     {
         Validate();
         receipt.Validate();
-        bool retainedCar = CarReturn is NativeSavedWorldCarReturn car && car.SourceWorldFrame == receipt.Load.SourceWorldFrame && car.Pose.Yaw == receipt.Load.RetainedBodyYaw && car.MapDisplayMode110 == receipt.Load.MapDisplayMode;
-        bool retainedFoot = FootReturn is NativeSavedWorldFootReturn foot && foot.SourceWorldFrame == receipt.Load.SourceWorldFrame && foot.Pose0.Yaw == receipt.Load.RetainedBodyYaw && foot.MapDisplayMode110 == receipt.Load.MapDisplayMode;
+        bool retainedCar = CarReturn is { Rule: not NativeSavedWorldCarReturn.GameplaySaveRule } car && car.SourceWorldFrame == receipt.Load.SourceWorldFrame && car.Pose.Yaw == receipt.Load.RetainedBodyYaw && car.MapDisplayMode110 == receipt.Load.MapDisplayMode;
+        bool retainedFoot = FootReturn is { Rule: not NativeSavedWorldFootReturn.GameplaySaveRule } foot && foot.SourceWorldFrame == receipt.Load.SourceWorldFrame && foot.Pose0.Yaw == receipt.Load.RetainedBodyYaw && foot.MapDisplayMode110 == receipt.Load.MapDisplayMode;
         bool retainedScripted = ScriptedReturn is NativeSavedWorldScriptedReturn prior && prior.SourceWorldFrame + 16 == receipt.Load.SourceWorldFrame && prior.Load.RetainedBodyYaw == receipt.Load.RetainedBodyYaw && prior.MapDisplayMode110 == receipt.Load.MapDisplayMode;
-        bool restoredScripted = DormantScriptedReturn is not null && receipt.Load == NativeScriptedWorldLoadReceipt.Create(this, null, receipt.Load.FootRecord0);
-        if (Slot4 != receipt.Load.Slot4 || Slot5 != receipt.Load.Slot5 || !retainedCar && !retainedFoot && !retainedScripted && !restoredScripted)
+        NativeScriptedWorldLoadReceipt? restoredLoad = NativeScriptedWorldLoadReceipt.RestoreFromGameplaySave(this, receipt.Load.FootRecord0);
+        if (Slot4 != receipt.Load.Slot4 || Slot5 != receipt.Load.Slot5 || !retainedCar && !retainedFoot && !retainedScripted && receipt.Load != restoredLoad)
         {
             throw new InvalidDataException("Native scripted save differs from its preceding return and retained original object/vehicle records.");
         }
