@@ -36,6 +36,8 @@ internal static class AutoPlayTraversalPolicy
             ("240:33", "240:line:12") => -1,
             // NG-121: Prefer the original boarding line at the Balamb docks.
             ("123:40", "123:line:20") => -1,
+            // NG-122: Follow the Garden exam route through the eastern hall.
+            ("165:135", "165:gateway:4") or ("170:135", "170:talk:11") => -1,
             // NG-009: This authored entry follows the other reachable Garden frontiers.
             ("137:142", "137:line:15") => 1,
             // NG-010: Complete the ordinary clothing interaction before the night entrances.
@@ -407,6 +409,17 @@ internal static class AutoPlayTraversalPolicy
         {
             (< 2, "529:talk:3" or "531:gateway:0" or "526:line-action:5") => -1,
             (>= 2, "526:line:8" or "531:talk:3" or "529:line:11") => -1,
+            _ => null
+        };
+    }
+
+    internal static string? GardenExamPassage(string visitKey, float? playerY)
+    {
+        // NG-122: The lateral return from Cid's hall lands beyond the story-135 crossing.
+        return visitKey switch
+        {
+            "165:135" when playerY < -9209 => "165:line:29",
+            "175:135" => "175:line:14",
             _ => null
         };
     }
