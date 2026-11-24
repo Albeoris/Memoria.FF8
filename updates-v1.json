@@ -28,35 +28,35 @@
           "size": 276140555
         }
       },
-      "publishedAt": "2026-11-23T21:43:35.0000000+00:00"
+      "publishedAt": "2026-11-23T21:43:35+00:00"
     },
     "nightly": {
-      "publishedAt": "2026-11-23T21:41:42+00:00",
-      "tag": "nightly",
-      "engineCompatibilityVersion": "0.8.15",
+      "publishedAt": "2026-11-24T01:49:40.0000000+00:00",
       "artifacts": {
         "win-x64": {
-          "size": 625729650,
           "url": "https://github.com/Albeoris/Memoria.FF8/releases/download/nightly/Memoria-FF8-win-x64.zip",
-          "sha256": "441f06df35bc41227bbf7eda483294480359f33577fe8c3313352c890fe152fc"
+          "sha256": "4db3a67fb35a9909ad28e3127ccb3667f8ad7eeb5b162398d35ca6d94fe957be",
+          "size": 625836933
         },
         "linux-x64": {
-          "size": 299068766,
           "url": "https://github.com/Albeoris/Memoria.FF8/releases/download/nightly/Memoria-FF8-linux-x64.tar.gz",
-          "sha256": "b80b9765355803997d0c87bad9b83d024e660341efecb353d1d0fc33f70a4a7d"
+          "sha256": "41208572d79ba70f28b775412ce18616e3f736d11d7c91898adb392f45b89c1b",
+          "size": 299115147
         },
         "osx-x64": {
-          "size": 296973043,
           "url": "https://github.com/Albeoris/Memoria.FF8/releases/download/nightly/Memoria-FF8-osx-x64.tar.gz",
-          "sha256": "f392a506adf920df339f3b5c5ae9e8ed0588012607e98ad97b8db9ba4376cffe"
+          "sha256": "b3da34a377a43f80c7d4e1104a378acf2728fce5e6c26e154eda3064174f22fa",
+          "size": 297029416
         },
         "osx-arm64": {
-          "size": 276140555,
           "url": "https://github.com/Albeoris/Memoria.FF8/releases/download/nightly/Memoria-FF8-osx-arm64.tar.gz",
-          "sha256": "7829c2615f4d4762e61eed72a391b6ae52c03f7c31dc6bedcda1df24dd5e67fb"
+          "sha256": "d9296e4350590a49fa9055a77f1b15de12a7c6a65de039f78bc6a5afd892b866",
+          "size": 276189749
         }
       },
-      "buildId": "dd04d43f97ebfa14de595a1693562c15dd7e7db4",
+      "buildId": "477f7e3a47ae36671f3d6d559050877733b7cb64",
+      "tag": "nightly",
+      "engineCompatibilityVersion": "0.8.15",
       "name": "Nightly - 2026-10-27 02:22:56 UTC"
     }
   }
