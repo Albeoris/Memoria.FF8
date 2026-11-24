@@ -26,7 +26,9 @@ public enum UiImageKind
     GrieverPortrait,
     ItemUseImage,
     SystemTimerDigit,
-    GuardianForcePortraitGrayscale
+    GuardianForcePortraitGrayscale,
+    Weapon,
+    WeaponVariant
 }
 
 /// <summary>Stable artwork identity, independent of translated or player-assigned display names.</summary>

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Numerics;
 using Memoria.FF8.Assets;
 
@@ -14,7 +15,7 @@ public sealed record ModelModVariant(string ModelId, string PackageId, string Re
 public sealed class ModelMods : IModelOverrideSource
 {
     private readonly IReadOnlyList<(ModelModVariant Variant, ModFile File)> files;
-    private readonly Dictionary<(string Id, string Bank, object Original), object> replacements = [];
+    private readonly ConcurrentDictionary<(string Id, string Bank, object Original), object> replacements = new();
 
     private ModelMods(IReadOnlyList<(ModelModVariant Variant, ModFile File)> files)
     {
@@ -200,8 +201,7 @@ public sealed class ModelMods : IModelOverrideSource
             model = Merge(model, match.Variant, ModelExchange.ImportGlb(match.File.ReadBytes(), allowBoneCountChange: true).Model);
         }
         T replacement = to(model, original);
-        replacements.Add(key, replacement);
-        return replacement;
+        return (T)replacements.GetOrAdd(key, replacement);
     }
 
     private static BattleModel ApplyBattleGeometry(EditableModel edited, BattleModel original)

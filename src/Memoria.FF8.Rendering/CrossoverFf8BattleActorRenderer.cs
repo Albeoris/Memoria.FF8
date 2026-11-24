@@ -203,7 +203,7 @@ public static class CrossoverFf8BattleActorRenderer
         return Vector3.Transform(new(anchor.X, anchor.Y, anchor.Z), visual.OriginToHost);
     }
 
-    private static void VisitGeometry(CrossoverFf8BattleActorVisual visual, Action<BattleMesh, IReadOnlyList<PixelImage>, ImmutableArray<NativeBattleActionMatrix>, bool> visit)
+    internal static void VisitGeometry(CrossoverFf8BattleActorVisual visual, Action<BattleMesh, IReadOnlyList<PixelImage>, ImmutableArray<NativeBattleActionMatrix>, bool> visit)
     {
         NativeBattleGraphicsModel model = visual.Model;
         if (model is not { ModelId4: < 11 } || visual.Body.EditableOverride is not null || visual.Weapon?.EditableOverride is not null)
@@ -242,7 +242,7 @@ public static class CrossoverFf8BattleActorRenderer
         }
     }
 
-    private static Vector3[] WorldVertices(CrossoverFf8BattleActorVisual visual, BattleMesh mesh, ImmutableArray<NativeBattleActionMatrix> bones)
+    internal static Vector3[] WorldVertices(CrossoverFf8BattleActorVisual visual, BattleMesh mesh, ImmutableArray<NativeBattleActionMatrix> bones)
     {
         Vector3[] positions = new Vector3[mesh.Vertices.Count];
         for (int index = 0; index < positions.Length; index++)

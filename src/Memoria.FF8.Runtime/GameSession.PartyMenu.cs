@@ -6,6 +6,7 @@ public sealed partial class GameSession
 {
     public NativeShotAvailabilityState? ShotAvailability => State.ShotAvailability;
     public NativeFieldLocation? NativeFieldLocation => State.NativeFieldLocation;
+    public BattleLoadoutOverrides? CurrentBattleLoadouts => State.BattleLoadouts;
     public bool CanStoreNativePartyMenuOwners => true;
 
     public void InitializeNewGameShotAvailability(NativeShotAvailabilityState shots)
@@ -18,7 +19,7 @@ public sealed partial class GameSession
         State = State with { ShotAvailability = shots };
     }
 
-    public void SetNativePartyMenuOwners(NativeCharacterVitals characterVitals, NativeEconomy economy, NativeShotAvailabilityState shots, NativeSalaryPresentation salaryPresentation, NativeExamTimerState? timer = null, NativeFieldLocation? fieldLocation = null, NativeVibrationProcessState? vibrationProcess = null, NativeWorldProcess? worldProcess = null, NativeFieldFadeState? fieldFade = null, NativeShopHistory? shopHistory = null, NativeMenuRandomState? menuRandom = null, NativeWeaponRecipes? weaponRecipes = null, NativeCardInventory? cardInventory = null, NativeLimitProgress? limitProgress = null)
+    public void SetNativePartyMenuOwners(NativeCharacterVitals characterVitals, NativeEconomy economy, NativeShotAvailabilityState shots, NativeSalaryPresentation salaryPresentation, NativeExamTimerState? timer = null, NativeFieldLocation? fieldLocation = null, NativeVibrationProcessState? vibrationProcess = null, NativeWorldProcess? worldProcess = null, NativeFieldFadeState? fieldFade = null, NativeShopHistory? shopHistory = null, NativeMenuRandomState? menuRandom = null, NativeWeaponRecipes? weaponRecipes = null, NativeCardInventory? cardInventory = null, NativeLimitProgress? limitProgress = null, BattleLoadoutOverrides? battleLoadouts = null)
     {
         characterVitals.Validate();
         economy.Validate();
@@ -34,6 +35,7 @@ public sealed partial class GameSession
         weaponRecipes?.Validate();
         cardInventory?.Validate();
         limitProgress?.Validate();
+        battleLoadouts?.Validate();
         if (limitProgress is not null && limitProgress.InitOutSha256 != economy.InitOutSha256)
         {
             throw new InvalidDataException("Native Limit progression and inventory have different New Game resource provenance.");
@@ -56,7 +58,7 @@ public sealed partial class GameSession
         NativeEconomy nextEconomy = economy.DeepCopy();
         GameState candidate = State with { CharacterVitals = nextVitals, SavedBattleFlags = SynchronizeSavedBattleFlags(nextVitals), Economy = nextEconomy, ShotAvailability = shots, SalaryPresentation = salaryPresentation, ExamTimer = timer ?? State.ExamTimer, NativeFieldLocation = fieldLocation ?? State.NativeFieldLocation, VibrationProcess = vibrationProcess ?? State.VibrationProcess, WorldProcess = worldProcess ?? State.WorldProcess, FieldFade = fieldFade ?? State.FieldFade, ShopHistory = shopHistory ?? State.ShopHistory, MenuRandom = menuRandom ?? State.MenuRandom, WeaponRecipes = weaponRecipes ?? State.WeaponRecipes };
         candidate = AdvanceNativePlaytime(candidate);
-        candidate = candidate with { CardInventory = cardInventory?.DeepCopy() ?? State.CardInventory, LimitProgress = limitProgress ?? State.LimitProgress };
+        candidate = candidate with { CardInventory = cardInventory?.DeepCopy() ?? State.CardInventory, LimitProgress = limitProgress ?? State.LimitProgress, BattleLoadouts = battleLoadouts ?? State.BattleLoadouts };
         ValidateLiveEventMemoryOwners(candidate, State.EventMemory);
         State = candidate;
     }

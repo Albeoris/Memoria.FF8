@@ -20,6 +20,7 @@
     <Content Include="../../vendor/Steamworks/redistributable_bin/win64/steam_api64.dll" Condition="'$(MemoriaTargetRuntime)' == 'win-x64'" Link="Steam/steam_api64.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="../../vendor/Steamworks/README.md" Link="Steam/NOTICE.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <EmbeddedResource Include="Artwork/Controller/*.svg" />
+    <EmbeddedResource Include="Artwork/WeaponIcons.dds" LogicalName="Memoria.FF8.Artwork.WeaponIcons.dds" />
     <EmbeddedResource Include="Shaders/Triangles.mgfxo" LogicalName="Memoria.FF8.Shaders.Triangles.mgfxo" Condition="'$(MemoriaGraphicsBackend)' == 'Direct3D11'" />
     <EmbeddedResource Include="Shaders/FrameDifference.mgfxo" LogicalName="Memoria.FF8.Shaders.FrameDifference.mgfxo" Condition="'$(MemoriaGraphicsBackend)' == 'Direct3D11'" />
     <EmbeddedResource Include="Shaders/Triangles.vulkan.mgfxo" LogicalName="Memoria.FF8.Shaders.Triangles.mgfxo" Condition="'$(MemoriaGraphicsBackend)' == 'Vulkan'" />

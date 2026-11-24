@@ -92,6 +92,11 @@ public sealed partial class BattleAssets
 
     private NativeBattleAnimationBankOverride CompileLoadoutAnimationBank(int sourceCharacter, BattleModel source, BattleModel recipient, NativeBattlePoseRetargeter compiler, NativeBattlePoseSource motion, string bank, uint? directory, string revision, BattleModel? contactWeapon = null, NativeBattlePoseSource? linkedMotion = null)
     {
+        return WithPlayerModelResources(() => ReadLoadoutAnimationBank(sourceCharacter, source, recipient, compiler, motion, bank, directory, revision, contactWeapon, linkedMotion));
+    }
+
+    private NativeBattleAnimationBankOverride ReadLoadoutAnimationBank(int sourceCharacter, BattleModel source, BattleModel recipient, NativeBattlePoseRetargeter compiler, NativeBattlePoseSource motion, string bank, uint? directory, string revision, BattleModel? contactWeapon, NativeBattlePoseSource? linkedMotion)
+    {
         motion.Validate();
         if (!motion.Skeleton.AsSpan().SequenceEqual(source.NativePoseSource!.Skeleton.AsSpan()))
         {

@@ -8,141 +8,198 @@ namespace Memoria.FF8.App.Tests;
 public sealed class BattleLoadoutEditorTests
 {
     [Fact]
-    public void Cancel_discards_staged_changes_and_apply_publishes_exactly_once()
+    public void Back_collapses_weapons_then_publishes_all_characters_once()
     {
         int applies = 0;
         BattleLoadoutOverrides? live = null;
-        MenuController menu = Create(() => live, draft =>
+        MenuController menu = Create(draft =>
         {
             applies++;
             live = draft.Overrides;
         });
         Open(menu);
-        menu.Execute(new("loadout-character", Value: "0"));
-        menu.Execute(new("loadout-remove-all"));
+
+        Select(menu, "limit-Duel");
+        menu.Navigate(MenuInput.PageRight);
+        Select(menu, "limit-Desperado");
+        menu.Navigate(MenuInput.PageLeft);
+        Select(menu, "weapon-type-8");
+
+        Assert.Contains(menu.Entries, entry => entry.Id == "weapon-instance-2" && entry.Help.Contains("Laguna", StringComparison.Ordinal));
         Assert.Null(live);
+
         menu.Navigate(MenuInput.Cancel);
-        Select(menu, "cancel");
-        Assert.Equal(0, applies);
-        Open(menu);
-        menu.Execute(new("loadout-character", Value: "0"));
-        menu.Execute(new("loadout-remove-all"));
+
+        Assert.Equal("debug-loadouts", menu.ScreenId);
+        Assert.Equal("weapon-type-8", menu.SelectedEntry!.Id);
+        Assert.DoesNotContain(menu.Entries, entry => entry.Id == "weapon-instance-2");
+        Assert.DoesNotContain(menu.Entries, entry => entry.Id is "apply" or "cancel");
+        Assert.Null(live);
+
         menu.Navigate(MenuInput.Cancel);
-        Select(menu, "apply");
+
+        Assert.Equal("debug-battle", menu.ScreenId);
         Assert.Equal(1, applies);
-        Assert.Empty(live!.Get(0)!.LimitFamilies!);
-        Assert.Contains("Save the game", menu.Message, StringComparison.Ordinal);
+        Assert.Equal([BattleLimitFamily.Renzokuken, BattleLimitFamily.Duel], live!.Get(0)!.LimitFamilies);
+        Assert.Empty(live.Get(8)!.LimitFamilies!);
     }
 
     [Fact]
-    public void Keyboard_family_catalog_supports_three_families_reorder_and_atomic_exchange_review()
+    public void Weapon_types_expand_to_instances_and_base_grade_with_exchange_and_inventory_reuse()
     {
         BattleLoadoutOverrides? live = null;
-        MenuController menu = Create(() => live, draft => live = draft.Overrides);
+        MenuController menu = Create(draft => live = draft.Overrides);
         Open(menu);
-        menu.Execute(new("loadout-character", Value: "0"));
-        Select(menu, "families");
-        Select(menu, nameof(BattleLimitFamily.Duel));
-        Select(menu, "toggle");
-        menu.Navigate(MenuInput.Cancel);
-        Assert.Equal(nameof(BattleLimitFamily.Duel), menu.SelectedEntry!.Id);
-        Select(menu, nameof(BattleLimitFamily.Combine));
-        Select(menu, "toggle");
-        Select(menu, "up");
-        menu.Navigate(MenuInput.Cancel);
-        menu.Navigate(MenuInput.Cancel);
-        menu.Execute(new("loadout-exchange", Value: "weapons"));
-        Assert.False(menu.Entries.Single(entry => entry.Id == "exchange-0").Enabled);
-        Select(menu, "exchange-8");
-        menu.Navigate(MenuInput.Cancel);
-        Assert.Contains(menu.CurrentScreen.Details(menu), line => line.Contains("Changed: Squall, Laguna", StringComparison.Ordinal));
-        Select(menu, "apply");
-        Assert.Equal(33, live!.Get(0)!.WeaponId);
-        Assert.Equal(0, live.Get(8)!.WeaponId);
-        Assert.Equal([BattleLimitFamily.Renzokuken, BattleLimitFamily.Combine, BattleLimitFamily.Duel], live.Get(0)!.LimitFamilies!);
-    }
+        Assert.Contains("supports", menu.Entries.Single(entry => entry.Id == "limit-Renzokuken").Help, StringComparison.Ordinal);
 
-    [Fact]
-    public void Boundary_disables_apply_without_discarding_the_draft_and_reset_is_staged()
-    {
-        BattleLoadoutOverrides? live = null;
-        bool blocked = true;
-        MenuController menu = Create(() => live, draft => live = draft.Overrides, () => blocked ? "Battle is active." : null);
-        Open(menu);
-        menu.Execute(new("loadout-character", Value: "0"));
-        menu.Execute(new("loadout-remove-all"));
-        menu.Execute(new("loadout-reset"));
-        menu.Navigate(MenuInput.Cancel);
-        Assert.False(menu.Entries.Single(entry => entry.Id == "apply").Enabled);
+        Select(menu, "weapon-type-8");
+        Select(menu, "weapon-instance-2");
+        Assert.Contains("Requires Gunblade", menu.Entries.Single(entry => entry.Id == "limit-Renzokuken").Help, StringComparison.Ordinal);
         Assert.Null(live);
-        blocked = false;
-        Select(menu, "apply");
+
+        Select(menu, "weapon-type-8");
+        Select(menu, "weapon-new-30");
+        Select(menu, "weapon-type-8");
+        Assert.Contains(menu.Entries, entry => entry.Id == "weapon-instance-2" && entry.Help.Contains("from inventory", StringComparison.Ordinal));
+        Select(menu, "weapon-instance-2");
+        menu.Navigate(MenuInput.Cancel);
+
         Assert.NotNull(live);
-        Assert.Empty(live.Characters);
+        BattleWeaponInventory inventory = Assert.IsType<BattleWeaponInventory>(live.WeaponInstances);
+        Assert.Equal(new BattleWeaponInstance(2, 30, 0), inventory.GetEquipped(0));
+        Assert.Equal(new BattleWeaponInstance(1, 0, 8), inventory.GetEquipped(8));
+        Assert.Equal(new BattleWeaponInstance(3, 30, 0), inventory.Instances[3]);
+    }
+
+    [Fact]
+    public void Pending_preparation_keeps_scene_open_and_blocks_edits_until_publication()
+    {
+        int applies = 0;
+        int prepares = 0;
+        TaskCompletionSource operation = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        MenuController menu = Create(_ => applies++, prepare: (draft, progress, _) =>
+        {
+            prepares++;
+            Assert.Equal([0, 8], draft.Characters);
+            progress.Report((1, 2));
+            return operation.Task;
+        });
+        Open(menu);
+        Select(menu, "limit-Duel");
+        menu.Navigate(MenuInput.Cancel);
+        menu.Navigate(MenuInput.Cancel);
+        menu.Execute(new("loadout-toggle", Value: nameof(BattleLimitFamily.Duel)));
+
+        Assert.Equal("debug-loadouts", menu.ScreenId);
+        Assert.Empty(menu.Entries);
+        Assert.Contains(Elements(menu.BuildView().Root), element => element.Id == "loadout-apply-progress");
+        Assert.Equal(0, applies);
+        Assert.Equal(1, prepares);
+
+        operation.SetResult();
+        menu.BuildView();
+
+        Assert.Equal("debug-battle", menu.ScreenId);
+        Assert.Equal(1, applies);
+    }
+
+    [Fact]
+    public void Unchanged_exit_prepares_the_roster_without_publishing()
+    {
+        int applies = 0;
+        int prepares = 0;
+        MenuController menu = Create(_ => applies++, prepare: (draft, _, _) =>
+        {
+            prepares++;
+            Assert.Equal([0, 8], draft.Characters);
+            return Task.CompletedTask;
+        });
+        Open(menu);
+        menu.Navigate(MenuInput.Cancel);
+
+        Assert.Equal("debug-battle", menu.ScreenId);
+        Assert.Equal(1, prepares);
+        Assert.Equal(0, applies);
+    }
+
+    [Fact]
+    public void Failed_preparation_keeps_the_draft_for_retry()
+    {
+        int applies = 0;
+        bool blocked = true;
+        MenuController menu = Create(draft =>
+        {
+            applies++;
+            Assert.Contains(BattleLimitFamily.Duel, draft.ResolveFamilies(0));
+        }, prepare: (_, _, _) => blocked ? Task.FromException(new InvalidOperationException("Animation unavailable.")) : Task.CompletedTask);
+        Open(menu);
+        Select(menu, "limit-Duel");
+
+        menu.Navigate(MenuInput.Cancel);
+
+        Assert.Equal("debug-loadouts", menu.ScreenId);
+        Assert.Equal("Animation unavailable.", menu.Message);
+        Assert.NotEmpty(menu.Entries);
+        Assert.Equal(0, applies);
+
+        blocked = false;
+        menu.Navigate(MenuInput.Cancel);
+
+        Assert.Equal("debug-battle", menu.ScreenId);
+        Assert.Equal(1, applies);
     }
 
     [Fact]
     public void Dormant_FF8_editor_is_disabled_while_FF7_is_active_and_laboratory_stays_available()
     {
         bool ff7 = true;
-        BattleLoadoutOverrides? live = null;
-        MenuController menu = Create(() => live, draft => live = draft.Overrides, () => BattleLoadoutLabels.CurrentWorldUnavailableReason(ff7), () => !ff7);
+        MenuController menu = Create(_ => throw new InvalidOperationException("Unexpected publication."), () => BattleLoadoutLabels.CurrentWorldUnavailableReason(ff7), () => !ff7);
         menu.BattleDebugRequested += () => { };
         menu.Open("debug-battle");
+
         MenuEntry liveEditor = menu.Entries.Single(entry => entry.Id == "weapons-limits");
         Assert.False(liveEditor.Enabled);
         Assert.Contains("FFVIII is dormant", liveEditor.Help, StringComparison.Ordinal);
         Assert.True(menu.Entries.Single(entry => entry.Id == "battle-laboratory").Enabled);
+
         menu.Execute(new("loadout-open"));
+
         Assert.Contains("FFVIII is dormant", menu.Message, StringComparison.Ordinal);
+
         ff7 = false;
         Open(menu);
-        menu.Execute(new("loadout-character", Value: "0"));
-        menu.Execute(new("loadout-remove-all"));
-        menu.Navigate(MenuInput.Cancel);
+        Select(menu, "limit-Duel");
         ff7 = true;
-        menu.Execute(new("loadout-apply"));
-        Assert.Null(live);
+        menu.Navigate(MenuInput.Cancel);
+
+        Assert.Equal("debug-loadouts", menu.ScreenId);
         Assert.Contains("FFVIII is dormant", menu.Message, StringComparison.Ordinal);
-        menu.Execute(new("loadout-cancel"));
-        Assert.Equal("debug-battle", menu.ScreenId);
     }
 
     [Fact]
-    public void Render_editor_pages_when_output_is_requested()
+    public void Render_editor_scene_when_output_is_requested()
     {
         string? output = Environment.GetEnvironmentVariable("MEMORIA_FF8_LOADOUT_MENU_OUTPUT");
         Assert.SkipUnless(!string.IsNullOrWhiteSpace(output), "Set MEMORIA_FF8_LOADOUT_MENU_OUTPUT for loadout editor previews.");
         string gameDirectory = TestResources.GameDirectory;
         using BattleAssets assets = new(gameDirectory);
-        BattleLoadoutEditorWeapon[] weapons = assets.WeaponDefinitions.Select(weapon => new BattleLoadoutEditorWeapon(weapon.Id, weapon.Name, LiveMenuData.CharacterName(new(), checked((byte)weapon.CharacterId), null, null), "Fighting style: " + BattleLoadoutLabels.Style(weapon.CharacterId), BattleLoadoutLabels.Style(weapon.CharacterId))).ToArray();
-        MenuController menu = Create(() => null, _ => { }, weapons: weapons);
+        BattleLoadoutEditorWeapon[] weapons = assets.WeaponDefinitions.Select(weapon => new BattleLoadoutEditorWeapon(weapon.Id, weapon.Name, weapon.CharacterId, assets.ReadWeaponProfile(weapon.Id).Capabilities, weapon.Tier)).ToArray();
+        BattleLoadoutModelPreview? preview = null;
+        MenuController menu = Create(_ => { }, weapons: weapons, preview: (draft, character, _) =>
+        {
+            preview = BattleLoadoutModelPreview.Prepare(assets, character, 0, draft.ResolveWeapon(character));
+            return Task.FromResult(preview);
+        });
         Directory.CreateDirectory(output!);
         Open(menu);
-        Render("roster");
-        menu.Execute(new("loadout-character", Value: "0"));
-        Render("character");
-        Select(menu, "families");
-        Render("families");
-        Select(menu, nameof(BattleLimitFamily.Duel));
-        Render("family-actions");
-        menu.Navigate(MenuInput.Cancel);
-        menu.Navigate(MenuInput.Cancel);
-        Select(menu, "weapon");
-        Render("weapons");
-        Assert.Equal(weapons.Length, menu.Entries.Count);
-        HashSet<string> visited = [];
-        for (int index = 0; index < weapons.Length; index++)
-        {
-            visited.Add(menu.SelectedEntry!.Id);
-            if (index + 1 < weapons.Length)
-            {
-                menu.Navigate(MenuInput.Down);
-            }
-        }
-        Assert.Equal(weapons.Select(weapon => "weapon-" + weapon.WeaponId).Order(), visited.Order());
-        Render("weapons-scrolled");
-        Assert.Contains(menu.CurrentScreen.Details(menu), line => line == "Weapon: Revolver");
+        Render("weapons-and-limits");
+        BattleLoadoutModelPreview rendered = Assert.IsType<BattleLoadoutModelPreview>(preview);
+        Assert.True(rendered.CurrentFrame >= 0);
+        var pose = rendered.Render(0).Pixels.ToArray();
+        Assert.Contains(pose, pixel => pixel.A > 0);
+        Assert.Contains(Enumerable.Range(1, 8), frame => !pose.AsSpan().SequenceEqual(rendered.Render(frame / 30f).Pixels));
+        Select(menu, "weapon-type-8");
+        Render("weapon-dropdown");
 
         void Render(string name)
         {
@@ -150,15 +207,37 @@ public sealed class BattleLoadoutEditorTests
             using BattlePreviewCanvas canvas = new(bitmap, gameDirectory);
             UiView view = menu.BuildView();
             view.Resize(bitmap.Width, bitmap.Height);
+            UiElement[] controls = Elements(view.Root).ToArray();
+            Assert.Contains(controls, control => control.Id == "loadout-weapons" && !control.Bounds.IsEmpty);
+            Assert.Contains(controls, control => control.Id == "loadout-character-model" && !control.Bounds.IsEmpty);
+            Assert.Contains(controls, control => control.Id == "limit-Renzokuken-check" && !control.Bounds.IsEmpty);
             view.Draw(canvas, menu.CreateTheme());
             bitmap.SavePng(Path.Combine(output!, name + ".png"));
         }
     }
 
-    private static MenuController Create(Func<BattleLoadoutOverrides?> read, Action<BattleLoadoutDraft> apply, Func<string?>? boundary = null, Func<bool>? available = null, BattleLoadoutEditorWeapon[]? weapons = null)
+    private static IEnumerable<UiElement> Elements(UiElement root)
     {
-        MenuController menu = new(() => MenuDemoData.Create());
-        menu.ConnectBattleLoadoutEditor(() => new(new(read(), [new(0, 0, [BattleLimitFamily.Renzokuken]), new(8, 33, [BattleLimitFamily.Desperado])]), [new(0, "Squall", "Squall"), new(8, "Laguna", "Laguna")], weapons ?? [new(0, "Revolver", "Squall", "Gunblade", "Gunblade"), new(33, "Machine Gun", "Laguna", "Machine gun", "Machine gun")]), apply, boundary ?? (() => null), (draft, character) => ["Weapon: " + (draft.ResolveWeapon(character) == 0 ? "Revolver" : "Machine Gun"), string.Join(", ", draft.ResolveFamilies(character))], available: available, familyStatus: (_, _, family) => BattleLoadoutLabels.CanonicalFacts(new() { LimitProgress = new(new string('0', 64), 3, 1, 0x11, 0, [0, 0, 0, 0, 0, 0, 0, 0]), SavedBattleFlags = new(NativeInputConfiguration.OriginalInitHash, 0) }, family));
+        yield return root;
+        foreach (UiElement child in root.Children)
+        {
+            foreach (UiElement element in Elements(child))
+            {
+                yield return element;
+            }
+        }
+    }
+
+    private static MenuController Create(Action<BattleLoadoutDraft> apply, Func<string?>? boundary = null, Func<bool>? available = null, BattleLoadoutEditorWeapon[]? weapons = null, Func<BattleLoadoutDraft, int, CancellationToken, Task<BattleLoadoutModelPreview>>? preview = null, Func<BattleLoadoutDraft, IProgress<(int Completed, int Total)>, CancellationToken, Task>? prepare = null)
+    {
+        MenuData data = new();
+        data.Characters.Add(new() { Id = "squall", NativeId = 0, Name = "Squall", InParty = true, Level = 17, CurrentHp = 890, MaximumHp = 920 });
+        data.Characters.Add(new() { Id = "laguna", NativeId = 8, Name = "Laguna", Level = 16, CurrentHp = 740, MaximumHp = 860 });
+        MenuController menu = new(() => data);
+        weapons ??= [new(0, "Revolver", 0, BattleWeaponCapabilities.Gunblade, 0), new(30, "Machine Gun", 8, BattleWeaponCapabilities.MachineGun, 0)];
+        menu.ConnectBattleLoadoutEditor(
+            () => new(new(null, [new(0, 0, [BattleLimitFamily.Renzokuken]), new(8, 30, [BattleLimitFamily.Desperado])], initialWeapons: [0, 30]), [new(0, "Squall"), new(8, "Laguna")], weapons),
+            apply, boundary ?? (() => null), available, preview, prepare);
         return menu;
     }
 

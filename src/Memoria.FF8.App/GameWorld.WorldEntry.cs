@@ -54,7 +54,7 @@ internal sealed partial class GameWorld
     {
         scene.PlayerMovementSpeedPercent = worldMovementSpeedPercent;
         scene.PrepareFieldEntry = PrepareNativeWorldFieldEntry;
-        scene.ReadFieldMagicStatRules = (vitals, row) => BattleResources.ReadPlayerNativeStatRules(vitals, row);
+        scene.ReadFieldMagicStatRules = (vitals, row) => BattleResources.ReadPlayerNativeStatRules(vitals, row, session.State.BattleLoadouts?.ResolveWeaponId(vitals.Records[row].CharacterId));
         scene.ResolveNativeAutoJunction = Events.ResolveNativeAutoJunction;
         scene.PrepareSalaryEffects = Events.PrepareSalaryEffects;
         scene.PrepareGlobalSound = Events.PrepareGlobalSound;

@@ -69,6 +69,11 @@ public sealed partial class MenuController
         {
             throw new InvalidOperationException($"Expected menu '{screenId}', found '{ScreenId}'.");
         }
+        if (IsBattleLoadoutEditor)
+        {
+            SelectBattleLoadoutEntry(entryId);
+            return;
+        }
         PrepareControlsSelection(screenId, entryId);
         IReadOnlyList<MenuEntry> entries = Entries;
         int index = -1;

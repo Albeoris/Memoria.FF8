@@ -100,6 +100,7 @@ internal sealed class MenuArtworkProvider(string gameDirectory, ResourceService?
             UiImageKind.Icon => (portraits ??= NativeMenuArtwork.Load(gameDirectory, resources)).GetIcon(source.Id, source.Palette),
             UiImageKind.NativeTutorialPage => (tutorials ??= NativeTutorialArtwork.Load(gameDirectory, resources)).Read(source.Id),
             UiImageKind.Magazine => (magazines ??= NativeMagazineArtwork.Load(gameDirectory, resources)).GetImage(source.Id),
+            UiImageKind.Weapon or UiImageKind.WeaponVariant => WeaponIconAtlas.ReadIcon(source),
             UiImageKind.MagazineButton => (magazines ??= NativeMagazineArtwork.Load(gameDirectory, resources)).GetButtonImage(source.Id),
             UiImageKind.ItemUseImage => ModImageDecoder.Decode(findItemUseImage?.Invoke(source.Id) ?? throw new NotSupportedException($"Use image is unavailable for inventory item {source.Id}.")).Image,
             _ => throw new NotSupportedException($"Unsupported menu artwork kind {source.Kind}.")

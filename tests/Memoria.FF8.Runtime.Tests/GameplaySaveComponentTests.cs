@@ -12,6 +12,48 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class GameplaySaveComponentTests
 {
     [Fact]
+    public void Weapon_instances_restore_legacy_grades_and_keep_inactive_and_exchanged_items()
+    {
+        BattleLoadoutDefaults[] defaults = [new(0, 0, [BattleLimitFamily.Renzokuken]), new(4, 19, [BattleLimitFamily.Combine])];
+        BattleLoadoutOverrides legacy = JsonSerializer.Deserialize<BattleLoadoutOverrides>("""{"Version":1,"Characters":{"0":{"WeaponId":6}}}""")!;
+        BattleLoadoutDraft draft = new(legacy, defaults, initialWeapons: [0, 19, 24]);
+        Assert.Null(draft.Overrides.WeaponInstances);
+        BattleWeaponInstance squallGunblade = draft.WeaponInstances!.GetEquipped(0)!;
+        Assert.Equal(6, squallGunblade.WeaponId);
+        Assert.Equal(19, draft.ResolveWeapon(4));
+
+        draft.CreateWeapon(4, 0);
+        BattleWeaponInstance rinoaGunblade = draft.WeaponInstances!.GetEquipped(4)!;
+        Assert.NotEqual(squallGunblade.Id, rinoaGunblade.Id);
+        BattleLoadoutOverrides upgraded = draft.Overrides.RemodelEquippedWeapon(4, 0, 2);
+        draft = new(upgraded, defaults, initialWeapons: [0, 19, 24]);
+        draft.CreateWeapon(4, 24);
+        BattleWeaponInstance nunchaku = draft.WeaponInstances!.GetEquipped(4)!;
+        draft.EquipWeapon(4, rinoaGunblade.Id);
+        Assert.Equal(new[] { 4 }, draft.ChangedCharacters);
+        draft.EquipWeapon(4, nunchaku.Id);
+        upgraded = draft.Overrides.RemodelEquippedWeapon(4, 24, 25);
+
+        using MemoryStream stream = new();
+        GameplaySaveCodec.Write(stream, Document() with { BattleLoadouts = upgraded });
+        stream.Position = 0;
+        BattleLoadoutDraft restored = new(GameplaySaveCodec.Read(stream).BattleLoadouts, defaults, initialWeapons: [0, 19, 24]);
+        Assert.Equal(25, restored.ResolveWeapon(4));
+        restored.EquipWeapon(4, rinoaGunblade.Id);
+        Assert.Equal(2, restored.ResolveWeapon(4));
+        Assert.Equal(6, restored.ResolveWeapon(0));
+        Assert.Equal(25, restored.WeaponInstances!.Instances[nunchaku.Id].WeaponId);
+
+        restored.EquipWeapon(4, squallGunblade.Id);
+        Assert.Equal(6, restored.ResolveWeapon(4));
+        Assert.Equal(2, restored.ResolveWeapon(0));
+        Assert.Equal(0, restored.WeaponInstances!.Instances[rinoaGunblade.Id].OwnerCharacterId);
+        Assert.Equal(4, restored.WeaponInstances.Instances[squallGunblade.Id].OwnerCharacterId);
+        Assert.Equal(new[] { 0, 4 }, restored.ChangedCharacters);
+        Assert.Throws<InvalidOperationException>(() => restored.CreateWeapon(4, 6));
+    }
+
+    [Fact]
     public void Optional_loadout_component_preserves_absent_and_explicit_empty_families()
     {
         GameplaySaveComponentDocument document = Document() with
@@ -177,7 +219,7 @@ public sealed class GameplaySaveComponentTests
         }
         Assert.Contains(typeof(GameplaySaveGuardianForce), visited);
         Assert.Contains(typeof(NativeCharacterJunction), visited);
-        Type[] allowed = [typeof(BattleLoadoutOverrides), typeof(BattleCharacterLoadoutOverride), typeof(BattleLimitFamily), typeof(GameplaySaveAudioPresentation), typeof(GameplaySaveAudioTrack), typeof(GameplaySaveAudioVoice), typeof(GameplaySaveAudioPosition), typeof(GameplaySaveComponentDocument), typeof(GameplaySaveResumeDescriptor), typeof(GameplaySaveResumeKind), typeof(GameplaySaveFieldPosition), typeof(GameplaySaveWorldPosition), typeof(GameplaySaveCharacters), typeof(GameplaySaveGuardianForce), typeof(GameplaySaveGuardianForceRecovery), typeof(GameplaySaveGuardianForceRecoveryRow), typeof(GameplaySaveGuardianForceRecoveryAbility), typeof(GameplaySaveGuardianForceIntent), typeof(GameplaySaveGuardianForceDocument), typeof(GameplaySaveGuardianForceOperation), typeof(GameplaySaveGuardianForceProducer), typeof(GuardianForceAbilityOperationKind), typeof(GameplaySaveMagic), typeof(GameplaySaveEconomy), typeof(GameplaySaveLimitProgress), typeof(NativeCharacterVital), typeof(NativeStatBonusSources), typeof(NativeStatBonusGroup), typeof(NativeHpWord), typeof(NativeCharacterJunction), typeof(NativeMagicStock), typeof(NativeGuardianForceLearnedBank), typeof(NativeGuardianForceOpaqueBytes), typeof(GuardianForceProgression), typeof(GuardianForceAbilityProgress), typeof(MagicAttackMode), typeof(NativeItemStock)];
+        Type[] allowed = [typeof(BattleLoadoutOverrides), typeof(BattleCharacterLoadoutOverride), typeof(BattleWeaponInventory), typeof(BattleWeaponInstance), typeof(BattleLimitFamily), typeof(GameplaySaveAudioPresentation), typeof(GameplaySaveAudioTrack), typeof(GameplaySaveAudioVoice), typeof(GameplaySaveAudioPosition), typeof(GameplaySaveComponentDocument), typeof(GameplaySaveResumeDescriptor), typeof(GameplaySaveResumeKind), typeof(GameplaySaveFieldPosition), typeof(GameplaySaveWorldPosition), typeof(GameplaySaveCharacters), typeof(GameplaySaveGuardianForce), typeof(GameplaySaveGuardianForceRecovery), typeof(GameplaySaveGuardianForceRecoveryRow), typeof(GameplaySaveGuardianForceRecoveryAbility), typeof(GameplaySaveGuardianForceIntent), typeof(GameplaySaveGuardianForceDocument), typeof(GameplaySaveGuardianForceOperation), typeof(GameplaySaveGuardianForceProducer), typeof(GuardianForceAbilityOperationKind), typeof(GameplaySaveMagic), typeof(GameplaySaveEconomy), typeof(GameplaySaveLimitProgress), typeof(NativeCharacterVital), typeof(NativeStatBonusSources), typeof(NativeStatBonusGroup), typeof(NativeHpWord), typeof(NativeCharacterJunction), typeof(NativeMagicStock), typeof(NativeGuardianForceLearnedBank), typeof(NativeGuardianForceOpaqueBytes), typeof(GuardianForceProgression), typeof(GuardianForceAbilityProgress), typeof(MagicAttackMode), typeof(NativeItemStock)];
         // Completion/setup records contain durable values, inventories, policies and definition rows, not live execution or installed resource owners.
         Type[] completedGameAndSetupData = [typeof(CompletedGameData), typeof(Ff8CompletionState), typeof(NewGamePlusDefinition), typeof(GameplayLevelRules), typeof(NewGamePlusRewardRules), typeof(NewGamePlusPreset), typeof(NewGamePlusCharacter), typeof(NewGamePlusMagicBank), typeof(NewGamePlusDreamMagicBank), typeof(MagicStockMove), typeof(GuardianForceAbilityTemplate), typeof(GameplayPreferences), typeof(GameplayTuning), typeof(BattleDifficulty), typeof(BattleAtbMode), typeof(BattleGunbladeMode), typeof(ChocoboWorldMode), typeof(RareItemProbabilities), typeof(TripleTriadSettings), typeof(TripleTriadAssistance), typeof(TripleTriadStatistics), typeof(NativeCardInventory), typeof(NativePlaytimeState)];
         Assert.All(visited.Where(type => !type.IsArray && type.Namespace == typeof(GameState).Namespace), type => Assert.Contains(type, allowed.Concat(completedGameAndSetupData)));

@@ -9,6 +9,34 @@ public sealed class NativeWeaponShopTests
     private static string GameDirectory => TestResources.GameDirectory;
 
     [Fact]
+    public void Workshop_charges_and_upgrades_the_selected_foreign_weapon_instance()
+    {
+        using GameAssets assets = new(GameDirectory);
+        NativeWeaponShopDefinitions definitions = assets.ReadNativeWeaponShopDefinitions();
+        NativeEconomy economy = EconomyWithMaterials(assets, definitions, 1);
+        NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals().DeepCopy();
+        vitals.Records[4] = vitals.Records[4] with { MemberFlags = (ushort)(vitals.Records[4].MemberFlags | 1) };
+        BattleLoadoutDraft draft = new(null, [new(0, 6, []), new(4, vitals.GetBattleWeapon(4), [])], initialWeapons: [0]);
+        draft.CreateWeapon(4, 0);
+        int rinoaWeapon = draft.WeaponInstances!.GetEquipped(4)!.Id;
+        var opened = NativeWeaponShopTransaction.Begin(34, definitions, economy, vitals, assets.ReadNewGameWeaponRecipes(), new() { WeaponUpgradeOrder = true }, draft.Overrides);
+        var selected = opened.Shop.SelectCharacter(4, opened.Recipes);
+        NativeWeaponShopTransaction restored = JsonSerializer.Deserialize<NativeWeaponShopTransaction>(JsonSerializer.Serialize(selected.Shop))!;
+        Assert.Equal(0, restored.EquippedWeapon(opened.Vitals));
+        Assert.All(restored.AvailableRecipes, offer => Assert.Equal(0, definitions.Recipes[offer & 0x3F].Character));
+        Assert.True(restored.MissingPreviousUpgrade(2));
+        var remodeled = restored.Remodel(1, opened.Vitals, selected.Recipes, out bool accepted);
+        Assert.True(accepted);
+        Assert.Equal(vitals.Records[4].Weapon, remodeled.Vitals.Records[4].Weapon);
+        Assert.Equal(restored.Gil - restored.Price(1), remodeled.Shop.Gil);
+        BattleLoadoutOverrides saved = draft.Overrides.RemodelEquippedWeapon(4, 0, 1);
+        Assert.Equal(rinoaWeapon, saved.WeaponInstances!.GetEquipped(4)!.Id);
+        Assert.Equal(1, saved.ResolveWeaponId(4));
+        Assert.Equal(6, saved.ResolveWeaponId(0));
+        Assert.Throws<InvalidDataException>(() => saved.RemodelEquippedWeapon(4, 0, 1));
+    }
+
+    [Fact]
     public void AuthenticWeaponsRetain33RowsAndGenuineNonzeroRecipeWord()
     {
         using GameAssets assets = new(GameDirectory);

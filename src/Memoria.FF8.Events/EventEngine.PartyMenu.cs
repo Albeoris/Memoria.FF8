@@ -170,7 +170,7 @@ public sealed partial class EventEngine
         return location;
     }
 
-    private void PublishPartyMenuCallback(NativeCharacterVitals vitals, NativeEconomy economy, NativeShotAvailabilityState shots, NativeSalaryPresentation salary, bool? timerDisplay = null, NativeFieldLocation? fieldLocation = null, bool advanceVibration = false, bool clearControllerRequests = false, bool markPrimaryControllerPending = false, NativeShopHistory? shopHistory = null, NativeMenuRandomState? menuRandom = null, NativeWeaponRecipes? weaponRecipes = null, NativeCardInventory? cardInventory = null, NativeLimitProgress? limitProgress = null)
+    private void PublishPartyMenuCallback(NativeCharacterVitals vitals, NativeEconomy economy, NativeShotAvailabilityState shots, NativeSalaryPresentation salary, bool? timerDisplay = null, NativeFieldLocation? fieldLocation = null, bool advanceVibration = false, bool clearControllerRequests = false, bool markPrimaryControllerPending = false, NativeShopHistory? shopHistory = null, NativeMenuRandomState? menuRandom = null, NativeWeaponRecipes? weaponRecipes = null, NativeCardInventory? cardInventory = null, NativeLimitProgress? limitProgress = null, BattleLoadoutOverrides? battleLoadouts = null)
     {
         NativeFieldCallbackClock clock = Scene.FieldCallbackClock ?? throw new NotSupportedException("Party menu requires its actual field allocation clock history.");
         clock.Validate(Frame);
@@ -195,7 +195,7 @@ public sealed partial class EventEngine
         {
             vibration = (vibration ?? throw new NotSupportedException("Native party menu entry requires its49E6D0 controller request owner.")).MarkControllerPending(0);
         }
-        services.SetNativePartyMenuOwners(vitals, economy, shots, salary, timer, fieldLocation, vibration, shopHistory: shopHistory, menuRandom: menuRandom, weaponRecipes: weaponRecipes, cardInventory: cardInventory, limitProgress: limitProgress);
+        services.SetNativePartyMenuOwners(vitals, economy, shots, salary, timer, fieldLocation, vibration, shopHistory: shopHistory, menuRandom: menuRandom, weaponRecipes: weaponRecipes, cardInventory: cardInventory, limitProgress: limitProgress, battleLoadouts: battleLoadouts);
         Scene.FieldCallbackClock = clock with { MenuCallbacks = menuCallbacks };
     }
 

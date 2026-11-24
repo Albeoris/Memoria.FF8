@@ -19,7 +19,7 @@ public sealed partial class EventEngine
         {
             throw new NotSupportedException("Native weapon shop cannot publish its genuine recipe discovery owner.");
         }
-        return NativeWeaponShopTransaction.Begin(raw, definitions, services.Economy!, services.CharacterVitals!, recipes, services.GameplayPreferences);
+        return NativeWeaponShopTransaction.Begin(raw, definitions, services.Economy!, services.CharacterVitals!, recipes, services.GameplayPreferences, services.CurrentBattleLoadouts);
     }
 
     private bool CloseNativeWeaponShop()
@@ -43,7 +43,7 @@ public sealed partial class EventEngine
 
     private bool SelectNativeWeaponShopCharacter(int character)
     {
-        if (partyMenu is not { Phase: NativePartyMenuPhase.Active, Kind: NativeFieldMenuKind.WeaponShop, WeaponShop: not null } current || (uint)character >= 6 || (current.WeaponShop.EligibleMask & 1 << character) == 0)
+        if (partyMenu is not { Phase: NativePartyMenuPhase.Active, Kind: NativeFieldMenuKind.WeaponShop, WeaponShop: not null } current || (uint)character >= services.CharacterVitals!.Records.Length || (current.WeaponShop.EligibleMask & 1 << character) == 0)
         {
             return false;
         }
@@ -64,7 +64,14 @@ public sealed partial class EventEngine
         {
             return false;
         }
-        PublishPartyMenuCallback(remodeled.Vitals, services.Economy!, services.ShotAvailability!, services.SalaryPresentation!.Advance(1), advanceVibration: true, weaponRecipes: remodeled.Recipes);
+        BattleLoadoutOverrides? loadouts = null;
+        if (current.WeaponShop.ManagedWeapons?.TryGetValue(current.WeaponShop.SelectedCharacter, out int weapon) == true)
+        {
+            int identity = remodeled.Vitals.Records[current.WeaponShop.SelectedCharacter].CharacterId;
+            loadouts = services.CurrentBattleLoadouts ?? throw new InvalidDataException("The weapon shop lost its equipped weapon.");
+            loadouts = loadouts.RemodelEquippedWeapon(identity, weapon, recipeId);
+        }
+        PublishPartyMenuCallback(remodeled.Vitals, services.Economy!, services.ShotAvailability!, services.SalaryPresentation!.Advance(1), advanceVibration: true, weaponRecipes: remodeled.Recipes, battleLoadouts: loadouts);
         partyMenu = current with { WeaponShop = remodeled.Shop, Callbacks = checked(current.Callbacks + 1) };
         return true;
     }
@@ -85,6 +92,10 @@ public sealed partial class EventEngine
         }
         NativeWeaponShopTransaction shop = menu.WeaponShop ?? throw new InvalidDataException("Active weapon shop lacks its actual native recipe/cache owner.");
         shop.Validate();
+        if ((shop.EligibleMask >> saved.CharacterVitals.Records.Length) != 0 || shop.ManagedWeapons?.Keys.Any(row => row >= saved.CharacterVitals.Records.Length) == true)
+        {
+            throw new InvalidDataException("Saved workshop equipment points to a missing character row.");
+        }
         if (shop.RawArgument != raw || shop.InitOutSha256 != saved.Economy.InitOutSha256 || shop.Definitions.KernelHash != saved.CharacterVitals.KernelSha256 || shop.Past != saved.CharacterVitals.DreamEnabled || saved.WeaponRecipes.InitOutSha256 != shop.InitOutSha256 || shop.AvailableRecipes.Any(offer => (saved.WeaponRecipes.Bits & 1u << (offer & 0x3F)) == 0))
         {
             throw new InvalidDataException("Saved weapon shop changed its genuine source or known-recipe constructor effects.");

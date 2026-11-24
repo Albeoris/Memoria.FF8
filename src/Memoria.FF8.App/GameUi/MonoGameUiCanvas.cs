@@ -17,6 +17,7 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
     internal IReadOnlyCollection<Albeoris.Games.FF8.Imaging.PixelImage> PresentedTextureImages => presentedTextureImages;
     private readonly Stack<Rectangle> clips = new();
     private Texture2D? menuPointer;
+    private Texture2D? weaponIconAtlas;
     private readonly MenuArtworkProvider artwork = new(gameDirectory, resources, findItemUseImage);
     private readonly Dictionary<UiImageSource, Texture2D> images = [];
     private string? cardFontFamily;
@@ -164,6 +165,15 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
 
     private Texture2D GetImage(UiImageSource source)
     {
+        if (source.Kind is UiImageKind.Weapon or UiImageKind.WeaponVariant)
+        {
+            if (weaponIconAtlas is null)
+            {
+                weaponIconAtlas = WeaponIconAtlas.Load(device);
+                ImageUploadCount++;
+            }
+            return weaponIconAtlas;
+        }
         RefreshItemImageVersion(source);
         if (artworkGeneration != artwork.Generation)
         {
@@ -219,16 +229,17 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
         {
             presentedTextureImages.Add(presented);
         }
-        UiRect destination = stretch || source.Kind == UiImageKind.Magazine ? bounds : UiImage.Fit(bounds, texture.Width, texture.Height);
+        Rectangle artworkBounds = source.Kind is UiImageKind.Weapon or UiImageKind.WeaponVariant ? WeaponIconAtlas.Bounds(source) : texture.Bounds;
+        UiRect destination = stretch || source.Kind == UiImageKind.Magazine ? bounds : UiImage.Fit(bounds, artworkBounds.Width, artworkBounds.Height);
         Rectangle clip = Rectangle.Intersect(RectangleFor(bounds), CurrentClip);
-        Vector2 scale = new(destination.Width / texture.Width, destination.Height / texture.Height);
-        int left = Math.Clamp((int)MathF.Ceiling((clip.Left - destination.X) / scale.X), 0, texture.Width);
-        int top = Math.Clamp((int)MathF.Ceiling((clip.Top - destination.Y) / scale.Y), 0, texture.Height);
-        int right = Math.Clamp((int)MathF.Floor((clip.Right - destination.X) / scale.X), left, texture.Width);
-        int bottom = Math.Clamp((int)MathF.Floor((clip.Bottom - destination.Y) / scale.Y), top, texture.Height);
+        Vector2 scale = new(destination.Width / artworkBounds.Width, destination.Height / artworkBounds.Height);
+        int left = Math.Clamp((int)MathF.Ceiling((clip.Left - destination.X) / scale.X), 0, artworkBounds.Width);
+        int top = Math.Clamp((int)MathF.Ceiling((clip.Top - destination.Y) / scale.Y), 0, artworkBounds.Height);
+        int right = Math.Clamp((int)MathF.Floor((clip.Right - destination.X) / scale.X), left, artworkBounds.Width);
+        int bottom = Math.Clamp((int)MathF.Floor((clip.Bottom - destination.Y) / scale.Y), top, artworkBounds.Height);
         if (right > left && bottom > top)
         {
-            Rectangle sourceBounds = new(flipHorizontal ? texture.Width - right : left, top, right - left, bottom - top);
+            Rectangle sourceBounds = new(artworkBounds.X + (flipHorizontal ? artworkBounds.Width - right : left), artworkBounds.Y + top, right - left, bottom - top);
             Vector2 position = new(destination.X + left * scale.X, destination.Y + top * scale.Y);
             batch.Draw(texture, position, sourceBounds, Color.White * opacity, 0, Vector2.Zero, scale, flipHorizontal ? SpriteEffects.FlipHorizontally : SpriteEffects.None, 0);
         }
@@ -485,6 +496,7 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
         DisposeModPreviews();
         paper?.Dispose();
         menuPointer?.Dispose();
+        weaponIconAtlas?.Dispose();
         foreach (Texture2D button in controllerButtons.Values)
         {
             button.Dispose();

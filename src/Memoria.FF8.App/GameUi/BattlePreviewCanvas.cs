@@ -115,6 +115,17 @@ internal sealed class BattlePreviewCanvas : IUiCanvas, IControllerButtonCanvas, 
         DrawImage(source, bounds, stretch: true);
     }
 
+    public void RasterImage(Albeoris.Games.FF8.Imaging.PixelImage image, UiRect bounds, int slot, long revision = 0)
+    {
+        if (bounds.IsEmpty)
+        {
+            return;
+        }
+        byte[] rgba = System.Runtime.InteropServices.MemoryMarshal.AsBytes(image.Pixels.AsSpan()).ToArray();
+        using SKBitmap bitmap = BitmapFromRgba(rgba, image.Width, image.Height);
+        graphics.DrawBitmap(bitmap, RectFor(UiImage.Fit(bounds, image.Width, image.Height)));
+    }
+
     private void DrawImage(UiImageSource source, UiRect bounds, bool stretch, float opacity = 1)
     {
         opacity *= source.Opacity / 255f;

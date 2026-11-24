@@ -16,6 +16,11 @@ public sealed partial class BattleAssets
 
     public BattleModel LoadPlayerForStyle(int character, int costume, int sourceCharacter, int? sourceWeaponId = null)
     {
+        return WithPlayerModelResources(() => ReadPlayerForStyle(character, costume, sourceCharacter, sourceWeaponId));
+    }
+
+    private BattleModel ReadPlayerForStyle(int character, int costume, int sourceCharacter, int? sourceWeaponId)
+    {
         BattleModel recipient = LoadPlayer(character, costume);
         if (sourceCharacter == character)
         {

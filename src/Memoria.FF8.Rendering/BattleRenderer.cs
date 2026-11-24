@@ -145,7 +145,7 @@ public sealed partial class BattleRenderer
         }
     }
 
-    private void Begin(BattleCamera camera)
+    private void Begin(BattleCamera camera, bool transparentBackground = false)
     {
         sceneProjectionReady = true;
         actorBounds.Clear();
@@ -166,7 +166,7 @@ public sealed partial class BattleRenderer
             Array.Fill(depth, float.NegativeInfinity);
         }
         DrawnTriangles = 0;
-        for (int index = 0; TriangleRenderer is null && index < pixels.Length; index += 4)
+        for (int index = 0; !transparentBackground && TriangleRenderer is null && index < pixels.Length; index += 4)
         {
             pixels[index] = 17;
             pixels[index + 1] = 20;

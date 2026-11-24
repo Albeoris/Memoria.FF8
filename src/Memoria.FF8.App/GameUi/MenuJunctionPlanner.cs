@@ -56,7 +56,7 @@ public sealed class MenuJunctionPlanner
         this.names = names is null ? null : new Dictionary<int, string>(names);
         this.catalog = catalog;
         this.placeId = placeId;
-        equippedWeapons = Enumerable.Range(0, source.Records.Length).Select(row => state.BattleLoadouts?.Get(source.Records[row].CharacterId)?.WeaponId ?? source.GetBattleWeapon(row)).ToArray();
+        equippedWeapons = Enumerable.Range(0, source.Records.Length).Select(row => state.BattleLoadouts?.ResolveWeaponId(source.Records[row].CharacterId) ?? source.GetBattleWeapon(row)).ToArray();
         rulesFingerprint = (catalog?.StatRulesFingerprint ?? "Unavailable") + ":" + string.Join(",", equippedWeapons.Select(weapon => weapon.ToString(CultureInfo.InvariantCulture)));
         nativeFingerprint = NativeJunctionEdits.Fingerprint(source);
         SourceFingerprint = nativeFingerprint + ":" + rulesFingerprint;

@@ -172,7 +172,7 @@ public static class LiveMenuData
                 }
                 else
                 {
-                    int weapon = state.BattleLoadouts?.Get(native.CharacterId)?.WeaponId ?? vitals.GetBattleWeapon(row);
+                    int weapon = state.BattleLoadouts?.ResolveWeaponId(native.CharacterId) ?? vitals.GetBattleWeapon(row);
                     character = new()
                     {
                         SavedStatuses = native.Status,
@@ -268,12 +268,12 @@ public static class LiveMenuData
                         character.JunctionPreview = (slotName, spellId) =>
                         {
                             NativeCharacterVitals preview = Preview(slotName, spellId);
-                            return Statistics(catalog.ReadStatRules(preview, characterRow, state.BattleLoadouts?.Get(preview.Records[characterRow].CharacterId)?.WeaponId), preview.Records[characterRow], preview.GetMagicInventory(characterRow));
+                            return Statistics(catalog.ReadStatRules(preview, characterRow, state.BattleLoadouts?.ResolveWeaponId(preview.Records[characterRow].CharacterId)), preview.Records[characterRow], preview.GetMagicInventory(characterRow));
                         };
                         character.JunctionEffectsPreview = (slotName, spellId) =>
                         {
                             NativeCharacterVitals preview = Preview(slotName, spellId);
-                            return JunctionEffects(catalog.ReadStatRules(preview, characterRow, state.BattleLoadouts?.Get(preview.Records[characterRow].CharacterId)?.WeaponId), preview.Records[characterRow], preview.GetMagicInventory(characterRow));
+                            return JunctionEffects(catalog.ReadStatRules(preview, characterRow, state.BattleLoadouts?.ResolveWeaponId(preview.Records[characterRow].CharacterId)), preview.Records[characterRow], preview.GetMagicInventory(characterRow));
                         };
                     }
                     for (int slot = 0; slot < 19; slot++)
@@ -454,7 +454,7 @@ public static class LiveMenuData
         {
             if (!rules.TryGetValue(row, out BattleNativePlayerStatRules? result))
             {
-                result = readRules?.Invoke(row) ?? catalog!.ReadStatRules(vitals, row, loadouts?.Get(vitals.Records[row].CharacterId)?.WeaponId);
+                result = readRules?.Invoke(row) ?? catalog!.ReadStatRules(vitals, row, loadouts?.ResolveWeaponId(vitals.Records[row].CharacterId));
                 rules.Add(row, result);
             }
             return result;

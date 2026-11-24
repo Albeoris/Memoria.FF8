@@ -20,6 +20,43 @@ public sealed record BattleLoadoutOverrides
     public int Version { get; init; } = CurrentVersion;
     public ImmutableSortedDictionary<int, BattleCharacterLoadoutOverride> Characters { get; init; } = ImmutableSortedDictionary<int, BattleCharacterLoadoutOverride>.Empty;
 
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public BattleWeaponInventory? WeaponInstances { get; init; }
+
+    public int? ResolveWeaponId(int character)
+    {
+        return WeaponInstances?.GetEquipped(character)?.WeaponId ?? Characters.GetValueOrDefault(character)?.WeaponId;
+    }
+
+    public BattleLoadoutOverrides RemodelEquippedWeapon(int character, int expectedWeapon, int upgradedWeapon)
+    {
+        if (ResolveWeaponId(character) != expectedWeapon)
+        {
+            throw new InvalidDataException("The equipped weapon changed while the workshop was open.");
+        }
+        BattleWeaponInventory inventory = WeaponInstances ?? new();
+        if (inventory.GetEquipped(character) is null)
+        {
+            inventory = inventory.Add(character, expectedWeapon);
+        }
+        BattleLoadoutOverrides result = WithWeaponInventory(inventory.Remodel(character, upgradedWeapon));
+        result.Validate();
+        return result;
+    }
+
+    internal BattleLoadoutOverrides WithWeaponInventory(BattleWeaponInventory inventory)
+    {
+        var characters = Characters;
+        foreach (int character in inventory.Equipped.Keys)
+        {
+            if (characters.TryGetValue(character, out BattleCharacterLoadoutOverride? entry) && entry.WeaponId is not null)
+            {
+                characters = entry.LimitFamilies is null ? characters.Remove(character) : characters.SetItem(character, entry with { WeaponId = null });
+            }
+        }
+        return this with { WeaponInstances = inventory, Characters = characters };
+    }
+
     public BattleCharacterLoadoutOverride? Get(int characterId)
     {
         return Characters.GetValueOrDefault(characterId)?.DeepCopy();
@@ -36,9 +73,10 @@ public sealed record BattleLoadoutOverrides
         {
             throw new InvalidDataException("Unsupported battle loadout schema.");
         }
+        WeaponInstances?.Validate();
         foreach ((int character, BattleCharacterLoadoutOverride entry) in Characters)
         {
-            if (character is < 0 or > 10 || entry is null || entry.WeaponId is < 0 || entry.LimitFamilies is { } families && (families.Any(family => !Enum.IsDefined(family)) || families.Distinct().Count() != families.Length))
+            if (character is < 0 or > 10 || entry is null || entry.WeaponId is < 0 || (entry.WeaponId is not null && WeaponInstances?.Equipped.ContainsKey(character) == true) || entry.LimitFamilies is { } families && (families.Any(family => !Enum.IsDefined(family)) || families.Distinct().Count() != families.Length))
             {
                 throw new InvalidDataException($"Invalid battle loadout for character {character}.");
             }
@@ -54,10 +92,25 @@ public sealed class BattleLoadoutDraft
     private BattleLoadoutOverrides overrides;
     private readonly BattleLoadoutOverrides original;
     private readonly Dictionary<int, BattleLoadoutDefaults> defaults;
+    private readonly HashSet<int> initialWeapons;
+    private readonly BattleWeaponInventory? originalInventory;
+    public BattleWeaponInventory? WeaponInstances { get; private set; }
+
     internal GameSession? Owner { get; set; }
     internal string Baseline { get; set; } = "";
     internal string ResourceRevision { get; }
-    public IReadOnlyList<int> ChangedCharacters => defaults.Keys.Where(character => !Equivalent(original.Get(character), overrides.Get(character))).Order().ToArray();
+    public IReadOnlyList<int> ChangedCharacters => defaults.Keys.Where(CharacterChanged).Order().ToArray();
+
+    private bool CharacterChanged(int character)
+    {
+        if (originalInventory is null || WeaponInstances is not { } inventory)
+        {
+            return !Equivalent(original.Get(character), overrides.Get(character));
+        }
+        return originalInventory.GetEquipped(character) != inventory.GetEquipped(character)
+            || !originalInventory.Instances.Values.Where(item => item.OwnerCharacterId == character).SequenceEqual(inventory.Instances.Values.Where(item => item.OwnerCharacterId == character))
+            || !EquivalentLimits(original.Get(character), overrides.Get(character));
+    }
 
     private static bool Equivalent(BattleCharacterLoadoutOverride? first, BattleCharacterLoadoutOverride? second)
     {
@@ -65,19 +118,25 @@ public sealed class BattleLoadoutDraft
         {
             return first is null && second is null;
         }
-        return first.WeaponId == second.WeaponId && (first.LimitFamilies is null || second.LimitFamilies is null ? first.LimitFamilies is null && second.LimitFamilies is null : first.LimitFamilies.SequenceEqual(second.LimitFamilies));
+        return first.WeaponId == second.WeaponId && EquivalentLimits(first, second);
+    }
+
+    private static bool EquivalentLimits(BattleCharacterLoadoutOverride? first, BattleCharacterLoadoutOverride? second)
+    {
+        return first?.LimitFamilies is { } families ? second?.LimitFamilies is { } other && families.SequenceEqual(other) : second?.LimitFamilies is null;
     }
 
     public IReadOnlyList<int> Characters => defaults.Keys.Order().ToArray();
     public BattleLoadoutOverrides Overrides => overrides.DeepCopy();
 
-    public BattleLoadoutDraft(BattleLoadoutOverrides? source, IEnumerable<BattleLoadoutDefaults> defaults, string resourceRevision = "")
+    public BattleLoadoutDraft(BattleLoadoutOverrides? source, IEnumerable<BattleLoadoutDefaults> defaults, string resourceRevision = "", IEnumerable<int>? initialWeapons = null)
     {
         overrides = source?.DeepCopy() ?? new();
         overrides.Validate();
         original = overrides.DeepCopy();
         this.defaults = defaults.ToDictionary(entry => entry.CharacterId, entry => entry with { LimitFamilies = entry.LimitFamilies.ToArray() });
         ResourceRevision = resourceRevision;
+        this.initialWeapons = initialWeapons?.ToHashSet() ?? [];
         foreach (BattleLoadoutDefaults entry in this.defaults.Values)
         {
             if (entry.CharacterId is < 0 or > 10 || entry.WeaponId < 0 || entry.LimitFamilies.Any(family => !Enum.IsDefined(family)) || entry.LimitFamilies.Distinct().Count() != entry.LimitFamilies.Length)
@@ -85,6 +144,51 @@ public sealed class BattleLoadoutDraft
                 throw new InvalidDataException("Invalid native loadout defaults.");
             }
         }
+        if (initialWeapons is not null)
+        {
+            BattleWeaponInventory inventory = overrides.WeaponInstances ?? new();
+            foreach (BattleLoadoutDefaults entry in this.defaults.Values.OrderBy(entry => entry.CharacterId))
+            {
+                if (inventory.GetEquipped(entry.CharacterId) is null)
+                {
+                    inventory = inventory.Add(entry.CharacterId, overrides.ResolveWeaponId(entry.CharacterId) ?? entry.WeaponId);
+                }
+            }
+            originalInventory = inventory;
+            WeaponInstances = inventory;
+        }
+    }
+
+    public void EquipWeapon(int character, int instanceId)
+    {
+        RequireCharacter(character);
+        BattleWeaponInventory inventory = WeaponInstances ?? throw new InvalidOperationException("Weapon instances are unavailable.");
+        if (inventory.Instances.TryGetValue(instanceId, out BattleWeaponInstance? instance))
+        {
+            RequireCharacter(instance.OwnerCharacterId);
+        }
+        BattleWeaponInventory next = inventory.Equip(character, instanceId);
+        if (next.Equipped != inventory.Equipped)
+        {
+            ChangeInventory(next);
+        }
+    }
+
+    public void CreateWeapon(int character, int weaponId)
+    {
+        RequireCharacter(character);
+        if (!initialWeapons.Contains(weaponId) || WeaponInstances is null)
+        {
+            throw new InvalidOperationException("A new weapon must use its initial grade.");
+        }
+        ChangeInventory(WeaponInstances.Add(character, weaponId));
+    }
+
+    private void ChangeInventory(BattleWeaponInventory next)
+    {
+        next.Validate();
+        overrides = overrides.WithWeaponInventory(next);
+        WeaponInstances = next;
     }
 
     private BattleCharacterLoadoutOverride Entry(int character)
@@ -111,7 +215,8 @@ public sealed class BattleLoadoutDraft
 
     public int ResolveWeapon(int character)
     {
-        return Entry(character).WeaponId ?? defaults[character].WeaponId;
+        RequireCharacter(character);
+        return WeaponInstances?.GetEquipped(character)?.WeaponId ?? overrides.ResolveWeaponId(character) ?? defaults[character].WeaponId;
     }
 
     public BattleLimitFamily[] ResolveFamilies(int character)
@@ -121,6 +226,11 @@ public sealed class BattleLoadoutDraft
 
     public void AssignWeapon(int character, int weaponId)
     {
+        if (WeaponInstances is not null)
+        {
+            CreateWeapon(character, weaponId);
+            return;
+        }
         Set(character, Entry(character) with { WeaponId = weaponId });
     }
 
@@ -171,6 +281,11 @@ public sealed class BattleLoadoutDraft
         RequireCharacter(second);
         if (first == second)
         {
+            return;
+        }
+        if (WeaponInstances?.GetEquipped(second) is { } instance)
+        {
+            EquipWeapon(first, instance.Id);
             return;
         }
         int firstWeapon = ResolveWeapon(first);

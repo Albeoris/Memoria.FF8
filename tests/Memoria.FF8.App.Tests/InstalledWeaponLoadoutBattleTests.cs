@@ -84,6 +84,58 @@ public sealed class InstalledWeaponLoadoutBattleTests
         Run(character, character, assignOverride: false, readyProbeOnly: true);
     }
 
+    [Fact]
+    public void Owned_gunblade_survives_an_installed_field_save_and_enters_battle_with_Rinoa()
+    {
+        string directory = TestResources.GameDirectory;
+        string source = TestResources.FixturePath("weapon-limit-field-source");
+        byte[] sourceHash = SHA256.HashData(File.ReadAllBytes(source));
+        using GameResourceHost selected = new(directory, watch: false);
+        using GameAssets game = new(directory, resources: selected.Resources, modelOverrides: selected);
+        GameState loaded = PlayerStateLoader.Load(source, directory, sharedAssets: game, resources: selected.Resources);
+        GameSession session = new(loaded);
+        string checkpoint = TestResources.ArtifactFile("owned-gunblade.ff8save");
+        NativeCrtRandomState? randomBeforeEditing;
+        using (GameWorld world = new(session, directory, resources: selected.Resources, sharedAssets: game, modelOverrides: selected, validateWorldPresentation: false))
+        {
+            world.EnsureField();
+            NativeCharacterVitals vitals = session.CharacterVitals!.DeepCopy();
+            vitals.Records[4] = vitals.Records[4] with { MemberFlags = (ushort)(vitals.Records[4].MemberFlags | 1), Status = 0 };
+            session.SetCharacterVitals((vitals with { CombatParty = [4, 255, 255], AdditionalCombatParty = null, AdditionalCombatPartyMinimumCapacities = null }).RebuildParty().Rest());
+            randomBeforeEditing = world.CaptureGameplaySave().Progression!.Clocks.CrtRandom;
+            BattleLoadoutDraft draft = session.CreateBattleLoadoutDraft([new(0, vitals.GetBattleWeapon(0), [BattleLimitFamily.Renzokuken]), new(4, vitals.GetBattleWeapon(4), [BattleLimitFamily.Combine, BattleLimitFamily.AngelWing])], initialWeapons: [0, 24]);
+            draft.CreateWeapon(4, 24);
+            draft.CreateWeapon(4, 0);
+            draft.RemoveAllLimits(4);
+            session.ApplyBattleLoadoutDraft(draft);
+            world.WriteGameplaySave(checkpoint);
+        }
+
+        GameState restored = PlayerStateLoader.Load(checkpoint, directory, sharedAssets: game, resources: selected.Resources);
+        BattleWeaponInventory inventory = restored.BattleLoadouts!.WeaponInstances!;
+        Assert.Equal(0, inventory.GetEquipped(4)!.WeaponId);
+        Assert.NotEqual(inventory.GetEquipped(0)!.Id, inventory.GetEquipped(4)!.Id);
+        Assert.Contains(inventory.Instances.Values, item => item.OwnerCharacterId == 4 && item.WeaponId == 24);
+        using (FileStream written = File.OpenRead(checkpoint))
+        {
+            Assert.Equal(randomBeforeEditing, GameplaySaveCodec.Read(written).Progression!.Clocks.CrtRandom);
+        }
+        GameSession resumed = new(restored);
+        using GameWorld resumedWorld = new(resumed, directory, resources: selected.Resources, sharedAssets: game, modelOverrides: selected, validateWorldPresentation: false);
+        resumedWorld.EnsureField();
+        RequestEncounter(resumedWorld, resumed);
+        resumedWorld.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.TurnBased, NativeSeed: 4));
+        BattleSession battle = Assert.IsType<BattleSession>(resumedWorld.Battle);
+        BattleCombatant rinoa = Assert.Single(battle.Combatants, combatant => combatant.IsPlayer);
+        Assert.Equal(4, rinoa.ModelId);
+        BattleCombatantDefinition definition = battle.GetCombatantDefinition(rinoa.Id);
+        Assert.Equal(0, definition.WeaponId);
+        Assert.True(definition.WeaponProfile!.Supports(BattleWeaponCapabilities.Gunblade));
+        Assert.Empty(definition.NativeLimitFamilies!);
+        TickUntil(resumedWorld, () => battle.NativeEntryReady, "Rinoa with a separately owned gunblade");
+        Assert.Equal(sourceHash, SHA256.HashData(File.ReadAllBytes(source)));
+    }
+
     private static void Run(int recipient, int donor, bool assignOverride = true, bool readyProbeOnly = false, bool checkBorrowedTrigger = false)
     {
         string directory = TestResources.GameDirectory;

@@ -14,6 +14,8 @@ public sealed partial class BattleAssets : IDisposable
     private readonly Dictionary<string, BattleModel> models = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<int, BattleStage> stages = [];
     private readonly Dictionary<string, byte[]> resourceBytes = new(StringComparer.OrdinalIgnoreCase);
+    private readonly object modelResourceGate = new();
+    private bool modelResourcesDisposed;
     private readonly byte[] encounters;
     private readonly BattlePlayerStatReader playerStats;
     private readonly Albeoris.Games.FF8.KernelBin.KernelData battleKernel;
@@ -277,6 +279,11 @@ public sealed partial class BattleAssets : IDisposable
 
     private BattleModel LoadWeapon(string name, BattleModel character)
     {
+        return WithPlayerModelResources(() => ReadWeaponModel(name, character));
+    }
+
+    private BattleModel ReadWeaponModel(string name, BattleModel character)
+    {
         string key = $"{name}|{character.Name}";
         if (!models.TryGetValue(key, out BattleModel? model))
         {
@@ -289,6 +296,11 @@ public sealed partial class BattleAssets : IDisposable
     }
 
     public BattleModel LoadModel(string name)
+    {
+        return WithPlayerModelResources(() => ReadBattleModel(name));
+    }
+
+    private BattleModel ReadBattleModel(string name)
     {
         if (!models.TryGetValue(name, out BattleModel? model))
         {
@@ -329,21 +341,42 @@ public sealed partial class BattleAssets : IDisposable
 
     private byte[] Read(string name)
     {
-        if (resourceBytes.TryGetValue(name, out byte[]? cached))
+        lock (modelResourceGate)
         {
-            return cached;
+            ObjectDisposedException.ThrowIf(modelResourcesDisposed, this);
+            if (resourceBytes.TryGetValue(name, out byte[]? cached))
+            {
+                return cached;
+            }
+            byte[] bytes = resources.Read(new ResourceKey("battle/" + name));
+            resourceBytes.Add(name, bytes);
+            return bytes;
         }
-        byte[] bytes = resources.Read(new ResourceKey("battle/" + name));
-        resourceBytes.Add(name, bytes);
-        return bytes;
+    }
+
+    public T WithPlayerModelResources<T>(Func<T> read)
+    {
+        lock (modelResourceGate)
+        {
+            ObjectDisposedException.ThrowIf(modelResourcesDisposed, this);
+            return read();
+        }
     }
 
     public void Dispose()
     {
-        effectTextureSource?.Dispose();
-        textureScope.Dispose();
-        archive.Dispose();
-        ownedSource?.Dispose();
+        lock (modelResourceGate)
+        {
+            if (modelResourcesDisposed)
+            {
+                return;
+            }
+            modelResourcesDisposed = true;
+            effectTextureSource?.Dispose();
+            textureScope.Dispose();
+            archive.Dispose();
+            ownedSource?.Dispose();
+        }
     }
 }
 

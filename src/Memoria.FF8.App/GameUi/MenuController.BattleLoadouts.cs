@@ -1,36 +1,46 @@
+using System.Globalization;
 using Memoria.FF8.Runtime;
+using Memoria.FF8.Ui;
 
 namespace Memoria.FF8.GameUi;
 
-internal sealed record BattleLoadoutEditorCharacter(int CharacterId, string Name, string Summary);
-internal sealed record BattleLoadoutEditorWeapon(int WeaponId, string Name, string Owner, string Description, string Family = "");
-internal sealed record BattleLoadoutEditorContext(BattleLoadoutDraft Draft, BattleLoadoutEditorCharacter[] Characters, BattleLoadoutEditorWeapon[] Weapons, Func<int, int, string?>? WeaponReason = null);
+internal sealed record BattleLoadoutEditorCharacter(int CharacterId, string Name);
+internal sealed record BattleLoadoutEditorWeapon(int WeaponId, string Name, int CharacterId, BattleWeaponCapabilities Capabilities, int Tier);
+internal sealed record BattleLoadoutEditorContext(BattleLoadoutDraft Draft, BattleLoadoutEditorCharacter[] Characters, BattleLoadoutEditorWeapon[] Weapons);
 
 public sealed partial class MenuController
 {
+    private const string BattleLoadoutScreen = "debug-loadouts";
+    private const string BattleLoadoutWeaponListId = "loadout-weapons";
+
     private Func<BattleLoadoutEditorContext>? readBattleLoadoutEditor;
     private Action<BattleLoadoutDraft>? applyBattleLoadoutEditor;
+    private Func<BattleLoadoutDraft, IProgress<(int Completed, int Total)>, CancellationToken, Task>? prepareBattleLoadoutBatch;
     private Func<string?>? battleLoadoutEditorBoundary;
     private Func<bool>? canOpenBattleLoadoutEditor;
-    private Func<BattleLoadoutDraft, int, string[]>? describeBattleLoadout;
-    private Func<BattleLoadoutDraft, int, BattleLimitFamily, string[]>? describeBattleLoadoutFamily;
     private BattleLoadoutEditorContext? battleLoadoutEditor;
     private int battleLoadoutCharacter;
-    private BattleLimitFamily battleLoadoutFamily;
-    private string battleLoadoutExchange = "";
+    private int? battleLoadoutExpandedType;
+    private string battleLoadoutWeaponFocus = "";
+    private string battleLoadoutFocus = BattleLoadoutWeaponListId;
+    private UiList? battleLoadoutWeaponList;
+    private Task? battleLoadoutPreparation;
+    private Action? battleLoadoutAfterApply;
+    private BattleLoadoutProgress? battleLoadoutProgress;
 
+    internal bool IsBattleLoadoutEditor => ScreenId == BattleLoadoutScreen;
     internal bool BattleLoadoutEditorAvailable => readBattleLoadoutEditor is not null && !IsFixtureContext && (canOpenBattleLoadoutEditor?.Invoke() ?? true);
 
-    internal string BattleLoadoutEditorEntryHelp => BattleLoadoutEditorAvailable ? LoadoutText("open-help", "Edit current FFVIII weapons and ordered Limit families with Apply and Cancel.") : battleLoadoutEditorBoundary?.Invoke() ?? LoadoutText("unavailable", "A current FFVIII game is required; the laboratory stays isolated.");
+    internal string BattleLoadoutEditorEntryHelp => BattleLoadoutEditorAvailable ? LoadoutText("scene.open", "Change equipment and Limit Breaks for the current game.") : battleLoadoutEditorBoundary?.Invoke() ?? LoadoutText("unavailable", "A current FFVIII game is required.");
 
-    internal void ConnectBattleLoadoutEditor(Func<BattleLoadoutEditorContext> read, Action<BattleLoadoutDraft> apply, Func<string?> boundary, Func<BattleLoadoutDraft, int, string[]> describe, Func<bool>? available = null, Func<BattleLoadoutDraft, int, BattleLimitFamily, string[]>? familyStatus = null)
+    internal void ConnectBattleLoadoutEditor(Func<BattleLoadoutEditorContext> read, Action<BattleLoadoutDraft> apply, Func<string?> boundary, Func<bool>? available = null, Func<BattleLoadoutDraft, int, CancellationToken, Task<BattleLoadoutModelPreview>>? preview = null, Func<BattleLoadoutDraft, IProgress<(int Completed, int Total)>, CancellationToken, Task>? prepare = null)
     {
         readBattleLoadoutEditor = read;
-        canOpenBattleLoadoutEditor = available;
         applyBattleLoadoutEditor = apply;
         battleLoadoutEditorBoundary = boundary;
-        describeBattleLoadout = describe;
-        describeBattleLoadoutFamily = familyStatus;
+        canOpenBattleLoadoutEditor = available;
+        prepareBattleLoadoutPreview = preview;
+        prepareBattleLoadoutBatch = prepare;
     }
 
     private string LoadoutText(string key, string original)
@@ -38,174 +48,138 @@ public sealed partial class MenuController
         return SystemText("debug.loadout." + key, original);
     }
 
+    private string LoadoutFormat(string key, string original, params object?[] values)
+    {
+        return FormatSystemText("debug.loadout." + key, original, values);
+    }
+
     private void RegisterBattleLoadoutScreens()
     {
         Register(new()
         {
-            Id = "debug-loadouts",
+            Id = BattleLoadoutScreen,
             Title = "Weapons & Limit Breaks",
-            Help = "Current FFVIII game · Stage changes, then Apply or Cancel.",
-            Entries = c => c.BattleLoadoutRosterEntries(),
-            Details = c => c.BattleLoadoutReviewDetails()
-        });
-        Register(new()
-        {
-            Id = "debug-loadout-character",
-            Layout = MenuLayout.Character,
-            Title = "Weapons & Limit Breaks · Character",
-            Help = "Changes remain in the draft until Apply.",
-            Entries = c => c.BattleLoadoutCharacterEntries(),
-            Details = c => c.BattleLoadoutCharacterDetails()
-        });
-        Register(new()
-        {
-            Id = "debug-loadout-weapons",
-            Title = "Weapons & Limit Breaks · Weapon catalog",
-            Help = "Choose a source weapon and its combat style.",
-            Entries = c => c.battleLoadoutEditor?.Weapons.OrderBy(weapon => weapon.Family).ThenBy(weapon => weapon.Owner).ThenBy(weapon => weapon.WeaponId).Select(weapon => new MenuEntry("weapon-" + weapon.WeaponId, (weapon.Family.Length == 0 ? "" : weapon.Family + " · ") + weapon.Owner + " · " + weapon.Name, weapon.Description + " " + (c.battleLoadoutEditor!.WeaponReason?.Invoke(c.battleLoadoutCharacter, weapon.WeaponId) ?? ""), Action: new("loadout-weapon", Value: weapon.WeaponId.ToString(System.Globalization.CultureInfo.InvariantCulture)))).ToArray() ?? [],
-            Details = c => c.BattleLoadoutCharacterDetails()
-        });
-        Register(new()
-        {
-            Id = "debug-loadout-families",
-            Title = "Weapons & Limit Breaks · Families",
-            Help = "Choose a family to add, remove, move or reorder.",
-            Entries = c => c.BattleLoadoutFamilyCatalog(),
-            Details = c => c.BattleLoadoutFamilyDetails()
-        });
-        Register(new()
-        {
-            Id = "debug-loadout-family",
-            Title = "Weapons & Limit Breaks · Family actions",
-            Help = "Assignments reference shared learning; removing a family keeps its progress.",
-            Entries = c => c.BattleLoadoutFamilyEntries(),
-            Details = c => c.BattleLoadoutFamilyDetails()
-        });
-        Register(new()
-        {
-            Id = "debug-loadout-exchange",
-            Title = "Weapons & Limit Breaks · Exchange",
-            Help = "Choose a different character. Both changes are staged together.",
-            Entries = c => c.battleLoadoutEditor?.Characters.Select(character => new MenuEntry("exchange-" + character.CharacterId, character.Name, character.CharacterId == c.battleLoadoutCharacter ? c.LoadoutText("distinct", "Choose another character.") : c.LoadoutText("exchange-help", "Stage both participants; review and Apply from the main editor."), Action: new("loadout-exchange-target", Value: character.CharacterId.ToString(System.Globalization.CultureInfo.InvariantCulture)), Enabled: character.CharacterId != c.battleLoadoutCharacter)).ToArray() ?? [],
-            Details = c => c.BattleLoadoutReviewDetails()
+            Help = "",
+            Entries = c => c.BattleLoadoutEntries()
         });
     }
 
-    private string FamilyLabel(BattleLimitFamily family)
+    private BattleLoadoutEditorCharacter? BattleLoadoutAdjacentCharacter(int direction)
     {
-        string original = family switch
+        if (battleLoadoutEditor is not { Characters.Length: > 1 } editor)
         {
-            BattleLimitFamily.FireCross => "Fire Cross / No Mercy",
-            BattleLimitFamily.BloodPain => "Blood Pain",
-            BattleLimitFamily.MassiveAnchor => "Massive Anchor",
-            BattleLimitFamily.AngelWing => "Angel Wing",
-            BattleLimitFamily.IceStrike => "Ice Strike",
-            BattleLimitFamily.BlueMagic => "Blue Magic",
-            _ => family.ToString()
-        };
-        return LoadoutText("family." + family, original);
+            return null;
+        }
+        int index = Array.FindIndex(editor.Characters, character => character.CharacterId == battleLoadoutCharacter);
+        return editor.Characters[(index + editor.Characters.Length + direction) % editor.Characters.Length];
     }
 
-    private string FamilyRequirement(BattleLimitFamily family)
+    private void SetBattleLoadoutCharacter(int characterId)
+    {
+        battleLoadoutCharacter = characterId;
+        battleLoadoutExpandedType = null;
+        battleLoadoutWeaponFocus = "";
+    }
+
+    private BattleLoadoutEditorWeapon? BattleLoadoutEquippedWeapon()
+    {
+        if (battleLoadoutEditor is not { } editor)
+        {
+            return null;
+        }
+        int weaponId = editor.Draft.ResolveWeapon(battleLoadoutCharacter);
+        return Array.Find(editor.Weapons, weapon => weapon.WeaponId == weaponId);
+    }
+
+    private static int BattleLoadoutWeaponType(BattleLoadoutEditorWeapon weapon)
+    {
+        return weapon.CharacterId == 6 ? 0 : weapon.CharacterId;
+    }
+
+    private static string BattleLoadoutTypeId(int type)
+    {
+        return "weapon-type-" + type.ToString(CultureInfo.InvariantCulture);
+    }
+
+    private readonly record struct BattleLoadoutWeaponRow(MenuEntry Entry, string Status, UiImageSource? Icon);
+
+    private BattleLoadoutWeaponRow[] BattleLoadoutWeaponRows()
+    {
+        if (battleLoadoutEditor is not { } editor)
+        {
+            return [];
+        }
+        BattleWeaponInventory? inventory = editor.Draft.WeaponInstances;
+        int equipped = inventory?.Equipped.GetValueOrDefault(battleLoadoutCharacter) ?? 0;
+        BattleLoadoutEditorWeapon? current = BattleLoadoutEquippedWeapon();
+        Dictionary<int, string> owners = editor.Characters.ToDictionary(character => character.CharacterId, character => character.Name);
+        List<BattleLoadoutWeaponRow> rows = [];
+        foreach (var group in editor.Weapons.GroupBy(BattleLoadoutWeaponType).OrderBy(group => group.Key))
+        {
+            int type = group.Key;
+            BattleLoadoutEditorWeapon starter = group.OrderBy(weapon => weapon.Tier).ThenBy(weapon => weapon.WeaponId).First();
+            bool expanded = battleLoadoutExpandedType == type;
+            string typeId = BattleLoadoutTypeId(type);
+            bool equippedType = current is not null && BattleLoadoutWeaponType(current) == type;
+            string typeLabel = (expanded ? "▾  " : "▸  ") + BattleLoadoutLabels.Style(type, localizeInterface);
+            rows.Add(new(new(typeId, typeLabel, LoadoutText("scene.type-help", "Choose a weapon from this type."), Action: new("loadout-type", Value: type.ToString(CultureInfo.InvariantCulture))), equippedType ? LoadoutText("scene.equipped", "Equipped") : "", new UiImageSource(UiImageKind.Weapon, starter.CharacterId)));
+            if (!expanded)
+            {
+                continue;
+            }
+            Dictionary<int, BattleLoadoutEditorWeapon> definitions = group.ToDictionary(weapon => weapon.WeaponId);
+            if (inventory is not null)
+            {
+                foreach (BattleWeaponInstance instance in inventory.Instances.Values.Where(instance => definitions.ContainsKey(instance.WeaponId) && owners.ContainsKey(instance.OwnerCharacterId)).OrderBy(instance => instance.Id == equipped ? 0 : instance.OwnerCharacterId == battleLoadoutCharacter ? 1 : 2).ThenBy(instance => instance.WeaponId))
+                {
+                    BattleLoadoutEditorWeapon weapon = definitions[instance.WeaponId];
+                    bool currentInstance = instance.Id == equipped;
+                    bool own = instance.OwnerCharacterId == battleLoadoutCharacter;
+                    string id = instance.Id.ToString(CultureInfo.InvariantCulture);
+                    string owner = owners[instance.OwnerCharacterId];
+                    string status = currentInstance ? LoadoutText("scene.equipped", "Equipped") : own ? LoadoutText("scene.inventory", "Inventory") : LoadoutFormat("scene.swap-owner", "Swap with {0}", owner);
+                    string help = currentInstance ? LoadoutText("scene.equipped-help", "This weapon is equipped.") : own ? LoadoutText("scene.inventory-help", "Equip this weapon from inventory.") : LoadoutFormat("scene.swap-help", "Trade your equipped weapon with {0}.", owner);
+                    rows.Add(new(new("weapon-instance-" + id, weapon.Name, help, Action: new("loadout-equip", Value: id)), status, new UiImageSource(UiImageKind.WeaponVariant, weapon.WeaponId)));
+                }
+            }
+            rows.Add(new(new("weapon-new-" + starter.WeaponId.ToString(CultureInfo.InvariantCulture), starter.Name, LoadoutText("scene.new-help", "Create and equip a new base-grade weapon."), Action: new("loadout-create", Value: starter.WeaponId.ToString(CultureInfo.InvariantCulture))), LoadoutText("scene.new", "New · base grade"), new UiImageSource(UiImageKind.WeaponVariant, starter.WeaponId)));
+        }
+        return rows.ToArray();
+    }
+
+    private static string BattleLoadoutLimitId(BattleLimitFamily family)
+    {
+        return "limit-" + family;
+    }
+
+    private MenuEntry BattleLoadoutLimitEntry(BattleLimitFamily family)
     {
         BattleWeaponCapabilities requirement = BattleLimitFamilyRules.RequiredWeapon(family);
-        return requirement == BattleWeaponCapabilities.None ? LoadoutText("weapon-independent", "No weapon requirement. Crisis and action rules apply in battle.") : FormatSystemText("debug.loadout.requirement", "Required weapon: {0}. Crisis and action rules apply in battle.", BattleLoadoutLabels.Capabilities(requirement, localizeInterface));
+        BattleWeaponCapabilities equipped = BattleLoadoutEquippedWeapon()?.Capabilities ?? BattleWeaponCapabilities.None;
+        string help = requirement == BattleWeaponCapabilities.None
+            ? LoadoutText("scene.no-weapon-required", "Any equipped weapon supports this Limit Break.")
+            : (equipped & requirement) == requirement
+                ? LoadoutText("scene.requirement-met", "Your equipped weapon supports this Limit Break.")
+                : LoadoutFormat("scene.requires-weapon", "Requires {0}.", BattleLoadoutLabels.Capabilities(requirement, localizeInterface));
+        return new(BattleLoadoutLimitId(family), BattleLoadoutLabels.Family(family, localizeInterface), help, Action: new("loadout-toggle", Value: family.ToString()));
     }
 
-    private IReadOnlyList<MenuEntry> BattleLoadoutFamilyCatalog()
+    private IReadOnlyList<MenuEntry> BattleLoadoutEntries()
     {
-        BattleLoadoutEditorContext? editor = battleLoadoutEditor;
-        if (editor is null)
+        if (battleLoadoutEditor is null || battleLoadoutPreparation is not null)
         {
             return [];
         }
-        BattleLimitFamily[] assigned = editor.Draft.ResolveFamilies(battleLoadoutCharacter);
-        return assigned.Concat(Enum.GetValues<BattleLimitFamily>().Except(assigned)).Select(family =>
+        List<MenuEntry> entries = BattleLoadoutWeaponRows().Select(row => row.Entry).ToList();
+        entries.AddRange(Enum.GetValues<BattleLimitFamily>().Select(BattleLoadoutLimitEntry));
+        foreach (int direction in new[] { -1, 1 })
         {
-            int order = Array.IndexOf(assigned, family);
-            string label = FamilyLabel(family) + (order >= 0 ? FormatSystemText("debug.loadout.order", " · #{0}", order + 1) : "");
-            string help = FamilyRequirement(family) + " " + string.Join(" ", (describeBattleLoadoutFamily?.Invoke(editor.Draft, battleLoadoutCharacter, family) ?? []).Take(2));
-            return new MenuEntry(family.ToString(), label, help, Action: new("loadout-family", Value: family.ToString()));
-        }).ToArray();
-    }
-
-    private string[] BattleLoadoutFamilyDetails()
-    {
-        if (battleLoadoutEditor is null)
-        {
-            return [];
+            if (BattleLoadoutAdjacentCharacter(direction) is { } neighbor)
+            {
+                entries.Add(new(direction < 0 ? "previous-character" : "next-character", neighbor.Name, "", Action: new("loadout-cycle", Value: direction.ToString(CultureInfo.InvariantCulture))));
+            }
         }
-        BattleLimitFamily selected = ScreenId == "debug-loadout-families" && SelectedEntry?.Action is { } action && Enum.TryParse(action.Value, out BattleLimitFamily family) ? family : battleLoadoutFamily;
-        return [FamilyLabel(selected), FamilyRequirement(selected), .. describeBattleLoadoutFamily?.Invoke(battleLoadoutEditor.Draft, battleLoadoutCharacter, selected) ?? []];
-    }
-
-    private IReadOnlyList<MenuEntry> BattleLoadoutRosterEntries()
-    {
-        List<MenuEntry> entries = battleLoadoutEditor?.Characters.Select(character => new MenuEntry("character-" + character.CharacterId, character.Name + (battleLoadoutEditor.Draft.ChangedCharacters.Contains(character.CharacterId) ? " *" : ""), character.Summary, Action: new("loadout-character", Value: character.CharacterId.ToString(System.Globalization.CultureInfo.InvariantCulture)))).ToList() ?? [];
-        string? reason = battleLoadoutEditorBoundary?.Invoke();
-        entries.Add(new("apply", LoadoutText("apply", "Apply"), reason ?? LoadoutText("retain", "Apply the complete draft. Save normally to retain changes."), Action: new("loadout-apply"), Enabled: battleLoadoutEditor is not null && reason is null));
-        entries.Add(new("cancel", LoadoutText("cancel", "Cancel"), LoadoutText("discard", "Discard the complete draft."), Action: new("loadout-cancel")));
         return entries;
-    }
-
-    private IReadOnlyList<MenuEntry> BattleLoadoutCharacterEntries()
-    {
-        return
-        [
-            new("weapon", LoadoutText("weapon", "Assign Weapon"), LoadoutText("weapon-help", "Choose installed equipment without changing Limit assignments."), "debug-loadout-weapons"),
-            new("families", LoadoutText("families", "Limit families"), LoadoutText("families-help", "Add, remove, move and reorder assigned families."), "debug-loadout-families"),
-            new("remove-all", LoadoutText("remove-all", "Remove All Limits"), LoadoutText("empty-help", "Stage an explicit empty family set. Learned progress is preserved."), Action: new("loadout-remove-all")),
-            new("swap-weapons", LoadoutText("swap-weapons", "Swap Weapons"), LoadoutText("swap-help", "Exchange the effective assignments of two characters."), Action: new("loadout-exchange", Value: "weapons")),
-            new("swap-families", LoadoutText("swap-families", "Swap Limit Sets"), LoadoutText("swap-help", "Exchange the effective assignments of two characters."), Action: new("loadout-exchange", Value: "families")),
-            new("reset", LoadoutText("reset", "Reset Character"), LoadoutText("reset-help", "Stage removal of overrides. Native defaults and learned progress are preserved."), Action: new("loadout-reset")),
-            new("review", LoadoutText("review", "Review draft"), LoadoutText("review-help", "Review all participants before Apply."), Action: new("menu-back"))
-        ];
-    }
-
-    private IReadOnlyList<MenuEntry> BattleLoadoutFamilyEntries()
-    {
-        bool assigned = battleLoadoutEditor?.Draft.ResolveFamilies(battleLoadoutCharacter).Contains(battleLoadoutFamily) == true;
-        return
-        [
-            new("toggle", assigned ? LoadoutText("remove", "Remove Limit") : LoadoutText("add", "Add Limit"), FamilyRequirement(battleLoadoutFamily), Action: new("loadout-toggle-family")),
-            new("up", LoadoutText("up", "Move up"), LoadoutText("order-help", "Change selector order without changing learned progress."), Action: new("loadout-order", Value: "-1"), Enabled: assigned),
-            new("down", LoadoutText("down", "Move down"), LoadoutText("order-help", "Change selector order without changing learned progress."), Action: new("loadout-order", Value: "1"), Enabled: assigned),
-            new("move", LoadoutText("move", "Move Limit"), LoadoutText("move-help", "Remove this family here and add it to another character; existing destination copies are kept once."), Action: new("loadout-exchange", Value: "move"), Enabled: assigned)
-        ];
-    }
-
-    private string[] BattleLoadoutCharacterDetails()
-    {
-        if (battleLoadoutEditor is null)
-        {
-            return [];
-        }
-        BattleLoadoutEditorCharacter? character = battleLoadoutEditor.Characters.FirstOrDefault(entry => entry.CharacterId == battleLoadoutCharacter);
-        return [LoadoutText("current", "Current FFVIII game · Draft"), character?.Name ?? "", .. describeBattleLoadout?.Invoke(battleLoadoutEditor.Draft, battleLoadoutCharacter) ?? []];
-    }
-
-    private string[] BattleLoadoutReviewDetails()
-    {
-        if (battleLoadoutEditor is null)
-        {
-            return [];
-        }
-        string changed = string.Join(", ", battleLoadoutEditor.Characters.Where(character => battleLoadoutEditor.Draft.ChangedCharacters.Contains(character.CharacterId)).Select(character => character.Name));
-        List<string> details = [LoadoutText("current", "Current FFVIII game · Draft"), changed.Length == 0 ? LoadoutText("unchanged", "No staged changes.") : FormatSystemText("debug.loadout.changed", "Changed: {0}", changed)];
-        int selectedCharacter = SelectedEntry?.Action is { Kind: "loadout-character" } action && int.TryParse(action.Value, out int identity) ? identity : battleLoadoutCharacter;
-        BattleLoadoutEditorCharacter? selected = battleLoadoutEditor.Characters.FirstOrDefault(character => character.CharacterId == selectedCharacter);
-        details.Add(selected?.Name ?? "");
-        details.AddRange(describeBattleLoadout?.Invoke(battleLoadoutEditor.Draft, selectedCharacter) ?? []);
-        return details.ToArray();
-    }
-
-    private void PreserveBattleLoadoutFamilyFocus()
-    {
-        int index = BattleLoadoutFamilyCatalog().ToList().FindIndex(entry => entry.Id == battleLoadoutFamily.ToString());
-        if (index >= 0)
-        {
-            _selections["debug-loadout-families"] = index;
-        }
     }
 
     private bool ExecuteBattleLoadoutAction(MenuAction action)
@@ -214,113 +188,208 @@ public sealed partial class MenuController
         {
             return false;
         }
-        if (action.Kind == "loadout-cancel")
-        {
-            battleLoadoutEditor = null;
-            if (ScreenId.StartsWith("debug-loadout", StringComparison.Ordinal))
-            {
-                Back();
-            }
-            return true;
-        }
-        if (!BattleLoadoutEditorAvailable)
-        {
-            Message = BattleLoadoutEditorEntryHelp;
-            return true;
-        }
         try
         {
             if (action.Kind == "loadout-open")
             {
-                battleLoadoutEditor = readBattleLoadoutEditor!();
-                battleLoadoutCharacter = battleLoadoutEditor.Characters.FirstOrDefault()?.CharacterId ?? 0;
-                Push("debug-loadouts");
+                if (!BattleLoadoutEditorAvailable)
+                {
+                    Message = BattleLoadoutEditorEntryHelp;
+                    return true;
+                }
+                if (battleLoadoutEditor is null)
+                {
+                    OpenBattleLoadoutEditor();
+                    Push(BattleLoadoutScreen);
+                }
                 return true;
             }
-            if (battleLoadoutEditor is null || !ScreenId.StartsWith("debug-loadout", StringComparison.Ordinal))
+            if (!IsBattleLoadoutEditor || battleLoadoutEditor is not { Draft: var draft } || battleLoadoutPreparation is not null)
             {
                 return true;
             }
-            BattleLoadoutDraft draft = battleLoadoutEditor.Draft;
+            Message = "";
+            if (action.Kind == "loadout-toggle" && Enum.TryParse(action.Value, out BattleLimitFamily family) && Enum.IsDefined(family))
+            {
+                if (draft.ResolveFamilies(battleLoadoutCharacter).Contains(family))
+                {
+                    draft.RemoveLimit(battleLoadoutCharacter, family);
+                }
+                else
+                {
+                    draft.AddLimit(battleLoadoutCharacter, family);
+                }
+                return true;
+            }
+            if (!int.TryParse(action.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int value))
+            {
+                return true;
+            }
             switch (action.Kind)
             {
-                case "loadout-character":
-                    battleLoadoutCharacter = int.Parse(action.Value, System.Globalization.CultureInfo.InvariantCulture);
-                    _characterId = Data.Characters.FirstOrDefault(character => character.NativeId == battleLoadoutCharacter)?.Id ?? _characterId;
-                    Push("debug-loadout-character");
+                case "loadout-cycle" when value is -1 or 1 && BattleLoadoutAdjacentCharacter(value) is { } neighbor:
+                    SetBattleLoadoutCharacter(neighbor.CharacterId);
                     break;
-                case "loadout-weapon":
-                    draft.AssignWeapon(battleLoadoutCharacter, int.Parse(action.Value, System.Globalization.CultureInfo.InvariantCulture));
-                    Back();
-                    break;
-                case "loadout-family":
-                    if (!Enum.TryParse(action.Value, out BattleLimitFamily selectedFamily) || !Enum.IsDefined(selectedFamily))
+                case "loadout-type":
+                    if (battleLoadoutExpandedType == value)
                     {
-                        throw new InvalidDataException("Unknown Limit family.");
-                    }
-                    battleLoadoutFamily = selectedFamily;
-                    Push("debug-loadout-family");
-                    break;
-                case "loadout-toggle-family":
-                    if (draft.ResolveFamilies(battleLoadoutCharacter).Contains(battleLoadoutFamily))
-                    {
-                        draft.RemoveLimit(battleLoadoutCharacter, battleLoadoutFamily);
+                        CollapseBattleLoadoutWeapons();
                     }
                     else
                     {
-                        draft.AddLimit(battleLoadoutCharacter, battleLoadoutFamily);
+                        battleLoadoutExpandedType = value;
+                        BattleLoadoutWeaponRow[] rows = BattleLoadoutWeaponRows();
+                        int typeIndex = Array.FindIndex(rows, row => row.Entry.Id == BattleLoadoutTypeId(value));
+                        battleLoadoutWeaponFocus = rows.ElementAtOrDefault(typeIndex + 1).Entry?.Id ?? BattleLoadoutTypeId(value);
                     }
                     break;
-                case "loadout-order":
-                    draft.ReorderLimit(battleLoadoutCharacter, battleLoadoutFamily, int.Parse(action.Value, System.Globalization.CultureInfo.InvariantCulture));
+                case "loadout-equip":
+                    draft.EquipWeapon(battleLoadoutCharacter, value);
+                    CollapseBattleLoadoutWeapons();
                     break;
-                case "loadout-remove-all":
-                    draft.RemoveAllLimits(battleLoadoutCharacter);
+                case "loadout-create":
+                    draft.CreateWeapon(battleLoadoutCharacter, value);
+                    CollapseBattleLoadoutWeapons();
                     break;
-                case "loadout-reset":
-                    draft.ResetCharacter(battleLoadoutCharacter);
-                    break;
-                case "loadout-exchange":
-                    battleLoadoutExchange = action.Value;
-                    Push("debug-loadout-exchange");
-                    break;
-                case "loadout-exchange-target":
-                    int destination = int.Parse(action.Value, System.Globalization.CultureInfo.InvariantCulture);
-                    if (battleLoadoutExchange == "weapons")
-                    {
-                        draft.SwapWeapons(battleLoadoutCharacter, destination);
-                    }
-                    else if (battleLoadoutExchange == "families")
-                    {
-                        draft.SwapLimitSets(battleLoadoutCharacter, destination);
-                    }
-                    else
-                    {
-                        draft.MoveLimit(battleLoadoutCharacter, destination, battleLoadoutFamily);
-                    }
-                    Back();
-                    break;
-                case "loadout-apply":
-                    applyBattleLoadoutEditor!(draft);
-                    battleLoadoutEditor = null;
-                    Back();
-                    InvalidateLiveData();
-                    Message = LoadoutText("applied", "Loadouts applied. Save the game to retain them.");
-                    break;
-                case "loadout-cancel":
-                    battleLoadoutEditor = null;
-                    Back();
-                    break;
-            }
-            if (action.Kind is "loadout-toggle-family" or "loadout-order" or "loadout-exchange-target" or "loadout-remove-all" or "loadout-reset")
-            {
-                PreserveBattleLoadoutFamilyFocus();
             }
         }
-        catch (Exception exception) when (exception is InvalidDataException or InvalidOperationException or ArgumentException or NotSupportedException)
+        catch (Exception exception) when (exception is InvalidDataException or InvalidOperationException or ArgumentException or NotSupportedException or IOException)
         {
             Message = exception.Message;
         }
         return true;
+    }
+
+    private void OpenBattleLoadoutEditor()
+    {
+        BattleLoadoutEditorContext editor = readBattleLoadoutEditor!();
+        BattleLoadoutEditorCharacter? initial = Array.Find(editor.Characters, character => character.CharacterId == Character?.NativeId) ?? editor.Characters.FirstOrDefault();
+        if (initial is null)
+        {
+            throw new InvalidOperationException(LoadoutText("scene.empty-roster", "No characters are available."));
+        }
+        battleLoadoutEditor = editor;
+        battleLoadoutFocus = BattleLoadoutWeaponListId;
+        SetBattleLoadoutCharacter(initial.CharacterId);
+    }
+
+    private void CollapseBattleLoadoutWeapons()
+    {
+        if (battleLoadoutExpandedType is int type)
+        {
+            battleLoadoutWeaponFocus = BattleLoadoutTypeId(type);
+            battleLoadoutExpandedType = null;
+        }
+    }
+
+    private bool BackFromBattleLoadoutEditor()
+    {
+        if (!IsBattleLoadoutEditor || battleLoadoutEditor is null)
+        {
+            return false;
+        }
+        if (battleLoadoutExpandedType.HasValue && battleLoadoutPreparation is null)
+        {
+            CollapseBattleLoadoutWeapons();
+            Message = "";
+            _view = null;
+            SoundRequested?.Invoke(MenuSound.Cancel);
+            return true;
+        }
+        return RequestBattleLoadoutExit(Back);
+    }
+
+    private bool RequestBattleLoadoutExit(Action next)
+    {
+        if (!IsBattleLoadoutEditor || battleLoadoutEditor is not { Draft: var draft })
+        {
+            return false;
+        }
+        if (battleLoadoutPreparation is not null)
+        {
+            return true;
+        }
+        bool hasChanges = draft.ChangedCharacters.Count > 0;
+        if (!hasChanges && prepareBattleLoadoutBatch is null)
+        {
+            ReleaseBattleLoadoutEditor();
+            return false;
+        }
+        try
+        {
+            if (hasChanges && battleLoadoutEditorBoundary?.Invoke() is { } blocked)
+            {
+                throw new InvalidOperationException(blocked);
+            }
+            battleLoadoutAfterApply = next;
+            battleLoadoutProgress = new(draft.Characters.Count);
+            battleLoadoutPreparation = prepareBattleLoadoutBatch?.Invoke(draft, battleLoadoutProgress, CancellationToken.None) ?? Task.CompletedTask;
+            _view = null;
+            RefreshBattleLoadoutPreparation();
+        }
+        catch (Exception exception) when (exception is InvalidDataException or InvalidOperationException or ArgumentException or NotSupportedException or IOException)
+        {
+            FailBattleLoadoutPreparation(exception);
+        }
+        return true;
+    }
+
+    private void RefreshBattleLoadoutPreparation()
+    {
+        if (battleLoadoutPreparation is not { IsCompleted: true } operation || battleLoadoutEditor is not { Draft: var draft })
+        {
+            return;
+        }
+        try
+        {
+            operation.GetAwaiter().GetResult();
+            if (draft.ChangedCharacters.Count > 0)
+            {
+                applyBattleLoadoutEditor!(draft);
+            }
+        }
+        catch (Exception exception)
+        {
+            FailBattleLoadoutPreparation(exception);
+            return;
+        }
+        Action? next = battleLoadoutAfterApply;
+        ReleaseBattleLoadoutEditor();
+        InvalidateLiveData();
+        next?.Invoke();
+    }
+
+    private void FailBattleLoadoutPreparation(Exception exception)
+    {
+        battleLoadoutPreparation = null;
+        battleLoadoutAfterApply = null;
+        battleLoadoutProgress = null;
+        _view = null;
+        Message = exception.Message;
+    }
+
+    private void ReleaseBattleLoadoutEditor()
+    {
+        ReleaseBattleLoadoutPreview();
+        battleLoadoutEditor = null;
+        battleLoadoutExpandedType = null;
+        battleLoadoutWeaponList = null;
+        battleLoadoutPreparation = null;
+        battleLoadoutAfterApply = null;
+        battleLoadoutProgress = null;
+    }
+
+    private sealed class BattleLoadoutProgress(int total) : IProgress<(int Completed, int Total)>
+    {
+        internal sealed record Count(int Completed, int Total);
+
+        private Count current = new(0, total);
+
+        internal Count Current => Volatile.Read(ref current);
+
+        public void Report((int Completed, int Total) value)
+        {
+            Volatile.Write(ref current, new(value.Completed, value.Total));
+        }
     }
 }

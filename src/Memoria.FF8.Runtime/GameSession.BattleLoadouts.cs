@@ -34,9 +34,9 @@ public sealed partial class GameSession
         }
     }
 
-    public BattleLoadoutDraft CreateBattleLoadoutDraft(IEnumerable<BattleLoadoutDefaults> defaults, string resourceRevision = "")
+    public BattleLoadoutDraft CreateBattleLoadoutDraft(IEnumerable<BattleLoadoutDefaults> defaults, string resourceRevision = "", IEnumerable<int>? initialWeapons = null)
     {
-        return new(State.BattleLoadouts, defaults, resourceRevision) { Owner = this, Baseline = BattleLoadoutBaseline() };
+        return new(State.BattleLoadouts, defaults, resourceRevision, initialWeapons) { Owner = this, Baseline = BattleLoadoutBaseline() };
     }
 
     /// <summary>Validates the complete detached replacement before publishing a single owner-thread mutation.</summary>
@@ -61,6 +61,6 @@ public sealed partial class GameSession
         {
             throw new InvalidOperationException("The game changed while validating the loadout draft.");
         }
-        State = State with { BattleLoadouts = replacement.Characters.Count == 0 ? null : replacement.DeepCopy() };
+        State = State with { BattleLoadouts = replacement.Characters.Count == 0 && replacement.WeaponInstances is null ? null : replacement.DeepCopy() };
     }
 }

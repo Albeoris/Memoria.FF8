@@ -14,7 +14,7 @@ public static class NativeWeaponShopMenuProjection
         string Text(string id, string original) => catalog?.SystemText(id, original) ?? original;
         string Format(string id, string original, params object?[] values) => Memoria.FF8.Resources.Localization.SystemTextCatalog.Format(Text(id, original), original, values);
         MenuData data = new() { Location = Text("shop.weapon.title", "Junk Shop"), Currency = checked((int)shop.Gil), SourceDescription = Text("shop.weapon.source", "Native weapon shop") };
-        for (int character = 0; character < 6; character++)
+        for (int character = 0; character < NativeCharacterVitals.ExtendedRecordCount; character++)
         {
             if ((shop.EligibleMask & 1 << character) != 0)
             {
@@ -27,9 +27,9 @@ public static class NativeWeaponShopMenuProjection
         {
             int id = offer & 0x3F;
             NativeWeaponRecipe recipe = shop.Definitions.Recipes[id];
-            string availability = vitals is not null && vitals.Records[shop.SelectedCharacter].Weapon == id ? Text("shop.weapon.equipped", "Currently equipped") : shop.MissingMagazine(id) ? Text("shop.weapon.magazine-required", "Weapons Monthly recipe not read") : shop.MissingPreviousUpgrade(id) ? Text("shop.weapon.previous-required", "Previous weapon upgrade not obtained") : (offer & 0x80) != 0 ? Text("shop.weapon.available", "Materials and gil available") : Text("shop.weapon.unavailable", "Materials or gil missing");
+            int? equipped = shop.EquippedWeapon(vitals);
+            string availability = equipped == id ? Text("shop.weapon.equipped", "Currently equipped") : shop.ManagedWeapons?.ContainsKey(shop.SelectedCharacter) == true && id < equipped ? Text("shop.weapon.lower-grade", "Lower grade than equipped") : shop.MissingMagazine(id) ? Text("shop.weapon.magazine-required", "Weapons Monthly recipe not read") : shop.MissingPreviousUpgrade(id) ? Text("shop.weapon.previous-required", "Previous weapon upgrade not obtained") : (offer & 0x80) != 0 ? Text("shop.weapon.available", "Materials and gil available") : Text("shop.weapon.unavailable", "Materials or gil missing");
             string itemId = $"weapon-{id}";
-            int? equipped = vitals?.Records[shop.SelectedCharacter].Weapon;
             bool available = (offer & 0x80) != 0 && !shop.MissingMagazine(id) && !shop.MissingPreviousUpgrade(id);
             UiColor? color = equipped == id ? new UiColor(244, 244, 244) : !available || equipped is null ? null : id < equipped ? new UiColor(232, 184, 96) : new UiColor(112, 232, 144);
             MenuItem item = new() { Id = itemId, Name = catalog?.WeaponName(id) ?? recipe.Name, Price = checked((int)shop.Price(id)), Description = availability + ".", TextColor = color };
@@ -38,7 +38,7 @@ public static class NativeWeaponShopMenuProjection
                 item.Materials.Add(new MenuMaterial(catalog?.ItemName(material.ItemId) ?? Format("fallback.item.name", "Item {0}", material.ItemId), catalog?.ItemIcon(material.ItemId), shop.Counts[material.ItemId], material.Count));
             }
             data.Items.Add(item);
-            if ((offer & 0x80) != 0 && !shop.MissingMagazine(id) && !shop.MissingPreviousUpgrade(id) && vitals is not null && vitals.Records[shop.SelectedCharacter].Weapon != id)
+            if ((offer & 0x80) != 0 && !shop.MissingMagazine(id) && !shop.MissingPreviousUpgrade(id) && shop.CanUpgrade(id, vitals))
             {
                 data.SupportedActions.Add($"weapon-remodel:{itemId}");
             }
@@ -56,5 +56,5 @@ public static class NativeWeaponShopMenuProjection
         return new PlayerAction(action.Kind == "weapon-character" ? PlayerActionKind.SelectWeaponShopCharacter : PlayerActionKind.RemodelWeapon, id);
     }
 
-    private static string CharacterName(int character) => character switch { 0 => "Squall", 1 => "Zell", 2 => "Irvine", 3 => "Quistis", 4 => "Rinoa", 5 => "Selphie", _ => throw new ArgumentOutOfRangeException(nameof(character)) };
+    private static string CharacterName(int character) => character switch { 0 => "Squall", 1 => "Zell", 2 => "Irvine", 3 => "Quistis", 4 => "Rinoa", 5 => "Selphie", 6 => "Seifer", 7 => "Edea", 8 => "Laguna", 9 => "Kiros", 10 => "Ward", _ => throw new ArgumentOutOfRangeException(nameof(character)) };
 }

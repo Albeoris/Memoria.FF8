@@ -20,6 +20,7 @@ public sealed partial class MenuController
     }
     public UiView BuildView()
     {
+        RefreshBattleLoadoutPreparation();
         RefreshLocalizationView();
         RefreshAutoPlayView();
         if (_viewControllerPresentation != CurrentControllerPresentation || _viewControlDevice != CurrentControlDevice)
@@ -32,10 +33,10 @@ public sealed partial class MenuController
         {
             return _view;
         }
-        var root = new UiPanel { Id = "menu-root", DrawBackground = false, Padding = IsItemImageOpen ? 0 : IsJunctionDashboard ? 16 : PresentationProvider.Padding(this), CaptionHeight = 0 };
+        var root = new UiPanel { Id = "menu-root", DrawBackground = false, Padding = IsItemImageOpen ? 0 : IsJunctionDashboard || IsBattleLoadoutEditor ? 16 : PresentationProvider.Padding(this), CaptionHeight = 0 };
         var anchored = new UiAnchorPanel();
         root.Children.Add(anchored);
-        anchored.Children.Add(IsJunctionDashboard ? BuildJunctionDashboard() : PresentationProvider.Compose(this));
+        anchored.Children.Add(IsJunctionDashboard ? BuildJunctionDashboard() : IsBattleLoadoutEditor ? BuildBattleLoadoutView() : PresentationProvider.Compose(this));
         if (IsJunctionDashboard && BuildJunctionTransferModal() is { } junctionModal)
         {
             anchored.Children.Add(junctionModal);
@@ -45,8 +46,13 @@ public sealed partial class MenuController
             anchored.Children.Add(tutorialMessage);
         }
         bool useModViewport = ScreenId is "mods" or "mods-create" or "mods-catalog" or "mods-downloads" or "mods-library-details" or "mods-preview" or "mod-settings";
-        _view = new UiView(root) { ViewportMode = IsItemImageOpen || IsGuardianAbilityEditor || useModViewport ? UiViewportMode.Expand : PresentationProvider.ViewportMode, DesignWidth = useModViewport ? 1280 : PresentationProvider.DesignWidth(this), DesignHeight = useModViewport ? 720 : PresentationProvider.DesignHeight(this), Cancel = Back };
+        _view = new UiView(root) { ViewportMode = IsItemImageOpen || IsGuardianAbilityEditor || useModViewport ? UiViewportMode.Expand : IsBattleLoadoutEditor ? UiViewportMode.Fit : PresentationProvider.ViewportMode, DesignWidth = useModViewport || IsBattleLoadoutEditor ? 1280 : PresentationProvider.DesignWidth(this), DesignHeight = useModViewport || IsBattleLoadoutEditor ? 720 : PresentationProvider.DesignHeight(this), Cancel = Back };
         _view.Resize(_view.DesignWidth, _view.DesignHeight);
+        if (IsBattleLoadoutEditor)
+        {
+            FocusBattleLoadoutView(_view);
+            return _view;
+        }
         if (IsJunctionDashboard)
         {
             _view.DesignWidth = JunctionAccessible ? junctionViewportWidth : 1280;

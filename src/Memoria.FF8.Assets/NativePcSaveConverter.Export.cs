@@ -38,7 +38,7 @@ public static partial class NativePcSaveConverter
     {
         ArgumentNullException.ThrowIfNull(state);
         state.BattleLoadouts?.Validate();
-        if (!allowLoss && state.BattleLoadouts?.Characters.Count > 0)
+        if (!allowLoss && (state.BattleLoadouts?.Characters.Count > 0 || state.BattleLoadouts?.WeaponInstances is not null))
         {
             throw new NotSupportedException("Original FF8 export requires confirmation that weapon and Limit Break assignments will be omitted. The Memoria save retains these assignments.");
         }

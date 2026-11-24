@@ -38,7 +38,7 @@ internal sealed partial class RecreateGame
                 throw new OperationCanceledException("Original save export cancelled.");
             }
         }
-        if (snapshot.BattleLoadouts?.Characters.Count > 0)
+        if (snapshot.BattleLoadouts?.Characters.Count > 0 || snapshot.BattleLoadouts?.WeaponInstances is not null)
         {
             bool confirmed;
             try

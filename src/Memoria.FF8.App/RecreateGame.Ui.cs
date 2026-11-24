@@ -741,7 +741,7 @@ internal sealed partial class RecreateGame
         {
             if (gameMenus.IsOpen)
             {
-                if (gameMenus.IsGuardianAbilityWorkspace || gameMenus.IsJunctionDashboard)
+                if (gameMenus.IsGuardianAbilityWorkspace || gameMenus.IsJunctionDashboard || gameMenus.IsBattleLoadoutEditor)
                 {
                     DispatchMenuInput(MenuInput.Cancel);
                 }
@@ -760,7 +760,7 @@ internal sealed partial class RecreateGame
         {
             if (gameMenus.IsOpen)
             {
-                if (gameMenus.IsGuardianAbilityWorkspace || gameMenus.IsJunctionDashboard)
+                if (gameMenus.IsGuardianAbilityWorkspace || gameMenus.IsJunctionDashboard || gameMenus.IsBattleLoadoutEditor)
                 {
                     DispatchMenuInput(MenuInput.Cancel);
                 }
@@ -811,7 +811,7 @@ internal sealed partial class RecreateGame
         {
             DispatchMenuInput(MenuInput.SwitchColumn);
         }
-        if (keyboard.UiPaneFocus != 0 && (gameMenus.IsGuardianAbilityEditor || gameMenus.IsModManager || gameMenus.IsJunctionDashboard))
+        if (keyboard.UiPaneFocus != 0 && (gameMenus.IsGuardianAbilityEditor || gameMenus.IsModManager || gameMenus.IsJunctionDashboard || gameMenus.IsBattleLoadoutEditor))
         {
             DispatchMenuInput(keyboard.UiPaneFocus < 0 ? MenuInput.FocusLeft : MenuInput.FocusRight);
         }
@@ -899,6 +899,10 @@ internal sealed partial class RecreateGame
             if (!searchOwnershipChanged && physicalInput.CanRead && gameMenus.IsJunctionDashboard && wheelDelta != 0)
             {
                 gameMenus.HandleJunctionWheel(mouse.X, mouse.Y, wheelDelta);
+            }
+            if (!searchOwnershipChanged && physicalInput.CanRead && gameMenus.IsBattleLoadoutEditor && wheelDelta != 0)
+            {
+                gameMenus.HandleBattleLoadoutWheel(mouse.X, mouse.Y, wheelDelta);
             }
         }
         if (wasTypingName != (gameMenus.IsTypingName || gameMenus.IsGuardianSearchEditing || gameMenus.IsModSearchEditing))

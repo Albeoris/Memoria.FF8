@@ -155,7 +155,7 @@ internal sealed partial class GameWorld : IDisposable
         Events.PrepareSpuAudio = () => (spuAudio ??= new SpuWaveAudioOutput(assets.GameDirectory, assets.ResolveMusicCue(MusicCue.EyesOnMe), audioEnabled, clock.ToolsDirectory, audioOutput)).Prepare();
         Events.StopSpuAudio = () => spuAudio?.Stop();
         Events.HasLiveSpuAudio = () => spuAudio?.HasLiveAudio == true;
-        Events.ReadFieldMagicStatRules = (vitals, row) => BattleResources.ReadPlayerNativeStatRules(vitals, row);
+        Events.ReadFieldMagicStatRules = (vitals, row) => BattleResources.ReadPlayerNativeStatRules(vitals, row, session.State.BattleLoadouts?.ResolveWeaponId(vitals.Records[row].CharacterId));
         Events.ResolveNativeFieldItem = id => FieldItemCatalog.FieldItem(id);
         Events.ResolveNativeFieldItemStatRules = assets.ReadFieldItemStatRules;
         Events.ResolveNativeAutoJunction = (vitals, row, priority) => assets.ReadNativeTutorialCatalog().AutoJunction(vitals, row, priority);

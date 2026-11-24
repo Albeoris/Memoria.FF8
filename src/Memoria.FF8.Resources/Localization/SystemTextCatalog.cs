@@ -99,6 +99,7 @@ public static partial class SystemTextCatalog
         AddAuthoredDefaults(defaults);
         AddGuardianForceEditorDefaults(defaults);
         AddJunctionDefaults(defaults);
+        AddBattleLoadoutDefaults(defaults);
         AddWorkbenchDefaults(defaults);
         InitializeChocoboDefaults(defaults);
         InitializeNewGamePlusDefaults(defaults);

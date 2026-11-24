@@ -8,14 +8,14 @@ internal sealed partial class GameWorld
     internal void PrepareSavedBattleLoadouts()
     {
         GameState state = session.State;
-        if (state.BattleLoadouts is not { Characters.Count: > 0 } || state.CharacterVitals is not { } vitals || state.CharacterAppearance is null)
+        if (state.BattleLoadouts is not { } loadouts || state.CharacterVitals is not { } vitals || state.CharacterAppearance is null)
         {
             return;
         }
         for (int row = 0; row < vitals.Records.Length; row++)
         {
             int character = vitals.Records[row].CharacterId;
-            if ((!vitals.IsRosterMember(row) && !vitals.CombatParty.Contains((byte)row)) || !state.BattleLoadouts.Characters.ContainsKey(character))
+            if ((!vitals.IsRosterMember(row) && !vitals.CombatParty.Contains((byte)row)) || (!loadouts.Characters.ContainsKey(character) && loadouts.WeaponInstances?.Equipped.ContainsKey(character) != true))
             {
                 continue;
             }

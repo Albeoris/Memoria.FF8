@@ -114,7 +114,7 @@ public sealed partial class MenuController
     public IReadOnlyCollection<MenuScreenDefinition> Definitions => _screens.Values.Select(LocalizeSystemScreen).ToArray();
     public IReadOnlyList<string> ScreenIds => _screens.Keys.ToArray();
     public MenuScreenDefinition CurrentScreen => LocalizeSystemScreen(_screens[ScreenId]);
-    public int SelectedIndex => IsJunctionDashboard ? Math.Max(0, Entries.ToList().FindIndex(entry => entry.Id == junctionFocus)) : _selections.GetValueOrDefault(ScreenId);
+    public int SelectedIndex => IsJunctionDashboard ? Math.Max(0, Entries.ToList().FindIndex(entry => entry.Id == junctionFocus)) : IsBattleLoadoutEditor ? SelectedBattleLoadoutIndex() : _selections.GetValueOrDefault(ScreenId);
     public IReadOnlyList<MenuEntry> Entries => LocalizeSystemEntries(CurrentScreen.Entries(this));
     public MenuEntry? SelectedEntry => Entries.Count == 0 ? null : Entries[Math.Clamp(SelectedIndex, 0, Entries.Count - 1)];
     public MenuCharacter? Character => _characterId.Length > 0 ? Data.Characters.FirstOrDefault(c => c.Id == _characterId) ?? (IsJunctionDashboard && junctionVisited.Contains(_characterId) ? Data.JunctionPlanner?.Snapshot.Characters.FirstOrDefault(c => c.Id == _characterId) : null) : Data.Characters.FirstOrDefault(c => c.InParty) ?? Data.Characters.FirstOrDefault();
@@ -150,6 +150,19 @@ public sealed partial class MenuController
 
     public void Open(string screenId = "main", bool demo = false)
     {
+        if (screenId == BattleLoadoutScreen)
+        {
+            if (!IsOpen || !IsBattleLoadoutEditor)
+            {
+                Open("debug-battle", demo);
+                Execute(new("loadout-open"));
+            }
+            return;
+        }
+        if (RequestBattleLoadoutExit(() => Open(screenId, demo)))
+        {
+            return;
+        }
         CloseModPreview();
         catalogSearchEditing = false;
         screenId = ResolveSettingsAlias(screenId);
@@ -234,6 +247,10 @@ public sealed partial class MenuController
 
     public void Close()
     {
+        if (RequestBattleLoadoutExit(Close))
+        {
+            return;
+        }
         junctionEditor = "";
         junctionPlan = null;
         junctionReview = false;
@@ -266,6 +283,10 @@ public sealed partial class MenuController
             return;
         }
         if (NavigateNewGamePlus(input))
+        {
+            return;
+        }
+        if (NavigateBattleLoadoutEditor(input))
         {
             return;
         }
@@ -488,6 +509,15 @@ public sealed partial class MenuController
 
     public void Push(string screenId)
     {
+        if (screenId == BattleLoadoutScreen && battleLoadoutEditor is null)
+        {
+            Execute(new("loadout-open"));
+            return;
+        }
+        if (screenId != BattleLoadoutScreen && RequestBattleLoadoutExit(() => Push(screenId)))
+        {
+            return;
+        }
         screenId = ResolveJunctionDashboard(screenId);
         if (!_screens.ContainsKey(screenId))
         {
@@ -517,6 +547,10 @@ public sealed partial class MenuController
 
     public void Back()
     {
+        if (BackFromBattleLoadoutEditor())
+        {
+            return;
+        }
         if (ScreenId == "field-scene-3d-edit" && Scene3DAction is not null)
         {
             Scene3DAction("close");

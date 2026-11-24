@@ -8,8 +8,19 @@ public sealed partial class BattleAssets
 {
     public void PreparePlayerLoadout(int costume, BattleResolvedLoadout loadout, bool hasLimitOverride)
     {
+        lock (modelResourceGate)
+        {
+            ObjectDisposedException.ThrowIf(modelResourcesDisposed, this);
+            PreparePlayerLoadoutResources(costume, loadout, hasLimitOverride);
+        }
+    }
+
+    private void PreparePlayerLoadoutResources(int costume, BattleResolvedLoadout loadout, bool hasLimitOverride)
+    {
         if (!hasLimitOverride && loadout.WeaponProfile.ResourceOwner == loadout.CharacterId)
         {
+            BattleModel body = LoadPlayer(loadout.CharacterId, costume);
+            _ = ResolvePlayerRenderWeapon(loadout.CharacterId, loadout.Weapon.Id, body);
             return;
         }
         BattleCombatantDefinition actor = new()
@@ -49,7 +60,7 @@ public sealed partial class BattleAssets
         ArgumentNullException.ThrowIfNull(state);
         state.BattleLoadouts?.Validate();
         BattleCharacterLoadoutOverride? assignment = state.BattleLoadouts?.Get(characterId);
-        int weaponId = assignment?.WeaponId ?? nativeWeaponId;
+        int weaponId = state.BattleLoadouts?.ResolveWeaponId(characterId) ?? nativeWeaponId;
         BattleWeaponProfile profile = ReadWeaponProfile(weaponId);
         BattleLimitFamily[] families = assignment?.LimitFamilies ?? BattleLimitFamilyRules.NativeFamilies(characterId);
         return new(characterId, WeaponDefinitions[weaponId], profile, families.Select(ReadNativeLimitFamily).ToArray());
