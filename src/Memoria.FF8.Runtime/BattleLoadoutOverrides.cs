@@ -101,6 +101,15 @@ public sealed class BattleLoadoutDraft
     internal string ResourceRevision { get; }
     public IReadOnlyList<int> ChangedCharacters => defaults.Keys.Where(CharacterChanged).Order().ToArray();
 
+    public IReadOnlyList<int> CharactersWithChangedBattleResources => defaults.Keys.Where(BattleResourcesChanged).Order().ToArray();
+
+    private bool BattleResourcesChanged(int character)
+    {
+        int originalWeapon = original.ResolveWeaponId(character) ?? defaults[character].WeaponId;
+        return originalWeapon != ResolveWeapon(character)
+            || !EquivalentLimits(original.Characters.GetValueOrDefault(character), overrides.Characters.GetValueOrDefault(character));
+    }
+
     private bool CharacterChanged(int character)
     {
         if (originalInventory is null || WeaponInstances is not { } inventory)

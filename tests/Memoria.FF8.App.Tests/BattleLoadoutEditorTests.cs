@@ -77,11 +77,11 @@ public sealed class BattleLoadoutEditorTests
         int applies = 0;
         int prepares = 0;
         TaskCompletionSource operation = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        MenuController menu = Create(_ => applies++, prepare: (draft, progress, _) =>
+        MenuController menu = Create(_ => applies++, prepare: (_, characters, progress, _) =>
         {
             prepares++;
-            Assert.Equal([0, 8], draft.Characters);
-            progress.Report((1, 2));
+            Assert.Equal([0], characters);
+            progress.Report((1, 1));
             return operation.Task;
         });
         Open(menu);
@@ -104,22 +104,46 @@ public sealed class BattleLoadoutEditorTests
     }
 
     [Fact]
-    public void Unchanged_exit_prepares_the_roster_without_publishing()
+    public void Unchanged_exit_skips_preparation_and_publication()
     {
         int applies = 0;
         int prepares = 0;
-        MenuController menu = Create(_ => applies++, prepare: (draft, _, _) =>
+        MenuController menu = Create(_ => applies++, prepare: (_, _, _, _) =>
         {
             prepares++;
-            Assert.Equal([0, 8], draft.Characters);
             return Task.CompletedTask;
         });
         Open(menu);
         menu.Navigate(MenuInput.Cancel);
 
         Assert.Equal("debug-battle", menu.ScreenId);
-        Assert.Equal(1, prepares);
+        Assert.Equal(0, prepares);
         Assert.Equal(0, applies);
+    }
+
+    [Theory]
+    [InlineData("weapon-new-0", new int[] { })]
+    [InlineData("weapon-new-30", new[] { 0 })]
+    [InlineData("weapon-instance-2", new[] { 0, 8 })]
+    public void Weapon_edits_prepare_only_characters_with_a_different_equipped_definition(string choice, int[] expected)
+    {
+        int applies = 0;
+        List<int> prepared = [];
+        MenuController menu = Create(_ => applies++, prepare: (draft, characters, _, _) =>
+        {
+            prepared.AddRange(characters);
+            Assert.Equal(30, draft.ResolveWeapon(0));
+            Assert.Equal(expected.Length == 2 ? 0 : 30, draft.ResolveWeapon(8));
+            return Task.CompletedTask;
+        });
+        Open(menu);
+        Select(menu, choice == "weapon-new-0" ? "weapon-type-0" : "weapon-type-8");
+        Select(menu, choice);
+        menu.Navigate(MenuInput.Cancel);
+
+        Assert.Equal("debug-battle", menu.ScreenId);
+        Assert.Equal(1, applies);
+        Assert.Equal(expected, prepared);
     }
 
     [Fact]
@@ -131,7 +155,7 @@ public sealed class BattleLoadoutEditorTests
         {
             applies++;
             Assert.Contains(BattleLimitFamily.Duel, draft.ResolveFamilies(0));
-        }, prepare: (_, _, _) => blocked ? Task.FromException(new InvalidOperationException("Animation unavailable.")) : Task.CompletedTask);
+        }, prepare: (_, _, _, _) => blocked ? Task.FromException(new InvalidOperationException("Animation unavailable.")) : Task.CompletedTask);
         Open(menu);
         Select(menu, "limit-Duel");
 
@@ -252,7 +276,7 @@ public sealed class BattleLoadoutEditorTests
         }
     }
 
-    private static MenuController Create(Action<BattleLoadoutDraft> apply, Func<string?>? boundary = null, Func<bool>? available = null, BattleLoadoutEditorWeapon[]? weapons = null, Func<BattleLoadoutDraft, int, CancellationToken, Task<BattleLoadoutModelPreview>>? preview = null, Func<BattleLoadoutDraft, IProgress<(int Completed, int Total)>, CancellationToken, Task>? prepare = null)
+    private static MenuController Create(Action<BattleLoadoutDraft> apply, Func<string?>? boundary = null, Func<bool>? available = null, BattleLoadoutEditorWeapon[]? weapons = null, Func<BattleLoadoutDraft, int, CancellationToken, Task<BattleLoadoutModelPreview>>? preview = null, Func<BattleLoadoutDraft, IReadOnlyList<int>, IProgress<(int Completed, int Total)>, CancellationToken, Task>? prepare = null)
     {
         MenuData data = new();
         data.Characters.Add(new() { Id = "squall", NativeId = 0, Name = "Squall", InParty = true, Level = 17, CurrentHp = 890, MaximumHp = 920 });

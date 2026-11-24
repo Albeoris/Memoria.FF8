@@ -15,11 +15,11 @@ internal sealed partial class RecreateGame
         return RunBattleLoadoutPreparationAsync(() => resources.WithPlayerModelResources(() => BattleLoadoutModelPreview.Prepare(resources, character, costume, weapon)), token);
     }
 
-    private Task PrepareBattleLoadoutBatchAsync(BattleLoadoutDraft draft, IProgress<(int Completed, int Total)> progress, CancellationToken token)
+    private Task PrepareBattleLoadoutBatchAsync(BattleLoadoutDraft draft, IReadOnlyList<int> characters, IProgress<(int Completed, int Total)> progress, CancellationToken token)
     {
         BattleAssets resources = world?.BattleResources ?? PresentationBattleResources;
         GameState proposed = session.State with { BattleLoadouts = draft.Overrides };
-        var selections = draft.Characters.Select(character => (Character: character, Costume: BattleLoadoutCostume(character), Weapon: draft.ResolveWeapon(character))).ToArray();
+        var selections = characters.Select(character => (Character: character, Costume: BattleLoadoutCostume(character), Weapon: draft.ResolveWeapon(character))).ToArray();
         return RunBattleLoadoutPreparationAsync(() =>
         {
             progress.Report((0, selections.Length));

@@ -15,7 +15,7 @@ public sealed partial class MenuController
 
     private Func<BattleLoadoutEditorContext>? readBattleLoadoutEditor;
     private Action<BattleLoadoutDraft>? applyBattleLoadoutEditor;
-    private Func<BattleLoadoutDraft, IProgress<(int Completed, int Total)>, CancellationToken, Task>? prepareBattleLoadoutBatch;
+    private Func<BattleLoadoutDraft, IReadOnlyList<int>, IProgress<(int Completed, int Total)>, CancellationToken, Task>? prepareBattleLoadoutBatch;
     private Func<string?>? battleLoadoutEditorBoundary;
     private Func<bool>? canOpenBattleLoadoutEditor;
     private BattleLoadoutEditorContext? battleLoadoutEditor;
@@ -33,7 +33,7 @@ public sealed partial class MenuController
 
     internal string BattleLoadoutEditorEntryHelp => BattleLoadoutEditorAvailable ? LoadoutText("scene.open", "Change equipment and Limit Breaks for the current game.") : battleLoadoutEditorBoundary?.Invoke() ?? LoadoutText("unavailable", "A current FFVIII game is required.");
 
-    internal void ConnectBattleLoadoutEditor(Func<BattleLoadoutEditorContext> read, Action<BattleLoadoutDraft> apply, Func<string?> boundary, Func<bool>? available = null, Func<BattleLoadoutDraft, int, CancellationToken, Task<BattleLoadoutModelPreview>>? preview = null, Func<BattleLoadoutDraft, IProgress<(int Completed, int Total)>, CancellationToken, Task>? prepare = null)
+    internal void ConnectBattleLoadoutEditor(Func<BattleLoadoutEditorContext> read, Action<BattleLoadoutDraft> apply, Func<string?> boundary, Func<bool>? available = null, Func<BattleLoadoutDraft, int, CancellationToken, Task<BattleLoadoutModelPreview>>? preview = null, Func<BattleLoadoutDraft, IReadOnlyList<int>, IProgress<(int Completed, int Total)>, CancellationToken, Task>? prepare = null)
     {
         readBattleLoadoutEditor = read;
         applyBattleLoadoutEditor = apply;
@@ -309,21 +309,28 @@ public sealed partial class MenuController
         {
             return true;
         }
-        bool hasChanges = draft.ChangedCharacters.Count > 0;
-        if (!hasChanges && prepareBattleLoadoutBatch is null)
+        if (draft.ChangedCharacters.Count == 0)
         {
             ReleaseBattleLoadoutEditor();
             return false;
         }
         try
         {
-            if (hasChanges && battleLoadoutEditorBoundary?.Invoke() is { } blocked)
+            if (battleLoadoutEditorBoundary?.Invoke() is { } blocked)
             {
                 throw new InvalidOperationException(blocked);
             }
             battleLoadoutAfterApply = next;
-            battleLoadoutProgress = new(draft.Characters.Count);
-            battleLoadoutPreparation = prepareBattleLoadoutBatch?.Invoke(draft, battleLoadoutProgress, CancellationToken.None) ?? Task.CompletedTask;
+            IReadOnlyList<int> characters = draft.CharactersWithChangedBattleResources;
+            if (characters.Count > 0 && prepareBattleLoadoutBatch is { } prepare)
+            {
+                battleLoadoutProgress = new(characters.Count);
+                battleLoadoutPreparation = prepare(draft, characters, battleLoadoutProgress, CancellationToken.None);
+            }
+            else
+            {
+                battleLoadoutPreparation = Task.CompletedTask;
+            }
             _view = null;
             RefreshBattleLoadoutPreparation();
         }
