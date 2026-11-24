@@ -176,6 +176,30 @@ public sealed class BattleLoadoutEditorTests
         Assert.Contains("FFVIII is dormant", menu.Message, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(4)]
+    public void Squall_preview_uses_opaque_surfaces_and_subpixel_silhouette_coverage(int weapon)
+    {
+        using BattleAssets assets = new(TestResources.GameDirectory);
+        BattleLoadoutModelPreview preview = BattleLoadoutModelPreview.Prepare(assets, 0, 0, weapon);
+
+        for (int frame = 0; frame < 3; frame++)
+        {
+            var image = preview.Render(frame / 30f);
+            int[] alpha = new int[256];
+            foreach (var pixel in image.Pixels)
+            {
+                alpha[pixel.A]++;
+            }
+
+            int filled = image.Pixels.Length - alpha[0];
+            Assert.True(alpha[255] > filled * 0.9, $"Squall weapon {weapon}, frame {frame}: {alpha[255]} fully opaque pixels out of {filled} covered pixels.");
+            Assert.True(alpha[64] + alpha[128] + alpha[191] > 0, "Expected partially covered pixels along the silhouette.");
+            Assert.Equal(filled, alpha[64] + alpha[128] + alpha[191] + alpha[255]);
+        }
+    }
+
     [Fact]
     public void Render_editor_scene_when_output_is_requested()
     {

@@ -1,6 +1,5 @@
 using System.Collections.Immutable;
 using System.Numerics;
-using System.Runtime.InteropServices;
 using Albeoris.Games.FF8.Imaging;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Rendering;
@@ -10,9 +9,9 @@ namespace Memoria.FF8;
 
 internal sealed class BattleLoadoutModelPreview
 {
-    private const int Width = 240;
-    private const int Height = 280;
-    private readonly BattleRenderer renderer = new(Width, Height);
+    private const int Width = 300;
+    private const int Height = 350;
+    private readonly BattleRenderer renderer = new(Width * BattleRenderer.ModelPreviewSampleScale, Height * BattleRenderer.ModelPreviewSampleScale);
     private readonly CrossoverFf8BattleActorVisual[] idle;
     private readonly BattleCamera camera;
     private readonly PixelImage image = new(Width, Height);
@@ -110,8 +109,7 @@ internal sealed class BattleLoadoutModelPreview
         int frame = (int)(seconds * ModelExchange.FramesPerSecond) % idle.Length;
         if (frame != renderedFrame)
         {
-            byte[] rgba = renderer.RenderModelPreview(idle[frame], camera);
-            MemoryMarshal.Cast<byte, Rgba32>(rgba).CopyTo(image.Pixels);
+            renderer.RenderModelPreview(idle[frame], camera, image);
             renderedFrame = frame;
         }
         return image;
