@@ -207,7 +207,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         if (!nativePreparation.Success)
         {
             DiscardCandidate(candidate);
-            return new(false, Diagnostics: nativePreparation.Diagnostics);
+            return ModPreparationResult.RejectPackagePayloads(nativePreparation.Diagnostics.Where(diagnostic => diagnostic.Code == "Memoria.InvalidTexture").ToArray());
         }
         ModPreparationResult? waiting = PrepareLocalization(catalog, out var localization);
         if (waiting is not null)
@@ -323,11 +323,11 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         }
         if (!ModelMods.TryPrepare(catalog, out ModelMods modelMods, out IReadOnlyList<ModDiagnostic> modelDiagnostics))
         {
-            return new ModPreparationResult(false, Diagnostics: modelDiagnostics);
+            return ModPreparationResult.RejectPackagePayloads(modelDiagnostics.Where(diagnostic => diagnostic.Code == "Memoria.InvalidModel").ToArray());
         }
         if (!FieldSpringBoneMods.TryPrepare(catalog, out FieldSpringBoneMods springMods, out IReadOnlyList<ModDiagnostic> springDiagnostics))
         {
-            return new ModPreparationResult(false, Diagnostics: springDiagnostics);
+            return ModPreparationResult.RejectPackagePayloads(springDiagnostics);
         }
         springDiagnostics = ValidateSpringBoneResources(springMods, modelMods, encodedResources);
         if (springDiagnostics.Count != 0)
@@ -336,7 +336,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         }
         if (!FieldSceneMods.TryPrepare(catalog, out FieldSceneMods sceneMods, out IReadOnlyList<ModDiagnostic> sceneDiagnostics))
         {
-            return new ModPreparationResult(false, Diagnostics: sceneDiagnostics);
+            return ModPreparationResult.RejectPackagePayloads(sceneDiagnostics);
         }
         IReadOnlyList<ModDiagnostic> sceneResourceDiagnostics = ValidateSceneModResources(sceneMods, encodedResources);
         if (sceneResourceDiagnostics.Count != 0)
@@ -345,7 +345,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         }
         if (!GuardianForceAbilityMods.TryPrepare(catalog, out GuardianForceAbilityMods guardianMods, out IReadOnlyList<ModDiagnostic> guardianDiagnostics))
         {
-            return new ModPreparationResult(false, Diagnostics: guardianDiagnostics);
+            return ModPreparationResult.RejectPackagePayloads(guardianDiagnostics);
         }
         if (!GuardianForceRules.TryPrepare(catalog, out GuardianForceRules guardianRules, out IReadOnlyList<ModDiagnostic> guardianRuleDiagnostics))
         {
@@ -358,7 +358,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         }
         if (!EncounterMods.TryPrepare(catalog, out EncounterMods encounterMods, out IReadOnlyList<ModDiagnostic> encounterDiagnostics))
         {
-            return new ModPreparationResult(false, Diagnostics: encounterDiagnostics);
+            return ModPreparationResult.RejectPackagePayloads(encounterDiagnostics);
         }
         ModPreparationResult encounterPublication = PrepareEncounterPublication?.Invoke(encounterMods, catalog, encodedResources) ?? (encounterMods.Layers.IsEmpty ? ModPreparationResult.Accepted : new ModPreparationResult(false, Diagnostics: encounterMods.Layers.Select(layer => new ModDiagnostic("Memoria.UnsupportedEncounterRuntime", "Encounter documents require a supported encounter binding and runtime publication provider; no encounter changes were published.", layer.PackageId, layer.PayloadPath)).ToArray()));
         if (!encounterPublication.Success)
@@ -386,7 +386,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         int itemCount = catalog.Files.Any(ItemOverrideMods.IsItemDocument) ? dataCandidate.Read(new ResourceKey("menu/mitem.bin")).Length / 4 : 0;
         if (!ItemOverrideMods.TryPrepare(catalog, itemCount, out ItemOverrideMods itemOverrides, out IReadOnlyList<ModDiagnostic> itemDiagnostics))
         {
-            return new ModPreparationResult(false, Diagnostics: itemDiagnostics);
+            return ModPreparationResult.RejectPackagePayloads(itemDiagnostics);
         }
         usable.AddRange(itemOverrides.PackageIds);
         if (gameplayPolicy.ExtendedRosterEnabled)

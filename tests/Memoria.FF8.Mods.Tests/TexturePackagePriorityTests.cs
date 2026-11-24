@@ -98,17 +98,17 @@ public sealed class TexturePackagePriorityTests : IDisposable
     [InlineData("not-an-integer")]
     [InlineData("2147483648")]
     [InlineData("")]
-    public void InvalidPriorityHasOwnedDiagnosticAndRetainsLastPublication(string priority)
+    public void InvalidPriorityIsolatesThePackageAndReportsItsConfiguration(string priority)
     {
         Write(root, ModFormat.Demaster, "example", "original");
         using ModRuntime runtime = Runtime();
         Publish(runtime);
-        ModCatalogSnapshot previous = runtime.Catalog;
+        Write(root, ModFormat.Demaster, "healthy", "healthy");
         WriteConfiguration(root, ModFormat.Demaster, "example", $"priority = {priority}\n");
         runtime.RequestRefresh();
-        Assert.False(runtime.PreparePending());
-        Assert.False(runtime.CommitPending());
-        Assert.Same(previous, runtime.Catalog);
+        Publish(runtime);
+        Assert.Equal("Demaster/healthy", Assert.Single(runtime.Catalog.Files).PackageId);
+        Assert.Equal(ModEffectiveStatus.ReloadFailure, runtime.Catalog.Packages.Single(package => package.Id == "Demaster/example").Status);
         Assert.Contains(runtime.Diagnostics, diagnostic => diagnostic.Code == "invalid-package-priority" && diagnostic.PackageId == "Demaster/example" && diagnostic.RelativePath == "mod.ini");
     }
 
@@ -117,9 +117,9 @@ public sealed class TexturePackagePriorityTests : IDisposable
     {
         Write(root, ModFormat.Demaster, "example", "unpublished", "priority = invalid\n");
         using ModRuntime runtime = Runtime();
-        Assert.False(runtime.PreparePending());
-        Assert.False(runtime.CommitPending());
+        Publish(runtime);
         Assert.Empty(runtime.Catalog.Files);
+        Assert.Equal(ModEffectiveStatus.ReloadFailure, Assert.Single(runtime.Catalog.Packages).Status);
         Assert.Contains(runtime.Diagnostics, diagnostic => diagnostic.Code == "invalid-package-priority" && diagnostic.PackageId == "Demaster/example");
     }
 

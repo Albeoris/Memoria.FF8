@@ -66,6 +66,54 @@ public sealed class ModRuntimeTests : IDisposable
     }
 
     [Fact]
+    public void InvalidPackagePayloadRemainsVisibleAndHealthyPackagesPublishOnStartup()
+    {
+        const string broken = "Memoria/Broken";
+        Write("Memoria/Broken/data.txt", "invalid");
+        Write("Memoria/Healthy/data.txt", "healthy");
+        bool repaired = false;
+        bool defer = true;
+        ModCatalogSnapshot? deferred = null;
+        using ModRuntime runtime = new(root, watch: false, debounce: TimeSpan.Zero, prepare: candidate =>
+        {
+            if (!repaired && candidate.Files.Any(file => file.PackageId == broken))
+            {
+                return ModPreparationResult.RejectPackagePayloads([new("invalid-payload", "Invalid package document.", broken, "data.txt")]);
+            }
+            if (defer)
+            {
+                defer = false;
+                deferred = candidate;
+                return new(false) { Deferred = true };
+            }
+            if (!repaired)
+            {
+                Assert.Same(deferred, candidate);
+            }
+            return ModPreparationResult.Accepted;
+        });
+        Assert.False(runtime.PreparePending(force: true));
+        Assert.False(runtime.PreparePending(force: true));
+        Assert.True(runtime.PreparePending(force: true));
+        Assert.True(runtime.CommitPending());
+        Assert.Equal("Memoria/Healthy", Assert.Single(runtime.Catalog.Files).PackageId);
+        ModPackageView failed = runtime.View.Packages.Single(package => package.Package.Id == broken);
+        Assert.Equal(ModEffectiveStatus.ReloadFailure, failed.CommittedStatus);
+        Assert.Equal("Invalid package document.", failed.Problem);
+
+        runtime.RequestRefresh();
+        Assert.False(runtime.PreparePending(force: true));
+        Assert.Contains(runtime.Diagnostics, diagnostic => diagnostic.Code == "invalid-payload" && diagnostic.PackageId == broken);
+
+        repaired = true;
+        Write("Memoria/Broken/data.txt", "corrected payload");
+        runtime.RequestRefresh();
+        Publish(runtime);
+        Assert.Equal(2, runtime.Catalog.Files.Count);
+        Assert.DoesNotContain(runtime.Diagnostics, diagnostic => diagnostic.PackageId == broken);
+    }
+
+    [Fact]
     public void ExplicitModsDirectoryUsesItsOwnPolicyAndRetainsGameDirectoryPriority()
     {
         string gameRoot = Path.Combine(root, "game");

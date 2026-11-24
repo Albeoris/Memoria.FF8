@@ -64,26 +64,27 @@ public sealed class TextureLayoutDiscoveryTests : IDisposable
     }
 
     [Fact]
-    public void ARejectedManifestRetainsTheCommittedCatalogAndRecoversAfterCorrection()
+    public void ARejectedManifestLeavesOtherPackagesActiveAndRecoversAfterCorrection()
     {
         Write("sample", ImagePath, "image");
         string manifest = Write("sample", TextureLayoutManifest.FileName, Manifest());
         using ModRuntime runtime = Open();
         Publish(runtime);
         ModCatalogSnapshot committed = runtime.Catalog;
+        Write("healthy", ImagePath, "healthy image");
         File.WriteAllText(manifest, "{\"version\":99,\"textures\":{}}");
         runtime.RequestRefresh();
-        Assert.False(runtime.PreparePending(force: true));
-        Assert.False(runtime.CommitPending());
-        Assert.Same(committed, runtime.Catalog);
+        Publish(runtime);
+        Assert.Equal(ModEffectiveStatus.ReloadFailure, runtime.Catalog.Packages.Single(package => package.Id == "Demaster/sample").Status);
+        Assert.Equal("Demaster/healthy", Assert.Single(runtime.Catalog.Files).PackageId);
         ModDiagnostic diagnostic = Assert.Single(runtime.Diagnostics, item => item.Code == "invalid-texture-layouts");
         Assert.Equal(("Demaster/sample", TextureLayoutManifest.FileName), (diagnostic.PackageId, diagnostic.RelativePath));
-        Assert.Equal(256, Assert.Single(runtime.Catalog.Files).TextureLayout!.CanvasWidth);
+        Assert.Equal(256, Assert.Single(committed.Files).TextureLayout!.CanvasWidth);
         File.WriteAllText(manifest, Manifest(128));
         runtime.RequestRefresh();
         Publish(runtime);
         Assert.True(runtime.Catalog.Generation > committed.Generation);
-        Assert.Equal(128, Assert.Single(runtime.Catalog.Files).TextureLayout!.CanvasWidth);
+        Assert.Equal(128, runtime.Catalog.Files.Single(file => file.PackageId == "Demaster/sample").TextureLayout!.CanvasWidth);
     }
 
     [Fact]
@@ -92,8 +93,9 @@ public sealed class TextureLayoutDiscoveryTests : IDisposable
         Write("other", ImagePath, "foreign image");
         Write("sample", TextureLayoutManifest.FileName, Manifest());
         using ModRuntime runtime = Open();
-        Assert.False(runtime.PreparePending(force: true));
-        Assert.Empty(runtime.Catalog.Files);
+        Publish(runtime);
+        Assert.Equal("Demaster/other", Assert.Single(runtime.Catalog.Files).PackageId);
+        Assert.Equal(ModEffectiveStatus.ReloadFailure, runtime.Catalog.Packages.Single(package => package.Id == "Demaster/sample").Status);
         Assert.Contains(runtime.Diagnostics, diagnostic => diagnostic.Code == "invalid-texture-layouts" && diagnostic.PackageId == "Demaster/sample");
     }
 

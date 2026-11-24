@@ -33,7 +33,7 @@ public sealed partial class ModRuntime
             {
                 if (!images.Contains(path))
                 {
-                    throw new InvalidDataException($"Texture layout declaration '{path}' does not identify a selected image in its package.");
+                    throw new InvalidDataException($"Texture layout declaration '{path}' requires an unpacked image at that path in the same package.");
                 }
             }
             return new(entries, Convert.ToHexString(SHA256.HashData(bytes)));

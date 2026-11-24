@@ -41,5 +41,17 @@ public sealed record ModPreparationResult(bool Success, IReadOnlyCollection<stri
 {
     public bool Deferred { get; init; }
     public Action? Discard { get; init; }
+    internal IReadOnlyList<string> RejectedPackageIds { get; init; } = [];
     public static ModPreparationResult Accepted { get; } = new(true);
+
+    /// <summary>Rejects independently invalid package documents, with a diagnostic for each package.</summary>
+    public static ModPreparationResult RejectPackagePayloads(IReadOnlyList<ModDiagnostic> diagnostics)
+    {
+        return new(false, Diagnostics: diagnostics)
+        {
+            RejectedPackageIds = diagnostics.All(diagnostic => diagnostic.PackageId is not null)
+                ? diagnostics.Select(diagnostic => diagnostic.PackageId!).Distinct(StringComparer.OrdinalIgnoreCase).ToArray()
+                : []
+        };
+    }
 }

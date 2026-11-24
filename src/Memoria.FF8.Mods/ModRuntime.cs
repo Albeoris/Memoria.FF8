@@ -450,19 +450,26 @@ public sealed partial class ModRuntime : IModService, IDisposable
                         }
                     }
                     installedPackages = Array.AsReadOnly(candidate.Packages.Select(package => package.Status == ModEffectiveStatus.Active ? package with { Status = ModEffectiveStatus.ReloadFailure } : package).ToArray());
+                    memoriaSettingsViews.Clear();
                 }
                 deferredDiscovery = null;
                 autoEnable = nextAutoEnable;
                 if (identity == lastIdentity)
                 {
                     installedPackages = catalog.Packages;
-                    diagnostics = Array.AsReadOnly(candidate.Diagnostics.Concat(diagnostics.Where(diagnostic => diagnostic.Code is "subscriber-failed" or "resource-rejected")).Concat(catalog.Diagnostics.Where(diagnostic => diagnostic.Code is "Junction.FieldGroupConflict" or "Junction.DynamicFieldTextReference" or "Junction.MissingFieldColors" or "Memoria.FieldSceneViewConflict")).Distinct().ToArray());
+                    HashSet<string> rejected = catalog.Packages.Where(package => package.Status == ModEffectiveStatus.ReloadFailure).Select(package => package.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                    rejected.ExceptWith(candidate.Packages.Where(package => package.Status == ModEffectiveStatus.ReloadFailure).Select(package => package.Id));
+                    diagnostics = Array.AsReadOnly(candidate.Diagnostics.Concat(diagnostics.Where(diagnostic => diagnostic.Code is "subscriber-failed" or "resource-rejected")).Concat(catalog.Diagnostics.Where(diagnostic => diagnostic.Code is "Junction.FieldGroupConflict" or "Junction.DynamicFieldTextReference" or "Junction.MissingFieldColors" or "Memoria.FieldSceneViewConflict" || diagnostic.PackageId is { } id && rejected.Contains(id))).Distinct().ToArray());
                     updateOutcome = ModUpdateOutcome.Idle;
                     changedPackageIds.Clear();
                     return false;
                 }
                 if (!StatusMods.TryPrepare(candidate, out StatusMods statuses, out IReadOnlyList<ModDiagnostic> statusErrors))
                 {
+                    if (RetryWithoutRejectedPackages(candidate, ModPreparationResult.RejectPackagePayloads(statusErrors), nextAutoEnable, identity))
+                    {
+                        return false;
+                    }
                     diagnostics = Array.AsReadOnly(candidate.Diagnostics.Concat(statusErrors).Append(new ModDiagnostic("reload-failed", "Mod preparation failed; the last committed generation remains active.")).ToArray());
                     updateOutcome = ModUpdateOutcome.Failed;
                     ScheduleRetry();
@@ -470,6 +477,10 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 }
                 if (!GuardianForceRules.TryPrepare(candidate, out GuardianForceRules guardianForceRules, out IReadOnlyList<ModDiagnostic> guardianForceErrors))
                 {
+                    if (RetryWithoutRejectedPackages(candidate, ModPreparationResult.RejectPackagePayloads(guardianForceErrors.Where(diagnostic => diagnostic.Code == "Memoria.InvalidGuardianForceRules").ToArray()), nextAutoEnable, identity))
+                    {
+                        return false;
+                    }
                     diagnostics = Array.AsReadOnly(candidate.Diagnostics.Concat(guardianForceErrors).Append(new ModDiagnostic("reload-failed", "GF rule preparation failed; the last committed generation remains active.")).ToArray());
                     updateOutcome = ModUpdateOutcome.Failed;
                     ScheduleRetry();
@@ -477,6 +488,10 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 }
                 if (!FieldLightingMods.TryPrepare(candidate, out FieldLightingMods candidateLighting, out IReadOnlyList<ModDiagnostic> lightingDiagnostics))
                 {
+                    if (RetryWithoutRejectedPackages(candidate, ModPreparationResult.RejectPackagePayloads(lightingDiagnostics), nextAutoEnable, identity))
+                    {
+                        return false;
+                    }
                     diagnostics = Array.AsReadOnly(candidate.Diagnostics.Concat(lightingDiagnostics).Append(new ModDiagnostic("reload-failed", "Lighting preparation failed; the last committed generation remains active.")).ToArray());
                     updateOutcome = ModUpdateOutcome.Failed;
                     ScheduleRetry();
@@ -484,6 +499,10 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 }
                 if (!FieldScene3DMods.TryPrepare(candidate, out FieldScene3DMods candidateScenes3D, out IReadOnlyList<ModDiagnostic> scenes3DDiagnostics))
                 {
+                    if (RetryWithoutRejectedPackages(candidate, ModPreparationResult.RejectPackagePayloads(scenes3DDiagnostics.Where(diagnostic => diagnostic.Code == "Memoria.InvalidFieldScene3D").ToArray()), nextAutoEnable, identity))
+                    {
+                        return false;
+                    }
                     diagnostics = Array.AsReadOnly(candidate.Diagnostics.Concat(scenes3DDiagnostics).Append(new ModDiagnostic("reload-failed", "3D field scene preparation failed; the last committed generation remains active.")).ToArray());
                     updateOutcome = ModUpdateOutcome.Failed;
                     ScheduleRetry();
@@ -507,6 +526,10 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 if (!result.Success)
                 {
                     result.Discard?.Invoke();
+                    if (RetryWithoutRejectedPackages(candidate, result, nextAutoEnable, identity))
+                    {
+                        return false;
+                    }
                     diagnostics = Array.AsReadOnly(diagnostics.Append(new ModDiagnostic("reload-failed", "Mod preparation failed; the last committed generation remains active.")).ToArray());
                     updateOutcome = ModUpdateOutcome.Failed;
                     ScheduleRetry();
@@ -538,18 +561,8 @@ public sealed partial class ModRuntime : IModService, IDisposable
             catch (Exception exception) when (IsPreparationError(exception))
             {
                 ModTextureLoadException? textureFailure = exception as ModTextureLoadException;
-                PackagePriorityException? priorityFailure = exception as PackagePriorityException;
-                PackageTextureLayoutException? layoutFailure = exception as PackageTextureLayoutException;
                 PackageDescriptorException? descriptorFailure = exception as PackageDescriptorException;
-                List<ModDiagnostic> errors = [new("reload-failed", $"{exception.Message} The last committed generation remains active.", textureFailure?.PackageId ?? priorityFailure?.PackageId ?? layoutFailure?.PackageId ?? descriptorFailure?.PackageId, textureFailure?.RelativePath ?? priorityFailure?.RelativePath ?? layoutFailure?.RelativePath ?? descriptorFailure?.RelativePath)];
-                if (priorityFailure is not null)
-                {
-                    errors.Add(new("invalid-package-priority", priorityFailure.Message, priorityFailure.PackageId, priorityFailure.RelativePath));
-                }
-                if (layoutFailure is not null)
-                {
-                    errors.Add(new("invalid-texture-layouts", layoutFailure.Message, layoutFailure.PackageId, layoutFailure.RelativePath));
-                }
+                List<ModDiagnostic> errors = [new("reload-failed", $"{exception.Message} The last committed generation remains active.", textureFailure?.PackageId ?? descriptorFailure?.PackageId, textureFailure?.RelativePath ?? descriptorFailure?.RelativePath)];
                 if (descriptorFailure is not null)
                 {
                     errors.Add(new("native-descriptor", descriptorFailure.Message, descriptorFailure.PackageId, descriptorFailure.RelativePath));
@@ -560,6 +573,35 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 return false;
             }
         }
+    }
+
+    private bool RetryWithoutRejectedPackages(ModCatalogSnapshot candidate, ModPreparationResult result, bool nextAutoEnable, string identity)
+    {
+        if (result.RejectedPackageIds.Count == 0)
+        {
+            return false;
+        }
+        HashSet<string> rejected = new(result.RejectedPackageIds, StringComparer.OrdinalIgnoreCase);
+        ModPackage[] packages = candidate.Packages.Where(package => rejected.Contains(package.Id)).ToArray();
+        if (packages.Length != rejected.Count || packages.Any(package => package.Status != ModEffectiveStatus.Active || package.Format == ModFormat.Junction || RequiredPackageReason(package.Id) is not null
+            || catalog.Packages.Any(previous => previous.Status == ModEffectiveStatus.Active && previous.Id.Equals(package.Id, StringComparison.OrdinalIgnoreCase))))
+        {
+            return false;
+        }
+        ModCatalogSnapshot filtered = new(candidate.Generation,
+            candidate.Packages.Select(package => rejected.Contains(package.Id) ? package with { Status = ModEffectiveStatus.ReloadFailure } : package),
+            candidate.Files.Where(file => !rejected.Contains(file.PackageId)), candidate.Diagnostics.Concat(result.Diagnostics ?? []))
+        {
+            Hardcore = candidate.Hardcore,
+            StatusPreferences = candidate.StatusPreferences
+        };
+        diagnostics = filtered.Diagnostics;
+        deferredDiscovery = (filtered, nextAutoEnable, identity);
+        reloadRequested = true;
+        requestedAt = DateTime.MinValue;
+        retryDue = DateTime.MinValue;
+        updateOutcome = ModUpdateOutcome.Updating;
+        return true;
     }
 
     /// <summary>Publishes only on the thread which constructed this runtime, after all preparation succeeded.</summary>
@@ -807,10 +849,20 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 {
                     identities.Add($"descriptor\0{id}\0{descriptor.Name}\0{descriptor.Group}\0{System.Text.Json.JsonSerializer.Serialize(descriptor.Descriptions.OrderBy(entry => entry.Key, StringComparer.Ordinal))}");
                 }
-                bool? explicitEnabled = ModConfiguration.ReadBoolean(Path.Combine(root, "mod.ini"), "enabled");
-                if (explicitEnabled is null && bundledRoot is not null && !root.Equals(bundledRoot, StringComparison.OrdinalIgnoreCase))
+                bool? explicitEnabled = null;
+                bool rejected = false;
+                try
                 {
-                    explicitEnabled = ModConfiguration.ReadBoolean(Path.Combine(bundledRoot, "mod.ini"), "enabled");
+                    explicitEnabled = ModConfiguration.ReadBoolean(Path.Combine(root, "mod.ini"), "enabled");
+                    if (explicitEnabled is null && bundledRoot is not null && !root.Equals(bundledRoot, StringComparison.OrdinalIgnoreCase))
+                    {
+                        explicitEnabled = ModConfiguration.ReadBoolean(Path.Combine(bundledRoot, "mod.ini"), "enabled");
+                    }
+                }
+                catch (Exception exception) when (IsFileError(exception))
+                {
+                    notices.Add(new("invalid-package-configuration", exception.Message, id, "mod.ini"));
+                    rejected = true;
                 }
                 int priority = 0;
                 if (format is ModFormat.Tonberry or ModFormat.Demaster || descriptor is not null)
@@ -819,9 +871,10 @@ public sealed partial class ModRuntime : IModService, IDisposable
                     {
                         priority = ModConfiguration.ReadPriority(Path.Combine(root, "mod.ini"));
                     }
-                    catch (InvalidDataException exception)
+                    catch (Exception exception) when (IsFileError(exception))
                     {
-                        throw new PackagePriorityException(id, exception.Message);
+                        notices.Add(new("invalid-package-priority", exception.Message, id, "mod.ini"));
+                        rejected = true;
                     }
                 }
                 if (bundledRoot is not null || native?.Official is not null || descriptor is not null)
@@ -867,11 +920,19 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 }
                 string[] packageRoots = bundledRoot is not null && !string.Equals(root, bundledRoot, StringComparison.OrdinalIgnoreCase) ? [root, bundledRoot] : [root];
                 List<(string Root, string Physical, string Relative)> packageFiles = [];
-                foreach (string packageRoot in packageRoots)
+                try
                 {
-                    List<(string Physical, string Relative)> sourceFiles = [];
-                    EnumerateFiles(packageRoot, packageRoot, string.Empty, id, new HashSet<string>(StringComparer.OrdinalIgnoreCase), sourceFiles, notices, hasLocalization);
-                    packageFiles.AddRange(sourceFiles.OrderBy(item => item.Relative, PathOrder).Select(file => (packageRoot, file.Physical, file.Relative)));
+                    foreach (string packageRoot in packageRoots)
+                    {
+                        List<(string Physical, string Relative)> sourceFiles = [];
+                        EnumerateFiles(packageRoot, packageRoot, string.Empty, id, new HashSet<string>(StringComparer.OrdinalIgnoreCase), sourceFiles, notices, hasLocalization);
+                        packageFiles.AddRange(sourceFiles.OrderBy(item => item.Relative, PathOrder).Select(file => (packageRoot, file.Physical, file.Relative)));
+                    }
+                }
+                catch (Exception exception) when (IsFileError(exception))
+                {
+                    notices.Add(new("package-read-failed", exception.Message, id));
+                    rejected = true;
                 }
                 bool textureContentOnly = format == ModFormat.Memoria && TexturePackageCompatibility.IsTextureContentOnly(packageFiles.Select(file => file.Relative), hasLocalization);
                 bool moviePresentationOnly = format == ModFormat.Memoria && !textureContentOnly && TexturePackageCompatibility.IsMoviePresentationOnly(packageFiles.Select(file => file.Relative), hasLocalization);
@@ -900,42 +961,72 @@ public sealed partial class ModRuntime : IModService, IDisposable
                     }
                     selectedFiles.Add((packageRoot, physical, relative));
                 }
-                PackageTextureLayouts textureLayouts = ReadTextureLayouts(id, format, selectedFiles);
-                if (textureLayouts.Identity is not null)
+                int packageFileStart = files.Count;
+                try
                 {
-                    identities.Add($"texture-layouts\0{id}\0{textureLayouts.Identity}");
-                }
-                foreach ((string packageRoot, string physical, string relative) in selectedFiles.OrderBy(item => item.Relative, PathOrder))
-                {
-                    if (format == ModFormat.Demaster && relative.Equals(TextureLayoutManifest.FileName, StringComparison.OrdinalIgnoreCase))
+                    if (!rejected)
                     {
-                        continue;
-                    }
-                    FileInfo info = new(physical);
-                    string key = id + "/" + relative + "\0" + physical;
-                    visitedFiles.Add(key);
-                    FileStamp stamp = new(info.Length, info.LastWriteTimeUtc.Ticks);
-                    bool localizationManifest = hasLocalization && relative.Equals("Localization/localization.manifest.json", StringComparison.OrdinalIgnoreCase);
-                    long localizationEpoch = localizationManifest ? localizationChangeEpoch : 0;
-                    textureLayouts.Entries.TryGetValue(relative, out TextureLayoutMetadata? textureLayout);
-                    if (!fileEntries.TryGetValue(key, out FileEntry? previous) || previous.Stamp != stamp || previous.LocalizationEpoch != localizationEpoch || previous.TextureLayoutIdentity != textureLayouts.Identity || forceRevalidate)
-                    {
-                        long revision = ++fileRevision;
-                        Action<Stream>? copyTo = format == ModFormat.Memoria && MoviePackagePaths.IsNativeMovieVideo(relative) ? destination => CopyFileVersion(packageRoot, physical, stamp, destination) : null;
-                        previous = new(stamp, new ModFile(id, format, relative, revision, () => ReadVersion(packageRoot, physical, stamp), copyTo) { ContentStamp = localizationManifest ? (localizationEpoch, 0) : (stamp.Length, stamp.LastWriteTicks), TextureLayout = textureLayout, AbsolutePath = Path.GetFullPath(physical) }, localizationEpoch, textureLayouts.Identity);
-                        fileEntries[key] = previous;
-                    }
-                    identities.Add($"{key}\0{previous.File.Revision}");
-                    if (requested && compatible)
-                    {
-                        files.Add(previous.File);
+                        TrackPackageFiles(ReadTextureLayouts(id, format, selectedFiles));
                     }
                 }
+                catch (PackageTextureLayoutException exception)
+                {
+                    notices.Add(new("invalid-texture-layouts", exception.Message, id, exception.RelativePath));
+                    rejected = true;
+                }
+                catch (Exception exception) when (IsFileError(exception))
+                {
+                    notices.Add(new("package-read-failed", exception.Message, id));
+                    rejected = true;
+                }
+                if (rejected)
+                {
+                    files.RemoveRange(packageFileStart, files.Count - packageFileStart);
+                    if (status == ModEffectiveStatus.Active)
+                    {
+                        status = ModEffectiveStatus.ReloadFailure;
+                    }
+                }
+                identities.Add($"package-status\0{id}\0{status}");
                 if (status == ModEffectiveStatus.Active && !files.Any(file => file.PackageId == id))
                 {
                     status = ModEffectiveStatus.NoUsableEntries;
                 }
                 packages.Add(new(id, descriptor?.Name ?? native?.Official?.Name ?? name, format, explicitEnabled, requested, status, root) { IsBundled = format == ModFormat.Memoria && (bundledRoot is not null || modRoot == bundledModsRoot), Official = native?.Official, Descriptor = descriptor, Priority = priority, HasLocalization = hasLocalization, HasLighting = hasLighting, HasFieldScene3D = hasFieldScene3D, FieldScenePresentationOnly = fieldScenePresentationOnly, FieldSpringPresentationOnly = fieldSpringPresentationOnly, LocalizationOnly = localizationOnly, TextureContentOnly = textureContentOnly, MoviePresentationOnly = moviePresentationOnly });
+
+                void TrackPackageFiles(PackageTextureLayouts textureLayouts)
+                {
+                    if (textureLayouts.Identity is not null)
+                    {
+                        identities.Add($"texture-layouts\0{id}\0{textureLayouts.Identity}");
+                    }
+                    foreach ((string packageRoot, string physical, string relative) in selectedFiles.OrderBy(item => item.Relative, PathOrder))
+                    {
+                        if (format == ModFormat.Demaster && relative.Equals(TextureLayoutManifest.FileName, StringComparison.OrdinalIgnoreCase))
+                        {
+                            continue;
+                        }
+                        FileInfo info = new(physical);
+                        string key = id + "/" + relative + "\0" + physical;
+                        visitedFiles.Add(key);
+                        FileStamp stamp = new(info.Length, info.LastWriteTimeUtc.Ticks);
+                        bool localizationManifest = hasLocalization && relative.Equals("Localization/localization.manifest.json", StringComparison.OrdinalIgnoreCase);
+                        long localizationEpoch = localizationManifest ? localizationChangeEpoch : 0;
+                        textureLayouts.Entries.TryGetValue(relative, out TextureLayoutMetadata? textureLayout);
+                        if (!fileEntries.TryGetValue(key, out FileEntry? previous) || previous.Stamp != stamp || previous.LocalizationEpoch != localizationEpoch || previous.TextureLayoutIdentity != textureLayouts.Identity || forceRevalidate)
+                        {
+                            long revision = ++fileRevision;
+                            Action<Stream>? copyTo = format == ModFormat.Memoria && MoviePackagePaths.IsNativeMovieVideo(relative) ? destination => CopyFileVersion(packageRoot, physical, stamp, destination) : null;
+                            previous = new(stamp, new ModFile(id, format, relative, revision, () => ReadVersion(packageRoot, physical, stamp), copyTo) { ContentStamp = localizationManifest ? (localizationEpoch, 0) : (stamp.Length, stamp.LastWriteTicks), TextureLayout = textureLayout, AbsolutePath = Path.GetFullPath(physical) }, localizationEpoch, textureLayouts.Identity);
+                            fileEntries[key] = previous;
+                        }
+                        identities.Add($"{key}\0{previous.File.Revision}");
+                        if (requested && compatible)
+                        {
+                            files.Add(previous.File);
+                        }
+                    }
+                }
             }
         }
         foreach (string key in fileEntries.Keys.Where(key => !visitedFiles.Contains(key)).ToArray())
@@ -949,12 +1040,6 @@ public sealed partial class ModRuntime : IModService, IDisposable
             .ThenByDescending(file => packagesById[file.PackageId].Priority)
             .ThenBy(file => packagesById[file.PackageId].Descriptor?.Id ?? string.Empty, StringComparer.Ordinal);
         return new(catalog.Generation + 1, packages, orderedFiles, notices) { Hardcore = hardcore, StatusPreferences = memoriaSettings.StatusSettings.ToImmutableDictionary(StringComparer.Ordinal) };
-    }
-
-    private sealed class PackagePriorityException(string packageId, string message) : IOException(message)
-    {
-        public string PackageId { get; } = packageId;
-        public string RelativePath => "mod.ini";
     }
 
     private sealed class PackageDescriptorException(string packageId, string message) : IOException(message)

@@ -147,6 +147,20 @@ public sealed class GameResourceHostTests : IDisposable
     }
 
     [Fact]
+    public void InvalidLocalizationPayloadDoesNotPreventStartupWithHealthyMods()
+    {
+        WriteText("Memoria/Broken/Localization/localization.manifest.json", "{ invalid json");
+        WriteImage("Demaster/high/textures/world/dat/texl/texl_001_0.png", MagickColors.Red);
+
+        using GameResourceHost host = Host();
+
+        Assert.Equal(ModEffectiveStatus.ReloadFailure, host.Mods.Catalog.Packages.Single(package => package.Id == "Memoria/Broken").Status);
+        Assert.Equal(ModEffectiveStatus.Active, host.Mods.Catalog.Packages.Single(package => package.Id == "Demaster/high").Status);
+        Assert.Contains(host.Mods.Diagnostics, diagnostic => diagnostic.Code == "localization-invalid" && diagnostic.PackageId == "Memoria/Broken");
+        Assert.Equal(new Rgba32(255, 0, 0), host.Resources.GetTexture(Context(host)).Value.Image[0, 0]);
+    }
+
+    [Fact]
     public void DemasterThenTonberryThenBasePublishThroughTheSameStableHandle()
     {
         WriteImage("Demaster/high/textures/world/dat/texl/texl_001_0.png", MagickColors.Red);
@@ -158,7 +172,7 @@ public sealed class GameResourceHostTests : IDisposable
         Assert.StartsWith("Demaster/high/", handle.Value.Provenance);
         long generation = host.Resources.Generation;
         Assert.True(host.Mods.SetEnabled("Demaster/high", false).Success);
-        Assert.True(host.Mods.PreparePending(force: true));
+        Assert.True(SpinWait.SpinUntil(() => host.Mods.PreparePending(force: true), TimeSpan.FromSeconds(5)));
         Assert.Equal(generation, host.Resources.Generation);
         Assert.StartsWith("Demaster/high/", handle.Value.Provenance);
         Assert.True(host.Mods.CommitPending());
@@ -166,7 +180,7 @@ public sealed class GameResourceHostTests : IDisposable
         Assert.StartsWith("Tonberry/low/", handle.Value.Provenance);
         Assert.Same(handle, host.Resources.GetTexture(context));
         Assert.True(host.Mods.SetEnabled("Tonberry/low", false).Success);
-        Assert.True(host.Pump(true));
+        Assert.True(SpinWait.SpinUntil(() => host.Pump(true), TimeSpan.FromSeconds(5)));
         Assert.Equal(BaseColor, handle.Value.Image[0, 0]);
         Assert.Equal("classic", handle.Value.Provenance);
         Assert.Same(handle, host.Resources.GetTexture(context));

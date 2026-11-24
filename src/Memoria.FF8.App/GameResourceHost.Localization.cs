@@ -143,7 +143,7 @@ internal sealed partial class GameResourceHost
             {
                 Stopwatch clock = Stopwatch.StartNew();
                 var preparation = LocalizationRuntime.Prepare(candidate, order, source.Descriptor, localizationCancellation.Token, stableRemoval, watchForPublication: true, readCache: localizationReadCache,
-                    nativeCatalog: () => knownEditionLocalizationCatalog ??= LocalizationSourceExporter.Read(gameDirectory, source.Descriptor.Language, localizationCancellation.Token));
+                    nativeCatalog: () => knownEditionLocalizationCatalog ??= LocalizationSourceExporter.Read(gameDirectory, source.Descriptor.Language, localizationCancellation.Token), identifyPackageFailures: true);
                 try
                 {
                     if (!stableRemoval && CommittedLocalizations is { } committed)
@@ -202,6 +202,11 @@ internal sealed partial class GameResourceHost
                 return new(false, Diagnostics: [new("localization-selection-required", "Choose active localizations and their priority order. The previous stack remains active.")]);
             }
             return null;
+        }
+        catch (LocalizationPackageException exception)
+        {
+            localizationInput = null;
+            return ModPreparationResult.RejectPackagePayloads([new("localization-invalid", exception.Message, exception.PackageId, LocalizationProjectIO.ManifestRelativePath)]);
         }
         catch (Exception exception) when (exception is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException or System.Text.Json.JsonException or InvalidOperationException or NotSupportedException or FormatException or OverflowException)
         {

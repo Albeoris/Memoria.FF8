@@ -46,7 +46,7 @@ Dimensions are logical source units, not the image's physical pixel dimensions. 
 
 The winning even filename selects the complete bank using the usual extension and package precedence. Its whole-atlas declaration owns both materials; individual component files are not mixed into that bank. If a different component file wins the even filename, it does not inherit the losing package's declaration.
 
-Paths must identify existing images in that package. The parser rejects unknown fields, duplicate declarations, unsupported versions and unsafe paths. Invalid settings retain the last committed generation and report their package and manifest. Valid metadata for an unsupported native layout rejects that resource instead of silently treating it as a component. Changes and removal of metadata reprepare textures even when image files remain unchanged.
+Paths must identify unpacked images in that package. The parser rejects unknown fields, duplicate declarations, unsupported versions and unsafe paths. A package with an invalid manifest stays visible with a load error while the rest of the catalog publishes. Its files become eligible again after the manifest and images agree. Valid metadata for an unsupported native layout rejects that resource instead of silently treating it as a component. Changes and removal of metadata reprepare textures even when image files remain unchanged.
 
 When settings are supplied as an archive sidecar, copy the JSON file to the extracted package root. Keep it with the mod when moving or reinstalling the package.
 

@@ -18,6 +18,11 @@ public sealed record LocalizationPreparation(LocalizationCatalog Catalog, IReadO
     public int ChangedKeys { get; init; }
 }
 
+public sealed class LocalizationPackageException(string packageId, Exception inner) : IOException(inner.Message, inner)
+{
+    public string PackageId { get; } = packageId;
+}
+
 public static class LocalizationRuntime
 {
     /// <summary>Validates an authoring destination and its declared base chain, then exposes only the selected contribution as a temporary overlay.</summary>
@@ -80,17 +85,17 @@ public static class LocalizationRuntime
     }
 
     /// <summary>Reads a complete candidate off the publication thread. The displayed order is low to high.</summary>
-    public static LocalizationPreparation Prepare(ModCatalogSnapshot candidate, IReadOnlyList<string>? acceptedOrder, ResourceSourceDescriptor source, CancellationToken cancellation = default, bool allowMissingPayloads = false, bool watchForPublication = false, LocalizationProjectReadCache? readCache = null, Func<LocalizationSourceCatalog>? nativeCatalog = null)
+    public static LocalizationPreparation Prepare(ModCatalogSnapshot candidate, IReadOnlyList<string>? acceptedOrder, ResourceSourceDescriptor source, CancellationToken cancellation = default, bool allowMissingPayloads = false, bool watchForPublication = false, LocalizationProjectReadCache? readCache = null, Func<LocalizationSourceCatalog>? nativeCatalog = null, bool identifyPackageFailures = false)
     {
-        return Prepare(candidate, acceptedOrder, source, cancellation, allowMissingPayloads, watchForPublication, readCache, readOnly: false, nativeCatalog);
+        return Prepare(candidate, acceptedOrder, source, cancellation, allowMissingPayloads, watchForPublication, readCache, readOnly: false, nativeCatalog, identifyPackageFailures);
     }
 
-    private static LocalizationPreparation Prepare(ModCatalogSnapshot candidate, IReadOnlyList<string>? acceptedOrder, ResourceSourceDescriptor source, CancellationToken cancellation, bool allowMissingPayloads, bool watchForPublication, LocalizationProjectReadCache? readCache, bool readOnly, Func<LocalizationSourceCatalog>? nativeCatalog)
+    private static LocalizationPreparation Prepare(ModCatalogSnapshot candidate, IReadOnlyList<string>? acceptedOrder, ResourceSourceDescriptor source, CancellationToken cancellation, bool allowMissingPayloads, bool watchForPublication, LocalizationProjectReadCache? readCache, bool readOnly, Func<LocalizationSourceCatalog>? nativeCatalog, bool identifyPackageFailures = false)
     {
         LocalizationInputRevision inputs = LocalizationInputRevision.Capture(candidate.Packages.Where(package => package.Status == ModEffectiveStatus.Active && package.HasLocalization).Select(package => package.RootDirectory), watchForPublication);
         try
         {
-            return PrepareCore(candidate, acceptedOrder, source, cancellation, allowMissingPayloads, inputs, readCache, readOnly, nativeCatalog is null ? null : new Lazy<LocalizationSourceCatalog>(nativeCatalog));
+            return PrepareCore(candidate, acceptedOrder, source, cancellation, allowMissingPayloads, inputs, readCache, readOnly, nativeCatalog is null ? null : new Lazy<LocalizationSourceCatalog>(nativeCatalog), identifyPackageFailures);
         }
         catch
         {
@@ -99,14 +104,22 @@ public static class LocalizationRuntime
         }
     }
 
-    private static LocalizationPreparation PrepareCore(ModCatalogSnapshot candidate, IReadOnlyList<string>? acceptedOrder, ResourceSourceDescriptor source, CancellationToken cancellation, bool allowMissingPayloads, LocalizationInputRevision inputs, LocalizationProjectReadCache? readCache, bool readOnly, Lazy<LocalizationSourceCatalog>? nativeCatalog)
+    private static LocalizationPreparation PrepareCore(ModCatalogSnapshot candidate, IReadOnlyList<string>? acceptedOrder, ResourceSourceDescriptor source, CancellationToken cancellation, bool allowMissingPayloads, LocalizationInputRevision inputs, LocalizationProjectReadCache? readCache, bool readOnly, Lazy<LocalizationSourceCatalog>? nativeCatalog, bool identifyPackageFailures)
     {
         Stopwatch elapsed = Stopwatch.StartNew();
         List<LocalizationLayer> layers = [];
         foreach (ModPackage package in candidate.Packages.Where(package => package.Status == ModEffectiveStatus.Active && package.HasLocalization))
         {
             cancellation.ThrowIfCancellationRequested();
-            LocalizationProject project = readOnly ? LocalizationProjectIO.ReadForAuthoring(package.RootDirectory, allowMissingPayloads, readCache) : LocalizationProjectIO.Read(package.RootDirectory, allowMissingPayloads, readCache);
+            LocalizationProject project;
+            try
+            {
+                project = readOnly ? LocalizationProjectIO.ReadForAuthoring(package.RootDirectory, allowMissingPayloads, readCache) : LocalizationProjectIO.Read(package.RootDirectory, allowMissingPayloads, readCache);
+            }
+            catch (Exception exception) when (identifyPackageFailures && exception is InvalidDataException or JsonException or FormatException)
+            {
+                throw new LocalizationPackageException(package.Id, exception);
+            }
             if (project.Manifest.MappingVersion != FieldCorrespondenceCatalog.Version)
             {
                 throw new InvalidDataException($"{package.Name}: localization mapping version is not supported.");
