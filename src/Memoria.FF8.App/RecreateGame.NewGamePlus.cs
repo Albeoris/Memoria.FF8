@@ -12,7 +12,7 @@ internal enum TitleAction
     Continue,
     Config
 }
-internal sealed record TitleChoice(TitleAction Action, string Text);
+internal sealed record TitleChoice(TitleAction Action, string TextId);
 
 internal sealed partial class RecreateGame
 {
@@ -40,7 +40,9 @@ internal sealed partial class RecreateGame
         return false;
     }
 
-    private TitleChoice[] titleActions = [new(TitleAction.NewGame, "NEW GAME"), new(TitleAction.Continue, "Continue"), new(TitleAction.Config, "Config")];
+    private static readonly TitleChoice[] standardTitleActions = [new(TitleAction.NewGame, "title.new-game"), new(TitleAction.Continue, "title.continue"), new(TitleAction.Config, "title.config")];
+    private static readonly TitleChoice[] completedTitleActions = [new(TitleAction.NewGamePlus, "ngplus.title"), .. standardTitleActions];
+    private TitleChoice[] titleActions = standardTitleActions;
     private DateTime nextCompletedDiscovery;
     private NewGamePlusDraft? newGamePlusDraft;
     private GameplayPreferences? newGamePlusPreferences;
@@ -56,9 +58,7 @@ internal sealed partial class RecreateGame
         nextCompletedDiscovery = DateTime.UtcNow.AddSeconds(2);
         TitleAction selected = titleActions[Math.Clamp(titleSelection, 0, titleActions.Length - 1)].Action;
         bool available = playerSaves.ReadCompletedEntries().Count > 0;
-        titleActions = available
-            ? [new(TitleAction.NewGamePlus, LocalizeUiText("ngplus.title", "New Game+")), new(TitleAction.NewGame, "NEW GAME"), new(TitleAction.Continue, "Continue"), new(TitleAction.Config, "Config")]
-            : [new(TitleAction.NewGame, "NEW GAME"), new(TitleAction.Continue, "Continue"), new(TitleAction.Config, "Config")];
+        titleActions = available ? completedTitleActions : standardTitleActions;
         titleSelection = Math.Max(0, Array.FindIndex(titleActions, choice => choice.Action == selected));
     }
 

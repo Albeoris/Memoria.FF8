@@ -13,6 +13,9 @@ public static partial class SystemTextCatalog
     {
         Dictionary<string, string> defaults = new(StringComparer.Ordinal)
         {
+            ["title.new-game"] = "NEW GAME",
+            ["title.continue"] = "Continue",
+            ["title.config"] = "Config",
             ["main.menu"] = "Menu",
             ["main.junction"] = "Junction",
             ["main.item"] = "Item",

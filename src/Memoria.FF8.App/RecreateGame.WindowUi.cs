@@ -1,4 +1,5 @@
 using Memoria.FF8.Events;
+using Memoria.FF8.Resources.Localization;
 using Memoria.FF8.Ui;
 using Microsoft.Xna.Framework;
 
@@ -6,7 +7,6 @@ namespace Memoria.FF8;
 
 internal sealed partial class RecreateGame
 {
-    private string[] TitleChoices => titleActions.Select(choice => choice.Text).ToArray();
     private UiView? savesWindowUi;
     private string? savesWindowKey;
     private UiView? nativePartyWindowUi;
@@ -16,19 +16,20 @@ internal sealed partial class RecreateGame
 
     private void DrawTitleUi(Rectangle bounds)
     {
+        string[] choices = titleActions.Select(choice => LocalizeAuthored(choice.TextId, SystemTextCatalog.Defaults[choice.TextId])).ToArray();
         float size = Math.Min(bounds.Height * 0.044f, bounds.Width * 0.06f);
         float rowHeight = bounds.Height * 0.074f;
         // The title wordmark ends at y = 530 in the artwork's 900-unit design height.
         float blackAreaTop = bounds.Y + bounds.Height * (530f / 900f);
-        float groupHeight = rowHeight * (TitleChoices.Length - 1) + text.MeasureWrapped(TitleChoices[^1], size, float.PositiveInfinity, "Times New Roman").Y;
+        float groupHeight = rowHeight * (choices.Length - 1) + text.MeasureWrapped(choices[^1], size, float.PositiveInfinity, "Times New Roman").Y;
         float top = (blackAreaTop + bounds.Bottom - groupHeight) / 2;
         titleHitTargets.Clear();
-        for (int index = 0; index < TitleChoices.Length; index++)
+        for (int index = 0; index < choices.Length; index++)
         {
-            Vector2 measured = text.MeasureWrapped(TitleChoices[index], size, float.PositiveInfinity, "Times New Roman");
+            Vector2 measured = text.MeasureWrapped(choices[index], size, float.PositiveInfinity, "Times New Roman");
             float y = top + rowHeight * index;
             titleHitTargets.Add((new Rectangle((int)(bounds.Center.X - measured.X / 2 - size), (int)y, (int)(measured.X + size * 2), (int)rowHeight), index));
-            text.DrawCentered(batch, TitleChoices[index], size, new Vector2(bounds.Center.X, y), Color.White, "Times New Roman");
+            text.DrawCentered(batch, choices[index], size, new Vector2(bounds.Center.X, y), Color.White, "Times New Roman");
             if (index == titleSelection)
             {
                 float pointerHeight = size * 0.85f;

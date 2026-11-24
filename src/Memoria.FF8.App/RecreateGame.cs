@@ -507,7 +507,7 @@ internal sealed partial class RecreateGame : GamePresentationHost
         {
             if (input.MenuVertical != 0)
             {
-                int nextSelection = (titleSelection + (input.MenuVertical > 0 ? 1 : -1) + TitleChoices.Length) % TitleChoices.Length;
+                int nextSelection = (titleSelection + (input.MenuVertical > 0 ? 1 : -1) + titleActions.Length) % titleActions.Length;
                 if (titleSelection != nextSelection)
                 {
                     fieldAudio?.PlayUiSound(GameUi.MenuSound.Move);
