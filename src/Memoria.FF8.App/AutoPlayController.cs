@@ -1859,7 +1859,7 @@ internal sealed partial class AutoPlayController
         {
             return entryDelay;
         }
-        return ui.ScriptMode != 0 || !ui.Windows.IsEmpty ? 1 : 0;
+        return ui.ScriptMode != 0 || !ui.Windows.IsEmpty || world.NativeCarRuntime is { EntityType: 33 } car && !WorldMapScene.IsAutoPlayCarStationary(car) ? 1 : 0;
     }
 
     internal static void RecordWorldControlReturn(AutoPlayPlanner planner, string activeVisit, string eventId, string currentVisit, int? entryStory, int story, IReadOnlyList<AutoPlayChoiceSelection>? selections = null, string? entrySignature = null, bool hasChoiceOutcome = false, bool entrySignatureAuthoritative = false, string? entryAvailabilityFingerprint = null, bool availabilityFingerprintAuthoritative = false, string? targetId = null)
