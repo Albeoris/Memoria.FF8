@@ -117,8 +117,13 @@ public static class NativeBattleWater222TexturePair
         {
             return new(count, instructionPointer, true, currentWait, []);
         }
+        return Transfer27(count, instructionPointer, currentWait, clut => Resolve(profile, currentFiles, textureIndex, clut), submit);
+    }
+
+    internal static NativeBattleWater222TextureStep Transfer27(byte count, uint instructionPointer, ushort currentWait, Func<bool, NativeBattleWater222UploadPlan> resolve, Action<NativeBattleWater222UploadPlan> submit)
+    {
         ImmutableArray<NativeBattleWater222UploadPlan>.Builder uploads = ImmutableArray.CreateBuilder<NativeBattleWater222UploadPlan>();
-        NativeBattleWater222UploadPlan pixel = Resolve(profile, currentFiles, textureIndex, false);
+        NativeBattleWater222UploadPlan pixel = resolve(false);
         if (count >= 12)
         {
             return new(count, instructionPointer, true, currentWait, []);
@@ -126,7 +131,7 @@ public static class NativeBattleWater222TexturePair
         count++;
         submit(pixel);
         uploads.Add(pixel);
-        NativeBattleWater222UploadPlan clut = Resolve(profile, currentFiles, textureIndex, true);
+        NativeBattleWater222UploadPlan clut = resolve(true);
         if (count >= 12)
         {
             return new(count, instructionPointer, true, currentWait, uploads.ToImmutable());
@@ -139,15 +144,20 @@ public static class NativeBattleWater222TexturePair
 
     public static NativeBattleWater222UploadPlan Resolve(INativeBattleScriptedTextureProfile profile, ImmutableArray<NativeBattleEffectHeapAllocation> currentFiles, int textureIndex, bool clut)
     {
+        return Resolve(profile, currentFiles, textureIndex, clut, null);
+    }
+
+    internal static NativeBattleWater222UploadPlan Resolve(INativeBattleScriptedTextureProfile profile, ImmutableArray<NativeBattleEffectHeapAllocation> files, int textureIndex, bool clut, Func<int, int, uint>? readCurrentDword)
+    {
         NativeBattleEffectTextureRectangle rectangle = profile.Rectangle(textureIndex, clut);
         int source = profile.Source(textureIndex, clut);
-        if (currentFiles.IsDefault || (uint)source >= currentFiles.Length || currentFiles[source] is null || currentFiles[source].Data.IsDefault)
+        if (files.IsDefault || (uint)source >= files.Length || files[source] is null || files[source].Data.IsDefault)
         {
             throw new NotSupportedException("Native Water transfer requires the selected current file bytes.");
         }
-        ImmutableArray<byte> bytes = currentFiles[source].Data;
-        uint directory = Dword(bytes, clut ? 8 : 0x14);
-        uint relative = Dword(bytes, checked((int)directory + 4 * textureIndex));
+        ImmutableArray<byte> bytes = files[source].Data;
+        uint directory = ReadDword(clut ? 8 : 0x14);
+        uint relative = ReadDword(checked((int)directory + 4 * textureIndex));
         long offset = (long)directory + (clut ? relative : relative & 0xFFFFFF);
         long length = checked((long)rectangle.Width * rectangle.Height * 2);
         if (rectangle.Width < 0 || rectangle.Height < 0 || offset < 0 || offset > bytes.Length || length > bytes.Length - offset)
@@ -157,16 +167,16 @@ public static class NativeBattleWater222TexturePair
         int effectIndex = NativeBattleEffectIdentity.IndexFromBindingEffect(profile.BindingEffect);
         NativeBattleTextureOrigin? origin = rectangle.Width > 0 && rectangle.Height > 0 ? new($"mag{effectIndex:000}_b.{source:00}", textureIndex, clut ? NativeBattleTextureRole.Clut : NativeBattleTextureRole.Pixels, profile.BitsPerPixel(textureIndex), rectangle.Width, rectangle.Height) : null;
         return new(source, checked((int)offset), rectangle) { Origin = origin };
+
+        uint ReadDword(int offset)
+        {
+            if (offset < 0 || offset > bytes.Length - 4)
+            {
+                throw new InvalidDataException("Native Water directory read leaves its current source file.");
+            }
+            return readCurrentDword is null ? BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan().Slice(offset, 4)) : readCurrentDword(source, offset);
+        }
     }
 
     public static NativeBattleEffectTextureState Enqueue505DF0(NativeBattleEffectTextureState textures, ImmutableArray<NativeBattleEffectHeapAllocation> currentFiles, NativeBattleWater222UploadPlan plan) => textures.EnqueueRectangle505DF0(plan.Rectangle, currentFiles[plan.SourceIndex], plan.Offset, plan.Origin);
-
-    private static uint Dword(ImmutableArray<byte> bytes, int offset)
-    {
-        if (offset < 0 || offset > bytes.Length - 4)
-        {
-            throw new InvalidDataException("Native Water directory read leaves its current source file.");
-        }
-        return BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan().Slice(offset));
-    }
 }

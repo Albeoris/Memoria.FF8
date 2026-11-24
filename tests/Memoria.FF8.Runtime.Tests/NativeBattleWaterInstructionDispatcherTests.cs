@@ -138,6 +138,11 @@ public sealed class NativeBattleWaterInstructionDispatcherTests
         frame = PutDword(frame, File0 + 0x20, 0x100);
         frame = PutDword(frame, File0 + 8, 0x40);
         frame = PutDword(frame, File0 + 0x40, 0x200);
+        frame = frame with
+        {
+            Core = frame.Core.MarkUnknown(0x2798A6C, 4),
+            Arena = frame.Arena.MarkUnknown(File1 + 0x200, 0x26258 - 0x200).MarkUnknown(File0 + 0x120, 2)
+        };
         NativeBattleEffectTextureState textures = NativeBattleEffectTextureState.FromColdProcess();
         int published = 0;
         NativeBattleWaterInstructionServices services = Services() with
