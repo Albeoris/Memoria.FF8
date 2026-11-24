@@ -9,7 +9,7 @@ public sealed partial class MenuController
         bool root = ScreenId == "magic";
         bool exchange = ScreenId.StartsWith("magic-exchange", StringComparison.Ordinal);
         var page = Grid([1.2f, 5], [1], 4);
-        Place(page, NativeMenuHeader(SystemText("ui.buildmagicpage.nativemenuheader.magic", "Magic"), root ? NativeCommandStrip() : InventoryNavigation(true)), 0);
+        Place(page, NativeMenuHeader(SystemText("ui.buildmagicpage.nativemenuheader.magic", "Magic"), root ? NativeCommandStrip() : InventoryNavigation("magic")), 0);
         var body = Grid(exchange ? [1, 1] : [1], [1.05f, 1], exchange ? 24 : 4);
         Place(page, body, 1);
         Place(body, MagicCharacterSummary(Character, exchange), 0);

@@ -305,7 +305,7 @@ public sealed partial class MenuController
         bool rootPage = ScreenId == "item";
         bool targetPage = ScreenId == "item-target";
         var page = Grid([1.2f, 5], [1], 4);
-        UiElement strip = rootPage ? NativeCommandStrip() : InventoryNavigation(false);
+        UiElement strip = rootPage ? NativeCommandStrip() : InventoryNavigation("item");
         Place(page, NativeMenuHeader(SystemText("ui.builditempage.nativemenuheader.item", "Item"), strip), 0);
         var body = Grid([1], [1, 1], 4);
         Place(page, body, 1);
@@ -335,27 +335,26 @@ public sealed partial class MenuController
         return page;
     }
 
-    private UiElement InventoryNavigation(bool magic)
+    private UiElement InventoryNavigation(string rootScreen)
     {
-        var strip = new UiGrid { Columns = magic ? 4 : 3, Gap = 0 };
-        string[] captions = magic ? ["Use", "Stock", "Exchange", "Rearrange"] : ["Use", "Rearrange", "Sort"];
-        string[] destinations = magic ? ["magic-use", "magic-stock", "magic-exchange", "magic"] : ["item-use", "item-rearrange", "item"];
-        for (int index = 0; index < captions.Length; index++)
+        IReadOnlyList<MenuEntry> commands = _screens[rootScreen].Entries(this);
+        var strip = new UiGrid { Columns = commands.Count, Gap = 0 };
+        foreach (MenuEntry command in commands)
         {
-            string destination = destinations[index];
             strip.Children.Add(new UiButton
             {
-                Text = captions[index],
+                Text = command.Label,
+                Enabled = command.Enabled,
                 FontSize = 24 * TextScale,
                 DrawBackground = false,
                 HighlightSelection = false,
                 Click = () =>
                 {
-                    if (!magic && destination == "item")
+                    if (command.Action is { } action)
                     {
-                        Execute(new MenuAction("item-sort"));
+                        Execute(action);
                     }
-                    else
+                    if (command.Destination is { } destination)
                     {
                         Push(destination);
                     }

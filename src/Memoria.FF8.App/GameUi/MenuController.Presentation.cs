@@ -76,7 +76,7 @@ public sealed partial class MenuController
     private UiElement BuildVectorMagicTarget()
     {
         var page = Grid([1.2f, 5], [1], 4);
-        Place(page, NativeMenuHeader(SystemText("ui.buildvectormagictarget.nativemenuheader.magic", "Magic"), InventoryNavigation(true)), 0);
+        Place(page, NativeMenuHeader(SystemText("ui.buildvectormagictarget.nativemenuheader.magic", "Magic"), InventoryNavigation("magic")), 0);
         var body = Grid([1], [1.05f, 1], 12);
         var characterAndTargets = Grid([2, 3], [1], 10);
         Place(characterAndTargets, MagicCharacterSummary(Character, true), 0);
