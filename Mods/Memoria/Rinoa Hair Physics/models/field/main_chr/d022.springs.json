@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "expectedBoneCount": 32,
+  "expectedParents": [-1, 0, 0, 1, 1, 1, 2, 2, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 19, 20, 21, 22, 23, 27, 29, 30],
+  "joints": [
+    { "bone": 16, "localTail": [0, 0, -11], "stiffness": 1600, "damping": 18, "gravity": [0, 0, -10] },
+    { "bone": 22, "localTail": [0, 0, -15], "stiffness": 1500, "damping": 17, "gravity": [0, 0, -10] },
+    { "bone": 27, "localTail": [0, 0, -9], "stiffness": 1375, "damping": 16, "gravity": [0, 0, -10] },
+    { "bone": 29, "localTail": [0, 0, -11], "stiffness": 1250, "damping": 16, "gravity": [0, 0, -10] },
+    { "bone": 30, "localTail": [0, 0, -11], "stiffness": 1125, "damping": 15, "gravity": [0, 0, -10] },
+    { "bone": 31, "localTail": [0, 0, -8], "stiffness": 1000, "damping": 14, "gravity": [0, 0, -10] }
+  ]
+}

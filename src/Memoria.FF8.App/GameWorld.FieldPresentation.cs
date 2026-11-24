@@ -1,3 +1,4 @@
+using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
 using Memoria.FF8.Rendering;
 using Memoria.FF8.Runtime;
@@ -7,18 +8,27 @@ namespace Memoria.FF8;
 internal sealed partial class GameWorld
 {
     private readonly FieldPresentation fieldPresentation = new();
+    private readonly Dictionary<int, FieldActorSpringState> fieldSpringBones = [];
+
+    private sealed record FieldActorSpringState(object Scene, object Actor, FieldModel Model, long Frame, long PositionRevision, FieldSpringBoneVisual Visual);
+
+    private void ResetFieldPresentation()
+    {
+        fieldPresentation.Reset();
+        fieldSpringBones.Clear();
+    }
 
     internal void CommitFieldPresentation()
     {
         if (session.State.Scene != SceneKind.Field || Events.FieldId != session.State.FieldId || !CanPresentCurrentField)
         {
-            fieldPresentation.Reset();
+            ResetFieldPresentation();
             return;
         }
-        fieldPresentation.Commit(Events.Scene, Events.Frame, CaptureFieldPresentation);
+        fieldPresentation.Commit(Events.Scene, Events.Frame, () => CaptureFieldPresentation(advanceSprings: true));
     }
 
-    private FieldPresentationFrame CaptureFieldPresentation()
+    private FieldPresentationFrame CaptureFieldPresentation(bool advanceSprings = false)
     {
         RefreshSceneMods();
         BackgroundScrollFrame? scroll = ActorBackgroundScrollCertificate.Prepare(Field!, Events.Scene);
@@ -38,7 +48,50 @@ internal sealed partial class GameWorld
         }
         scroll = scroll with { LayerScales = Field!.Background.Select(tile => tile.Layer).Distinct().ToDictionary(layer => layer, layer => layer <= Events.Scene.CameraIndex ? (short)256 : Events.Scene.BackgroundScrollLayers.GetValueOrDefault(layer)?.ScaleX ?? (short)256) };
         FieldActorSample[] actors = Events.Actors.Select(CaptureFieldActor).ToArray();
+        if (fieldSpringBones.Count != 0 || presentationField!.Models.Any(model => model.SpringBones.Count != 0))
+        {
+            SampleFieldSpringBones(actors, advanceSprings);
+        }
         return new FieldPresentationFrame(Events.Scene, Events.Frame, Events.Scene.CameraIndex, actors, scroll, Events.Scene.PresentationCameraRevision, cameraActorId, Events.DrawPointParticleFrame, Events.FieldFade, Events.GetBackgroundModuleShades(), Events.Scene.NativeFieldParticles, Events.FieldParticleSprites);
+    }
+
+    private void SampleFieldSpringBones(FieldActorSample[] actors, bool advance)
+    {
+        object scene = Events.Scene;
+        long frame = Events.Frame;
+        IReadOnlyList<FieldModel> models = presentationField!.Models;
+        for (int index = 0; index < actors.Length; index++)
+        {
+            FieldActorSample actor = actors[index];
+            ActorVisual visual = actor.Visual;
+            if (!visual.Visible || (uint)visual.ModelId >= models.Count || models[visual.ModelId] is not { SpringBones.Count: > 0 } model)
+            {
+                continue;
+            }
+            FieldActorSpringState? state = fieldSpringBones.GetValueOrDefault(visual.ObjectId);
+            bool sameActor = state is not null && ReferenceEquals(state.Scene, scene) && ReferenceEquals(state.Actor, actor.Owner) && ReferenceEquals(state.Model, model) && state.PositionRevision == actor.PositionRevision;
+            if (advance && (!sameActor || state!.Frame != frame))
+            {
+                FieldSpringBoneSimulation simulation = sameActor && state!.Frame == frame - 1 ? state.Visual.Simulation : new(model.GetSpringBoneParents(), model.SpringBones);
+                FieldAnimationBlend animation = new(visual.AnimationFrame, visual.AnimationFrame, 1, actor.FirstFrame, actor.TerminalFrame, actor.Loop);
+                var transforms = model.ReadPresentationBoneTransforms(visual.AnimationId, visual.AnimationFrame, visual.FirstControlRotation, visual.RootTranslationZ, animation);
+                simulation.Step(transforms, visual.ModelToField(), 1f / EventEngine.SimulationFps);
+                state = new(scene, actor.Owner, model, frame, actor.PositionRevision, new(simulation, simulation.Capture()));
+                fieldSpringBones[visual.ObjectId] = state;
+                sameActor = true;
+            }
+            if (sameActor && state!.Frame == frame)
+            {
+                actors[index] = actor with { Visual = visual with { SpringBones = state.Visual } };
+            }
+        }
+        if (advance)
+        {
+            foreach (int objectId in fieldSpringBones.Where(pair => pair.Value.Frame != frame || !ReferenceEquals(pair.Value.Scene, scene)).Select(pair => pair.Key).ToArray())
+            {
+                fieldSpringBones.Remove(objectId);
+            }
+        }
     }
 
     internal FieldActorSample CaptureFieldActor(ActorState actor)

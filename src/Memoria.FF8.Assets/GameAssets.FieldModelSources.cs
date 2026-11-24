@@ -51,6 +51,15 @@ public sealed partial class GameAssets
         return new ResourceTextureList(handles);
     }
 
+    public int[] ReadFieldMainCharacterParents(string name)
+    {
+        if (name.Length != 4 || name[0] != 'd' || !name.Skip(1).All(char.IsAsciiDigit))
+        {
+            throw new ArgumentException("A main-character rig source requires its canonical library name.", nameof(name));
+        }
+        return FieldModelReader.ReadMainCharacterGeometry(name, resources.Read(new ResourceKey($"field/main_chr/{name}.mch"))).GetSpringBoneParents();
+    }
+
     /// <summary>Reads only field ONE directories; model geometry and scene resources remain unloaded.</summary>
     public IEnumerable<ModelCatalogEntry> EnumerateFieldModelSources() => EnumerateFieldModelSources(CancellationToken.None);
 

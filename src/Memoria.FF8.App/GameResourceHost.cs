@@ -19,6 +19,8 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
     private readonly string gameDirectory;
     private readonly string? modelSourceDirectory;
     private NativeTextureMods nativeTextureMods = NativeTextureMods.Empty;
+    private sealed record ModelPublication(ModelMods Models, FieldSpringBoneMods Springs);
+    private ModelPublication modelPublication = new(ModelMods.Empty, FieldSpringBoneMods.Empty);
 
     public GameResourceHost(string gameDirectory, string? applicationBaseDirectory = null, bool watch = true, string? modsDirectory = null, string? resourceLanguage = null, string? modelSourceDirectory = null, ModDirectories? modLocations = null, bool connectEncounterMods = false) : this(gameDirectory, CancellationToken.None, applicationBaseDirectory, watch, modsDirectory, resourceLanguage, modelSourceDirectory, modLocations, connectEncounterMods)
     {
@@ -73,11 +75,15 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
     public EncounterMods EncounterMods { get; private set; } = EncounterMods.Empty;
     public Func<EncounterMods, ModCatalogSnapshot, IReadOnlyList<EncodedResource>, ModPreparationResult>? PrepareEncounterPublication { get; set; }
     public FieldSceneMods SceneMods { get; private set; } = FieldSceneMods.Empty;
-    public ModelMods ModelMods { get; private set; } = ModelMods.Empty;
+    public ModelMods ModelMods => modelPublication.Models;
     public StartupPolicy StartupPolicy { get; private set; } = StartupPolicy.Default;
     public GameplayTuningPolicy GameplayPolicy { get; private set; } = GameplayTuningPolicy.Empty;
 
-    public FieldModel Apply(string modelId, FieldModel original) => ModelMods.Apply(modelId, original);
+    public FieldModel Apply(string modelId, FieldModel original)
+    {
+        ModelPublication publication = modelPublication;
+        return publication.Springs.Apply(modelId, original, publication.Models.Apply(modelId, original));
+    }
     public BattleModel Apply(string modelId, BattleModel original) => ModelMods.Apply(modelId, original);
     public BattleModel ApplyBattleBank(string modelId, string bank, BattleModel original) => ModelMods.ApplyBattleBank(modelId, bank, original);
     public IReadOnlyList<string> BattleBanks(string modelId) => ModelMods.BattleBanks(modelId);
@@ -319,6 +325,15 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         {
             return new ModPreparationResult(false, Diagnostics: modelDiagnostics);
         }
+        if (!FieldSpringBoneMods.TryPrepare(catalog, out FieldSpringBoneMods springMods, out IReadOnlyList<ModDiagnostic> springDiagnostics))
+        {
+            return new ModPreparationResult(false, Diagnostics: springDiagnostics);
+        }
+        springDiagnostics = ValidateSpringBoneResources(springMods, modelMods, encodedResources);
+        if (springDiagnostics.Count != 0)
+        {
+            return new ModPreparationResult(false, Diagnostics: springDiagnostics);
+        }
         if (!FieldSceneMods.TryPrepare(catalog, out FieldSceneMods sceneMods, out IReadOnlyList<ModDiagnostic> sceneDiagnostics))
         {
             return new ModPreparationResult(false, Diagnostics: sceneDiagnostics);
@@ -362,6 +377,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         usable.AddRange(guardianMods.Layers.Select(layer => layer.PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
         usable.AddRange(encounterMods.Layers.Select(layer => layer.PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
         usable.AddRange(modelMods.Variants.Select(variant => variant.PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
+        usable.AddRange(springMods.PackageIds);
         usable.AddRange(sceneMods.Patches.Select(patch => patch.PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
         usable.AddRange(catalog.Files.Where(file => file.Format == ModFormat.Junction && !file.RelativePath.StartsWith("voice/", StringComparison.OrdinalIgnoreCase) && !(JunctionEncodedResources.Address(file.RelativePath) is ResourceKey key && JunctionEncodedResources.FieldGroup(key) is not null) && !JunctionEncodedResources.IsFieldMetadata(file.RelativePath) && !JunctionEncodedResources.IsUnusedFieldMember(file.RelativePath) && !JunctionEncodedResources.IsAncillaryFile(file.RelativePath)).Select(file => file.PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
         usable.AddRange(encodedResources.Select(resource => catalog.Files.First(file => $"{file.PackageId}:{file.RelativePath}" == resource.Content.Provenance).PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
@@ -479,7 +495,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
                 GuardianRules = guardianRules;
                 EncounterMods = encounterMods;
                 SceneMods = sceneMods;
-                ModelMods = modelMods;
+                modelPublication = new(modelMods, springMods);
                 nativeTextureMods = nativeTextures;
                 movieSubtitles = subtitles;
                 ItemOverrides = itemOverrides;

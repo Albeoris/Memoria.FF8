@@ -90,10 +90,12 @@ internal static class FieldModelReader
         };
     }
 
-    internal static void ValidateMainCharacter(string name, byte[] mch)
+    internal static void ValidateMainCharacter(string name, byte[] mch) => _ = ReadMainCharacterGeometry(name, mch);
+
+    internal static FieldModel ReadMainCharacterGeometry(string name, byte[] mch)
     {
         (int[] textures, int modelOffset) = ReadMainCharacterTable(mch);
-        _ = ReadModel(name, mch, modelOffset, textures, 0, null, 0, animations: []);
+        return ReadModel(name, mch, modelOffset, textures, 0, null, 0, animations: []);
     }
 
     private static (int[] Textures, int ModelOffset) ReadMainCharacterTable(byte[] mch)
@@ -139,7 +141,7 @@ internal static class FieldModelReader
                 string referenceName = header.Name[..4];
                 byte[] main = mainCharacter(referenceName);
                 (int[] textures, int modelOffset) = ReadMainCharacterTable(main);
-                result = ReadModel(header.Name, main, modelOffset, textures, 0, one, header.Offset) with { TextureResourceName = header.Name[..Math.Min(4, header.Name.Length)], MainCharacterTextures = true };
+                result = ReadModel(header.Name, main, modelOffset, textures, 0, one, header.Offset) with { TextureResourceName = referenceName, MainCharacterTextures = true, MainCharacterSourceId = referenceName };
             }
             else if ((header.Flag >> 28) == 0xA)
             {

@@ -204,7 +204,7 @@ public static partial class ModelExchange
         return PoseWithTransforms(model, SampleTransforms(model, animation, seconds));
     }
 
-    private static Matrix4x4[] SampleTransforms(EditableModel model, int animation, float seconds)
+    internal static Matrix4x4[] SampleTransforms(EditableModel model, int animation, float seconds)
     {
         EditableBone[] bones = model.Bones.ToArray();
         if (animation >= 0 && animation < model.Animations.Count)
@@ -228,7 +228,11 @@ public static partial class ModelExchange
     /// <summary>Preserves authored normals with the same animated transforms as Pose, including nonuniform scale and skin weights. Returns native Z-up directions.</summary>
     public static Vector3[] PoseNativeNormals(EditableModel model, int animation, float seconds)
     {
-        Matrix4x4[] transforms = SampleTransforms(model, animation, seconds);
+        return PoseNativeNormals(model, SampleTransforms(model, animation, seconds));
+    }
+
+    internal static Vector3[] PoseNativeNormals(EditableModel model, Matrix4x4[] transforms)
+    {
         Matrix4x4[] inverse = Globals(model.Bones).Select(matrix => Matrix4x4.Invert(matrix, out Matrix4x4 result) ? result : throw new InvalidDataException("A bind transform is singular.")).ToArray();
         Vector3 Transform(Vector3 normal, Matrix4x4 matrix)
         {
@@ -288,6 +292,7 @@ public static partial class ModelExchange
 
     internal static Vector3 ToNative(Vector3 value) => Vector3.Transform(value, GltfToNative);
     internal static Matrix4x4 ConvertTransform(Matrix4x4 value) => GltfToNative * value * NativeToGltf;
+    internal static Matrix4x4 ToNativeTransform(Matrix4x4 value) => NativeToGltf * value * GltfToNative;
 
     internal static Vector4 Sample(EditableAnimationChannel channel, float seconds)
     {

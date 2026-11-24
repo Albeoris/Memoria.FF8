@@ -33,7 +33,7 @@ internal sealed partial class GameWorld
             RevalidateDebugAnimations();
             return;
         }
-        fieldPresentation.Reset();
+        ResetFieldPresentation();
         Dictionary<BackgroundTile, (bool Visible, string Package)> backgrounds = [];
         Dictionary<int, (FieldActorPatch Patch, int ModelId, string Package)> actors = [];
         List<FieldModel> models = Field.Models.ToList();

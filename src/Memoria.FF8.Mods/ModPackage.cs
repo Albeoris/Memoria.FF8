@@ -30,6 +30,7 @@ public sealed record ModPackage(string Id, string Name, ModFormat Format, bool? 
     public bool HasLighting { get; init; }
     public bool HasFieldScene3D { get; init; }
     public bool FieldScenePresentationOnly { get; init; }
+    public bool FieldSpringPresentationOnly { get; init; }
     public bool LocalizationOnly { get; init; }
     public bool TextureContentOnly { get; init; }
     public bool MoviePresentationOnly { get; init; }

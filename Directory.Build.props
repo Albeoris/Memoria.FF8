@@ -32,7 +32,7 @@
     <AssemblyMetadata Include="EngineCompatibilityVersion" Value="$(EngineCompatibilityVersion)" />
   </ItemGroup>
   <ItemGroup>
-    <BundledMemoriaComponent Include="Depixelation;EdeaMirrors;Extended FFVIII Roster;FF7EnemyIntegration;Level-Based Stat Bonuses;Meltdown;Reorientation" />
+    <BundledMemoriaComponent Include="Depixelation;EdeaMirrors;Extended FFVIII Roster;FF7EnemyIntegration;Level-Based Stat Bonuses;Meltdown;Reorientation;Rinoa Hair Physics" />
   </ItemGroup>
   <PropertyGroup Condition="'$(MSBuildProjectName)' == 'Memoria.Launcher' Or '$(MSBuildProjectName)' == 'Memoria.FF8.App' Or '$(MSBuildProjectName)' == 'Memoria.FF8.Bootstrap' Or '$(MSBuildProjectName)' == 'Memoria.FF8.Music'">
     <ApplicationIcon>$(MSBuildThisFileDirectory)Artwork/Application/application.ico</ApplicationIcon>

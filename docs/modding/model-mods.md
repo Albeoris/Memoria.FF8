@@ -80,6 +80,35 @@ World targets use `models/world/<shape-id>` or `models/world/static/<shape-id>` 
 
 Installation stages and validates all selected files, shows conflicts and rolls back touched files on failure. Unselected assets, unrelated files and package enable/priority settings are retained. Original game archives are never rewritten. A field occurrence's clip affects that exact entry, including every actor using that entry; it does not replace identical clips in other fields.
 
+## Spring bones for field models
+
+A Memoria package can apply spring motion to an existing field rig. The physics uses the animated pose as its target, so a single setup covers idle, movement and scripted animations. The **Rinoa Hair Physics** component is an opt-in example for Classic and Remastered. Enable it in the mod manager before entering the field that uses it.
+
+Put a version 1 JSON document at `models/field/<field>/<entry>.springs.json` for one field model entry. Use `models/field/main_chr/<dNNN>.springs.json` to cover occurrences that load a specific installed main character model source. Both selectors use the usual package priority. An exact field entry wins over a main character selector in the same package. The winning document supplies the joint list as a whole.
+
+```json
+{
+  "version": 1,
+  "expectedBoneCount": 3,
+  "expectedParents": [-1, 0, 1],
+  "joints": [
+    {
+      "bone": 1,
+      "localTail": [0, 0, 12],
+      "stiffness": 90,
+      "damping": 12,
+      "gravity": [0, 0, 0]
+    }
+  ]
+}
+```
+
+- Use zero-based indices in the selected rig. Each simulated bone must have a parent and appear only once. `expectedParents` records the rig topology in bone index order, with `-1` for roots. It is required for main character sources and optional for exact entries.
+- `localTail` is a finite, nonzero offset in the bone's local axes, in native field units. For a native chain, the next joint is placed at `[0, 0, boneLength]` in those axes. Choose an explicit endpoint for a leaf. Apply weights to the relevant bones when authoring an edited mesh.
+- `stiffness` is the spring strength in s⁻² and `damping` is the velocity decay rate in s⁻¹. Both must be finite and nonnegative. `gravity` is a finite field-space acceleration in field units per second squared, with Z up. Use `[0, 0, 0]` to keep the animated pose as the resting target.
+
+Use Blender to set up the rig and weights. The [VRM add-on](https://extensions.blender.org/add-ons/vrm/) can preview the general effect. For Memoria, enter the bone indices and tune the settings in this JSON. The runtime reads the package document and updates the chains at the field callback rate. Higher presentation rates interpolate the committed samples. Each actor has its own spring state, and the field initializes it from the current pose on load. Version 1 models the motion of the bone chain with inertia, damping and gravity.
+
 
 The normal mod precedence and enable settings apply. Disabled packages can be previewed without activation. Reload an already loaded scene or battle to apply a changed model to existing actors.
 

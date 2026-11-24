@@ -138,16 +138,21 @@ public sealed partial class FieldRenderer
                 lightingShadowStates[actor.ObjectId] = FieldActorShadowState.IntentionalNone;
                 continue;
             }
-            Vector3[] pose = ActorPose(model, actor);
-            Matrix4x4 rotation = Matrix4x4.CreateRotationZ((actor.Direction + 64) * MathF.Tau / 256);
-            Vector3[] world = pose.Select(position => Vector3.Transform(position, rotation) + new Vector3(actor.X, actor.Y, actor.Z)).ToArray();
+            Matrix4x4[]? springBoneTransforms = ActorSpringBoneTransforms(model, actor);
+            Vector3[] pose = ActorPose(model, actor, springBoneTransforms);
+            Matrix4x4 modelToField = actor.ModelToField();
+            Vector3[] world = pose.Select(position => Vector3.Transform(position, modelToField)).ToArray();
             if (!normalTopology.TryGetValue(model, out FieldModelNormals? topology))
             {
                 topology = new FieldModelNormals(model, model.Pose(0, 0));
                 normalTopology.Add(model, topology);
             }
             Vector3[]? imported = null;
-            if (model.EditableOverride is { } edited)
+            if (springBoneTransforms is not null)
+            {
+                imported = model.PosePresentationNormals(springBoneTransforms);
+            }
+            else if (model.EditableOverride is { } edited)
             {
                 float phase = actor.AnimationBlend is { } blend ? float.Lerp(blend.PreviousFrame, blend.CurrentFrame, blend.Fraction) : actor.AnimationFrame;
                 imported = ModelExchange.PoseNativeNormals(edited, actor.AnimationId, phase / edited.NativeFramesPerSecond);
@@ -157,7 +162,7 @@ public sealed partial class FieldRenderer
             {
                 for (int corner = 0; corner < corners.Length; corner++)
                 {
-                    corners[corner] = Vector3.TransformNormal(corners[corner], rotation);
+                    corners[corner] = Vector3.TransformNormal(corners[corner], modelToField);
                 }
             }
             LitActorPose litPose = new(world, normals);

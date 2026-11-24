@@ -9,7 +9,18 @@ namespace Memoria.FF8.Rendering;
 
 /// <param name="Direction">FF8 direction units, one turn is 256.</param>
 /// <param name="RootTranslationZ">Separate native SETROOTTRANS elevation word; never the SETGETA byte.</param>
-public readonly record struct ActorVisual(int ObjectId, int ModelId, float X, float Y, float Z, float Direction, int AnimationId, float AnimationFrame, bool Visible, Vector3? FirstControlRotation = null, float RootTranslationZ = 0, bool AdditionalControlDisabled = false, Vector3? PolygonColor = null, byte? GroundShadowRadius601To608 = null, byte? GroundShadowLevel609 = null, Vector3? GroundShadowCentre = null, IReadOnlyList<byte>? GroundShadowRadii601To608 = null, IReadOnlyDictionary<int, Vector3>? SkinTranslations = null, bool PrimitiveTransparencyEnabled = false, IReadOnlyList<PixelImage>? RegisteredTextures = null, FieldAnimationBlend? AnimationBlend = null, bool GroundShadowEnabled = true, Vector3? PresentationPolygonColor = null);
+public readonly record struct ActorVisual(int ObjectId, int ModelId, float X, float Y, float Z, float Direction, int AnimationId, float AnimationFrame, bool Visible, Vector3? FirstControlRotation = null, float RootTranslationZ = 0, bool AdditionalControlDisabled = false, Vector3? PolygonColor = null, byte? GroundShadowRadius601To608 = null, byte? GroundShadowLevel609 = null, Vector3? GroundShadowCentre = null, IReadOnlyList<byte>? GroundShadowRadii601To608 = null, IReadOnlyDictionary<int, Vector3>? SkinTranslations = null, bool PrimitiveTransparencyEnabled = false, IReadOnlyList<PixelImage>? RegisteredTextures = null, FieldAnimationBlend? AnimationBlend = null, bool GroundShadowEnabled = true, Vector3? PresentationPolygonColor = null)
+{
+    public FieldSpringBoneVisual? SpringBones { get; init; }
+
+    public Matrix4x4 ModelToField()
+    {
+        // The native field-to-model bridge adds a quarter turn before converting DIR.
+        return Matrix4x4.CreateRotationZ((Direction + 64) * MathF.Tau / 256) * Matrix4x4.CreateTranslation(X, Y, Z);
+    }
+}
+
+public sealed record FieldSpringBoneVisual(FieldSpringBoneSimulation Simulation, FieldSpringBoneSimulation.FieldSpringBonePose Current, FieldSpringBoneSimulation.FieldSpringBonePose? Previous = null, float Fraction = 1);
 
 public enum ModelTextureSampling
 {
@@ -510,9 +521,7 @@ public sealed partial class FieldRenderer
         }
         LitActorPose? preparedPose = effectiveLighting is not null ? litActorPoses.GetValueOrDefault(actor.ObjectId) : null;
         Vector3[] pose = preparedPose?.World ?? ActorPose(model, actor);
-        // Native field-to-model bridge adds a quarter turn before converting DIR to the 4096-angle scale.
-        float direction = (actor.Direction + 64) * MathF.Tau / 256;
-        Matrix4x4 rotation = Matrix4x4.CreateRotationZ(direction);
+        Matrix4x4 modelToField = actor.ModelToField();
         if (projected.Length < pose.Length)
         {
             projected = new ProjectedPoint[pose.Length];
@@ -526,7 +535,7 @@ public sealed partial class FieldRenderer
                 continue;
             }
             Vector3 native = pose[i];
-            Vector3 world = preparedPose is not null ? native : Vector3.Transform(native, rotation) + new Vector3(actor.X, actor.Y, actor.Z);
+            Vector3 world = preparedPose is not null ? native : Vector3.Transform(native, modelToField);
             projected[i] = ProjectFieldWorld(world);
         }
         int faceIndex = -1;

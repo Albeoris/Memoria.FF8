@@ -42,6 +42,28 @@
     }
   },
   {
+    "id": "rinoa-hair-physics",
+    "groupId": "Memoria",
+    "runtimePackageId": "Memoria/Rinoa Hair Physics",
+    "settingsKey": "Rinoa Hair Physics",
+    "name": "Rinoa Hair Physics",
+    "description": "Add secondary motion to Rinoa's hair in field scenes.",
+    "category": "Field",
+    "format": "memoria-native",
+    "delivery": "engine",
+    "defaultEnabled": false,
+    "target": {
+      "game": "FFVIII",
+      "editions": [
+        "Classic",
+        "Remastered"
+      ],
+      "languages": [
+        "*"
+      ]
+    }
+  },
+  {
     "id": "level-based-stat-bonuses",
     "groupId": "Memoria",
     "runtimePackageId": "Memoria/Level-Based Stat Bonuses",

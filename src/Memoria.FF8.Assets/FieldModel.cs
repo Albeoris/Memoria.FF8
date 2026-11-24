@@ -22,6 +22,9 @@ public sealed record FieldModel(string Name, IReadOnlyList<ModelBone> Bones, IRe
 {
     public ResourceSourceDescriptor? TextureSourceDescriptor { get; init; }
     public EditableModel? EditableOverride { get; init; }
+    public IReadOnlyList<FieldSpringBoneJoint> SpringBones { get; init; } = [];
+    /// <summary>The native main-character library entry that supplies this model's geometry.</summary>
+    public string? MainCharacterSourceId { get; init; }
     internal FieldModel? NativeTextureSource { get; init; }
     public IReadOnlyList<PixelImage> NativeTextures => NativeTextureSource?.Textures ?? Textures;
     public IReadOnlyList<TextureSourceRegion> TextureRegions { get; init; } = [];
@@ -106,6 +109,45 @@ public sealed record FieldModel(string Name, IReadOnlyList<ModelBone> Bones, IRe
         {
             return Pose(animationId, float.Lerp(previousFrameNumber, currentFrameNumber, blend), firstControlRotation, rootTranslationZ, skinTranslations);
         }
+        return TransformVertices(BuildInterpolatedTransforms(animationId, previousFrameNumber, currentFrameNumber, blend, firstControlRotation, rootTranslationZ, firstFrame, terminalFrame, loop), skinTranslations);
+    }
+
+    public int[] GetSpringBoneParents() => EditableOverride is { } edited ? edited.Bones.Select(bone => bone.Parent).ToArray() : Bones.Select(bone => bone.Parent).ToArray();
+
+    public Matrix4x4[] ReadPresentationBoneTransforms(int animationId, float frameNumber, Vector3? firstControlRotation, float rootTranslationZ, FieldAnimationBlend? blend)
+    {
+        if (EditableOverride is { } edited)
+        {
+            float phase = blend is { } sample ? float.Lerp(sample.PreviousFrame, sample.CurrentFrame, sample.Fraction) : frameNumber;
+            Matrix4x4[] transforms = ModelExchange.SampleTransforms(edited, animationId, phase / edited.NativeFramesPerSecond);
+            for (int bone = 0; bone < transforms.Length; bone++)
+            {
+                transforms[bone] = ModelExchange.ToNativeTransform(transforms[bone]);
+                transforms[bone].Translation += new Vector3(0, 0, rootTranslationZ);
+            }
+            return transforms;
+        }
+        return blend is { } interpolation
+            ? BuildInterpolatedTransforms(animationId, interpolation.PreviousFrame, interpolation.CurrentFrame, interpolation.Fraction, firstControlRotation, rootTranslationZ, interpolation.FirstFrame, interpolation.TerminalFrame, interpolation.Loop)
+            : BuildTransforms(animationId, frameNumber, firstControlRotation, rootTranslationZ);
+    }
+
+    public Vector3[] PosePresentationBones(Matrix4x4[] transforms, IReadOnlyDictionary<int, Vector3>? skinTranslations)
+    {
+        if (EditableOverride is { } edited)
+        {
+            return ModelExchange.PoseWithTransforms(edited, transforms.Select(ModelExchange.ConvertTransform).ToArray()).SelectMany(mesh => mesh).Select(ModelExchange.ToNative).ToArray();
+        }
+        return TransformVertices(transforms, skinTranslations);
+    }
+
+    public Vector3[]? PosePresentationNormals(Matrix4x4[] transforms)
+    {
+        return EditableOverride is { } edited ? ModelExchange.PoseNativeNormals(edited, transforms.Select(ModelExchange.ConvertTransform).ToArray()) : null;
+    }
+
+    private Matrix4x4[] BuildInterpolatedTransforms(int animationId, float previousFrameNumber, float currentFrameNumber, float blend, Vector3? firstControlRotation, float rootTranslationZ, int firstFrame, int? terminalFrame, bool loop)
+    {
         if ((uint)animationId >= Animations.Count)
         {
             throw new InvalidDataException($"{Name}: unsupported animation {animationId}.");
@@ -134,12 +176,11 @@ public sealed record FieldModel(string Name, IReadOnlyList<ModelBone> Bones, IRe
         }
         if (fraction == 0 || previousIndex == nextIndex)
         {
-            return TransformVertices(BuildTransforms(ReadFrame(animationId, previousIndex), firstControlRotation, rootTranslationZ, presentation: true), skinTranslations);
+            return BuildTransforms(ReadFrame(animationId, previousIndex), firstControlRotation, rootTranslationZ, presentation: true);
         }
         AnimationFrame previousFrame = ReadFrame(animationId, previousIndex);
         AnimationFrame currentFrame = ReadFrame(animationId, nextIndex);
-        Matrix4x4[] transforms = BuildTransforms(previousFrame, firstControlRotation, rootTranslationZ, currentFrame, fraction, presentation: true);
-        return TransformVertices(transforms, skinTranslations);
+        return BuildTransforms(previousFrame, firstControlRotation, rootTranslationZ, currentFrame, fraction, presentation: true);
     }
 
     private Vector3[] TransformVertices(Matrix4x4[] transforms, IReadOnlyDictionary<int, Vector3>? skinTranslations)

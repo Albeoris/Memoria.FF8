@@ -14,7 +14,7 @@ internal sealed partial class GameWorld
 
     public void ApplyDebug(DebugSceneCommand command)
     {
-        fieldPresentation.Reset();
+        ResetFieldPresentation();
         EnsureField();
         RefreshSceneMods();
         DebugSceneView current = session.State.DebugView ?? new DebugSceneView(Field!.Id);
@@ -81,7 +81,7 @@ internal sealed partial class GameWorld
         {
             return;
         }
-        fieldPresentation.Reset();
+        ResetFieldPresentation();
         Dictionary<int, DebugActorView> actors = new(view.Actors);
         foreach ((int id, DebugActorView actorView) in view.Actors)
         {

@@ -106,6 +106,11 @@ internal sealed class FieldPresentation
             }
         }
         FieldAnimationBlend? animation = smoothAnimation ? new(previousPhase, currentPhase, sameAnimation ? fraction : 1, current.FirstFrame, current.TerminalFrame, current.Loop) : null;
+        FieldSpringBoneVisual? springs = after.SpringBones;
+        if (smoothAnimation && compatible && springs is not null && before.SpringBones is { } prior && ReferenceEquals(prior.Simulation, springs.Simulation))
+        {
+            springs = springs with { Previous = prior.Current, Fraction = fraction };
+        }
         return after with
         {
             X = Lerp(before.X, after.X, fraction),
@@ -117,7 +122,8 @@ internal sealed class FieldPresentation
             GroundShadowCentre = Vector(before.GroundShadowCentre, after.GroundShadowCentre, fraction),
             FirstControlRotation = sameAnimation ? Rotation(before.FirstControlRotation, after.FirstControlRotation, fraction) : after.FirstControlRotation,
             SkinTranslations = sameAnimation ? Translations(before.SkinTranslations, after.SkinTranslations, fraction) : after.SkinTranslations,
-            AnimationBlend = animation
+            AnimationBlend = animation,
+            SpringBones = springs
         };
     }
 

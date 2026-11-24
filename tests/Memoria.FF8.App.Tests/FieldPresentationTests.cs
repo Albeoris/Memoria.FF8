@@ -63,6 +63,35 @@ public sealed class FieldPresentationTests
         Assert.Equal(last.Visual.X, Assert.Single(presentation.Sample(after, 1, false).Actors).X);
     }
 
+    [Fact]
+    public void Springs_interpolate_between_field_callbacks_across_clip_changes()
+    {
+        object scene = new();
+        FieldActorSample actor = Actor(new object(), 10);
+        FieldSpringBoneSimulation simulation = new([-1, 0], [new(1, Vector3.UnitZ, 25, 5, Vector3.Zero)]);
+        Matrix4x4[] transforms = [Matrix4x4.Identity, Matrix4x4.Identity];
+        simulation.Step(transforms, Matrix4x4.Identity, 1f / EventEngine.SimulationFps);
+        FieldSpringBoneVisual oldSprings = new(simulation, simulation.Capture());
+        simulation.Step(transforms, Matrix4x4.CreateTranslation(1, 0, 0), 1f / EventEngine.SimulationFps);
+        FieldSpringBoneVisual newSprings = new(simulation, simulation.Capture());
+        FieldPresentationFrame before = Frame(scene, 7, actor with { Visual = actor.Visual with { SpringBones = oldSprings } });
+        FieldActorSample switched = actor with { AnimationRevision = actor.AnimationRevision + 1, Visual = actor.Visual with { AnimationId = actor.Visual.AnimationId + 1, SpringBones = newSprings } };
+        FieldPresentationFrame after = Frame(scene, 8, switched);
+        FieldPresentation presentation = Prime(before, after);
+
+        ActorVisual smooth = Assert.Single(presentation.Sample(after, 0.5f, true).Actors);
+        Assert.Equal(switched.Visual.AnimationId, smooth.AnimationId);
+        Assert.Same(newSprings.Current, smooth.SpringBones!.Current);
+        Assert.Same(oldSprings.Current, smooth.SpringBones.Previous);
+        Assert.Equal(0.5f, smooth.SpringBones.Fraction);
+        Assert.Same(newSprings, Assert.Single(presentation.Sample(after, 1, false).Actors).SpringBones);
+
+        FieldPresentationFrame teleported = Frame(scene, 8, switched with { PositionRevision = switched.PositionRevision + 1 });
+        ActorVisual snapped = Assert.Single(Prime(before, teleported).Sample(teleported, 0.5f, true).Actors);
+        Assert.Same(newSprings.Current, snapped.SpringBones!.Current);
+        Assert.Null(snapped.SpringBones.Previous);
+    }
+
     [Theory]
     [InlineData(250, 6)]
     [InlineData(6, 250)]

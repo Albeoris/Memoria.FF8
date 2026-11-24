@@ -75,8 +75,28 @@ public sealed partial class FieldRenderer
         return first is null || second is null ? first is null && second is null : first.Fraction == second.Fraction && SameWrapFrame(first.Previous.NativeWrap, second.Previous.NativeWrap) && SameWrapFrame(first.Current.NativeWrap, second.Current.NativeWrap);
     }
 
+    private static Matrix4x4[]? ActorSpringBoneTransforms(FieldModel model, ActorVisual actor)
+    {
+        if (actor.SpringBones is not { } springs)
+        {
+            return null;
+        }
+        Matrix4x4[] animated = model.ReadPresentationBoneTransforms(actor.AnimationId, actor.AnimationFrame, actor.FirstControlRotation, actor.RootTranslationZ, actor.AnimationBlend);
+        return springs.Simulation.Pose(animated, actor.ModelToField(), springs.Previous ?? springs.Current, springs.Current, springs.Fraction);
+    }
+
     private static Vector3[] ActorPose(FieldModel model, ActorVisual actor)
     {
+        Matrix4x4[]? transforms = ActorSpringBoneTransforms(model, actor);
+        return ActorPose(model, actor, transforms);
+    }
+
+    private static Vector3[] ActorPose(FieldModel model, ActorVisual actor, Matrix4x4[]? springBoneTransforms)
+    {
+        if (springBoneTransforms is not null)
+        {
+            return model.PosePresentationBones(springBoneTransforms, actor.SkinTranslations);
+        }
         return actor.AnimationBlend is FieldAnimationBlend blend ? model.PoseInterpolated(actor.AnimationId, blend.PreviousFrame, blend.CurrentFrame, blend.Fraction, actor.FirstControlRotation, actor.RootTranslationZ, actor.SkinTranslations, blend.FirstFrame, blend.TerminalFrame, blend.Loop) : model.Pose(actor.AnimationId, actor.AnimationFrame, actor.FirstControlRotation, actor.RootTranslationZ, actor.SkinTranslations);
     }
 
