@@ -745,7 +745,8 @@ public sealed partial class BattleCombatant
         {
             return projected;
         }
-        int original = expandedStats is { Length: 6 } expanded ? expanded[index] : originalStats is { Length: 6 } ? originalStats[index] : projected;
+        // The installed template follows Level. The fallback may retain the entry-level projection.
+        int original = originalStats is { Length: 6 } ? originalStats[index] : expandedStats is { Length: 6 } expanded ? expanded[index] : projected;
         //48C1C0 multiplies the signed495930 result, divides by10, then caps and writes its lowBYTE.
         return unchecked((byte)Math.Min(255, original * NativeStatMultipliers[index] / 10));
     }
