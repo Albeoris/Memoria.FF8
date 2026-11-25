@@ -16,7 +16,7 @@ public sealed record FieldAuditDecodedBank(string Decoder, string? CharacterTabl
 /// <summary>Uses one decoder per field, checking byte boundaries before the vendored decoder can substitute or overread.</summary>
 public static partial class FieldAuditDecoder
 {
-    public static FieldAuditDecodedBank Decode(byte[] bytes, string language, string field)
+    public static FieldAuditDecodedBank Decode(byte[] bytes, string language, string field, bool includeFingerprint = true)
     {
         if (language is not ("en" or "fr" or "de" or "es" or "it" or "ja"))
         {
@@ -27,7 +27,7 @@ public static partial class FieldAuditDecoder
         bool japanese = language == "ja";
         FF8Encoding encoding = japanese ? FF8Encoding.CreateJapanese(FF8TextLanguage.JP, new DefaultJapaneseFieldCharacters(), field) : NativeTextEncoding.Create(language);
         FieldCharacterSet? table = encoding.FieldCharacters;
-        string? tableHash = table is null ? null : Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(table.Characters)));
+        string? tableHash = includeFingerprint && table is not null ? Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(table.Characters))) : null;
         List<FieldAuditDecodedRow> rows = [];
         for (int index = 0; index < count; index++)
         {

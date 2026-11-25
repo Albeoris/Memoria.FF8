@@ -25,7 +25,9 @@ internal static class LocalizationNativeEdition
 
     internal static bool RequiresProjection(LocalizationProject project, ResourceSourceDescriptor source) => project.Manifest.SourceEdition is string edition && edition != source.Edition.ToString();
 
-    internal static LocalizationProject Activate(LocalizationProject project, ResourceSourceDescriptor descriptor, Lazy<LocalizationSourceCatalog>? source, CancellationToken cancellation)
+    internal static bool UsesKeyBinding(LocalizationManifest manifest, LocalizationRecord row) => manifest.PlayerExport && LocalizationProjectIO.PlayerSourceFingerprint(row) is null;
+
+    internal static LocalizationProject Activate(LocalizationProject project, ResourceSourceDescriptor descriptor, Lazy<IReadOnlyDictionary<string, LocalizationSourceEntry>>? verifiedEntries, Lazy<IReadOnlyDictionary<string, LocalizationSourceEntry>>? keyEntries, CancellationToken cancellation)
     {
         if (project.Manifest.SourceEdition is not string edition)
         {
@@ -44,12 +46,7 @@ internal static class LocalizationNativeEdition
             LocalizationProjectIO.Validate(local);
             return local;
         }
-        if (source is null)
-        {
-            throw new InvalidDataException($"{profile}: native resources are required to bind the shared localization.");
-        }
         GameDataEdition origin = Enum.Parse<GameDataEdition>(edition);
-        var native = source.Value.Entries.ToDictionary(row => row.Key, StringComparer.Ordinal);
         List<LocalizationRecord> entries = [];
         FieldMessageTargetSyntax syntax = new();
         foreach (LocalizationRecord row in project.Entries)
@@ -69,6 +66,8 @@ internal static class LocalizationNativeEdition
                 entries.Add(row with { Target = target });
                 continue;
             }
+            bool keyBinding = UsesKeyBinding(project.Manifest, row);
+            var native = (keyBinding ? keyEntries : verifiedEntries)?.Value ?? throw new InvalidDataException($"{profile}: native resources are required to bind the shared localization.");
             if (!native.TryGetValue(row.Key, out LocalizationSourceEntry? entry) || entry.Category != row.Category || entry.File != row.File)
             {
                 if (playerExport && !alternate)
@@ -79,15 +78,15 @@ internal static class LocalizationNativeEdition
             }
             bool field = row.Category == "Fields";
             string baseKey = row.Key.Split("_ctx_", 2, StringSplitOptions.None)[0];
-            if (field && alternate && (!FieldCorrespondenceCatalog.TryGetEnglishEditionKey(baseKey, origin, Metadata(row, "Source MSD SHA256") ?? "", descriptor.Edition, entry.Metadata.GetValueOrDefault("Source MSD SHA256") ?? "", out string? nativeKey) || nativeKey != baseKey))
+            if (field && alternate && !keyBinding && (!FieldCorrespondenceCatalog.TryGetEnglishEditionKey(baseKey, origin, Metadata(row, "Source MSD SHA256") ?? "", descriptor.Edition, entry.Metadata.GetValueOrDefault("Source MSD SHA256") ?? "", out string? nativeKey) || nativeKey != baseKey))
             {
                 continue;
             }
-            if (playerExport && !alternate && !MatchesOrigin(row, entry))
+            if (playerExport && !alternate && !keyBinding && !MatchesOrigin(row, entry))
             {
                 throw new InvalidDataException($"{row.Key}: native text or field binding differs from the player localization's source edition.");
             }
-            if (alternate && !explicitTarget && !CanReuse(row, entry, baseKey, origin, descriptor.Edition, playerExport))
+            if (alternate && !explicitTarget && !keyBinding && !CanReuse(row, entry, baseKey, origin, descriptor.Edition, playerExport))
             {
                 continue;
             }
@@ -102,9 +101,9 @@ internal static class LocalizationNativeEdition
             if (alternate && field && !explicitTarget && target != LocalizationValue.EmptyTarget)
             {
                 string nativeTarget = Prefix(entry.Text) + Body(target);
-                bool sameScript = Metadata(row, "JSM SHA256") == entry.Metadata.GetValueOrDefault("JSM SHA256");
-                LocalizationRecord first = sameScript ? bound : bound with { Target = nativeTarget };
-                bound = syntax.ValidateCandidate(first).Count == 0 ? first : sameScript ? bound with { Target = nativeTarget } : bound;
+                bool preferAuthoredTarget = keyBinding || Metadata(row, "JSM SHA256") == entry.Metadata.GetValueOrDefault("JSM SHA256");
+                LocalizationRecord first = preferAuthoredTarget ? bound : bound with { Target = nativeTarget };
+                bound = syntax.ValidateCandidate(first, verifyScript: !keyBinding).Count == 0 ? first : preferAuthoredTarget ? bound with { Target = nativeTarget } : bound;
             }
             entries.Add(bound);
         }

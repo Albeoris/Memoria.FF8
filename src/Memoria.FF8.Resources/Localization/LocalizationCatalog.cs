@@ -24,7 +24,7 @@ public sealed record LocalizationCallBinding(int Operation, int? MessageId, bool
     public bool IsChoice { get; init; }
 }
 public sealed record LocalizationChoiceLineMapEntry(int SourceLine, int TargetLine);
-public sealed record LocalizationFieldText(string Body, string ScriptHash, int? X, int? Y, int? Width, int? Height, int? FirstChoice, int? LastChoice, int? InitialChoice, int? CancelChoice, ImmutableArray<LocalizationCallBinding> Calls)
+public sealed record LocalizationFieldText(string Body, string? ScriptHash, int? X, int? Y, int? Width, int? Height, int? FirstChoice, int? LastChoice, int? InitialChoice, int? CancelChoice, ImmutableArray<LocalizationCallBinding> Calls)
 {
     public string? BaseKey { get; init; }
     public ImmutableArray<LocalizationChoiceLineMapEntry> ChoiceLineMap { get; init; } = [];
@@ -187,11 +187,16 @@ public sealed class LocalizationCatalog
 
     public LocalizationFieldText? ResolveField(string key, int operation, string scriptHash, int? nativeFirst, int? nativeLast, int? nativeInitial, int? nativeCancel)
     {
+        return ResolveField(key, operation, () => scriptHash, nativeFirst, nativeLast, nativeInitial, nativeCancel);
+    }
+
+    public LocalizationFieldText? ResolveField(string key, int operation, Func<string> getScriptHash, int? nativeFirst, int? nativeLast, int? nativeInitial, int? nativeCancel)
+    {
         foreach (var layer in layers.Reverse())
         {
             foreach (LocalizationValue? candidate in new[] { layer.Variants.GetValueOrDefault((key, operation)), layer.Values.GetValueOrDefault(key) })
             {
-                if (candidate?.Field is not { } field || field.ScriptHash != scriptHash)
+                if (candidate?.Field is not { } field || (field.ScriptHash is string expectedHash && expectedHash != getScriptHash()))
                 {
                     continue;
                 }

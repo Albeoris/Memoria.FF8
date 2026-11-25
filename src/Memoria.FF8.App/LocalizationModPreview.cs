@@ -88,7 +88,8 @@ internal sealed class LocalizationModPreview(ModPreviewResourcesProfile profile,
         try
         {
             LocalizationPreparation localization = LocalizationRuntime.PrepareAuthoringProject(candidates, selected.Id, original.Resources.Source, token, readOnly: true,
-                nativeCatalog: () => LocalizationSourceExporter.Read(profile.GameDirectory, original.Resources.Source.Language, token));
+                nativeCatalog: () => LocalizationSourceExporter.Read(profile.GameDirectory, original.Resources.Source.Language, token),
+                keyCatalog: () => LocalizationSourceExporter.Read(profile.GameDirectory, original.Resources.Source.Language, token, includeFingerprints: false));
             using (localization.InputRevision)
             {
                 token.ThrowIfCancellationRequested();
@@ -550,13 +551,18 @@ internal sealed class LocalizationModPreview(ModPreviewResourcesProfile profile,
             {
                 return native;
             }
-            if (dialogueField != field)
+            string GetScriptHash()
             {
-                dialogueField = field;
-                dialogueScriptHash = Convert.ToHexString(SHA256.HashData(field.Jsm));
+                if (dialogueField != field)
+                {
+                    dialogueField = field;
+                    dialogueScriptHash = Convert.ToHexString(SHA256.HashData(field.Jsm));
+                }
+                return dialogueScriptHash!;
             }
+
             string fieldKey = FieldLocalizationKey.Create(Resources.Source.Language, field.Name, native.MessageId);
-            LocalizationFieldText? translated = Resources.Localization.ResolveField(fieldKey, native.Operation, dialogueScriptHash!, native.FirstChoice, native.LastChoice, native.InitialChoice, native.CancelChoice);
+            LocalizationFieldText? translated = Resources.Localization.ResolveField(fieldKey, native.Operation, GetScriptHash, native.FirstChoice, native.LastChoice, native.InitialChoice, native.CancelChoice);
             return RecreateGame.ProjectLocalizedDialogue(native, translated);
         }
 

@@ -97,13 +97,18 @@ internal sealed partial class RecreateGame
         {
             return null;
         }
-        if (!ReferenceEquals(localizedFieldOwner, field))
+        string GetScriptHash()
         {
-            localizedFieldOwner = field;
-            localizedFieldScriptHash = Convert.ToHexString(SHA256.HashData(field.Jsm));
+            if (!ReferenceEquals(localizedFieldOwner, field))
+            {
+                localizedFieldOwner = field;
+                localizedFieldScriptHash = Convert.ToHexString(SHA256.HashData(field.Jsm));
+            }
+            return localizedFieldScriptHash!;
         }
+
         string sourceKey = FieldLocalizationKey.Create(resourceHost.Resources.Source.Language, field.Name, native.MessageId);
-        return resourceHost.Resources.Localization.ResolveField(sourceKey, native.Operation, localizedFieldScriptHash!, native.FirstChoice, native.LastChoice, native.InitialChoice, native.CancelChoice);
+        return resourceHost.Resources.Localization.ResolveField(sourceKey, native.Operation, GetScriptHash, native.FirstChoice, native.LastChoice, native.InitialChoice, native.CancelChoice);
     }
 
     private DialogueWindow? LocalizedWindow(DialogueState native, DialogueWindow? window)

@@ -66,8 +66,10 @@ public sealed class LocalizationSourceExporterTests
         Assert.NotEqual(LocalizationSourceExporter.KernelTable("BattleItems", "Name"), LocalizationSourceExporter.KernelTable("FieldItems", "Name"));
     }
 
-    [Fact]
-    public void ReadsActualNamedicAndLocationsPreservingEmptySlotsAndTokens()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ReadsActualNamedicAndLocationsPreservingEmptySlotsAndTokens(bool includeFingerprints)
     {
         using InMemoryResourceSource source = Source();
         var encoding = FF8Encoding.CreateEuropean(FF8TextLanguage.EN);
@@ -75,13 +77,13 @@ public sealed class LocalizationSourceExporterTests
         source.Set(new("menu/namedic.bin"), NamedicBin.WriteStrings(values, encoding), "bin");
         source.Set(new("menu/areames.dc1"), NamedicBin.WriteStrings(["Place"], encoding), "bin");
 
-        LocalizationSourceCatalog result = LocalizationSourceExporter.Read(source, new MissingArchives(), "fr", TestContext.Current.CancellationToken);
+        LocalizationSourceCatalog result = LocalizationSourceExporter.Read(source, new MissingArchives(), "fr", TestContext.Current.CancellationToken, includeFingerprints);
 
         Assert.Equal(values, result.Entries.Where(row => row.File == "namedic_menu").Select(row => row.Text));
         Assert.Equal("$fr_namedic_menu_0001", result.Entries.Single(row => row.File == "namedic_menu" && row.Text.Length == 0).Key);
         Assert.Equal("Place", Assert.Single(result.Entries, row => row.Category == "Locations").Text);
         string expectedHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(NamedicBin.WriteStrings(values, encoding)));
-        Assert.All(result.Entries.Where(row => row.File == "namedic_menu"), row => Assert.Equal(expectedHash, row.Metadata["Source SHA256"]));
+        Assert.All(result.Entries.Where(row => row.File == "namedic_menu"), row => Assert.Equal(includeFingerprints ? expectedHash : null, row.Metadata.GetValueOrDefault("Source SHA256")));
         Assert.Contains(result.Gaps, gap => gap.Resource == "main/kernel.bin");
     }
 

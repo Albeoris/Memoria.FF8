@@ -52,6 +52,7 @@ internal sealed partial class GameResourceHost
     private DateTime localizationObservedAt;
     private IReadOnlyDictionary<string, LocalizationSourceEntry>? knownLocalizationEntries;
     private LocalizationSourceCatalog? knownEditionLocalizationCatalog;
+    private LocalizationSourceCatalog? knownKeyLocalizationCatalog;
     private IReadOnlyDictionary<Memoria.FF8.Resources.TextureKey, LocalizationArtworkSource>? knownLocalizationArtwork;
     public LocalizationPreparation? LocalizationPreview { get; private set; }
     public LocalizationPreparation? CommittedLocalizations { get; private set; }
@@ -143,7 +144,8 @@ internal sealed partial class GameResourceHost
             {
                 Stopwatch clock = Stopwatch.StartNew();
                 var preparation = LocalizationRuntime.Prepare(candidate, order, source.Descriptor, localizationCancellation.Token, stableRemoval, watchForPublication: true, readCache: localizationReadCache,
-                    nativeCatalog: () => knownEditionLocalizationCatalog ??= LocalizationSourceExporter.Read(gameDirectory, source.Descriptor.Language, localizationCancellation.Token), identifyPackageFailures: true);
+                    nativeCatalog: () => knownEditionLocalizationCatalog ??= LocalizationSourceExporter.Read(gameDirectory, source.Descriptor.Language, localizationCancellation.Token), identifyPackageFailures: true,
+                    keyCatalog: () => knownKeyLocalizationCatalog ??= LocalizationSourceExporter.Read(gameDirectory, source.Descriptor.Language, localizationCancellation.Token, includeFingerprints: false));
                 try
                 {
                     if (!stableRemoval && CommittedLocalizations is { } committed)
@@ -160,7 +162,7 @@ internal sealed partial class GameResourceHost
                     if (!preparation.RequiresSelection && (preparation.Catalog.Values.Count != 0 || preparation.Catalog.Artwork.Count != 0))
                     {
                         using var verification = GameDataSourceFactory.Open(gameDirectory, null, resourceLanguage);
-                        if (preparation.Layers.Any(layer => layer.Project.Entries.Any(row => !string.IsNullOrEmpty(row.Target) && row.Category is not ("Fields" or "System"))))
+                        if (LocalizationBindingValidation.RequiresNonFieldSourceCatalog(preparation))
                         {
                             knownLocalizationEntries ??= (knownEditionLocalizationCatalog ?? LocalizationSourceExporter.ReadNonFields(gameDirectory, source.Descriptor.Language, localizationCancellation.Token)).Entries.Where(row => row.Category != "Fields").ToDictionary(row => row.Key, StringComparer.Ordinal);
                         }

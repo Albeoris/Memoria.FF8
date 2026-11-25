@@ -350,13 +350,14 @@ internal sealed partial class LauncherWindow
         {
             LocalizationSourceCatalog? native = null;
             LocalizationPreparation localization = LocalizationRuntime.Prepare(validation.Catalog, validation.LocalizationOrder, source.Descriptor, cancellationToken, watchForPublication: true,
-                nativeCatalog: () => native ??= LocalizationSourceExporter.Read(directory, source.Descriptor.Language, cancellationToken));
+                nativeCatalog: () => native ??= LocalizationSourceExporter.Read(directory, source.Descriptor.Language, cancellationToken),
+                keyCatalog: () => LocalizationSourceExporter.Read(directory, source.Descriptor.Language, cancellationToken, includeFingerprints: false));
             using LocalizationInputRevision? inputs = localization.InputRevision;
             if (localization.RequiresSelection || !localization.RequestedOrder.Contains(selected.Id, StringComparer.OrdinalIgnoreCase))
             {
                 throw new InvalidDataException("The language could not be applied to the active localization stack.");
             }
-            var knownEntries = localization.Layers.Any(layer => layer.Project.Entries.Any(row => !string.IsNullOrEmpty(row.Target) && row.Category is not ("Fields" or "System")))
+            var knownEntries = LocalizationBindingValidation.RequiresNonFieldSourceCatalog(localization)
                 ? (native ?? LocalizationSourceExporter.ReadNonFields(directory, source.Descriptor.Language, cancellationToken)).Entries.Where(row => row.Category != "Fields").ToDictionary(row => row.Key, StringComparer.Ordinal) : null;
             LocalizationBindingValidation.Validate(localization, source, cancellationToken, knownEntries);
             if (localization.Catalog.Artwork.Count > 0)

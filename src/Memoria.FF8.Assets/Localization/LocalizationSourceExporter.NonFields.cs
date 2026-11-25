@@ -351,7 +351,7 @@ public static partial class LocalizationSourceExporter
                 var names = TripleTriadCatalog.Read(memory, language: FF8TextLanguages.Parse(language)).Names;
                 for (int ordinal = 0; ordinal < names.Length; ordinal++)
                 {
-                    Add(category, table, ordinal, names[ordinal], resource, new Dictionary<string, string?> { ["Native Source Fingerprint"] = memory.SourceHash });
+                    Add(category, table, ordinal, names[ordinal], resource, includeFingerprints ? new Dictionary<string, string?> { ["Native Source Fingerprint"] = memory.SourceHash } : null);
                 }
                 return;
             }
@@ -421,7 +421,7 @@ public static partial class LocalizationSourceExporter
                 byte[] body = scan.DescriptionBytes.ToArray();
                 for (int ordinal = 0; ordinal < scan.DescriptionOffsets.Length; ordinal++)
                 {
-                    Add("Monsters", "scan_monsters", ordinal, NullText(body, scan.DescriptionOffsets[ordinal], body.Length), "text/enemy-scan", new Dictionary<string, string?> { ["Native Source Fingerprint"] = memory.SourceHash });
+                    Add("Monsters", "scan_monsters", ordinal, NullText(body, scan.DescriptionOffsets[ordinal], body.Length), "text/enemy-scan", includeFingerprints ? new Dictionary<string, string?> { ["Native Source Fingerprint"] = memory.SourceHash } : null);
                 }
                 return;
             }

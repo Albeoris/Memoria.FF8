@@ -141,10 +141,11 @@ public static partial class LocalizationProjectIO
         {
             throw new InvalidDataException($"{row.Key}: player localization contains authoring data.");
         }
-        if ((!string.IsNullOrEmpty(row.Target) || row.ExtensionData.ContainsKey(LocalizationNativeEdition.TargetsMember)) &&
-            (!row.ExtensionData.TryGetValue(PlayerSourceHash, out JsonElement hash) || hash.ValueKind != JsonValueKind.String || !IsSha256(hash.GetString())))
+        if (row.ExtensionData.TryGetValue(PlayerSourceHash, out JsonElement hash)
+            ? hash.ValueKind != JsonValueKind.String || !IsSha256(hash.GetString())
+            : row.ExtensionData.ContainsKey("sourceContext"))
         {
-            throw new InvalidDataException($"{row.Key}: player localization requires a native text fingerprint.");
+            throw new InvalidDataException($"{row.Key}: invalid player localization text fingerprint.");
         }
         if (row.ExtensionData.TryGetValue("sourceContext", out JsonElement context) &&
             (context.ValueKind != JsonValueKind.Object || context.EnumerateObject().Any(pair => !PlayerBindingHashes.Contains(pair.Name) || pair.Value.ValueKind != JsonValueKind.String || !IsSha256(pair.Value.GetString()))))

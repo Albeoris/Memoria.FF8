@@ -8,7 +8,7 @@ namespace Memoria.FF8.Mods.Localization;
 
 internal static class LocalizationFieldPreparation
 {
-    public static LocalizationFieldText? Prepare(LocalizationRecord record)
+    public static LocalizationFieldText? Prepare(LocalizationRecord record, bool verifyScript = true)
     {
         if (!record.ExtensionData.TryGetValue("sourceContext", out JsonElement metadata) || metadata.ValueKind != JsonValueKind.Object)
         {
@@ -24,15 +24,20 @@ internal static class LocalizationFieldPreparation
             throw new InvalidDataException($"{record.Key}: malformed field call binding.");
         }
         string? scriptHash = metadata.TryGetProperty("JSM SHA256", out JsonElement hash) && hash.ValueKind == JsonValueKind.String ? hash.GetString() : null;
-        if (string.IsNullOrEmpty(scriptHash) && calls.Length == 0 && metadata.TryGetProperty("Source MSD SHA256", out JsonElement bankHash) && bankHash.ValueKind == JsonValueKind.String && bankHash.GetString() is { Length: 64 } bankFingerprint && bankFingerprint.All(char.IsAsciiHexDigit))
+        if (!verifyScript && calls.Length == 0 && string.IsNullOrEmpty(scriptHash) &&
+            (!metadata.TryGetProperty("Script Present", out JsonElement scriptPresent) || scriptPresent.ValueKind != JsonValueKind.String || scriptPresent.GetString() != "true"))
         {
             return null;
         }
-        if (scriptHash?.Length != 64 || !scriptHash.All(char.IsAsciiHexDigit))
+        if (verifyScript && string.IsNullOrEmpty(scriptHash) && calls.Length == 0 && metadata.TryGetProperty("Source MSD SHA256", out JsonElement bankHash) && bankHash.ValueKind == JsonValueKind.String && bankHash.GetString() is { Length: 64 } bankFingerprint && bankFingerprint.All(char.IsAsciiHexDigit))
+        {
+            return null;
+        }
+        if (verifyScript && (scriptHash?.Length != 64 || !scriptHash.All(char.IsAsciiHexDigit)))
         {
             throw new InvalidDataException($"{record.Key}: invalid original script fingerprint.");
         }
-        scriptHash = scriptHash.ToUpperInvariant();
+        scriptHash = verifyScript ? scriptHash!.ToUpperInvariant() : null;
         int suffixStart = record.Key.IndexOf('_') + record.File.Length + 2;
         int contextStart = record.Key.IndexOf("_ctx_", suffixStart, StringComparison.Ordinal);
         string expectedBaseKey = contextStart < 0 ? record.Key : record.Key[..contextStart];

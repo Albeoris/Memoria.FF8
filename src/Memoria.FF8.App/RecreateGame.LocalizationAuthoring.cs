@@ -293,7 +293,8 @@ internal sealed partial class RecreateGame
         authoringSelectionTask = Task.Run(() =>
         {
             LocalizationPreparation prepared = LocalizationRuntime.PrepareAuthoringProject(candidate, package.Id, descriptor, authoringCancellation.Token, watchForPublication: true,
-                nativeCatalog: () => LocalizationSourceExporter.Read(options.GameDirectory, descriptor.Language, authoringCancellation.Token));
+                nativeCatalog: () => LocalizationSourceExporter.Read(options.GameDirectory, descriptor.Language, authoringCancellation.Token),
+                keyCatalog: () => LocalizationSourceExporter.Read(options.GameDirectory, descriptor.Language, authoringCancellation.Token, includeFingerprints: false));
             LocalizationLayer selectedLayer = prepared.Layers.Single(layer => layer.PackageId == package.Id);
             if (selectedLayer.EditionProjected)
             {

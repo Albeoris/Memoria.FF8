@@ -47,11 +47,11 @@ public static partial class LocalizationSourceExporter
         return result;
     }
 
-    public static LocalizationSourceCatalog Read(string gameDirectory, string language, CancellationToken cancellation = default)
+    public static LocalizationSourceCatalog Read(string gameDirectory, string language, CancellationToken cancellation = default, bool includeFingerprints = true)
     {
         string normalized = FieldLocalizationKey.CanonicalLanguage(language);
         using IResourceSource source = Open(gameDirectory, normalized);
-        return Read(source, (IGameArchiveSource)source, normalized, cancellation);
+        return Read(source, (IGameArchiveSource)source, normalized, cancellation, includeFingerprints);
     }
 
     public static LocalizationSourceCatalog ReadNonFields(string gameDirectory, string language, CancellationToken cancellation = default)
@@ -64,14 +64,14 @@ public static partial class LocalizationSourceExporter
         return new(entries.AsReadOnly(), gaps.AsReadOnly(), [new(normalized, entries.Count > 0, entries.Count > 0 ? null : "No non-field source text was decoded.")]);
     }
 
-    public static LocalizationSourceCatalog Read(IResourceSource source, IGameArchiveSource archives, string language, CancellationToken cancellation = default)
+    public static LocalizationSourceCatalog Read(IResourceSource source, IGameArchiveSource archives, string language, CancellationToken cancellation = default, bool includeFingerprints = true)
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(archives);
         string normalized = FieldLocalizationKey.CanonicalLanguage(language);
         List<LocalizationSourceEntry> entries = [];
         List<LocalizationSourceGap> gaps = [];
-        Reader reader = new(source, archives, normalized, entries, gaps, cancellation);
+        Reader reader = new(source, archives, normalized, entries, gaps, cancellation, includeFingerprints);
         reader.Fields();
         reader.NonFields();
         return new(entries.AsReadOnly(), gaps.AsReadOnly(), [new(normalized, entries.Count > 0, entries.Count > 0 ? null : "No source text was decoded.")]);
@@ -110,7 +110,7 @@ public static partial class LocalizationSourceExporter
     private static IFlArchiveEntry Entry(IFlArchive archive, string name) => archive.Entries.SingleOrDefault(entry => Basename(entry.RelativePath).Equals(name, StringComparison.OrdinalIgnoreCase)) ?? throw new FileNotFoundException("Missing archive member: " + name);
     private static IFlArchive Nested(IFlArchive archive, string name) => FlArchive.Open(new MemoryStream(Bytes(Entry(archive, name + ".fl")), false), new MemoryStream(Bytes(Entry(archive, name + ".fi")), false), new MemoryStream(Bytes(Entry(archive, name + ".fs")), false), false, FlArchiveRepresentation.Files);
 
-    private sealed partial class Reader(IResourceSource source, IGameArchiveSource archives, string language, List<LocalizationSourceEntry> entries, List<LocalizationSourceGap> gaps, CancellationToken cancellation)
+    private sealed partial class Reader(IResourceSource source, IGameArchiveSource archives, string language, List<LocalizationSourceEntry> entries, List<LocalizationSourceGap> gaps, CancellationToken cancellation, bool includeFingerprints = true)
     {
         private readonly FF8Encoding encoding = NativeTextEncoding.Create(language);
         private readonly Encoding nonFieldEncoding = new LocalizationNonFieldEncoding(NativeTextEncoding.Create(language));
@@ -178,11 +178,11 @@ public static partial class LocalizationSourceExporter
                 values["Native Glyph Rectangles"] = string.Join(";", ids.Select(id => $"{id}:{(id - 32) % 21 * 12},{(id - 32) / 21 * 12},12,12"));
             }
             values["Resource"] = resource;
-            if (resourceBytes.TryGetValue(resource, out byte[]? bytes) && bytes is not null)
+            if (includeFingerprints && resourceBytes.TryGetValue(resource, out byte[]? bytes) && bytes is not null)
             {
                 values["Source SHA256"] = ResourceHash(resource);
             }
-            if (resource == "menu/mngrp.bin")
+            if (includeFingerprints && resource == "menu/mngrp.bin")
             {
                 values["Companion Resource"] = "menu/mngrphd.bin";
                 values["Companion SHA256"] = ResourceHash("menu/mngrphd.bin");
@@ -232,10 +232,13 @@ public static partial class LocalizationSourceExporter
                         }
                     });
                 }
-                string[] places = [];
-                Attempt("Locations", "menu/areames.dc1", () => places = NamedicBin.ReadStrings(Required("menu/areames.dc1"), encoding));
-                FieldLocationGraphResult graph = FieldLocationGraph.Build(scripts, places);
-                Dictionary<string, FieldLocationResolution> resolutions = graph.Resolutions.ToDictionary(row => row.Field);
+                Dictionary<string, FieldLocationResolution> resolutions = [];
+                if (includeFingerprints)
+                {
+                    string[] places = [];
+                    Attempt("Locations", "menu/areames.dc1", () => places = NamedicBin.ReadStrings(Required("menu/areames.dc1"), encoding));
+                    resolutions = FieldLocationGraph.Build(scripts, places).Resolutions.ToDictionary(row => row.Field);
+                }
                 foreach (FieldLocationSource script in scripts)
                 {
                     if (!textBanks.TryGetValue(script.Field, out byte[]? bytes))
@@ -244,8 +247,8 @@ public static partial class LocalizationSourceExporter
                     }
                     Attempt("Fields", script.Field, () =>
                     {
-                        FieldAuditDecodedBank bank = FieldAuditDecoder.Decode(bytes, language == "jp" ? "ja" : language, script.Field);
-                        FieldCompatibilityInventory inventory = FieldCompatibilityAudit.Prepare(new(script.Field, language, script.Field, script.Jsm, bank.Rows.Select(row => new FieldCompatibilityText(row.Ordinal, row.Text ?? "", row.Tokens)).ToArray(), bank.Rows.Where(row => row.Error is not null).Select(row => row.Error!).ToArray(), bank.Rows.Length)).Inventory;
+                        FieldAuditDecodedBank bank = FieldAuditDecoder.Decode(bytes, language == "jp" ? "ja" : language, script.Field, includeFingerprints);
+                        FieldCompatibilityInventory inventory = FieldCompatibilityAudit.Inspect(new(script.Field, language, script.Field, script.Jsm, bank.Rows.Select(row => new FieldCompatibilityText(row.Ordinal, row.Text ?? "", row.Tokens)).ToArray(), bank.Rows.Where(row => row.Error is not null).Select(row => row.Error!).ToArray(), bank.Rows.Length), includeFingerprints);
                         foreach (FieldCompatibilityContext context in inventory.Contexts.Where(context => context.IsMessage && context.Dynamic))
                         {
                             gaps.Add(new("Fields", script.Field + "/operation" + context.Position.OperationIndex, "Dynamic message, channel, position, or choice operands remain native and cannot be materialized as a static translation prefix."));
@@ -254,8 +257,7 @@ public static partial class LocalizationSourceExporter
                         {
                             gaps.Add(new("Fields", script.Field, problem));
                         }
-                        FieldLocationResolution resolution = resolutions[script.Field];
-                        string sourceHash = Convert.ToHexString(SHA256.HashData(bytes));
+                        string? sourceHash = includeFingerprints ? Convert.ToHexString(SHA256.HashData(bytes)) : null;
                         foreach (FieldAuditDecodedRow row in bank.Rows)
                         {
                             if (row.Error is not null)
@@ -269,20 +271,28 @@ public static partial class LocalizationSourceExporter
                                 ["Source Ordinal"] = row.Ordinal.ToString(CultureInfo.InvariantCulture),
                                 ["Source Offset"] = row.Offset.ToString(CultureInfo.InvariantCulture),
                                 ["Source Length"] = row.Length.ToString(CultureInfo.InvariantCulture),
-                                ["Source SHA256"] = sourceHash,
-                                ["Source MSD SHA256"] = sourceHash,
-                                ["JSM SHA256"] = inventory.JsmSha256,
-                                ["Decoder"] = bank.Decoder,
-                                ["Character Table SHA256"] = bank.CharacterTableSha256,
-                                ["Field Name"] = string.Join(" / ", resolution.Names),
-                                ["Field Name Status"] = resolution.Status.ToString(),
-                                ["Place IDs"] = JsonSerializer.Serialize(resolution.PlaceIds),
                                 ["Call Contexts"] = JsonSerializer.Serialize(inventory.Contexts.Where(context => context.MessageId == row.Ordinal || context.CandidateOrdinals.Contains(row.Ordinal))),
                                 ["Source Present"] = row.Error is null ? "true" : "false",
-                                ["Decode Error"] = row.Error,
-                                ["Mapping Version"] = FieldCorrespondenceCatalog.Version,
-                                ["Mapping SHA256"] = FieldCorrespondenceCatalog.Fingerprint
+                                ["Decode Error"] = row.Error
                             };
+                            if (includeFingerprints)
+                            {
+                                FieldLocationResolution resolution = resolutions[script.Field];
+                                metadata.Add("Source SHA256", sourceHash);
+                                metadata.Add("Source MSD SHA256", sourceHash);
+                                metadata.Add("JSM SHA256", inventory.JsmSha256);
+                                metadata.Add("Decoder", bank.Decoder);
+                                metadata.Add("Character Table SHA256", bank.CharacterTableSha256);
+                                metadata.Add("Field Name", string.Join(" / ", resolution.Names));
+                                metadata.Add("Field Name Status", resolution.Status.ToString());
+                                metadata.Add("Place IDs", JsonSerializer.Serialize(resolution.PlaceIds));
+                                metadata.Add("Mapping Version", FieldCorrespondenceCatalog.Version);
+                                metadata.Add("Mapping SHA256", FieldCorrespondenceCatalog.Fingerprint);
+                            }
+                            else
+                            {
+                                metadata.Add("Script Present", script.Jsm is null ? "false" : "true");
+                            }
                             LocalizationSourceEntry entry = new("Fields", script.Field, key, row.Text ?? "", language, metadata);
                             entries.AddRange(row.Error is null ? LocalizationSourceFieldContexts.Expand(entry, inventory) : [entry]);
                         }

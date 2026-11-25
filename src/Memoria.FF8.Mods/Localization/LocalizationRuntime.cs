@@ -26,7 +26,7 @@ public sealed class LocalizationPackageException(string packageId, Exception inn
 public static class LocalizationRuntime
 {
     /// <summary>Validates an authoring destination and its declared base chain, then exposes only the selected contribution as a temporary overlay.</summary>
-    public static LocalizationPreparation PrepareAuthoringProject(ModCatalogSnapshot catalog, string selectedPackageId, ResourceSourceDescriptor source, CancellationToken cancellation = default, bool watchForPublication = false, bool readOnly = false, Func<LocalizationSourceCatalog>? nativeCatalog = null)
+    public static LocalizationPreparation PrepareAuthoringProject(ModCatalogSnapshot catalog, string selectedPackageId, ResourceSourceDescriptor source, CancellationToken cancellation = default, bool watchForPublication = false, bool readOnly = false, Func<LocalizationSourceCatalog>? nativeCatalog = null, Func<LocalizationSourceCatalog>? keyCatalog = null)
     {
         ModPackage selected = catalog.Packages.Single(package => package.Id.Equals(selectedPackageId, StringComparison.OrdinalIgnoreCase) && package.HasLocalization);
         Dictionary<string, LocalizationManifest> manifests = new(StringComparer.OrdinalIgnoreCase);
@@ -69,7 +69,7 @@ public static class LocalizationRuntime
             visiting.Remove(manifest.ProjectId);
         }
         Add(selected);
-        LocalizationPreparation prepared = Prepare(new ModCatalogSnapshot(catalog.Generation, chain, [], catalog.Diagnostics), chain.Select(package => package.Id).ToArray(), source, cancellation, allowMissingPayloads: false, watchForPublication, readCache: null, readOnly, nativeCatalog);
+        LocalizationPreparation prepared = Prepare(new ModCatalogSnapshot(catalog.Generation, chain, [], catalog.Diagnostics), chain.Select(package => package.Id).ToArray(), source, cancellation, allowMissingPayloads: false, watchForPublication, readCache: null, readOnly, nativeCatalog, keyCatalog);
         try
         {
             Dictionary<string, LocalizationValue> values = prepared.Catalog.Values.Where(pair => pair.Value.PackageId.Equals(selected.Id, StringComparison.OrdinalIgnoreCase)).ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
@@ -85,17 +85,19 @@ public static class LocalizationRuntime
     }
 
     /// <summary>Reads a complete candidate off the publication thread. The displayed order is low to high.</summary>
-    public static LocalizationPreparation Prepare(ModCatalogSnapshot candidate, IReadOnlyList<string>? acceptedOrder, ResourceSourceDescriptor source, CancellationToken cancellation = default, bool allowMissingPayloads = false, bool watchForPublication = false, LocalizationProjectReadCache? readCache = null, Func<LocalizationSourceCatalog>? nativeCatalog = null, bool identifyPackageFailures = false)
+    public static LocalizationPreparation Prepare(ModCatalogSnapshot candidate, IReadOnlyList<string>? acceptedOrder, ResourceSourceDescriptor source, CancellationToken cancellation = default, bool allowMissingPayloads = false, bool watchForPublication = false, LocalizationProjectReadCache? readCache = null, Func<LocalizationSourceCatalog>? nativeCatalog = null, bool identifyPackageFailures = false, Func<LocalizationSourceCatalog>? keyCatalog = null)
     {
-        return Prepare(candidate, acceptedOrder, source, cancellation, allowMissingPayloads, watchForPublication, readCache, readOnly: false, nativeCatalog, identifyPackageFailures);
+        return Prepare(candidate, acceptedOrder, source, cancellation, allowMissingPayloads, watchForPublication, readCache, readOnly: false, nativeCatalog, keyCatalog, identifyPackageFailures);
     }
 
-    private static LocalizationPreparation Prepare(ModCatalogSnapshot candidate, IReadOnlyList<string>? acceptedOrder, ResourceSourceDescriptor source, CancellationToken cancellation, bool allowMissingPayloads, bool watchForPublication, LocalizationProjectReadCache? readCache, bool readOnly, Func<LocalizationSourceCatalog>? nativeCatalog, bool identifyPackageFailures = false)
+    private static LocalizationPreparation Prepare(ModCatalogSnapshot candidate, IReadOnlyList<string>? acceptedOrder, ResourceSourceDescriptor source, CancellationToken cancellation, bool allowMissingPayloads, bool watchForPublication, LocalizationProjectReadCache? readCache, bool readOnly, Func<LocalizationSourceCatalog>? nativeCatalog, Func<LocalizationSourceCatalog>? keyCatalog, bool identifyPackageFailures = false)
     {
         LocalizationInputRevision inputs = LocalizationInputRevision.Capture(candidate.Packages.Where(package => package.Status == ModEffectiveStatus.Active && package.HasLocalization).Select(package => package.RootDirectory), watchForPublication);
         try
         {
-            return PrepareCore(candidate, acceptedOrder, source, cancellation, allowMissingPayloads, inputs, readCache, readOnly, nativeCatalog is null ? null : new Lazy<LocalizationSourceCatalog>(nativeCatalog), identifyPackageFailures);
+            var verified = Index(nativeCatalog);
+            var byKey = keyCatalog is null ? verified : Index(keyCatalog);
+            return PrepareCore(candidate, acceptedOrder, source, cancellation, allowMissingPayloads, inputs, readCache, readOnly, verified, byKey, identifyPackageFailures);
         }
         catch
         {
@@ -104,7 +106,12 @@ public static class LocalizationRuntime
         }
     }
 
-    private static LocalizationPreparation PrepareCore(ModCatalogSnapshot candidate, IReadOnlyList<string>? acceptedOrder, ResourceSourceDescriptor source, CancellationToken cancellation, bool allowMissingPayloads, LocalizationInputRevision inputs, LocalizationProjectReadCache? readCache, bool readOnly, Lazy<LocalizationSourceCatalog>? nativeCatalog, bool identifyPackageFailures)
+    private static Lazy<IReadOnlyDictionary<string, LocalizationSourceEntry>>? Index(Func<LocalizationSourceCatalog>? readCatalog)
+    {
+        return readCatalog is null ? null : new(() => readCatalog().Entries.ToDictionary(row => row.Key, StringComparer.Ordinal));
+    }
+
+    private static LocalizationPreparation PrepareCore(ModCatalogSnapshot candidate, IReadOnlyList<string>? acceptedOrder, ResourceSourceDescriptor source, CancellationToken cancellation, bool allowMissingPayloads, LocalizationInputRevision inputs, LocalizationProjectReadCache? readCache, bool readOnly, Lazy<IReadOnlyDictionary<string, LocalizationSourceEntry>>? nativeEntries, Lazy<IReadOnlyDictionary<string, LocalizationSourceEntry>>? keyEntries, bool identifyPackageFailures)
     {
         Stopwatch elapsed = Stopwatch.StartNew();
         List<LocalizationLayer> layers = [];
@@ -136,7 +143,7 @@ public static class LocalizationRuntime
                 throw new InvalidDataException($"{package.Name}: resource variant {variant} is not declared compatible.");
             }
             bool projected = project.EditionBindings.ContainsKey(variant) || LocalizationNativeEdition.RequiresProjection(project, source);
-            LocalizationProject active = project.Manifest.SourceEdition is null ? LocalizationEditionProjection.Activate(project, variant) : LocalizationNativeEdition.Activate(project, source, nativeCatalog, cancellation);
+            LocalizationProject active = project.Manifest.SourceEdition is null ? LocalizationEditionProjection.Activate(project, variant) : LocalizationNativeEdition.Activate(project, source, nativeEntries, keyEntries, cancellation);
             layers.Add(new(package.Id, package.Name, active) { EditionProjected = projected });
         }
         if (layers.Select(layer => layer.Project.Manifest.ProjectId).Distinct(StringComparer.Ordinal).Count() != layers.Count)
@@ -170,8 +177,9 @@ public static class LocalizationRuntime
                 {
                     continue;
                 }
-                ValidateTarget(row, layer.EditionProjected);
-                LocalizationValue value = new(row.Target, layer.PackageId, layer.Project.Manifest.ProjectId) { Category = row.Category, File = row.File, Field = row.Category == "Fields" ? LocalizationFieldPreparation.Prepare(row) : null };
+                bool keyBinding = LocalizationNativeEdition.UsesKeyBinding(layer.Project.Manifest, row);
+                ValidateTarget(row, layer.EditionProjected || keyBinding);
+                LocalizationValue value = new(row.Target, layer.PackageId, layer.Project.Manifest.ProjectId) { Category = row.Category, File = row.File, Field = row.Category == "Fields" ? LocalizationFieldPreparation.Prepare(row, verifyScript: !keyBinding) : null };
                 if (row.Category == "Fields" && value.Field is null)
                 {
                     dormant.Add(row.Key);

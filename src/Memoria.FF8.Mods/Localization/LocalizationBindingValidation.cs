@@ -12,6 +12,12 @@ namespace Memoria.FF8.Mods.Localization;
 
 public static class LocalizationBindingValidation
 {
+    public static bool RequiresNonFieldSourceCatalog(LocalizationPreparation preparation)
+    {
+        return preparation.Layers.Any(layer => preparation.RequestedOrder.Contains(layer.PackageId, StringComparer.OrdinalIgnoreCase) &&
+            layer.Project.Entries.Any(row => !string.IsNullOrEmpty(row.Target) && row.Category is not ("Fields" or "System") && !LocalizationNativeEdition.UsesKeyBinding(layer.Project.Manifest, row)));
+    }
+
     /// <summary>Rejects unknown physical table layouts before any non-field translation is published.</summary>
     public static void Validate(LocalizationPreparation preparation, IResourceSource source, CancellationToken cancellation = default, IReadOnlyDictionary<string, LocalizationSourceEntry>? knownEntries = null)
     {
@@ -22,8 +28,9 @@ public static class LocalizationBindingValidation
             foreach (var row in layer.Project.Entries.Where(row => !string.IsNullOrEmpty(row.Target) && row.Category != "System" && (row.Category != "Fields" || layer.EditionProjected)))
             {
                 cancellation.ThrowIfCancellationRequested();
+                bool keyBinding = LocalizationNativeEdition.UsesKeyBinding(layer.Project.Manifest, row);
                 LocalizationSourceEntry? known = knownEntries?.GetValueOrDefault(row.Key);
-                if (row.Category != "Fields" && knownEntries is not null && (known is null || known.Category != row.Category || known.File != row.File))
+                if (!keyBinding && row.Category != "Fields" && knownEntries is not null && (known is null || known.Category != row.Category || known.File != row.File))
                 {
                     throw new InvalidDataException($"{row.Key}: no supported original text identity exists in this resource profile.");
                 }
@@ -34,6 +41,10 @@ public static class LocalizationBindingValidation
                 string? Metadata(string name) => context.TryGetProperty(name, out JsonElement value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
                 if (row.Category == "Fields")
                 {
+                    if (keyBinding)
+                    {
+                        continue;
+                    }
                     string field = $"field/{row.File}/{row.File}";
                     string bank = field + ".msd";
                     Check(bank, Metadata("Source MSD SHA256") ?? throw new InvalidDataException($"{row.Key}: missing projected MSD fingerprint."), row.Key);
@@ -58,10 +69,15 @@ public static class LocalizationBindingValidation
                 bool information = known?.Metadata.GetValueOrDefault("Structure") == "information-body-v1";
                 if (Metadata("Structure") == "information-body-v1" || information)
                 {
-                    if (!information || !NativeTutorialInformationText.ValidateTarget(known!.Text, LocalizationValue.RenderTarget(row.Target!)))
+                    string? nativeText = keyBinding ? row.Source : information ? known!.Text : null;
+                    if (nativeText is null || !NativeTutorialInformationText.ValidateTarget(nativeText, LocalizationValue.RenderTarget(row.Target!)))
                     {
                         throw new InvalidDataException($"{row.Key}: translated Information text must preserve its original conditions, links and value operands.");
                     }
+                }
+                if (keyBinding)
+                {
+                    continue;
                 }
                 if (Metadata("Native Source Fingerprint") is string nativeFingerprint)
                 {

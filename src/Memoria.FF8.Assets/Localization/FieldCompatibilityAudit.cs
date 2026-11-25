@@ -151,7 +151,7 @@ public static class FieldCompatibilityAudit
         };
     }
 
-    public static FieldCompatibilityInventory Inspect(FieldCompatibilityInput input)
+    public static FieldCompatibilityInventory Inspect(FieldCompatibilityInput input, bool includeScriptFingerprint = true)
     {
         ArgumentNullException.ThrowIfNull(input);
         List<string> problems = input.Errors?.ToList() ?? [];
@@ -203,7 +203,7 @@ public static class FieldCompatibilityAudit
             problems.Add($"Unresolved {context.Opcode} context at operation {context.Position.OperationIndex}; {scope}.");
         }
         return new(input.Field, input.Language, input.ResourceIdentity,
-            input.Jsm is null ? null : Convert.ToHexString(SHA256.HashData(input.Jsm)), input.Jsm?.Length,
+            includeScriptFingerprint && input.Jsm is not null ? Convert.ToHexString(SHA256.HashData(input.Jsm)) : null, input.Jsm?.Length,
             "field-compatibility-v5/" + typeof(JsmDocument).Assembly.GetName().Version,
             count is not null, count, bank, instructions.ToImmutableArray(), contexts.ToImmutableArray(), referenced.ToImmutableArray(),
             count is int known ? Enumerable.Range(0, known).Except(referenced).ToImmutableArray() : [],

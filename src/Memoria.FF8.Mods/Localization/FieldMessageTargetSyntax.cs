@@ -6,14 +6,16 @@ namespace Memoria.FF8.Mods.Localization;
 
 public sealed class FieldMessageTargetSyntax : ILocalizationTargetSyntax
 {
-    public IReadOnlyList<string> ValidateCandidate(LocalizationRecord row)
+    public IReadOnlyList<string> ValidateCandidate(LocalizationRecord row) => ValidateCandidate(row, verifyScript: true);
+
+    internal IReadOnlyList<string> ValidateCandidate(LocalizationRecord row, bool verifyScript)
     {
         try
         {
             LocalizationTextValidation.Validate(row);
             if (row.Category == "Fields" && !string.IsNullOrEmpty(row.Target))
             {
-                _ = LocalizationFieldPreparation.Prepare(row);
+                _ = LocalizationFieldPreparation.Prepare(row, verifyScript);
             }
             return [];
         }
