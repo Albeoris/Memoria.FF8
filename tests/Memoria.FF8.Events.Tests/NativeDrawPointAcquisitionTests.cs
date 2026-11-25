@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Albeoris.Games.FF8.Jsm;
@@ -16,18 +18,43 @@ internal static partial class Program
         NativeDrawPointParticleTables particles = NativeDrawPointParticleTableReader.Read(File.ReadAllBytes(Path.Combine(gameDirectory, "FF8_EN.exe")));
         byte drawAbility = checked((byte)(20 + Array.IndexOf(catalog.CommandIds.ToArray(), (byte)6)));
         int regeneratingIndex = Enumerable.Range(0, 256).First(index => (catalog.PointBytes[index] & 0x40) != 0 && (catalog.PointBytes[index] & 63) is > 0 and < 57);
-        foreach ((int index, int initialCount, bool cancel, int bonus, bool shared, int receiver, bool equipped) in new[] { (13, 98, true, 0, false, 0, true), (13, 100, false, 0, false, 0, true), (13, 98, false, 0, false, 0, true), (regeneratingIndex, 98, false, 0, false, 0, true), (13, 1, false, 5, false, 0, true), (13, 1, false, 100, false, 0, true), (13, 98, true, 100, false, 0, true), (13, 100, false, 100, false, 0, true), (13, 98, false, 0, true, 0, true), (regeneratingIndex, 98, false, 100, true, 0, true), (13, 100, true, 0, true, 0, true), (13, 98, false, 0, true, 1, true), (13, 98, true, 0, true, 0, false) })
+        FieldAssets field = assets.LoadField(600);
+        NativeFieldEyeProcess coldMemory = new NativeFieldEyeProcess(1, assets.ReadColdProcessNativeBattleMemory(), NativeCrtRandomState.FromColdProcess()).CaptureSnapshot();
+        foreach ((int index, int initialCount, bool cancel, int bonus, bool shared, int receiver, bool equipped, bool fieldOnlyLeader) in new[]
+        {
+            (13, 97, false, 0, false, 0, true, true),
+            (13, 98, true, 0, false, 0, true, false),
+            (13, 100, false, 0, false, 0, true, false),
+            (13, 98, false, 0, false, 0, true, false),
+            (regeneratingIndex, 98, false, 0, false, 0, true, false),
+            (13, 1, false, 5, false, 0, true, false),
+            (13, 1, false, 100, false, 0, true, false),
+            (13, 98, true, 100, false, 0, true, false),
+            (13, 100, false, 100, false, 0, true, false),
+            (13, 98, false, 0, true, 0, true, false),
+            (regeneratingIndex, 98, false, 100, true, 0, true, false),
+            (13, 100, true, 0, true, 0, true, false),
+            (13, 98, false, 0, true, 1, true, true),
+            (13, 98, true, 0, true, 0, false, false),
+            (13, 98, false, 0, true, 1, false, true)
+        })
         {
             bool full = initialCount == 100;
+            bool missingPersonalReceiver = !shared && fieldOnlyLeader;
             int magic = catalog.PointBytes[index] & 63;
             byte[] content = SyntheticObjects([1, (8 << 7) | 1], [
                 [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, receiver == 0 ? 255 : receiver), (Jsm.Opcode.PSHN_L, 255), (Jsm.Opcode.SETPARTY, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 100), (Jsm.Opcode.PSHN_L, 200), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SET3, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.SETDRAWPOINT, 0), (Jsm.Opcode.PSHN_L, index + 1), (Jsm.Opcode.Unknown16, 0), (Jsm.Opcode.RET, 8)],
-                [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.REFRESHPARTY, 0), (Jsm.Opcode.UCOFF, 0), (Jsm.Opcode.PSHN_L, 53), (Jsm.Opcode.POPI_L, 0), (Jsm.Opcode.PSHN_L, index + 1), (Jsm.Opcode.DRAWPOINT, 0), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.POPI_L, 3), (Jsm.Opcode.UCON, 0), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.POPM_B, 500), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)],
+                [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.REFRESHPARTY, 0), (Jsm.Opcode.UCOFF, 0), (Jsm.Opcode.PSHN_L, 53), (Jsm.Opcode.POPI_L, 0), (Jsm.Opcode.PSHN_L, index + 1), (Jsm.Opcode.DRAWPOINT, 0), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.POPI_L, 3), (Jsm.Opcode.UCON, 0), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.POPM_B, 500), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)],
                 [(Jsm.Opcode.LBL, 8), (Jsm.Opcode.PSHN_L, receiver), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.PSHN_L, 200), (Jsm.Opcode.PSHN_L, 200), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SET3, 0), (Jsm.Opcode.RET, 8)],
                 [(Jsm.Opcode.LBL, 9), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]]);
+            // Register the original model resources against the declared test program for checkpoint restore.
+            NativeFieldRegistrationResources registration = field.NativeRegistration!;
+            NativeFieldRegistrationLoaderInputs loader = registration.Loader!;
+            string programHash = Convert.ToHexString(SHA256.HashData(content));
+            registration = registration with { ProgramHash = programHash, Loader = loader with { Program = loader.Program with { Sha256 = programHash, Data = content.ToImmutableArray() } } };
             (GameSession Session, EventEngine Engine) Create()
             {
-                GameSession session = GameSession.CreateColdProcess();
+                GameSession session = GameSession.CreateColdProcess(coldMemory.RestoreOwned().Memory);
                 session.StartNewGame();
                 session.SetGameplayPreferences(session.State.GameplayPreferences with { Tuning = new GameplayTuning { DrawBonus = bonus } });
                 session.InitializeNewGameCharacterVitals(assets.ReadNewGameCharacterVitals());
@@ -50,6 +77,9 @@ internal static partial class Program
                 EventEngine engine = new(session)
                 {
                     AnimationFrameCount = (_, _) => 4,
+                    ReadNativeFieldRegistrationResources = () => registration,
+                    ReadNativeEmptyAnimationTerminals = models => assets.ReadNativeEmptyAnimationTerminals(field.Id, models),
+                    ReadNativeEyes = model => field.Models[model].NativeEyes,
                     ReadNativeDrawPointCatalog = assets.ReadNativeDrawPointCatalog,
                     DrawPointParticleTables = particles,
                     ResolveNativeDrawPointDirection = FieldNativeScriptDirectionProbe.ResolveFacing,
@@ -59,13 +89,23 @@ internal static partial class Program
                         return new GlobalSoundResource(sample, GlobalSoundBackendStatus.Muted, new GlobalSoundLoopPolicy(descriptor.PlaybackFlags, descriptor.LoopStartPcmByte, descriptor.LoopEndPcmByte, descriptor.WaveFormat.SampleRate, 16, descriptor.WaveFormat.Channels, 1087));
                     }
                 };
-                engine.LoadField(600, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+                session.RequestField(field.Id, 0);
+                engine.LoadField(field.Id, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
                 // Explicit component visual initialization precedes the declared SETDRAWPOINT anchor reset.
                 engine.RestartNativeDrawPointPresentationForMigration();
                 session.SetEventMemory(session.EventMemory.Write(211, 2, NativeScalarValue.Exact(0xA580)));
                 return (session, engine);
             }
             (GameSession session, EventEngine engine) = Create();
+            if (fieldOnlyLeader)
+            {
+                engine.Step();
+                engine.Scene.Party[0] = 5;
+                if (missingPersonalReceiver)
+                {
+                    engine.Scene.Party[1] = 0;
+                }
+            }
             List<(int MagicId, int Acquired, int Stock)> awards = [];
             engine.DrawPointMagicAcquired += awards.Add;
             void StepRestored()
@@ -95,15 +135,20 @@ internal static partial class Program
             Require(engine.Scene.NativeDrawPointParticles!.DrawUnavailable == (full || !equipped), "Ready draw-point availability did not reflect actual magic capacity.");
             if (shared)
             {
+                if (fieldOnlyLeader)
+                {
+                    // The active field identity has no corresponding combat slot after setup.
+                    Require(engine.Scene.Party[0] == 5 && !session.CharacterVitals!.CombatParty.Contains((byte)5), "Draw-point mismatch fixture lost its field-only identity.");
+                }
                 int originalCount = session.CharacterVitals!.GetMagicCount(0, magic);
                 Require(originalCount == initialCount, "Shared draw-point setup changed its initial stock.");
                 if (full || !equipped)
                 {
                     Require(engine.Scene.DrawPointInteraction is { SharedSelection: true, Message: 4 } && Phase() == 3 && engine.CurrentDialogue is { FirstChoice: 1, LastChoice: 2, CancelChoice: 1 } sharedSelection && sharedSelection.Text == catalog.FormatSharedSelection(false) && !sharedSelection.Text.Contains("{Char ", StringComparison.Ordinal), "Unavailable shared draw did not offer only Don't draw/Draw choices.");
                     StepRestored();
-                    WaitForNativeWindowReady(engine, 6, StepRestored);
+                    WaitForNativeWindowReady(engine, 6, engine.Step);
                     Require(engine.Apply(new PlayerAction(PlayerActionKind.Cancel)).Accepted, "Unavailable shared draw selection refused cancellation.");
-                    CloseNativeWindow(engine, 6, StepRestored);
+                    CloseNativeWindow(engine, 6, engine.Step);
                     Require(engine.Scene.DrawPointInteraction is null && engine.CurrentDialogue is null && session.CharacterVitals!.GetMagicCount(0, magic) == initialCount && session.EventRandom!.DrawPoints!.Depletion.All(value => value == 0) && engine.IsUserControlEnabled && session.State.Variables[500] == 77, "Canceled shared draw changed stock/depletion or retained its wait.");
                     Require(awards.Count == 0, "Canceled shared draw published a stock award.");
                     continue;
@@ -145,13 +190,26 @@ internal static partial class Program
             }
             Require(engine.Scene.GlobalSoundRequests.Count(request => request.OriginalEffectId == 66) == 1 && session.EventRandom!.State == 1103527590, "Eligible draw point omitted native sound66 or drew script RNG more than once.");
             StepRestored();
-            WaitForNativeWindowReady(engine, 6, StepRestored);
+            WaitForNativeWindowReady(engine, 6, engine.Step);
             Require(engine.Apply(new PlayerAction(PlayerActionKind.Confirm)).Accepted, "Eligible discovery message refused ordinary acknowledgement.");
-            CloseNativeWindow(engine, 6, StepRestored);
+            CloseNativeWindow(engine, 6, engine.Step);
             Require(Phase() == 2 && engine.CurrentDialogue is null, "Acknowledged eligible draw skipped its separate selection preparation callback.");
             // Another window may take focus between discovery and selection.
             RestoreForeignFocus();
             StepRestored();
+            if (missingPersonalReceiver)
+            {
+                Require(engine.CurrentDialogue is { LastChoice: 3 } && engine.CurrentDialogue.Text.Split("{Line}")[2].Contains("{Color Disabled}", StringComparison.Ordinal), "The field-only character did not retain its disabled selection row.");
+                WaitForNativeWindowReady(engine, 6, engine.Step);
+                Require(engine.Apply(new PlayerAction(PlayerActionKind.Choose, 2)).Accepted, "Draw point did not accept the original field-only row index.");
+                CloseNativeWindow(engine, 6, engine.Step);
+                Require(Phase() == 4, "Draw point lost the selected field-only index.");
+                StepRestored();
+                Require(Phase() == 6 && engine.Scene.DrawPointInteraction is { CombatSlot: null } && !engine.NativeDrawPointAcquisitionActive, "Field-only selection resolved to a combat owner or started particles.");
+                StepRestored();
+                Require(Phase() == 1 && engine.Scene.DrawPointInteraction is { Message: 6, Acquired: 0 } && awards.Count == 0 && session.CharacterVitals!.GetMagicCount(0, magic) == initialCount && session.EventRandom!.DrawPoints!.GetDepletion((byte)index) == 0, "Field-only selection failed to refuse without writing stock or depletion.");
+                continue;
+            }
             Require(Phase() == 3 && engine.CurrentDialogue is { FirstChoice: 1, LastChoice: 2, InitialChoice: 2, CancelChoice: 1 } selection && selection.Text == catalog.FormatSelection([0], session.CharacterVitals!, magic, expectedEligible), "Draw selection lost its original character/cancel rows or actual choice metadata.");
             Require(engine.Scene.NativeDialogueFocus == 6 && engine.Scene.NativeAaskPreviousFocus == 7, "Generated draw choice failed to focus its own window or overwrote AASK focus history.");
             // A retained choice must recover on its next native poll, including after restore.
@@ -160,16 +218,16 @@ internal static partial class Program
             Require(engine.Scene.NativeDialogueFocus == 6 && engine.CurrentDialogue?.FirstChoice == 1 && engine.Scene.NativeAaskPreviousFocus == 7, "Draw choice poll failed to recover an unfocused saved selection.");
             if (cancel)
             {
-                WaitForNativeWindowReady(engine, 6, StepRestored);
+                WaitForNativeWindowReady(engine, 6, engine.Step);
                 Require(engine.Apply(new PlayerAction(PlayerActionKind.Cancel)).Accepted, "Original draw selection Cancel refused.");
-                CloseNativeWindow(engine, 6, StepRestored);
+                CloseNativeWindow(engine, 6, engine.Step);
                 Require(engine.Scene.DrawPointInteraction is null && session.CharacterVitals!.Records[0].MagicInventory[0].Count == initialCount && session.EventRandom!.DrawPoints!.Depletion.All(value => value == 0) && session.State.Variables[500] == 77 && engine.IsUserControlEnabled, "Canceled selection awarded/depleted or retained its operand/control wait.");
                 Require(awards.Count == 0, "Canceled personal draw published a stock award.");
                 continue;
             }
-            WaitForNativeWindowReady(engine, 6, StepRestored);
+            WaitForNativeWindowReady(engine, 6, engine.Step);
             Require(engine.Apply(new PlayerAction(PlayerActionKind.Choose, 2)).Accepted, "Explicit character draw selection refused.");
-            CloseNativeWindow(engine, 6, StepRestored);
+            CloseNativeWindow(engine, 6, engine.Step);
             Require(Phase() == 4, "Character choice skipped original phase4 body resolution.");
             StepRestored();
             Require(Phase() == 5 && engine.NativeDrawPointAcquisitionActive && engine.Scene.GlobalSoundRequests.Count(request => request.OriginalEffectId == 67) == 1, "Eligible selection skipped actual native particles or native sound67.");
@@ -186,14 +244,14 @@ internal static partial class Program
             if (full)
             {
                 Require(Phase() == 1 && engine.Scene.DrawPointInteraction is { Message: 6, Acquired: 0 } && session.MessageVariables!.At(7) == 0 && session.CharacterVitals!.Records[0].MagicInventory[0].Count == 100, "Full native inventory changed stock or failed to return to phase1 after message6.");
-                WaitForNativeWindowReady(engine, 6, StepRestored);
+                WaitForNativeWindowReady(engine, 6, engine.Step);
                 Require(engine.Apply(new PlayerAction(PlayerActionKind.Confirm)).Accepted, "Failed acquisition message refused acknowledgement.");
-                CloseNativeWindow(engine, 6, StepRestored);
+                CloseNativeWindow(engine, 6, engine.Step);
                 StepRestored();
                 Require(Phase() == 3 && engine.Scene.DrawPointInteraction!.Quantity == quantity && session.EventRandom.State == 1103527590, "Failed acquisition retried discovery/RNG instead of original selection.");
-                WaitForNativeWindowReady(engine, 6, StepRestored);
+                WaitForNativeWindowReady(engine, 6, engine.Step);
                 Require(engine.Apply(new PlayerAction(PlayerActionKind.Cancel)).Accepted, "Retried draw selection Cancel refused.");
-                CloseNativeWindow(engine, 6, StepRestored);
+                CloseNativeWindow(engine, 6, engine.Step);
                 Require(engine.Scene.DrawPointInteraction is null && session.EventRandom.DrawPoints!.Depletion.All(value => value == 0), "Failed draw/cancel depleted the original packed point.");
             }
             else
@@ -202,9 +260,9 @@ internal static partial class Program
                 StepRestored();
                 Require(engine.CurrentDialogue!.Text.Contains(expectedAcquired.ToString(), StringComparison.Ordinal), "Successful draw text did not expand canonical message variable7.");
                 Require(session.EventRandom.DrawPoints!.Depletion.All(value => value == 0), "Successful draw depleted before final message acknowledgement.");
-                WaitForNativeWindowReady(engine, 6, StepRestored);
+                WaitForNativeWindowReady(engine, 6, engine.Step);
                 Require(engine.Apply(new PlayerAction(PlayerActionKind.Confirm)).Accepted, "Successful acquisition message refused acknowledgement.");
-                CloseNativeWindow(engine, 6, StepRestored);
+                CloseNativeWindow(engine, 6, engine.Step);
                 int depletion = (session.EventRandom.DrawPoints.Depletion[index / 4] >> (2 * (index & 3))) & 3;
                 Require(engine.Scene.DrawPointInteraction is null && depletion == ((catalog.PointBytes[index] & 0x40) != 0 ? 2 : 3) && engine.CurrentDialogue is null && session.State.Variables[500] == 77 && engine.IsUserControlEnabled, "Acknowledged successful draw lost native depletion2/3, operand completion or same-callback successor.");
                 JsonElement owner = engine.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ScriptId").GetInt32() == 1);

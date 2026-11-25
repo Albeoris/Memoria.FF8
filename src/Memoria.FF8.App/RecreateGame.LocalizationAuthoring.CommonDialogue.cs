@@ -72,7 +72,7 @@ internal sealed partial class RecreateGame
         {
             throw new NotSupportedException("Generated DRAWPOINT presentation requires a supported native magic identity.");
         }
-        int[] frozenParty = party.ToArray();
+        int[] frozenParty = (vitals is null ? party : NativeDrawPointCatalog.GetSelectionParty(party, vitals)).ToArray();
         NativeCharacterVitals? frozenVitals = interaction.Message == 4 ? vitals?.DeepCopy() ?? throw new NotSupportedException("Draw selection preview requires captured native character vitals.") : null;
         if (frozenVitals is not null && frozenVitals.KernelSha256 != catalog.KernelHash)
         {

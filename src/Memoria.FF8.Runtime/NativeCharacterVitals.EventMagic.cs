@@ -2,12 +2,17 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial record NativeCharacterVitals
 {
+    public int FindCombatSlot(int identity)
+    {
+        return Array.FindIndex(CombatParty, row => row != 255 && Records[row].CharacterId == identity);
+    }
+
     /// <summary>Native5222D0 resolves the first combat-party identity, then repeats47EE00 until its first nonzero result.</summary>
     public NativeCharacterVitals AddEventMagic(int rawCharacter, int rawSpell, int quantity)
     {
         Validate();
         byte identity = unchecked((byte)rawCharacter);
-        int slot = Array.FindIndex(CombatParty, row => row != 255 && Records[row].CharacterId == identity);
+        int slot = FindCombatSlot(identity);
         if (slot < 0 || quantity <= 0 || rawSpell == 0)
         {
             return this;

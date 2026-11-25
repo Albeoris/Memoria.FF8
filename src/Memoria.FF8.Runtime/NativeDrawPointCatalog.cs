@@ -71,6 +71,16 @@ public sealed record NativeDrawPointCatalog(string ExecutableHash, string Kernel
         return text;
     }
 
+    public static IReadOnlyList<int> GetSelectionParty(IReadOnlyList<int> fieldParty, NativeCharacterVitals vitals)
+    {
+        if (!vitals.ExtendedRosterEnabled || vitals.DreamEnabled)
+        {
+            return fieldParty;
+        }
+        int[] combatParty = vitals.CombatParty.Where(row => row != 255).Select(row => (int)vitals.Records[row].CharacterId).ToArray();
+        return fieldParty.Where(identity => identity != 255).ToHashSet().SetEquals(combatParty) ? fieldParty : combatParty;
+    }
+
     /// <summary>Native522770 stage2 preserves the original Cancel/header, field-order identities, capacity color and junction marker.</summary>
     public string FormatSelection(int[] fieldParty, NativeCharacterVitals vitals, int magicId, byte eligibleCombatSlots)
     {
@@ -89,13 +99,15 @@ public sealed record NativeDrawPointCatalog(string ExecutableHash, string Kernel
         for (int slot = 0; slot < fieldParty.Length && fieldParty[slot] != 255; slot++)
         {
             int identity = fieldParty[slot];
-            int combat = Array.FindIndex(vitals.CombatParty, row => row != 255 && vitals.Records[row].CharacterId == identity);
+            int combat = vitals.FindCombatSlot(identity);
+            string line = lines[slot + 2].Replace("{Char Squall}", CharacterTag(identity), StringComparison.Ordinal);
             if (combat < 0)
             {
-                throw new NotSupportedException("Draw selection identity has no current native combat-slot projection.");
+                // Field and combat rosters are independent. A field-only character has no stock or junction row in this selection.
+                selected.Add(line);
+                continue;
             }
             NativeCharacterVital character = vitals.Records[vitals.CombatParty[combat]];
-            string line = lines[slot + 2].Replace("{Char Squall}", CharacterTag(identity), StringComparison.Ordinal);
             if (vitals.GetMagicCapacity(vitals.CombatParty[combat], magicId) == 0 && (eligibleCombatSlots & (1 << combat)) != 0)
             {
                 line = line.Replace("{Color Disabled}", "{Color White}", StringComparison.Ordinal);
