@@ -25,7 +25,8 @@ internal sealed partial class RecreateGame
         window = LocalizedWindow(dialogue, window);
         string ButtonPrompt(ushort button) => keyboard.NativeButtonBindingPrompt(DialogueButtonMask(dialogue, button));
         string expanded = DialogueTextFormatter.ExpandButtonBindings(NativeMessageVariables.Expand(display.Text, events!.MessageVariables), ButtonPrompt);
-        foreach (var name in events.Scene.Names.OrderBy(pair => pair.Key))
+        IReadOnlyDictionary<int, string> textNames = session.State.Scene == SceneKind.Field ? world!.FieldDialogueNames(expanded) : events.Scene.Names;
+        foreach (var name in textNames.OrderBy(pair => pair.Key))
         {
             expanded += "\u0001" + name.Key + "=" + name.Value;
         }
@@ -34,7 +35,7 @@ internal sealed partial class RecreateGame
         string key = expanded + "\u0002" + display.X + "," + display.Y + "," + display.FirstChoice + "," + display.LastChoice + "\u0003" + terms.Generation + "\u0004" + uiPreferences.TextFontMode + ":" + uiPreferences.TextLayoutMode + ":" + nativeTextFont?.ProfileFor(NativeDialogueContext)?.Id + ":" + nativeTextFont?.Revision + "\u0005" + window?.Width + "," + window?.Height;
         IReadOnlyList<DialogueVisualPage> CreatePresentation()
         {
-            var document = authoringDraftPreview is not null && IsEditingAuthoringOccurrence(dialogue) && authoringDraftPreview.Length > 0 ? ParseAuthoringPreview(authoringDraftPreview, OriginalTextLayout) : DialogueTextFormatter.Parse(display.Text, events.Scene.Names, events.MessageVariables, ButtonPrompt, terms, originalCompatible: OriginalTextLayout);
+            var document = authoringDraftPreview is not null && IsEditingAuthoringOccurrence(dialogue) && authoringDraftPreview.Length > 0 ? ParseAuthoringPreview(authoringDraftPreview, OriginalTextLayout) : DialogueTextFormatter.Parse(display.Text, textNames, events.MessageVariables, ButtonPrompt, terms, originalCompatible: OriginalTextLayout);
             float size = uiPreferences.DialogueFontSize;
             string font = uiPreferences.DialogueFontFamily;
             if (NativeGameFonts)
@@ -170,7 +171,8 @@ internal sealed partial class RecreateGame
         PixelBounds nativeOrigin = panelBounds;
         if (localizationWorkbench.Enabled && nativeTextFont?.Ready == true)
         {
-            DialogueDocument nativeDocument = DialogueTextFormatter.Parse(display.Text, events!.Scene.Names, events.MessageVariables, button => keyboard.NativeButtonBindingPrompt(DialogueButtonMask(dialogue, button)), world!.TextTerms, originalCompatible: true);
+            IReadOnlyDictionary<int, string> textNames = session.State.Scene == SceneKind.Field ? world!.FieldDialogueNames(display.Text) : events!.Scene.Names;
+            DialogueDocument nativeDocument = DialogueTextFormatter.Parse(display.Text, textNames, events!.MessageVariables, button => keyboard.NativeButtonBindingPrompt(DialogueButtonMask(dialogue, button)), world!.TextTerms, originalCompatible: true);
             DialogueVisualPage nativePage = DialogueLayout.CreateNative(nativeDocument, display, window, NativeDialogueLineHeight, value => nativeTextFont.Measure(value, NativeDialogueContext))[0];
             nativeOrigin = DialoguePresentation.Bounds(display, window, viewport, nativePage.Width * scale, nativePage.Height * scale);
         }

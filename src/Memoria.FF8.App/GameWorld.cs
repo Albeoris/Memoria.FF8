@@ -16,6 +16,7 @@ internal sealed partial class GameWorld : IDisposable
     private readonly bool ownsMovieClock;
     private readonly GameAssets assets;
     public ITextTermSource TextTerms => assets.ReadNativeTextTerms();
+    internal IReadOnlyDictionary<int, string> FieldDialogueNames(string encoded) => DialogueTextFormatter.FieldCharacterNames(encoded, Events.Scene.Names, assets.Resources);
     private readonly bool ownsAssets;
     private readonly ResourceService? resources;
     private readonly IModelOverrideSource? modelOverrides;

@@ -7,12 +7,14 @@ namespace Memoria.FF8.Mods.Localization;
 internal static class LocalizationAuthoringTransaction
 {
     private const string Journal = ".localization-authoring.transaction.json";
+    internal static bool RecoveryPending(string root) => File.Exists(Path.Combine(root, Journal));
     internal sealed record FileChange(string Destination, string Backup, string Candidate, bool Existed = true, string? CandidateSha256 = null);
     internal static FileStream Acquire(string root)
     {
         string locks = Path.Combine(Path.GetTempPath(), "Memoria.Localization.Authoring.Locks");
         Directory.CreateDirectory(locks);
-        string key = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(OperatingSystem.IsWindows() ? Path.GetFullPath(root).ToUpperInvariant() : Path.GetFullPath(root))));
+        string full = Path.TrimEndingDirectorySeparator(Path.GetFullPath(root));
+        string key = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(OperatingSystem.IsWindows() ? full.ToUpperInvariant() : full)));
         return new FileStream(Path.Combine(locks, key + ".lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
     }
     internal static void Recover(string root)
@@ -52,6 +54,8 @@ internal static class LocalizationAuthoringTransaction
     internal static void Publish(string root, IReadOnlyDictionary<string, byte[]> candidates, CancellationToken cancellation, IReadOnlyDictionary<string, byte[]>? expectedOriginals = null, IReadOnlySet<string>? expectedAbsent = null)
     {
         string token = Guid.NewGuid().ToString("N");
+        string journalPath = Path.Combine(root, Journal);
+        string stagedJournal = journalPath + "." + token + ".tmp";
         List<FileChange> changes = [];
         List<FileStream> originals = [];
         bool journalWritten = false;
@@ -99,11 +103,12 @@ internal static class LocalizationAuthoringTransaction
                 }
             }
             cancellation.ThrowIfCancellationRequested();
-            using (FileStream journal = new(Path.Combine(root, Journal), FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough))
+            using (FileStream journal = new(stagedJournal, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough))
             {
                 journal.Write(JsonSerializer.SerializeToUtf8Bytes(changes));
                 journal.Flush(true);
             }
+            File.Move(stagedJournal, journalPath);
             journalWritten = true;
             foreach (FileChange change in changes)
             {
@@ -116,7 +121,7 @@ internal static class LocalizationAuthoringTransaction
                     File.Move(LocalizationProjectIO.Resolve(root, change.Candidate), LocalizationProjectIO.Resolve(root, change.Destination));
                 }
             }
-            File.Delete(Path.Combine(root, Journal));
+            File.Delete(journalPath);
             journalWritten = false;
         }
         catch
@@ -142,6 +147,7 @@ internal static class LocalizationAuthoringTransaction
             {
                 Cleanup(root, changes);
             }
+            File.Delete(stagedJournal);
         }
     }
     private static void Cleanup(string root, IEnumerable<FileChange> changes)

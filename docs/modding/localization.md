@@ -114,6 +114,30 @@ dotnet run --project tools/Memoria.FF8.Localization -c Release -- export-player 
 
 The player export writes UTF-8 JSON split by category and logical file. It retains Targets, edition overrides, native identities, binding fingerprints and authored choice maps. The engine reconstructs native bindings from the installed resources. A player row can omit both `Source Text SHA256` and `sourceContext` to bind by its canonical key in the selected compatible edition without source text or resource fingerprint checks. Keep any authored choice map and edition overrides. Add a package descriptor, attribution and any separately cleared distribution assets before publishing. Original and reference text, artwork, movie files and local settings stay in the authoring project. Make translation edits in that project and regenerate the player files.
 
+### Add reading columns and review a Russian translation
+
+Run the localization CLI from the product directory. Set the variables below to the existing mod root, the two installed game roots and a directory for private reports outside the mod.
+
+```powershell
+$cli = "tools/Memoria.FF8.Localization"
+dotnet run --project $cli -- add-references --input $mod --game-dir $classic --language en --report "$reports/english.json"
+dotnet run --project $cli -- add-references --input $mod --game-dir $remastered --language jp --report "$reports/japanese.json"
+dotnet run --project $cli -- lint --input $mod --reference en --report "$reports/before.json"
+dotnet run --project $cli -- fix --input $mod --reference en --report "$reports/repairs.json"
+dotnet run --project $cli -- lint --input $mod --reference en --report "$reports/remaining.json"
+dotnet run --project $cli -- validate --input $mod
+```
+
+`add-references` updates a schema 2 JSON package in place. It writes `Reference [en]` and `Reference [jp]` beside the translation with their native keys and records the source edition for each column. For field variants with a verified shared message and different window settings, a reading may identify the native base message. The coverage report lists missing, undecodable and ambiguous readings by key. Engine-authored System strings have English originals. At runtime the package supplies its Target and applicable edition override.
+
+`lint` reads the translation and writes its findings to the requested report. `fix` applies the supported Russian editorial rules to the package. Each report identifies the file, key, target column and rule. Exit code 0 means the review has no outstanding findings, 1 means findings remain and 2 indicates an input or execution error. Use the final lint report for editorial work. A repeat fix on the same inputs should change zero targets.
+
+The reviewer checks speaker labels, dialogue quotes, line indentation, punctuation spacing and control tags. Its reference comparison accounts for field windows, pages and choices. In a speaker label, a supported name tag displays the player's chosen name or its localized default. Within the translated speech the editor controls spelling and grammatical case. Decisions about meaning, uncertain speaker identity, conflicting translations and ambiguous control placement require a human editor.
+
+For named NPCs, pass the same optional `--speaker-glossary <file.json>` to `lint` and `fix`. Use a JSON object mapping each reviewed English speaker label to its exact Russian spelling, for example `{"Captain Grey":"Капитан Грей"}`. To recognize a Russian spelling variant of a character, map that spelling to its canonical name tag. The original speaker must identify the same character. The tool applies the mapping to a matching speaker label and reports conflicting evidence in the field. The same-field lookup can also recover an NPC spelling from independently translated messages in that field.
+
+Keep enriched copies local to the translator. The current loader accepts reading columns in a player package. Older loaders can reject that format. Use `export-player` with a fresh destination to generate reference-free player payloads with the corrected Targets and their binding metadata. A loader that predates support for character-name tags in originally literal speaker labels can also require an engine update.
+
 The export summary reports **Resource/coverage diagnostics** from the manifest's `sourceGaps` array across selected datasets. These can describe unsupported sections, unavailable banks, failed decoders or missing correspondence; they are not a missing-translation count. Review their category/resource/reason entries when a reference is blank.
 
 Some original European field resources contain untranslated archival Japanese bytes. Japanese character escapes in these resources are reported as unsupported source encoding; the original key and source identity remain, with an empty reading and a decode diagnostic. The exporter does not infer a Japanese codepage from the resource suffix or substitute text from another language. Archival Japanese codepages can also differ from the supported Japanese release table, and strings without distinctive escapes can remain ambiguous. A successful byte decode alone does not establish that archival text is linguistically correct.

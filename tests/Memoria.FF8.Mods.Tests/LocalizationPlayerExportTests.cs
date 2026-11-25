@@ -12,6 +12,93 @@ public sealed class LocalizationPlayerExportTests : IDisposable
     private readonly string root = Path.Combine(Path.GetTempPath(), "memoria-player-export-" + Guid.NewGuid().ToString("N"));
 
     [Fact]
+    public void EnrichedPlayerReferencesDoNotReplaceRuntimeTargetsOrSurviveCleanExport()
+    {
+        const string key = "$en_magic_0000";
+        const string label = "Reference [en]";
+        const string payload = "Localization/Magic/magic.json";
+        CancellationToken cancellation = TestContext.Current.CancellationToken;
+        string authoring = Path.Combine(root, "authoring");
+        string player = Path.Combine(root, "player");
+        string legacy = Path.Combine(root, "legacy");
+        LocalizationProject project = new()
+        {
+            Manifest = new()
+            {
+                SchemaVersion = 2, TargetLanguage = "ru", SourceEdition = "Classic", MappingVersion = FieldCorrespondenceCatalog.Version, CompatibleVariants = ["Classic:en", "Remastered:en"]
+            },
+            Entries =
+            [
+                new()
+                {
+                    Category = "Magic", File = "magic", Key = key, Source = "Source name", Target = "Basic target",
+                    ExtensionData = new Dictionary<string, JsonElement>
+                    {
+                        [LocalizationProjectIO.EditionTargetsColumn] = JsonSerializer.SerializeToElement(new Dictionary<string, string> { ["Remastered:en"] = "Edition target" })
+                    }
+                },
+                new() { Category = "Magic", File = "magic", Key = "$en_magic_0001", Source = "Unknown reference" }
+            ]
+        };
+        LocalizationProjectIO.WriteNew(project, authoring, "json", "single", cancellation);
+        LocalizationProjectIO.ExportPlayer(authoring, player, cancellation);
+        LocalizationRecord original = LocalizationProjectIO.Read(player).Entries[0];
+        LocalizationProjectIO.UpdateJsonReferences(player, source => source with
+        {
+            Manifest = source.Manifest with
+            {
+                ReferenceLanguages = new Dictionary<string, string> { [label] = "en" },
+                ExtensionData = new(StringComparer.Ordinal)
+                {
+                    [LocalizationProjectIO.ReferenceEditionsMember] = JsonSerializer.SerializeToElement(new Dictionary<string, string> { [label] = "Classic" }),
+                    ["arbitraryMetadata"] = JsonSerializer.SerializeToElement("outside updater ownership")
+                }
+            },
+            Entries =
+            [
+                source.Entries[0] with
+                {
+                    References = new Dictionary<string, string?> { [label] = "Reference name" },
+                    ReferenceKeys = new Dictionary<string, IReadOnlyList<string>> { [label] = [key] }
+                },
+                source.Entries[1]
+            ]
+        }, cancellation);
+
+        LocalizationProject enriched = LocalizationProjectIO.Read(player);
+        Assert.True(enriched.Manifest.PlayerExport);
+        Assert.Equal("Classic", enriched.Manifest.ExtensionData[LocalizationProjectIO.ReferenceEditionsMember].GetProperty(label).GetString());
+        Assert.Equal("Reference name", enriched.Entries[0].References[label]);
+        Assert.Equal([key], enriched.Entries[0].ReferenceKeys[label]);
+        Assert.Empty(enriched.Entries[1].ReferenceKeys[label]);
+        Assert.False(enriched.Entries[1].ReferencePresence[label]);
+        Assert.Equal(original.ExtensionData["Source Text SHA256"].GetString(), enriched.Entries[0].ExtensionData["Source Text SHA256"].GetString());
+
+        byte[] before = File.ReadAllBytes(Path.Combine(player, payload));
+        LocalizationProjectIO.UpdateJsonReferences(player, source => source, cancellation);
+        Assert.Equal(before, File.ReadAllBytes(Path.Combine(player, payload)));
+
+        LocalizationProjectIO.ExportPlayer(player, legacy, cancellation);
+        LocalizationProject clean = LocalizationProjectIO.Read(legacy);
+        Assert.True(clean.Manifest.PlayerExport);
+        Assert.Empty(clean.Manifest.ReferenceLanguages);
+        Assert.DoesNotContain(LocalizationProjectIO.ReferenceEditionsMember, clean.Manifest.ExtensionData.Keys);
+        Assert.Empty(clean.Entries[0].ReferenceKeys);
+        Assert.Equal(original.Target, clean.Entries[0].Target);
+        Assert.Equal(original.ExtensionData["Source Text SHA256"].GetString(), clean.Entries[0].ExtensionData["Source Text SHA256"].GetString());
+        Assert.True(JsonElement.DeepEquals(original.ExtensionData[LocalizationProjectIO.EditionTargetsColumn], clean.Entries[0].ExtensionData[LocalizationProjectIO.EditionTargetsColumn]));
+
+        LocalizationSourceCatalog catalog = new([new("Magic", "magic", key, "Source name", "en", new Dictionary<string, string?>())], [], []);
+        foreach (string input in new[] { player, legacy })
+        {
+            ModPackage package = new("Memoria/test", "Test", ModFormat.Memoria, true, true, ModEffectiveStatus.Active, input) { HasLocalization = true };
+            LocalizationPreparation ready = LocalizationRuntime.Prepare(new(1, [package], []), [package.Id], new("fixture", GameDataEdition.Classic, [], "en"), cancellation, nativeCatalog: () => catalog);
+            using var revision = ready.InputRevision;
+            Assert.Equal("Basic target", ready.Catalog.Resolve(key, "default"));
+        }
+    }
+
+    [Fact]
     public void PlayerExportKeepsSplitTargetsAndRebindsBothNativeEditions()
     {
         CancellationToken cancellation = TestContext.Current.CancellationToken;

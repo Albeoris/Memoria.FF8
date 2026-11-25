@@ -34,6 +34,10 @@ public static class LocalizationTextValidation
         Dictionary<string, int> translated = Placeholders(target, row.Key, out _);
         if (source is not null)
         {
+            if (row.Category == "Fields" && (target.Contains("{Char ", StringComparison.Ordinal) || target.Contains("{Name ", StringComparison.Ordinal)))
+            {
+                source = FieldSpeakerLabels.ApplyTranslatedCharacterLabels(source, target);
+            }
             Dictionary<string, int> required = Placeholders(source, row.Key, out bool nativeSource);
             if (row.Category == "System" && !nativeSource)
             {

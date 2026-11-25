@@ -34,11 +34,26 @@ internal static class LocalizationCommands
                 "patch" => ["input", "output", "name", "format", "layout"],
                 "validate" => ["input"],
                 "languages" => ["game-dir"],
+                "add-references" => ["input", "game-dir", "language", "report"],
+                "lint" or "fix" => ["input", "reference", "report", "speaker-glossary"],
                 _ => throw new ArgumentException("Unknown localization command.")
             };
             if (options.Keys.Any(name => !allowed.Contains(name, StringComparer.Ordinal)))
             {
                 throw new ArgumentException("Unknown localization option.");
+            }
+            if (command == "add-references")
+            {
+                string input = Required("input");
+                string? report = options.ContainsKey("report") ? Required("report") : null;
+                var result = ReferenceEnrichment.Run(input, Required("game-dir"), Required("language"), report, cancellation.Token);
+                Console.WriteLine($"Reference [{result.Language}]: {result.Matched} matched of {result.Records} records, {result.Changed} changed.");
+                return 0;
+            }
+            if (command is "lint" or "fix")
+            {
+                string? glossary = options.ContainsKey("speaker-glossary") ? Required("speaker-glossary") : null;
+                return TranslationReviewCommands.Run(command, Required("input"), Required("reference"), Required("report"), cancellation.Token, glossary);
             }
             if (command == "languages")
             {

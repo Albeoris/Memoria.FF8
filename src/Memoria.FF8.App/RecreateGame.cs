@@ -1559,6 +1559,18 @@ internal sealed partial class RecreateGame : GamePresentationHost
 
     private object ControlStatus(bool compact = false)
     {
+        string StatusText(string text)
+        {
+            IReadOnlyDictionary<int, string>? names = session.State.Scene == SceneKind.Field ? world?.FieldDialogueNames(text) : events?.Scene.Names;
+            return DialogueTextFormatter.Format(text, names, events?.MessageVariables, keyboard.NativeButtonBindingHint, world?.TextTerms);
+        }
+        DialogueState StatusDialogue(DialogueState dialogue)
+        {
+            string text = session.State.Scene == SceneKind.Field ? LocalizedDialogue(dialogue).Text : dialogue.Text;
+            return dialogue with { Text = StatusText(text) };
+        }
+        DialogueState? currentDialogue = world?.CurrentDialogue;
+        DialogueState? displayedDialogue = currentDialogue is null ? null : StatusDialogue(currentDialogue);
         return new
         {
             session.State.Scene,
@@ -1594,9 +1606,9 @@ internal sealed partial class RecreateGame : GamePresentationHost
             GameUi = GameUiStatus(),
             Battle = BattleStatus(),
             DebugActionLog = world?.DebugActions,
-            Trigger = world?.NextTrigger is PlayerTrigger trigger ? trigger with { Text = trigger.Text is string triggerText ? DialogueTextFormatter.Format(triggerText, events!.Scene.Names, events.MessageVariables, keyboard.NativeButtonBindingHint, world?.TextTerms) : null } : null,
-            Dialogue = world?.CurrentDialogue is DialogueState current ? current with { Text = DialogueTextFormatter.Format(current.Text, events!.Scene.Names, events.MessageVariables, keyboard.NativeButtonBindingHint, world?.TextTerms) } : null,
-            Dialogues = session.State.Scene == SceneKind.WorldMap ? world?.CurrentDialogue is { } worldDialogue ? new[] { worldDialogue } : [] : events?.Dialogues.OrderBy(dialogue => dialogue.Channel).Select(dialogue => dialogue with { Text = DialogueTextFormatter.Format(dialogue.Text, events.Scene.Names, events.MessageVariables, keyboard.NativeButtonBindingHint, world?.TextTerms) }).ToArray(),
+            Trigger = world?.NextTrigger is PlayerTrigger trigger ? trigger with { Text = trigger.Text is string triggerText ? trigger.Kind == PlayerTriggerKind.Dialogue && triggerText == currentDialogue?.Text ? displayedDialogue?.Text : StatusText(triggerText) : null } : null,
+            Dialogue = displayedDialogue,
+            Dialogues = session.State.Scene == SceneKind.WorldMap ? currentDialogue is not null ? new[] { currentDialogue } : [] : events?.Dialogues.OrderBy(dialogue => dialogue.Channel).Select(StatusDialogue).ToArray(),
             RawDialogueText = world?.CurrentDialogue?.Text,
             IsUserControlEnabled = session.State.Scene == SceneKind.WorldMap || events?.IsUserControlEnabled == true,
             CameraIndex = events?.Scene.CameraIndex,

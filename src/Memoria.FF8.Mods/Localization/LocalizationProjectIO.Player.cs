@@ -19,7 +19,7 @@ public static partial class LocalizationProjectIO
     public static void ExportPlayer(string input, string output, CancellationToken cancellation = default)
     {
         LocalizationProject project = Read(input);
-        if (project.Manifest.PlayerExport || project.Manifest.SourceEdition is null || project.Manifest.BaseProjectId is not null)
+        if (project.Manifest.SourceEdition is null || project.Manifest.BaseProjectId is not null || project.Manifest.PlayerExport && project.Manifest.ReferenceLanguages.Count == 0)
         {
             throw new InvalidDataException("Player export requires a standalone localization with a declared original edition.");
         }
@@ -38,7 +38,14 @@ public static partial class LocalizationProjectIO
             LocalizationRecord[] records = project.Entries.Select(row =>
             {
                 cancellation.ThrowIfCancellationRequested();
-                return PlayerRecord(row);
+                return project.Manifest.PlayerExport
+                    ? row with
+                    {
+                        References = new Dictionary<string, string?>(),
+                        ReferencePresence = new Dictionary<string, bool>(),
+                        ReferenceKeys = new Dictionary<string, IReadOnlyList<string>>()
+                    }
+                    : PlayerRecord(row);
             }).ToArray();
             var files = records.GroupBy(row => (row.Category, row.File)).OrderBy(group => group.Key.Category, StringComparer.Ordinal).ThenBy(group => group.Key.File, StringComparer.Ordinal).ToArray();
             LocalizationPayload[] payloads = files.Select(group => new LocalizationPayload
@@ -130,13 +137,14 @@ public static partial class LocalizationProjectIO
         return document.RootElement.Clone();
     }
 
-    internal static string? PlayerSourceFingerprint(LocalizationRecord row) => row.ExtensionData.TryGetValue(PlayerSourceHash, out JsonElement hash) ? hash.GetString() : null;
+    internal static string? PlayerSourceFingerprint(LocalizationRecord row) =>
+        row.ExtensionData.TryGetValue(PlayerSourceHash, out JsonElement hash) && hash.ValueKind == JsonValueKind.String && IsSha256(hash.GetString()) ? hash.GetString() : null;
 
     private static bool IsSha256(string? value) => value is { Length: 64 } && value.All(char.IsAsciiHexDigit);
 
     private static void ValidatePlayerRecord(LocalizationRecord row)
     {
-        if (row.SourcePresent || row.Source is not null || row.References.Count != 0 || row.ReferenceKeys.Count != 0 ||
+        if (row.SourcePresent || row.Source is not null ||
             row.ExtensionData.Keys.Any(name => name is not (PlayerSourceHash or "sourceContext" or "Choice Line Map" or LocalizationNativeEdition.TargetsMember)))
         {
             throw new InvalidDataException($"{row.Key}: player localization contains authoring data.");

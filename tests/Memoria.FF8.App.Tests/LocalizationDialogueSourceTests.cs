@@ -11,6 +11,33 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class LocalizationDialogueSourceTests
 {
+    [Fact]
+    public void FieldCharacterTagsUsePublishedDefaultsAndPreservePlayerNames()
+    {
+        const string dialogue = "{Char Selphie}{Line}{Char Zell}{Line}{Char Irvine}{Line}{Char Quistis}{End}";
+        ResourceService resources = new(new InMemoryResourceSource(new("fixture", GameDataEdition.Classic, [], "en")));
+        Dictionary<int, string> saved = new() { [GameNames.CharacterSubject(1)] = "Player name" };
+        string Present()
+        {
+            IReadOnlyDictionary<int, string> names = DialogueTextFormatter.FieldCharacterNames(dialogue, saved, resources);
+            return DialogueTextFormatter.Format(dialogue, names);
+        }
+
+        resources.PrepareLocalization(new LocalizationCatalog(new Dictionary<string, LocalizationValue>
+        {
+            ["$en_kernel_characters_name_0005"] = new("Лесная{End}", "fixture", "fixture"),
+            ["$en_kernel_characters_name_0001"] = new("Overridden by player", "fixture", "fixture"),
+            ["$en_kernel_characters_name_0002"] = new("{Char Irvine}", "fixture", "fixture"),
+            ["$en_kernel_characters_name_0003"] = new(LocalizationValue.InvalidTarget, "fixture", "fixture")
+        })).Commit();
+        Assert.Equal("Лесная\nPlayer name\nIrvine\nQuistis", Present());
+        Assert.Single(saved);
+
+        resources.PrepareLocalization(LocalizationCatalog.Empty).Commit();
+        Assert.Equal("Selphie\nPlayer name\nIrvine\nQuistis", Present());
+        Assert.Same(saved, DialogueTextFormatter.FieldCharacterNames("plain text", saved, resources));
+    }
+
     [Theory]
     [InlineData(SceneKind.Field, -1, false)]
     [InlineData(SceneKind.Field, -1, true)]

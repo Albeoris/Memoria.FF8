@@ -54,6 +54,14 @@ public static partial class LocalizationSourceExporter
         return Read(source, (IGameArchiveSource)source, normalized, cancellation, includeFingerprints);
     }
 
+    /// <summary>Reads native references with localized text archives required for Remastered language selection.</summary>
+    public static LocalizationSourceCatalog ReadReference(string gameDirectory, string language, CancellationToken cancellation = default)
+    {
+        string normalized = FieldLocalizationKey.CanonicalLanguage(language);
+        using IResourceSource source = Open(gameDirectory, normalized, requireLocalizedArchives: true);
+        return Read(source, (IGameArchiveSource)source, normalized, cancellation);
+    }
+
     public static LocalizationSourceCatalog ReadNonFields(string gameDirectory, string language, CancellationToken cancellation = default)
     {
         string normalized = FieldLocalizationKey.CanonicalLanguage(language);
@@ -85,11 +93,11 @@ public static partial class LocalizationSourceExporter
 
     public static string KernelTable(string collection, string role) => "kernel_" + collection.ToLowerInvariant() + "_" + role.ToLowerInvariant();
 
-    private static IResourceSource Open(string directory, string language)
+    private static IResourceSource Open(string directory, string language, bool requireLocalizedArchives = false)
     {
         if (File.Exists(Path.Combine(directory, "main.zzz")))
         {
-            return new RemasteredGameDataSource(directory, language == "jp" ? "ja" : language);
+            return new RemasteredGameDataSource(directory, language == "jp" ? "ja" : language, requireLocalizedArchives);
         }
         if (language != "en")
         {

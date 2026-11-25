@@ -467,7 +467,8 @@ internal sealed class LocalizationModPreview(ModPreviewResourcesProfile profile,
         return string.Join("\n\n", windows.Select(native =>
         {
             DialogueState dialogue = side.LocalizeDialogue(native);
-            DialogueDocument document = DialogueTextFormatter.Parse(dialogue.Text, world.Events.Scene.Names, world.Events.MessageVariables, terms: world.TextTerms);
+            IReadOnlyDictionary<int, string> textNames = side.Session.State.Scene == SceneKind.Field ? world.FieldDialogueNames(dialogue.Text) : world.Events.Scene.Names;
+            DialogueDocument document = DialogueTextFormatter.Parse(dialogue.Text, textNames, world.Events.MessageVariables, terms: world.TextTerms);
             if (world.CurrentDialogue == native && dialogue.FirstChoice is int first && dialogue.LastChoice is int last)
             {
                 int selected = choiceOwner is null ? dialogue.InitialChoice ?? first : Math.Clamp(first + choice, first, last);

@@ -135,7 +135,7 @@ internal static class LocalizationFieldPreparation
                         {
                             throw new InvalidDataException($"{record.Key}: translated choice must preserve native option count and explicit F/L/B/C.");
                         }
-                        if (begin is null || cancel is null || (begin < first || begin > last ? translated.BeginLine != begin : translated.BeginLine - translated.FirstLine != begin - first) || (cancel < first || cancel > last ? translated.CancelLine != cancel : translated.CancelLine - translated.FirstLine != cancel - first))
+                        if (!FieldMessageTargetSyntax.PreservesChoiceSelections(translated, first, last, begin, cancel))
                         {
                             throw new InvalidDataException($"{record.Key}: initial/cancel semantic option identity changed.");
                         }

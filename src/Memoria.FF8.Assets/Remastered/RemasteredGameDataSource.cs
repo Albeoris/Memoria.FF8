@@ -18,12 +18,20 @@ public sealed partial class RemasteredGameDataSource : IResourceSource, IGameArc
     private readonly string cacheDirectory = Path.Combine(Path.GetTempPath(), "Memoria.FF8.Resources", Guid.NewGuid().ToString("N"));
     private bool disposed;
 
+    private readonly bool requireLocalizedArchives;
+
     public RemasteredGameDataSource(string gameDirectory, string language = "en")
+        : this(gameDirectory, language, requireLocalizedArchives: false)
+    {
+    }
+
+    internal RemasteredGameDataSource(string gameDirectory, string language, bool requireLocalizedArchives)
     {
         if (language is not ("en" or "fr" or "de" or "es" or "it" or "ja"))
         {
             throw new ArgumentException("Unsupported resource language.", nameof(language));
         }
+        this.requireLocalizedArchives = requireLocalizedArchives;
         this.gameDirectory = Path.GetFullPath(gameDirectory);
         this.language = language == "ja" ? "jp" : language;
         main = new ZzzArchive(Path.Combine(this.gameDirectory, "main.zzz"));
@@ -58,7 +66,7 @@ public sealed partial class RemasteredGameDataSource : IResourceSource, IGameArc
         }
         string localized = $"data/lang-{language}/{name}";
         string shared = $"data/{name}";
-        string stem = Contains(localized + ".fl") ? localized : shared;
+        string stem = Contains(localized + ".fl") || requireLocalizedArchives && name is ("main" or "menu" or "battle") ? localized : shared;
         Stream? listing = null;
         Stream? metrics = null;
         Stream? content = null;

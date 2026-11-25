@@ -55,7 +55,7 @@ public static partial class LocalizationProjectIO
         }
     }
 
-    private static LocalizationProject ReadOnce(string packageDirectory, bool allowMissingPayloads, LocalizationProjectReadCache? cache)
+    private static LocalizationProject ReadOnce(string packageDirectory, bool allowMissingPayloads, LocalizationProjectReadCache? cache, bool validateTargetText = true, Dictionary<string, byte[]>? originals = null)
     {
         string root = System.IO.Path.GetFullPath(packageDirectory);
         Dictionary<string, (long Length, DateTime Modified, DateTime Created, LocalizationSnapshotIdentity? Identity)> stamps = new(StringComparer.OrdinalIgnoreCase);
@@ -76,7 +76,9 @@ public static partial class LocalizationProjectIO
         byte[] ReadBytes(string path)
         {
             stamps.Add(path, Stamp(path));
-            return Snapshot(path);
+            byte[] bytes = Snapshot(path);
+            originals?.Add(System.IO.Path.GetRelativePath(root, path).Replace('\\', '/'), bytes);
+            return bytes;
         }
         using JsonDocument document = ParseJson(ReadBytes(Resolve(root, ManifestRelativePath)));
         foreach (string member in new[] { "schemaVersion", "payloadKind", "projectId", "sourceLanguage", "targetLanguage", "fieldScriptBaseLanguage", "sourceColumn", "targetColumn", "referenceLanguages", "mappingVersion", "compatibleVariants", "format", "layout", "payloads" })
@@ -189,7 +191,7 @@ public static partial class LocalizationProjectIO
             editionBindings.Add(profile, bindings.RootElement.Deserialize<LocalizationEditionBinding[]>(JsonOptions) ?? throw new InvalidDataException($"{profile}: empty edition bindings."));
         }
         LocalizationProject result = new() { Manifest = manifest, Entries = rows, Artwork = artwork, EncodingFiles = ReadEncodingFiles(root, ReadBytes), EditionBindings = editionBindings };
-        Validate(result, cache);
+        ValidateCore(result, cache, validateTargetText);
         if (manifest.PlayerExport)
         {
             foreach (LocalizationRecord row in result.Entries)
@@ -350,7 +352,9 @@ public static partial class LocalizationProjectIO
         }
     }
 
-    public static void Validate(LocalizationProject project, LocalizationProjectReadCache? cache = null)
+    public static void Validate(LocalizationProject project, LocalizationProjectReadCache? cache = null) => ValidateCore(project, cache, true);
+
+    private static void ValidateCore(LocalizationProject project, LocalizationProjectReadCache? cache, bool validateTargetText)
     {
         ValidateManifest(project.Manifest);
         LocalizationEditionProjection.ValidateBindings(project);
@@ -359,7 +363,10 @@ public static partial class LocalizationProjectIO
         Dictionary<string, string> files = new(StringComparer.OrdinalIgnoreCase);
         foreach (LocalizationRecord row in project.Entries)
         {
-            LocalizationTextValidation.Validate(row);
+            if (validateTargetText)
+            {
+                LocalizationTextValidation.Validate(row);
+            }
             LocalizationNativeEdition.ValidateTargets(row, project.Manifest);
             SafeStem(row.Category);
             SafeStem(row.File);
@@ -433,9 +440,9 @@ public static partial class LocalizationProjectIO
         {
             throw new InvalidDataException("Ambiguous localization role columns.");
         }
-        if (manifest.PlayerExport && (manifest.SchemaVersion != 2 || manifest.SourceEdition is null || manifest.BaseProjectId is not null || manifest.ReferenceLanguages.Count != 0 || manifest.ExtensionsPath is not null || manifest.Artwork.Count != 0 || manifest.Format != "json"))
+        if (manifest.PlayerExport && (manifest.SchemaVersion != 2 || manifest.SourceEdition is null || manifest.BaseProjectId is not null || manifest.ExtensionsPath is not null || manifest.Artwork.Count != 0 || manifest.Format != "json"))
         {
-            throw new InvalidDataException("Player localization requires a standalone JSON project without reference, artwork or authoring data.");
+            throw new InvalidDataException("Player localization requires a standalone JSON project without artwork or authoring metadata.");
         }
         if (manifest.Format is not ("json" or "xlsx") || manifest.Layout is not ("single" or "split"))
         {

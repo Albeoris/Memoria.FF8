@@ -11,7 +11,7 @@ public static class FieldLocalizationKey
         return "$" + CanonicalLanguage(language) + "_" + field + "_" + ordinal.ToString("D4", CultureInfo.InvariantCulture);
     }
 
-    internal static string CanonicalLanguage(string language)
+    public static string CanonicalLanguage(string language)
     {
         ArgumentNullException.ThrowIfNull(language);
         return language.ToLowerInvariant() switch

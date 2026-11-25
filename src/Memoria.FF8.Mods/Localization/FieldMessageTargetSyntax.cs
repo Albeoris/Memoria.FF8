@@ -8,6 +8,15 @@ public sealed class FieldMessageTargetSyntax : ILocalizationTargetSyntax
 {
     public IReadOnlyList<string> ValidateCandidate(LocalizationRecord row) => ValidateCandidate(row, verifyScript: true);
 
+    public static bool PreservesChoiceSelections(FieldMessageChoices translated, int first, int last, int? begin, int? cancel)
+    {
+        bool Preserved(int original, int actual)
+        {
+            return original < first || original > last ? actual == original : actual - (long)translated.FirstLine == original - (long)first;
+        }
+        return begin is int initial && cancel is int cancellation && Preserved(initial, translated.BeginLine) && Preserved(cancellation, translated.CancelLine);
+    }
+
     internal IReadOnlyList<string> ValidateCandidate(LocalizationRecord row, bool verifyScript)
     {
         try

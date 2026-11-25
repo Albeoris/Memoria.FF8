@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using Albeoris.Games.FF8.TextEncoding.Tags;
+using Memoria.FF8.Assets.Localization;
 using Memoria.FF8.Runtime;
 using Memoria.FF8.Resources;
 using Memoria.FF8.Resources.Localization;
@@ -11,6 +12,38 @@ internal static partial class DialogueTextFormatter
 {
     private static readonly Color GreyTextColor = new(208, 208, 208);
     private static readonly Func<ushort, string> DefaultButtonBindingHint = new KeyboardInput().NativeButtonBindingHint;
+
+    internal static IReadOnlyDictionary<int, string> FieldCharacterNames(string encoded, IReadOnlyDictionary<int, string> names, ResourceService resources)
+    {
+        if (!encoded.Contains("{Char ", StringComparison.Ordinal) && !encoded.Contains("{Name ", StringComparison.Ordinal))
+        {
+            return names;
+        }
+        Dictionary<int, string>? result = null;
+        string table = LocalizationSourceExporter.KernelTable("Characters", "Name");
+        for (int ordinal = 0; ordinal <= (int)TextTagCharacter.Ward - (int)TextTagCharacter.Squall; ordinal++)
+        {
+            int subject = GameNames.CharacterSubject(ordinal);
+            if (names.ContainsKey(subject))
+            {
+                continue;
+            }
+            string original = GameNames.DefaultName(subject);
+            string key = LocalizationSourceExporter.IndexedKey(resources.Source.Language, table, ordinal);
+            string value = resources.Localize(key, original);
+            if (value.EndsWith("{End}", StringComparison.Ordinal))
+            {
+                value = value[..^"{End}".Length];
+            }
+            if (value == original || string.IsNullOrWhiteSpace(value) || !GameNames.IsValidDraft(value) || value.Contains('{') || value.Contains('}'))
+            {
+                continue;
+            }
+            result ??= new(names);
+            result.Add(subject, value);
+        }
+        return result ?? names;
+    }
 
     public static string Format(string encoded, IReadOnlyDictionary<int, string>? names = null, NativeMessageVariables? messageVariables = null, Func<ushort, string>? buttonBindingHint = null, ITextTermSource? terms = null)
     {

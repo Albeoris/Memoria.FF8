@@ -6,7 +6,7 @@ if (args.FirstOrDefault() == "encoding")
     return EncodingCommands.Run(args);
 }
 
-if (args.FirstOrDefault() is "export" or "export-player" or "convert" or "patch" or "validate" or "languages")
+if (args.FirstOrDefault() is "export" or "export-player" or "convert" or "patch" or "validate" or "languages" or "add-references" or "lint" or "fix")
 {
     return LocalizationCommands.Run(args);
 }
@@ -20,14 +20,17 @@ if (!audit && !refine && !renumber)
     Console.Error.WriteLine("       Memoria.FF8.Localization refine --input <original audit directory> --output <new private report directory> [--compare <prior refined report directory>]");
     Console.Error.WriteLine("       Memoria.FF8.Localization renumber --input <reviewed mapping CSV> --output <new private report directory>");
     Console.Error.WriteLine("       Memoria.FF8.Localization export --game-dir <installation> --script-base <language> --target <identifier> --output <new package> [--format json|xlsx --layout single|split --references jp,en,...]");
-    Console.Error.WriteLine("       Memoria.FF8.Localization export-player --input <authoring package> --output <new player directory>");
+    Console.Error.WriteLine("       Memoria.FF8.Localization export-player --input <authoring or reference-enriched player package> --output <new player directory>");
     Console.Error.WriteLine("       Memoria.FF8.Localization convert --input <package> --output <new package> --format json|xlsx --layout single|split");
     Console.Error.WriteLine("       Memoria.FF8.Localization patch --input <base package> --output <new package> --name <patch name> [--format json|xlsx --layout single|split]");
     Console.Error.WriteLine("       Memoria.FF8.Localization validate --input <package>");
     Console.Error.WriteLine("       Memoria.FF8.Localization languages --game-dir <installation>");
+    Console.Error.WriteLine("       Memoria.FF8.Localization add-references --input <JSON package> --game-dir <installation> --language <code> [--report <json>]");
+    Console.Error.WriteLine("       Memoria.FF8.Localization lint|fix --input <JSON package> --reference en --report <json> [--speaker-glossary <json>]");
     Console.Error.WriteLine("       Memoria.FF8.Localization encoding validate --input <profile.json> [--text <sample> --edition <id> --resource <family> --field <name> --dictionary <language>]");
     Console.Error.WriteLine("       Memoria.FF8.Localization encoding export --input <profile.json> --output <mod root> --name <profile folder>");
     Console.Error.WriteLine("Export references are ordered reading columns; legacy --source <language> prepends a reference.");
+    Console.Error.WriteLine("A speaker glossary maps exact English NPC labels to Russian labels and reviewed Cyrillic party aliases to canonical Char tags.");
     return 2;
 }
 
