@@ -32,6 +32,11 @@ internal static class AutoPlayPlannerTests
         planner.BeginChoiceOption("answer", 0);
         planner.CompleteChoiceAtControlReturn("answer", "continuation");
         Check(planner.PlanChoice("answer") is { Kind: AutoPlayChoiceStepKind.Replay, Selection: 1, Checkpoint: "before" }, "Choice coverage must replay the remaining alternative from its original checkpoint.");
+        planner.State.Choices.Single().ReplayDeferredReason = "The native disc advanced.";
+        AutoPlayPlannerState<Deferral> cloned = AutoPlayPlannerStateClone.Clone(planner.State, deferral => deferral);
+        var restored = new AutoPlayPlanner<Deferral>(JsonSerializer.Deserialize<AutoPlayPlannerState<Deferral>>(JsonSerializer.Serialize(cloned))!);
+        Check(restored.PlanChoice("answer").Kind == AutoPlayChoiceStepKind.Complete, "A deferred replay must stay closed after cloning and serialization.");
+        Check(!restored.State.Choices.Single().Finished && restored.State.Choices.Single().CompletedOptions.SequenceEqual([0]), "Deferring a replay must preserve the unfinished alternatives and the observed option.");
     }
 
     private static void Check(bool condition, string message)

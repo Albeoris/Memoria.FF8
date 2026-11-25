@@ -102,6 +102,8 @@ public sealed class AutoPlayChoiceCoverage
     public string? BeforeCheckpoint { get; set; }
     public bool InputCheckpointPrepared { get; set; }
     public string? SupersededInputDomain { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ReplayDeferredReason { get; set; }
     public string? ContinuationCheckpoint { get; set; }
     public List<int> CompletedOptions { get; set; } = [];
     public int? ActiveOption { get; set; }
@@ -548,7 +550,7 @@ public sealed partial class AutoPlayPlanner<TDeferral> where TDeferral : class, 
     public AutoPlayChoiceStep PlanChoice(string key)
     {
         AutoPlayChoiceCoverage choice = FindChoice(key);
-        if (choice.Finished || choice.PolicyExhausted)
+        if (choice.Finished || choice.PolicyExhausted || choice.ReplayDeferredReason is not null)
         {
             return new AutoPlayChoiceStep(AutoPlayChoiceStepKind.Complete);
         }

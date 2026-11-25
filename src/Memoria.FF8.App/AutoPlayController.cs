@@ -394,10 +394,11 @@ internal sealed partial class AutoPlayController
         saved.FullBattlePlaythroughOverride = requestedBattlePolicy ?? saved.FullBattlePlaythroughOverride;
         run.FullBattlePlaythroughOverride = saved.FullBattlePlaythroughOverride;
         GameState restoredState = ReadCheckpoint(Path.Combine(directory, saved.Snapshot));
+        run = saved;
+        restoredState = RecoverDiscContinuation(restoredState);
         RequireDurableAutoPlayState(restoredState, checkCurrentBattle: false);
         restore(restoredState);
         stopAfterCurrentBattle = false;
-        run = saved;
         if (!document.RootElement.TryGetProperty(nameof(AutoPlayRunState.SurveyBaseline), out _) && run.ActiveEvent is not null)
         {
             run.SurveyInvalidationUnknown = true;
@@ -2133,7 +2134,7 @@ internal sealed partial class AutoPlayController
         {
             return false;
         }
-        foreach (AutoPlayChoiceCoverage choice in run.Coverage.Choices.Where(item => !item.Finished && !item.PolicyExhausted && item.SupersededInputDomain is null && (run.InputSearch is null || run.InputSearch.Closed)))
+        foreach (AutoPlayChoiceCoverage choice in run.Coverage.Choices.Where(item => !item.Finished && !item.PolicyExhausted && item.SupersededInputDomain is null && item.ReplayDeferredReason is null && (run.InputSearch is null || run.InputSearch.Closed)))
         {
             AutoPlayChoiceStep next = planner.PlanChoice(choice.Key);
             if (next.Kind == AutoPlayChoiceStepKind.RestoreContinuation)
@@ -2144,6 +2145,11 @@ internal sealed partial class AutoPlayController
             if (next.Kind == AutoPlayChoiceStepKind.Replay && next.Checkpoint is not null && next.Selection is int selection)
             {
                 GameState choiceCheckpoint = ReadCheckpoint(Path.Combine(runDirectory!, next.Checkpoint));
+                if (EnteredLaterDisc(choiceCheckpoint, session.State))
+                {
+                    DeferDiscChoiceReplay(choice);
+                    continue;
+                }
                 restore(choiceCheckpoint);
                 RestoreInputSearchContext(choice.BeforeContext ?? new() { Field = choiceCheckpoint.FieldId, ObjectId = -1 }, choice.BeforeSelections);
                 run.SceneChoices.Clear();
@@ -2181,12 +2187,59 @@ internal sealed partial class AutoPlayController
                 return true;
             }
         }
-        restore(ReadCheckpoint(Path.Combine(runDirectory!, run.PrimaryContinuation)));
-        RestoreInputSearchContext(new() { Field = session.State.FieldId, ObjectId = -1 }, run.PrimarySelections);
+        GameState primary = ReadCheckpoint(Path.Combine(runDirectory!, run.PrimaryContinuation));
+        restore(primary);
+        ClearPrimaryContinuation(primary);
+        return true;
+    }
+
+    private GameState RecoverDiscContinuation(GameState saved)
+    {
+        if (run.PrimaryContinuation is not string checkpoint)
+        {
+            return saved;
+        }
+        GameState primary = ReadCheckpoint(Path.Combine(runDirectory!, checkpoint));
+        if (!EnteredLaterDisc(saved, primary))
+        {
+            return saved;
+        }
+        foreach (AutoPlayChoiceCoverage choice in run.Coverage.Choices.Where(item => !item.Finished && item.ReplayDeferredReason is null && item.BeforeCheckpoint is not null))
+        {
+            if (EnteredLaterDisc(ReadCheckpoint(Path.Combine(runDirectory!, choice.BeforeCheckpoint!)), primary))
+            {
+                DeferDiscChoiceReplay(choice);
+            }
+        }
+        if (run.InputSearch is { Closed: false } search)
+        {
+            search.Closed = true;
+        }
+        ClearPrimaryContinuation(primary);
+        return primary;
+    }
+
+    private static bool EnteredLaterDisc(GameState before, GameState continuation)
+    {
+        return before.DiscProcess is { } source && continuation.DiscProcess is { } destination && source.Rule == destination.Rule && destination.CurrentDiscIndex > source.CurrentDiscIndex;
+    }
+
+    private static void DeferDiscChoiceReplay(AutoPlayChoiceCoverage choice)
+    {
+        choice.ReplayDeferredReason = "Choice replay would restore an earlier native disc.";
+        choice.ActiveOption = null;
+        choice.BeforeCheckpoint = null;
+        choice.ContinuationCheckpoint = null;
+        choice.BeforeContext = null;
+        choice.PolicyCheckpoints.Clear();
+    }
+
+    private void ClearPrimaryContinuation(GameState primary)
+    {
+        RestoreInputSearchContext(new() { Field = primary.FieldId, ObjectId = -1 }, run.PrimarySelections);
         run.ActiveTravelGoal = null;
         run.PrimaryContinuation = null;
         run.PrimaryConditionsChanged = false;
-        return true;
     }
 
     private ScriptedInputMetadata RestoreScriptedChoiceInput(AutoPlayChoiceCoverage choice)

@@ -93,6 +93,7 @@ public static class AutoPlayPlannerStateClone
             BeforeCheckpoint = choice.BeforeCheckpoint,
             InputCheckpointPrepared = choice.InputCheckpointPrepared,
             SupersededInputDomain = choice.SupersededInputDomain,
+            ReplayDeferredReason = choice.ReplayDeferredReason,
             ContinuationCheckpoint = choice.ContinuationCheckpoint,
             CompletedOptions = choice.CompletedOptions.ToList(),
             ActiveOption = choice.ActiveOption,
