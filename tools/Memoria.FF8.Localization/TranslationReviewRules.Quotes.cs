@@ -12,6 +12,8 @@ internal static partial class TranslationReviewRules
         public bool HasText => First <= Last;
     }
 
+    private readonly record struct AuthoredQuotation(int FirstPage, int LastPage, bool HasSpeakerBoundary);
+
     private static readonly HashSet<string> Abbreviations = new(StringComparer.OrdinalIgnoreCase)
     {
         "вв", "гг", "гл", "др", "ед", "им", "коп", "млн", "млрд", "напр", "ном", "обл", "ок", "пр", "рис", "руб", "св", "см", "ср", "ст", "стр", "тыс", "ул", "экз"
@@ -53,7 +55,9 @@ internal static partial class TranslationReviewRules
             }
         }
 
+        IReadOnlyList<AuthoredQuotation> authoredQuotations = ReadAuthoredQuotations(target, targetSpans, sourcePages, targetPages);
         List<Edit> edits = [];
+        int fixableSpans = 0;
         for (int start = 0; start < sourceSpans.Length; start++)
         {
             QuoteSpan first = sourceSpans[start];
@@ -68,6 +72,16 @@ internal static partial class TranslationReviewRules
                 {
                     continue;
                 }
+                AuthoredQuotation? overlapping = FindAuthoredQuotation(authoredQuotations, start, end);
+                if (overlapping is { } quotation)
+                {
+                    if (quotation.HasSpeakerBoundary || start < quotation.FirstPage || end > quotation.LastPage)
+                    {
+                        ReportUncertainQuotation(state);
+                    }
+                    start = end;
+                    break;
+                }
                 QuoteSpan firstTarget = targetSpans[start];
                 QuoteSpan lastTarget = targetSpans[end];
                 if (start > 0 && !EndsUtteranceAtPageBoundary(target, targetSpans[start - 1], firstTarget))
@@ -78,12 +92,105 @@ internal static partial class TranslationReviewRules
                 {
                     lastTarget = lastTarget with { Safe = false };
                 }
+                int previousEditCount = edits.Count;
                 ReviewQuoteSpan(state, firstTarget, lastTarget, edits);
+                if (edits.Count > previousEditCount)
+                {
+                    fixableSpans++;
+                }
                 start = end;
                 break;
             }
         }
-        state.Apply(edits);
+        if (fixableSpans == 0)
+        {
+            return;
+        }
+        bool safeEdits = !HasBalancedGuillemets(target) || HasBalancedGuillemets(ApplyEdits(target, edits));
+        if (safeEdits)
+        {
+            state.Apply(edits);
+        }
+        for (int index = 0; index < fixableSpans; index++)
+        {
+            if (safeEdits)
+            {
+                state.Report("dialogue-quotes", "Use Russian guillemets at the enclosing dialogue boundary.", true);
+            }
+            else
+            {
+                ReportUncertainQuotation(state);
+            }
+        }
+    }
+
+    private static IReadOnlyList<AuthoredQuotation> ReadAuthoredQuotations(string target, QuoteSpan[] spans, IReadOnlyList<FieldSpeakerLabels.Page> sourcePages, IReadOnlyList<FieldSpeakerLabels.Page> targetPages)
+    {
+        List<AuthoredQuotation> quotations = [];
+        for (int start = 0; start + 1 < spans.Length; start++)
+        {
+            QuoteSpan first = spans[start];
+            if (!first.HasText || target[first.First] != '«')
+            {
+                continue;
+            }
+            int close = FindClose(target, first.First, target.Length - 1, '«', '»');
+            if (close <= first.Last)
+            {
+                continue;
+            }
+            bool hasSpeakerBoundary = false;
+            for (int end = start + 1; end < spans.Length; end++)
+            {
+                hasSpeakerBoundary |= IsProvenSpeaker(sourcePages[end].FirstLine) || targetPages[end].FirstLine?.HasMarker == true;
+                QuoteSpan last = spans[end];
+                if (!last.HasText || close > last.Last)
+                {
+                    continue;
+                }
+                if (close >= last.First && (close == last.Last || close + 1 == last.Last && target[last.Last] == '.'))
+                {
+                    quotations.Add(new(start, end, hasSpeakerBoundary));
+                    start = end;
+                }
+                break;
+            }
+        }
+        return quotations;
+    }
+
+    private static AuthoredQuotation? FindAuthoredQuotation(IReadOnlyList<AuthoredQuotation> quotations, int start, int end)
+    {
+        foreach (AuthoredQuotation quotation in quotations)
+        {
+            if (quotation.FirstPage <= end && quotation.LastPage >= start)
+            {
+                return quotation;
+            }
+        }
+        return null;
+    }
+
+    private static bool HasBalancedGuillemets(string text)
+    {
+        int depth = 0;
+        foreach (char character in text)
+        {
+            if (character == '«')
+            {
+                depth++;
+            }
+            else if (character == '»' && --depth < 0)
+            {
+                return false;
+            }
+        }
+        return depth == 0;
+    }
+
+    private static void ReportUncertainQuotation(ReviewState state)
+    {
+        state.Report("dialogue-quotes", "Verify the reference's enclosing quotation at the corresponding dialogue boundary.");
     }
 
     private static bool EndsUtteranceAtPageBoundary(string text, QuoteSpan previous, QuoteSpan next)
@@ -171,7 +278,7 @@ internal static partial class TranslationReviewRules
         safe &= ContainsRussian().Match(target, interiorStart, interiorEnd - interiorStart + 1).Success;
         if (!safe)
         {
-            state.Report("dialogue-quotes", "Verify the reference's enclosing quotation at the corresponding dialogue boundary.");
+            ReportUncertainQuotation(state);
             return;
         }
 
@@ -187,7 +294,6 @@ internal static partial class TranslationReviewRules
         {
             edits.Add(new(hasClose ? end : end + 1, hasClose ? 1 : 0, "»"));
         }
-        state.Report("dialogue-quotes", "Use Russian guillemets at the enclosing dialogue boundary.", true);
     }
 
     private static bool IsSentencePeriod(string text, int start, int end)

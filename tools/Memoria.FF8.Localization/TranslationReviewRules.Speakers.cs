@@ -23,15 +23,15 @@ internal static partial class TranslationReviewRules
         {
             FieldSpeakerLabels.Label? expected = sourcePages[index].FirstLine;
             FieldSpeakerLabels.Label? translated = targetPages[index].FirstLine;
-            if (!IsProvenSpeaker(expected) || translated is null)
+            if (expected is null || translated is null || !FieldSpeakerLabels.CanApplySpeakerContract(expected, translated))
             {
                 continue;
             }
 
-            string sourceName = expected!.Text.TrimEnd(':');
+            string sourceName = expected.Text.TrimEnd(':');
             string targetName = translated.Text.TrimEnd(':');
             FieldSpeakerLabels.Character? sourceTag = FieldSpeakerLabels.TaggedCharacter(sourceName);
-            FieldSpeakerLabels.Character? character = sourceTag ?? FieldSpeakerLabels.LiteralCharacter(sourceName);
+            FieldSpeakerLabels.Character? character = sourceTag ?? FieldSpeakerLabels.SourceCharacter(sourceName);
             string? approvedAlias = partyAliases?.GetValueOrDefault(targetName);
             if (approvedAlias is not null && character?.Tag != approvedAlias)
             {
@@ -56,6 +56,11 @@ internal static partial class TranslationReviewRules
             }
 
             FieldSpeakerLabels.Character? targetTag = FieldSpeakerLabels.TaggedCharacter(targetName);
+            if (targetTag is not null && targetTag.Tag != character.Tag)
+            {
+                state.Report("speaker-character", $"Verify the identity of speaker label '{translated.Text}' against '{expected.Text}'.");
+                continue;
+            }
             bool sameLiteral = targetName.Equals(sourceName, StringComparison.OrdinalIgnoreCase)
                 || approvedAlias is not null
                 || FieldSpeakerLabels.LiteralCharacter(targetName)?.Name == character.Name
@@ -125,7 +130,7 @@ internal static partial class TranslationReviewRules
     public static bool IsGlossaryEntry(string englishLabel, string russianLabel)
     {
         return englishLabel == englishLabel.Trim() && russianLabel == russianLabel.Trim() &&
-            FieldSpeakerLabels.LiteralCharacter(englishLabel) is null && !AcronymLabel().IsMatch(englishLabel) &&
+            FieldSpeakerLabels.SourceCharacter(englishLabel) is null && !AcronymLabel().IsMatch(englishLabel) &&
             LatinLabel().IsMatch(englishLabel) && CyrillicLabel().IsMatch(russianLabel);
     }
 
