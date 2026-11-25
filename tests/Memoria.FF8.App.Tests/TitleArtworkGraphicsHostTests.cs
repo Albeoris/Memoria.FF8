@@ -16,12 +16,23 @@ public sealed class TitleArtworkGraphicsHostTests
         Assert.True(game.Completed);
     }
 
+    [Fact]
+    public void Localized_wordmark_draws_with_the_existing_artwork_and_switches_back()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows() || Environment.GetEnvironmentVariable("MEMORIA_FF8_GRAPHICS_HOST_TEST") == "1", "Set MEMORIA_FF8_GRAPHICS_HOST_TEST=1 to run this graphics host check on a graphical Unix desktop.");
+        using ArtworkGame game = new(checkWordmark: true);
+        game.Run();
+        Assert.True(game.Completed);
+    }
+
     private sealed class ArtworkGame : Game
     {
         private readonly GraphicsDeviceManager graphics;
+        private readonly bool checkWordmark;
 
-        internal ArtworkGame()
+        internal ArtworkGame(bool checkWordmark = false)
         {
+            this.checkWordmark = checkWordmark;
             graphics = new(this) { PreferredBackBufferWidth = 320, PreferredBackBufferHeight = 180, GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false, PreferMultiSampling = false };
             graphics.PreparingDeviceSettings += (_, settings) => settings.GraphicsDeviceInformation.PresentationParameters.MultiSampleCount = 0;
             IsFixedTimeStep = false;
@@ -35,6 +46,13 @@ public sealed class TitleArtworkGraphicsHostTests
         {
             if (Completed)
             {
+                return;
+            }
+            if (checkWordmark)
+            {
+                CheckLocalizedWordmark();
+                Completed = true;
+                Exit();
                 return;
             }
             GraphicsDevice.Adapter.QueryRenderTargetFormat(GraphicsProfile.HiDef, SurfaceFormat.Color, DepthFormat.None, 8, out _, out _, out int samples);
@@ -75,6 +93,39 @@ public sealed class TitleArtworkGraphicsHostTests
             Assert.True(multisampled.Any(pixel => pixel != background), "The artwork must remain visible over the retained backdrop.");
             Completed = true;
             Exit();
+        }
+
+        private void CheckLocalizedWordmark()
+        {
+            const string russian = "ПОСЛЕДНЯЯ ФАНТАЗИЯ VIII";
+            Rectangle bounds = GraphicsDevice.Viewport.Bounds;
+            using TitleArtworkRenderer artwork = new(GraphicsDevice, wordmark: russian);
+            Color[] localized = Capture();
+            artwork.SetWordmark(null);
+            Color[] original = Capture();
+            int wordmarkStart = bounds.Width * (bounds.Height / 2);
+            Assert.True(original.Take(wordmarkStart).Zip(localized).All(pair =>
+                Math.Abs(pair.First.R - pair.Second.R) <= 1 && Math.Abs(pair.First.G - pair.Second.G) <= 1 && Math.Abs(pair.First.B - pair.Second.B) <= 1 && pair.First.A == pair.Second.A));
+            Assert.NotEqual(original[wordmarkStart..], localized[wordmarkStart..]);
+
+            artwork.SetWordmark(new string('W', 56));
+            Color[] wider = Capture();
+            Assert.NotEqual(original[wordmarkStart..], wider[wordmarkStart..]);
+            artwork.SetWordmark("\U0010FFFF");
+            Assert.Equal(original[wordmarkStart..], Capture()[wordmarkStart..]);
+            artwork.SetWordmark(russian);
+            Assert.Equal(localized[wordmarkStart..], Capture()[wordmarkStart..]);
+            artwork.SetWordmark(russian);
+            Assert.Equal(localized[wordmarkStart..], Capture()[wordmarkStart..]);
+
+            Color[] Capture()
+            {
+                GraphicsDevice.Clear(Color.Black);
+                artwork.Draw(bounds, 4);
+                Color[] pixels = new Color[bounds.Width * bounds.Height];
+                GraphicsDevice.GetBackBufferData(pixels);
+                return pixels;
+            }
         }
     }
 }

@@ -15,6 +15,7 @@ public sealed record GameLanguageOffer(string Id, string DisplayTag, string Titl
     public bool RequiresAcquisition { get; init; }
     public bool CanUpdate { get; init; }
     public string? PublishedSize => Release?.PublishedSize;
+    public GameLanguageRequirement? CompatibilityRequirement { get; init; }
     internal LanguageOfferMetadata? Metadata { get; init; }
 
     public GameLanguageChoice ToChoice(string? packageId)
@@ -23,7 +24,14 @@ public sealed record GameLanguageOffer(string Id, string DisplayTag, string Titl
     }
 }
 
-public sealed record GameLanguageDownloadMember(string Name, string Version, long? Bytes, bool IsInstalled);
+public sealed record GameLanguageDownloadMember(string Name, string Version, long? Bytes, bool IsInstalled)
+{
+    public string? OfficialId { get; init; }
+}
+
+public enum GameLanguageRequirementKind { NativeBase, UnsupportedBase, EngineVersion, UnknownEngineVersion, UnreviewedMapping, JunctionBase, MissingOption, MissingDependencies }
+
+public sealed record GameLanguageRequirement(GameLanguageRequirementKind Kind, IReadOnlyList<LanguageNativeVariant>? NativeVariants = null, string? MinimumEngineVersion = null);
 
 public sealed record GameLanguageGroup(string DisplayTag, string EnglishName, string SelfName, IReadOnlyList<GameLanguageOffer> Offers)
 {
@@ -127,28 +135,40 @@ public sealed class GameLanguageInventory
             ? currentProfile
             : profiles.FirstOrDefault(available => metadata.NativeVariants.Any(variant => variant.Matches(available)));
         string? requirement = null;
+        GameLanguageRequirement? compatibility = null;
         if (profile is null)
         {
             requirement = metadata.NativeVariants.Count > 0
                 ? "Requires " + string.Join(" or ", metadata.NativeVariants.Select(variant => variant.Edition + " " + CultureInfo.GetCultureInfo(LanguagePackages.DisplayTag(variant.Language)!).EnglishName)) + " game data."
                 : "This provider has no supported native base.";
+            compatibility = metadata.NativeVariants.Count > 0 ? new(GameLanguageRequirementKind.NativeBase, metadata.NativeVariants) : new(GameLanguageRequirementKind.UnsupportedBase);
         }
         else if (package is null && entry?.Official?.Latest is { } latest)
         {
-            requirement = OfficialModCatalog.EngineError(latest.EngineVersionRange, EngineBuildMetadata.CompatibilityVersion);
+            string engine = EngineBuildMetadata.CompatibilityVersion;
+            requirement = OfficialModCatalog.EngineError(latest.EngineVersionRange, engine);
+            if (requirement is not null)
+            {
+                compatibility = NuGet.Versioning.NuGetVersion.TryParse(engine, out _)
+                    ? new(GameLanguageRequirementKind.EngineVersion, MinimumEngineVersion: OfficialModCatalog.ParseRange(latest.EngineVersionRange).MinVersion!.ToNormalizedString())
+                    : new(GameLanguageRequirementKind.UnknownEngineVersion);
+            }
         }
         else if (entry?.SourceId == RemoteModCatalogAdapter.SourceId && package is null && !LanguagePackages.IsReviewedJunctionOffer(entry, metadata))
         {
             requirement = "The download has no verified mapping to a package language option.";
+            compatibility = new(GameLanguageRequirementKind.UnreviewedMapping);
         }
         if (entry?.SourceId == RemoteModCatalogAdapter.SourceId && profile is not null && profile.ResourceLanguage != "en")
         {
             requirement = "Junction packages currently require Classic English game data.";
+            compatibility = new(GameLanguageRequirementKind.JunctionBase);
             profile = null;
         }
         if (package?.JunctionMetadata is { } manifest && (metadata.Value is not null || metadata.Option is not null) && LanguagePackages.JunctionOption(manifest, metadata) is null)
         {
             requirement = "The installed release does not declare this language option.";
+            compatibility = new(GameLanguageRequirementKind.MissingOption);
             profile = null;
         }
         string? version = package?.JunctionMetadata?.Version ?? package?.Official?.Latest?.Version ?? (package is null ? entry?.Version : null);
@@ -169,6 +189,7 @@ public sealed class GameLanguageInventory
                 if (dependencies.Count == 0)
                 {
                     requirement ??= exception.Message;
+                    compatibility ??= new(GameLanguageRequirementKind.MissingDependencies);
                 }
                 else
                 {
@@ -178,19 +199,19 @@ public sealed class GameLanguageInventory
         }
         if (entry is not null)
         {
-            members.Add(new(entry.Name, entry.Version, entry.Official?.Latest?.Artifact.Size ?? LanguagePackages.JunctionDownloadBytes(entry), package is not null && !canUpdate));
+            members.Add(new(entry.Name, entry.Version, entry.Official?.Latest?.Artifact.Size ?? LanguagePackages.JunctionDownloadBytes(entry), package is not null && !canUpdate) { OfficialId = entry.Official?.Id });
             foreach (OfficialModComponent dependency in dependencies)
             {
                 OfficialModRelease release = dependency.Latest!;
                 bool installedRelease = installed.Any(candidate => candidate.Official?.Id == dependency.Id && candidate.Official.Latest?.Version == release.Version && candidate.OfficialAvailable);
-                members.Add(new(dependency.Name, release.Version, release.Artifact.Size, installedRelease));
+                members.Add(new(dependency.Name, release.Version, release.Artifact.Size, installedRelease) { OfficialId = dependency.Id });
                 canUpdate |= package is not null && !installedRelease && !requiresAcquisition;
             }
         }
         else if (package is not null)
         {
-            members.Add(new(package.Name, version ?? "", null, true));
-            members.AddRange(installedDependencies.Select(dependency => new GameLanguageDownloadMember(dependency.Name, dependency.Official?.Latest?.Version ?? "", null, true)));
+            members.Add(new(package.Name, version ?? "", null, true) { OfficialId = package.Official?.Id });
+            members.AddRange(installedDependencies.Select(dependency => new GameLanguageDownloadMember(dependency.Name, dependency.Official?.Latest?.Version ?? "", null, true) { OfficialId = dependency.Official?.Id }));
         }
         long? bytes = members.Where(member => !member.IsInstalled).All(member => member.Bytes.HasValue)
             ? members.Where(member => !member.IsInstalled).Sum(member => member.Bytes!.Value) : null;
@@ -200,6 +221,7 @@ public sealed class GameLanguageInventory
             Version = version,
             DownloadBytes = bytes is > 0 ? bytes : null,
             DownloadMembers = members.AsReadOnly(),
+            CompatibilityRequirement = compatibility,
             RequiresAcquisition = requiresAcquisition,
             CanUpdate = canUpdate
         });

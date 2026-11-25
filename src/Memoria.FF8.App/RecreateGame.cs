@@ -1778,8 +1778,10 @@ internal sealed partial class RecreateGame : GamePresentationHost
         Rectangle bounds = GraphicsDevice.Viewport.Bounds;
         if (!startup.Active && session.State.Scene == SceneKind.Title)
         {
+            string wordmark = LocalizeAuthored("title.wordmark", "FINAL FANTASY VIII");
             titleScene ??= GraphicsHostReadiness.Initialize(() => new TitleSceneRenderer(GraphicsDevice));
-            titleArtwork ??= new TitleArtworkRenderer(GraphicsDevice);
+            titleArtwork ??= new TitleArtworkRenderer(GraphicsDevice, wordmark: wordmark);
+            titleArtwork.SetWordmark(wordmark);
             titleScene.Draw(bounds, gameTime.TotalGameTime.TotalSeconds);
             titleArtwork.Draw(bounds, gameTime.TotalGameTime.TotalSeconds, GraphicsDeviceSettings.SceneMsaaSamples(GraphicsDevice));
         }

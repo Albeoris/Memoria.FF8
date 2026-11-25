@@ -129,7 +129,43 @@ public sealed class GameLanguageDistributionTests : IDisposable
         media = BuildArchive(media, downloads);
         translation = BuildArchive(translation, downloads);
         update = BuildArchive(update, downloads);
-        await AcquireAndVerify(translation, media, downloads.ToDictionary(pair => pair.Key, pair => (Func<Stream>)(() => new MemoryStream(pair.Value, writable: false))), update);
+        TaskCompletionSource mediaRemainder = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource translationRemainder = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        long mediaBytes = media.Latest!.Artifact.Size;
+        long translationBytes = translation.Latest!.Artifact.Size;
+        Dictionary<string, Func<Stream>> archives = downloads.ToDictionary(pair => pair.Key, pair => (Func<Stream>)(() => new MemoryStream(pair.Value, writable: false)));
+        archives[media.Latest.Artifact.Url] = () => new PausedResponseStream(downloads[media.Latest.Artifact.Url], mediaRemainder.Task);
+        archives[translation.Latest.Artifact.Url] = () => new PausedResponseStream(downloads[translation.Latest.Artifact.Url], translationRemainder.Task);
+        List<LanguageAcquisitionProgress> reports = [];
+        await AcquireAndVerify(translation, media, archives, update, new ProgressListener(progress =>
+        {
+            reports.Add(progress);
+            if (progress.Phase == LanguageAcquisitionPhase.Downloading && progress.MemberName == media.Name && progress.DownloadedBytes > 0)
+            {
+                mediaRemainder.TrySetResult();
+            }
+            if (progress.Phase == LanguageAcquisitionPhase.Downloading && progress.MemberName == translation.Name && progress.DownloadedBytes > mediaBytes)
+            {
+                translationRemainder.TrySetResult();
+            }
+        }));
+        long total = mediaBytes + translationBytes;
+        Assert.Contains(new(LanguageAcquisitionPhase.Downloading, media.Name, PausedResponseStream.FirstChunkSize, total), reports);
+        Assert.Contains(new(LanguageAcquisitionPhase.Verifying, media.Name, mediaBytes, total), reports);
+        Assert.Contains(new(LanguageAcquisitionPhase.Downloading, translation.Name, mediaBytes + PausedResponseStream.FirstChunkSize, total), reports);
+        Assert.Contains(new(LanguageAcquisitionPhase.Verifying, translation.Name, total, total), reports);
+        Assert.Equal(new(LanguageAcquisitionPhase.Installing, translation.Name, total, total), reports[^1]);
+    }
+
+    [Fact]
+    public async Task CancelledAcquisitionReusesTheVerifiedDependencyWithoutCountingItsBytesAgain()
+    {
+        OfficialModComponent media = Component("opening-media", "1.0.0", dependency: true);
+        OfficialModComponent translation = Component("translation", "3.2.0", dependency: false, new LanguageDependencyPin(media.Id, media.Latest!.Version));
+        Dictionary<string, byte[]> downloads = [];
+        media = BuildArchive(media, downloads);
+        translation = BuildArchive(translation, downloads);
+        await AcquireAndVerify(translation, media, downloads.ToDictionary(pair => pair.Key, pair => (Func<Stream>)(() => new MemoryStream(pair.Value, writable: false))), update: null, cacheDependency: true);
     }
 
     [Fact]
@@ -220,7 +256,7 @@ public sealed class GameLanguageDistributionTests : IDisposable
         await AcquireAndVerify(translation, media, archives, update: null);
     }
 
-    private async Task AcquireAndVerify(OfficialModComponent translation, OfficialModComponent media, IReadOnlyDictionary<string, Func<Stream>> archives, OfficialModComponent? update)
+    private async Task AcquireAndVerify(OfficialModComponent translation, OfficialModComponent media, IReadOnlyDictionary<string, Func<Stream>> archives, OfficialModComponent? update, IProgress<LanguageAcquisitionProgress>? progress = null, bool cacheDependency = false)
     {
         string modsRoot = Path.Combine(root, "Mods");
         string cache = Path.Combine(root, "catalog-cache");
@@ -251,11 +287,38 @@ public sealed class GameLanguageDistributionTests : IDisposable
         Assert.Equal(2, offer.DownloadMembers.Count);
         Assert.Equal(translation.Latest.Artifact.Size + media.Latest!.Artifact.Size, offer.DownloadBytes);
         Assert.Throws<NotSupportedException>(() => library.AcquireLanguageAsync(offer with { Profile = null }, installer, Token).GetAwaiter().GetResult());
-        string? packageId = await library.AcquireLanguageAsync(offer, installer, Token);
+        RemoteModEntry mediaEntry = new(OfficialModCatalog.SourceId, media.CatalogId, media.Name, media.Latest.Version) { Official = media };
+        List<LanguageAcquisitionProgress> cachedReports = [];
+        if (cacheDependency)
+        {
+            using CancellationTokenSource stopAfterDependency = CancellationTokenSource.CreateLinkedTokenSource(Token);
+            stopAfterDependency.CancelAfter(TimeSpan.FromSeconds(15));
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => library.AcquireLanguageAsync(offer, installer, stopAfterDependency.Token, progress: new ProgressListener(report =>
+            {
+                if (report.Phase == LanguageAcquisitionPhase.Preparing && report.MemberName == translation.Name)
+                {
+                    stopAfterDependency.Cancel();
+                }
+            })));
+            Assert.Equal(media.Latest.Artifact.Url, Assert.Single(requests).Key);
+            Assert.Null(installer.GetStatus(mediaEntry));
+            progress = new ProgressListener(cachedReports.Add);
+        }
+        using CancellationTokenSource acquireTimeout = CancellationTokenSource.CreateLinkedTokenSource(Token);
+        if (progress is not null)
+        {
+            acquireTimeout.CancelAfter(TimeSpan.FromSeconds(15));
+        }
+        string? packageId = await library.AcquireLanguageAsync(offer, installer, acquireTimeout.Token, progress: progress);
         Assert.Equal(translation.RuntimePackageId, packageId);
+        if (cacheDependency)
+        {
+            Assert.All(cachedReports, report => Assert.Equal(translation.Latest.Artifact.Size, report.TotalBytes));
+            Assert.Contains(new(LanguageAcquisitionPhase.Verifying, media.Name, 0, translation.Latest.Artifact.Size), cachedReports);
+            Assert.Equal(new(LanguageAcquisitionPhase.Installing, translation.Name, translation.Latest.Artifact.Size, translation.Latest.Artifact.Size), cachedReports[^1]);
+        }
         Assert.Equal(1, requests[offerEntry.Official!.Latest!.Artifact.Url]);
         Assert.Equal(1, requests[media.Latest.Artifact.Url]);
-        RemoteModEntry mediaEntry = new(OfficialModCatalog.SourceId, media.CatalogId, media.Name, media.Latest.Version) { Official = media };
         Assert.True(installer.GetStatus(mediaEntry)?.Installed);
         Assert.DoesNotContain(library.View.Jobs.Concat(library.View.LanguageJobs), job => job.Entry.Id == media.CatalogId);
 
@@ -299,7 +362,10 @@ public sealed class GameLanguageDistributionTests : IDisposable
         Assert.True(updated.CanUpdate);
         Assert.False(updated.RequiresAcquisition);
         Assert.Equal(update.Latest.Artifact.Size, updated.DownloadBytes);
-        Assert.Equal(packageId, await library.AcquireLanguageAsync(updated, installer, Token, update: true));
+        List<LanguageAcquisitionProgress> updateProgress = [];
+        Assert.Equal(packageId, await library.AcquireLanguageAsync(updated, installer, Token, update: true, progress: new ProgressListener(updateProgress.Add)));
+        Assert.All(updateProgress, report => Assert.Equal(update.Name, report.MemberName));
+        Assert.Equal(new(LanguageAcquisitionPhase.Installing, update.Name, update.Latest.Artifact.Size, update.Latest.Artifact.Size), updateProgress[^1]);
         Assert.Equal(1, requests[media.Latest.Artifact.Url]);
         Assert.Equal(1, requests[update.Latest.Artifact.Url]);
     }
@@ -392,6 +458,26 @@ public sealed class GameLanguageDistributionTests : IDisposable
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             return respond(request, cancellationToken);
+        }
+    }
+
+    private sealed class ProgressListener(Action<LanguageAcquisitionProgress> observe) : IProgress<LanguageAcquisitionProgress>
+    {
+        public void Report(LanguageAcquisitionProgress value) => observe(value);
+    }
+
+    private sealed class PausedResponseStream(byte[] bytes, Task remainder) : MemoryStream(bytes, writable: false)
+    {
+        public const int FirstChunkSize = 128;
+
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            if (Position == 0)
+            {
+                return await base.ReadAsync(buffer[..Math.Min(buffer.Length, FirstChunkSize)], cancellationToken);
+            }
+            await remainder.WaitAsync(cancellationToken);
+            return await base.ReadAsync(buffer, cancellationToken);
         }
     }
 

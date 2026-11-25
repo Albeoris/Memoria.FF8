@@ -20,6 +20,7 @@ public sealed record DownloadJobSnapshot(Guid JobId, RemoteModEntry Entry, strin
     public string? ArchivePath { get; init; }
     public string? Sha256 { get; init; }
     public string? Details { get; init; }
+    internal bool ReusedArchive { get; init; }
 }
 
 /// <summary>Application-lifetime queue. Snapshot reads and commands perform no filesystem or network work.</summary>
@@ -91,7 +92,7 @@ public sealed class ModDownloadCoordinator : IDisposable
         EnsureInitialized();
         lock (commandGate)
         {
-            DownloadJobSnapshot? existing = jobs.Values.FirstOrDefault(job => job.Entry.SourceId == entry.SourceId && job.Entry.Id == entry.Id && (job.Entry.Version == entry.Version || entry.CompareVersion(job.Entry.Version) == 0) && job.Entry.Official?.Latest?.Artifact.Sha256 == entry.Official?.Latest?.Artifact.Sha256 && job.TargetProfile == targetProfile && job.Phase != ModDownloadPhase.Cancelled);
+            DownloadJobSnapshot? existing = FindMatchingJob(entry, targetProfile);
             if (existing != null)
             {
                 if (installAfterDownload && !existing.InstallAfterDownload)
@@ -109,6 +110,13 @@ public sealed class ModDownloadCoordinator : IDisposable
             return id;
         }
     }
+
+    internal DownloadJobSnapshot? FindMatchingJob(RemoteModEntry entry, string targetProfile)
+    {
+        return jobs.Values.FirstOrDefault(job => job.Entry.SourceId == entry.SourceId && job.Entry.Id == entry.Id && (job.Entry.Version == entry.Version || entry.CompareVersion(job.Entry.Version) == 0) && job.Entry.Official?.Latest?.Artifact.Sha256 == entry.Official?.Latest?.Artifact.Sha256 && job.TargetProfile == targetProfile && job.Phase != ModDownloadPhase.Cancelled);
+    }
+
+    internal DownloadJobSnapshot GetJobSnapshot(Guid id) => jobs[id];
 
     public void Pause(Guid id) => Stop(id, ModDownloadPhase.Paused);
     public void Cancel(Guid id) => Stop(id, ModDownloadPhase.Cancelled);
@@ -143,7 +151,8 @@ public sealed class ModDownloadCoordinator : IDisposable
                 HttpStatus = null,
                 ErrorCode = null,
                 Message = null,
-                Details = null
+                Details = null,
+                ReusedArchive = false
             };
             Start(id);
         }
@@ -235,7 +244,7 @@ public sealed class ModDownloadCoordinator : IDisposable
             string cachedPath = Path.Combine(JobDirectory(id), "package.download");
             if (job.ArchivePath == cachedPath && job.Sha256 != null && File.Exists(cachedPath))
             {
-                Update(id, state => state with { Phase = ModDownloadPhase.Verifying }, token);
+                Update(id, state => state with { Phase = ModDownloadPhase.Verifying, ReusedArchive = true }, token);
                 using FileStream cached = new(cachedPath, FileMode.Open, FileAccess.Read, FileShare.Read, 131072, true);
                 string digest = Convert.ToHexString(await SHA256.HashDataAsync(cached, token)).ToLowerInvariant();
                 if (cached.Length != job.CompletedBytes || !string.Equals(digest, job.Sha256, StringComparison.Ordinal) || !MatchesPublisher(job.Entry, cached.Length, digest))
@@ -404,7 +413,7 @@ public sealed class ModDownloadCoordinator : IDisposable
             using Stream input = await response.Content.ReadAsStreamAsync(token);
             long written = offset;
             Stopwatch stopwatch = Stopwatch.StartNew();
-            long lastPublish = 0;
+            long? lastPublish = null;
             using (FileStream output = new(partialPath, offset > 0 ? FileMode.Append : FileMode.Create, FileAccess.Write, FileShare.Read, 131072, true))
             {
                 byte[] buffer = new byte[131072];
@@ -423,11 +432,12 @@ public sealed class ModDownloadCoordinator : IDisposable
                     {
                         throw new InvalidDataException("The response exceeds its declared length.");
                     }
-                    if (stopwatch.ElapsedMilliseconds - lastPublish >= 150)
+                    long elapsed = stopwatch.ElapsedMilliseconds;
+                    if (lastPublish is null || elapsed - lastPublish >= 150)
                     {
                         double speed = (written - offset) / Math.Max(.001, stopwatch.Elapsed.TotalSeconds);
                         Update(id, state => state with { CompletedBytes = written, BytesPerSecond = speed }, token);
-                        lastPublish = stopwatch.ElapsedMilliseconds;
+                        lastPublish = elapsed;
                     }
                 }
                 await output.FlushAsync(token);

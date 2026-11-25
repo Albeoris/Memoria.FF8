@@ -62,6 +62,8 @@ Where a source slot has distinct proven call contexts, a context-specific key ad
 
 Other original resources use their registered table/entity identities, such as a kernel collection, role and row index. Engine-owned System strings use registered semantic IDs, for example `$en_interface_system_main.junction`. Unknown identities and contradictory/case-colliding filenames are diagnosed. Do not manufacture new original-game rows or use translated names as keys.
 
+Use `$en_interface_system_title.wordmark` to translate `FINAL FANTASY VIII` on the title screen. Supply one line using glyphs with outlines in Times New Roman. The renderer keeps the original metallic vector treatment, fits wider text to the existing space and uses the English wordmark for blank text, strings longer than 64 UTF-16 code units, or text with missing glyphs.
+
 System messages can be templates containing numbered arguments such as `{0}` and `{1}`. Preserve these arguments while translating the surrounding prose; their values include current player names, quantities and paths. The English base reference retains the authored English template. Selecting another reference does not claim an authored translation exists for it.
 
 ## Field controls and choices

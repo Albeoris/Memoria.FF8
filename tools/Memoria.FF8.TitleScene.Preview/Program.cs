@@ -54,6 +54,7 @@ internal sealed record PreviewOptions(int Width, int Height, double Time, string
 {
     public bool CrestOnly { get; init; }
     public TitleSceneStyle Style { get; init; } = TitleSceneStyle.FinalFantasyVIII;
+    public string? Wordmark { get; init; }
     public MeteorLightingPass? MeteorLighting { get; init; }
     public int SequenceFrames { get; init; }
     public double SequenceStep { get; init; } = 0.25;
@@ -94,6 +95,9 @@ internal sealed record PreviewOptions(int Width, int Height, double Time, string
                     break;
                 case "--crest":
                     options = options with { CrestOnly = true };
+                    break;
+                case "--wordmark":
+                    options = options with { Wordmark = Value() };
                     break;
                 case "--resolution":
                     string[] size = Value().Split('x');
@@ -137,7 +141,7 @@ internal sealed record PreviewOptions(int Width, int Height, double Time, string
                     options = options with { SequenceStep = step };
                     break;
                 default:
-                    throw new ArgumentException($"Unknown argument: {argument}. Options: --ff7 --meteor-lighting full|key|rim|fill|key-rim --resolution WxH --time seconds --output path.png --benchmark --background-only --sequence 2..240 --step seconds.");
+                    throw new ArgumentException($"Unknown argument: {argument}. Options: --ff7 --meteor-lighting full|key|rim|fill|key-rim --wordmark text --resolution WxH --time seconds --output path.png --benchmark --background-only --sequence 2..240 --step seconds.");
             }
         }
         if (options.MeteorLighting is not null && options.Style != TitleSceneStyle.FinalFantasyVII)
@@ -191,7 +195,7 @@ internal sealed class PreviewGame : Game
         };
         if (!options.BackgroundOnly)
         {
-            artwork = new TitleArtworkRenderer(GraphicsDevice, options.Style);
+            artwork = new TitleArtworkRenderer(GraphicsDevice, options.Style, options.Wordmark);
         }
         pixels = new Color[GraphicsDevice.PresentationParameters.BackBufferWidth * GraphicsDevice.PresentationParameters.BackBufferHeight];
         initializationMilliseconds = Stopwatch.GetElapsedTime(initializationStarted).TotalMilliseconds;
@@ -254,6 +258,7 @@ internal sealed class PreviewGame : Game
             {
                 Scene = "Title",
                 Style = options.Style.ToString(),
+                options.Wordmark,
                 MeteorLighting = options.Style == TitleSceneStyle.FinalFantasyVII ? (options.MeteorLighting ?? MeteorLightingPass.Full).ToString() : null,
                 MeteorHeadOffsetX = meteorPose?.ScreenOffset.X,
                 MeteorHeadOffsetY = meteorPose?.ScreenOffset.Y,

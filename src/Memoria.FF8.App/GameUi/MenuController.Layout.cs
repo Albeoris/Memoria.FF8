@@ -23,6 +23,7 @@ public sealed partial class MenuController
         RefreshBattleLoadoutPreparation();
         RefreshLocalizationView();
         RefreshAutoPlayView();
+        RefreshLanguageChangeView();
         if (_viewControllerPresentation != CurrentControllerPresentation || _viewControlDevice != CurrentControlDevice)
         {
             _view = null;
@@ -138,7 +139,8 @@ public sealed partial class MenuController
         }
         else
         {
-            var page = Grid([Math.Max(1, TextScale), 8, 0.7f * Math.Max(1, TextScale)], [1]);
+            float headingSize = Math.Max(1, TextScale);
+            var page = Grid(IsLanguageScreen ? [headingSize, 8] : [headingSize, 8, 0.7f * headingSize], [1]);
             container.Children.Add(page);
             Place(page, Header(), 0);
             UiElement content = CurrentScreen.Layout switch
@@ -148,7 +150,10 @@ public sealed partial class MenuController
                 _ => BuildStandard()
             };
             Place(page, content, 1);
-            Place(page, Footer(), 2);
+            if (!IsLanguageScreen)
+            {
+                Place(page, Footer(), 2);
+            }
         }
         return container;
     }
@@ -179,7 +184,9 @@ public sealed partial class MenuController
         Place(content, panes, showSummary ? 1 : 0);
         Place(panes, Panel(null, IsHostSettingsScreen ? BuildBattleSettingsRows() : Commands(30, 19)), 0, 0);
         bool showFontPreviews = ScreenId is "config-text" or "font-picker";
-        Place(panes, Panel(ScreenId == "debug-room" ? SystemText("ui.buildstandard.panel.selected.preview", "Selected preview") : CurrentScreen.Title, showFontPreviews ? BuildFontPreviews() : Details()), 0, 1);
+        UiElement details = LanguageChangeInProgress ? Panel(null, BuildLanguageChangeDetails())
+            : Panel(ScreenId == "debug-room" ? SystemText("ui.buildstandard.panel.selected.preview", "Selected preview") : CurrentScreen.Title, showFontPreviews ? BuildFontPreviews() : Details());
+        Place(panes, details, 0, 1);
         return content;
     }
 
@@ -269,13 +276,14 @@ public sealed partial class MenuController
     {
         var header = Grid([1], [4, 1]);
         Place(header, Help(), 0, 0);
-        Place(header, Panel(null, Label(IsFixtureContext ? SystemText("ui.header.label.preview.fixture", "Preview / Fixture") : CurrentScreen.Title, CurrentScreen.Title.Length > 12 ? 18 : 26, UiTextFlow.Wrap)), 0, 1);
+        string title = LanguageChangeInProgress ? LanguageText("changing", "Changing language") : IsFixtureContext ? SystemText("ui.header.label.preview.fixture", "Preview / Fixture") : CurrentScreen.Title;
+        Place(header, Panel(null, Label(title, CurrentScreen.Title.Length > 12 ? 18 : 26, UiTextFlow.Wrap)), 0, 1);
         return header;
     }
 
     private UiElement Help()
     {
-        string help = ScreenId == "main" && !IsSelectingCharacter ? FormatSystemText("ui.help.help.main.template", "{0} Menu", (SelectedEntry?.Label ?? SystemText("ui.help.help.main", "Main"))) : SelectedEntry?.Help ?? CurrentScreen.Help;
+        string help = LanguageChangeInProgress ? LanguageChangeStatus() : ScreenId == "main" && !IsSelectingCharacter ? FormatSystemText("ui.help.help.main.template", "{0} Menu", (SelectedEntry?.Label ?? SystemText("ui.help.help.main", "Main"))) : SelectedEntry?.Help ?? CurrentScreen.Help;
         string caption = ScreenId == "main" && ShowMainScreenTitle ? CurrentScreen.Title : SystemText("ui.help.panel.help", "HELP");
         return Panel(caption, Label(Message.Length > 0 ? Message : help, IsOriginalMenuPage ? 22 : 18, UiTextFlow.Wrap));
     }
@@ -293,6 +301,7 @@ public sealed partial class MenuController
     private UiList Commands(float rowHeight, float fontSize)
     {
         IReadOnlyList<MenuEntry> entries = Entries;
+        HashSet<string>? currentLanguages = ScreenId == "language" ? CurrentLanguageRows() : null;
         UiList list = new()
         {
             TextFlow = UiTextFlow.SingleLine,
@@ -305,6 +314,7 @@ public sealed partial class MenuController
             TrailingImages = entries.Select(EntryMarker).ToList(),
             EnabledItems = entries.Select(entry => entry.Enabled).ToList(),
             TreeRow = ScreenId == "language" ? index => LanguageTreeRow(entries[index]) : null,
+            ItemTextColor = currentLanguages is null ? null : index => currentLanguages.Contains(entries[index].Id) ? AbilityActivationColor(true) : null,
             HighlightSelection = !IsOriginalMenuPage,
             PointerSize = IsOriginalMenuPage ? 20 * TextScale : 10,
             TextInset = IsOriginalMenuPage ? 35 * TextScale : 23,
@@ -320,6 +330,10 @@ public sealed partial class MenuController
 
     private UiElement Details()
     {
+        if (IsLanguageScreen && languageFailure is { } failure)
+        {
+            return Label(failure, 17, UiTextFlow.Wrap);
+        }
         if (ScreenId == "debug-room" && SelectedEntry is { Id: "world-switch" } worldSwitch)
         {
             UiLabel explanation = Label(worldSwitch.Help, 17, UiTextFlow.Wrap);

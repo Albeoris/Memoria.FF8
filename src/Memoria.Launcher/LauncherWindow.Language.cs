@@ -86,19 +86,29 @@ internal sealed partial class LauncherWindow
             GameLanguageInventory inventory = GameLanguageInventory.Create(selectedResourceLanguages.NativeProfiles, profile, launcherMods?.InstalledPackages ?? [], [], entries);
             foreach (GameLanguageGroup group in inventory.Groups)
             {
+                bool activeLanguage = group.Offers.Any(IsCurrentGameLanguage);
                 StackPanel editions = new() { Spacing = 8, Margin = new Thickness(12, 4, 4, 4) };
-                Expander branch = new() { Header = group.Label, Tag = group.DisplayTag, HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Stretch, Content = editions };
-                branch.IsExpanded = expanded.Contains(group.DisplayTag) || initial && group.Offers.Any(IsCurrentGameLanguage);
+                TextBlock heading = new() { Text = group.Label, Foreground = activeLanguage ? LauncherSuccess : LauncherText };
+                Expander branch = new() { Header = heading, Tag = group.DisplayTag, HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Stretch, Content = editions };
+                branch.IsExpanded = expanded.Contains(group.DisplayTag) || initial && activeLanguage;
                 foreach (GameLanguageOffer offer in group.Offers)
                 {
                     bool active = IsCurrentGameLanguage(offer);
                     bool canApply = selectedInstallationPlayable && offer.CanSelect && launcherMods is not null;
-                    StackPanel row = new() { Spacing = 5, Children = { LauncherDescription(LanguageEditionSummary(offer, active)) } };
+                    TextBlock summary = LauncherDescription(LanguageEditionSummary(offer, active));
+                    if (active)
+                    {
+                        summary.Foreground = LauncherSuccess;
+                    }
+                    StackPanel row = new() { Spacing = 5, Children = { summary } };
                     StackPanel commands = new() { Orientation = Orientation.Horizontal, Spacing = 8 };
-                    Button select = LauncherModButton(offer.RequiresAcquisition ? "Download and select…" : "Select…");
-                    select.IsEnabled = canApply && (!active || selectedLanguageChoice is null);
-                    select.Click += async (_, _) => await ReviewAndApplyAsync(offer, update: false);
-                    commands.Children.Add(select);
+                    if (!active)
+                    {
+                        Button select = LauncherModButton(offer.RequiresAcquisition ? "Download and select…" : "Select…");
+                        select.IsEnabled = canApply;
+                        select.Click += async (_, _) => await ReviewAndApplyAsync(offer, update: false);
+                        commands.Children.Add(select);
+                    }
                     if (offer.CanUpdate)
                     {
                         Button update = LauncherModButton("Update and select…");
@@ -119,7 +129,10 @@ internal sealed partial class LauncherWindow
                         };
                         commands.Children.Add(remove);
                     }
-                    row.Children.Add(commands);
+                    if (commands.Children.Count > 0)
+                    {
+                        row.Children.Add(commands);
+                    }
                     editions.Children.Add(row);
                 }
                 branches.Children.Add(branch);
@@ -128,6 +141,10 @@ internal sealed partial class LauncherWindow
 
         async Task ReviewAndApplyAsync(GameLanguageOffer offer, bool update)
         {
+            if (interacting || !update && IsCurrentGameLanguage(offer))
+            {
+                return;
+            }
             interacting = true;
             try
             {
@@ -139,13 +156,63 @@ internal sealed partial class LauncherWindow
                 Window progress = new() { Title = "Changing game language", Width = 450, SizeToContent = SizeToContent.Height, WindowStartupLocation = WindowStartupLocation.CenterOwner, CanResize = false };
                 Button stop = LauncherModButton("Cancel");
                 TextBlock detail = LauncherDescription("Preparing language and required packages…");
-                progress.Content = new StackPanel { Margin = new Thickness(20), Spacing = 10, Children = { detail, new ProgressBar { IsIndeterminate = true }, stop } };
+                TextBlock package = LauncherDescription(offer.Title);
+                TextBlock amount = LauncherDescription("");
+                amount.IsVisible = false;
+                ProgressBar bar = new() { IsIndeterminate = true };
+                progress.Content = new StackPanel { Margin = new Thickness(20), Spacing = 10, Children = { detail, package, bar, amount, stop } };
                 bool finished = false;
+                bool applying = false;
                 void RequestCancellation()
                 {
+                    if (cancellation.IsCancellationRequested)
+                    {
+                        return;
+                    }
                     stop.IsEnabled = false;
                     detail.Text = "Cancelling language change…";
+                    if (bar.IsIndeterminate)
+                    {
+                        bar.IsVisible = false;
+                    }
                     cancellation.Cancel();
+                }
+                IProgress<LanguageAcquisitionProgress> report = new Progress<LanguageAcquisitionProgress>(transfer =>
+                {
+                    if (finished || applying || cancellation.IsCancellationRequested)
+                    {
+                        return;
+                    }
+                    detail.Text = transfer.Phase switch
+                    {
+                        LanguageAcquisitionPhase.Downloading => "Downloading language packages…",
+                        LanguageAcquisitionPhase.Verifying => "Verifying language package…",
+                        LanguageAcquisitionPhase.Installing => "Installing language package…",
+                        _ => "Preparing language and required packages…"
+                    };
+                    package.Text = transfer.MemberName.Length > 0 ? $"Package: {transfer.MemberName}" : offer.Title;
+                    double receivedMiB = transfer.DownloadedBytes / 1048576d;
+                    if (transfer.TotalBytes is > 0)
+                    {
+                        double fraction = Math.Clamp((double)transfer.DownloadedBytes / transfer.TotalBytes.Value, 0, 1);
+                        bar.Value = fraction * 100;
+                        bar.IsIndeterminate = false;
+                        amount.Text = $"{receivedMiB:N1} / {transfer.TotalBytes.Value / 1048576d:N1} MiB · {fraction:P1}";
+                    }
+                    else
+                    {
+                        bar.IsIndeterminate = true;
+                        amount.Text = $"{receivedMiB:N1} MiB received";
+                    }
+                    amount.IsVisible = true;
+                });
+                void ShowApplying()
+                {
+                    applying = true;
+                    detail.Text = "Applying language…";
+                    package.Text = offer.Title;
+                    bar.IsIndeterminate = true;
+                    amount.IsVisible = false;
                 }
                 stop.Click += (_, _) => RequestCancellation();
                 progress.Closing += (_, args) =>
@@ -161,7 +228,7 @@ internal sealed partial class LauncherWindow
                 string? error = null;
                 try
                 {
-                    await ApplyGameLanguageAsync(installation, offer, update, cancellation.Token);
+                    await ApplyGameLanguageAsync(installation, offer, update, cancellation.Token, report, ShowApplying);
                     changed = true;
                 }
                 catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
@@ -213,10 +280,12 @@ internal sealed partial class LauncherWindow
         if (changed)
         {
             await RecheckOfficialModSelectionAsync();
+            status.Foreground = LauncherSuccess;
+            status.Text = "Language applied.";
         }
     }
 
-    private async Task ApplyGameLanguageAsync(GameInstallation installation, GameLanguageOffer offer, bool update, CancellationToken cancellationToken)
+    private async Task ApplyGameLanguageAsync(GameInstallation installation, GameLanguageOffer offer, bool update, CancellationToken cancellationToken, IProgress<LanguageAcquisitionProgress> progress, Action showApplying)
     {
         if (!selectedInstallationPlayable || !offer.CanSelect || offer.Profile is not { } profile || launcherMods is not { } mods || launcherModLibrary is not { } library)
         {
@@ -228,8 +297,9 @@ internal sealed partial class LauncherWindow
         }
         bool junction = profile.Edition == "Classic" && profile.ResourceLanguage == "en";
         ModPackageInstaller installer = ModLibraryProfile.CreateInstaller(mods.PrimaryModsDirectory, installation.Directory, profile.Edition, profile.ResourceLanguage, junction, mods.PreferencesDirectory);
-        string? packageId = await library.AcquireLanguageAsync(offer, installer, cancellationToken, update);
+        string? packageId = await library.AcquireLanguageAsync(offer, installer, cancellationToken, update, progress);
         cancellationToken.ThrowIfCancellationRequested();
+        showApplying();
         string settingsPath = LauncherSettings.DefaultPath;
         LauncherSettings settings = LauncherSettings.Load(settingsPath);
         GameLanguageChoice? previous = settings.LanguageChoiceFor(installation.Directory);

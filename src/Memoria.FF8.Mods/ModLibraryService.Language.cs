@@ -10,7 +10,17 @@ public sealed partial class ModLibraryService
     private RemoteCatalogSnapshot? publishedOrdinaryCatalog;
     private IReadOnlyList<RemoteModEntry> publishedLanguageEntries = [];
     private readonly SemaphoreSlim languageAcquisition = new(1, 1);
-    private sealed record LanguageInstall(RemoteModEntry Entry, ModPackageInstallResult? Status, ModPackageInstallPlan? Plan);
+
+    private sealed class LanguageInstall(RemoteModEntry entry, ModPackageInstallResult? status, ModDownloadCoordinator? queue = null, bool countsDownload = false)
+    {
+        public RemoteModEntry Entry { get; } = entry;
+        public ModPackageInstallResult? Status { get; } = status;
+        public ModDownloadCoordinator? Queue { get; } = queue;
+        public ModPackageInstallPlan? Plan { get; set; }
+        public bool CountsDownload { get; set; } = countsDownload;
+        public long DownloadedBytes { get; set; }
+        public long? TotalBytes { get; set; } = entry.Official?.Latest?.Artifact.Size;
+    }
 
     private async Task RefreshLanguageIndexAsync(bool force)
     {
@@ -22,7 +32,7 @@ public sealed partial class ModLibraryService
         return LanguagePackages.IsLanguage(entry) || current.Entries.Any(candidate => candidate.SourceId == entry.SourceId && candidate.Id == entry.Id && LanguagePackages.IsLanguage(candidate));
     }
 
-    public async Task<string?> AcquireLanguageAsync(GameLanguageOffer offer, ModPackageInstaller destination, CancellationToken cancellationToken = default, bool update = false)
+    public async Task<string?> AcquireLanguageAsync(GameLanguageOffer offer, ModPackageInstaller destination, CancellationToken cancellationToken = default, bool update = false, IProgress<LanguageAcquisitionProgress>? progress = null)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (!offer.CanSelect || offer.Profile is not { } profile)
@@ -45,6 +55,32 @@ public sealed partial class ModLibraryService
         CancellationToken token = activity.Token;
         await languageAcquisition.WaitAsync(token).ConfigureAwait(false);
         List<LanguageInstall> prepared = [];
+        LanguageAcquisitionProgress? lastProgress = null;
+        void Report(LanguageAcquisitionPhase phase, RemoteModEntry entry)
+        {
+            if (progress is null)
+            {
+                return;
+            }
+            token.ThrowIfCancellationRequested();
+            long downloaded = 0;
+            long? total = 0;
+            foreach (LanguageInstall member in prepared)
+            {
+                if (member.CountsDownload)
+                {
+                    downloaded += member.DownloadedBytes;
+                    total += member.TotalBytes;
+                }
+            }
+            LanguageAcquisitionProgress current = new(phase, entry.Name, downloaded, total) { OfficialMemberId = entry.Official?.Id };
+            if (current != lastProgress)
+            {
+                lastProgress = current;
+                progress.Report(current);
+            }
+        }
+
         try
         {
             while (!Volatile.Read(ref initialized) || View.Revision == 0)
@@ -63,12 +99,21 @@ public sealed partial class ModLibraryService
             }
             foreach (OfficialModComponent dependency in release.RequiredLanguagePackages)
             {
-                prepared.Add(await PrepareLanguageMemberAsync(dependency.ToEntry(), destination, token).ConfigureAwait(false));
+                token.ThrowIfCancellationRequested();
+                prepared.Add(PlanLanguageMember(dependency.ToEntry(), destination));
             }
             string? packageId = offer.InstalledPackage?.Id;
             if (packageId is null || update || offer.RequiresAcquisition && offer.Version is string version && release.CompareVersion(version) is > 0)
             {
-                prepared.Add(await PrepareLanguageMemberAsync(release, destination, token).ConfigureAwait(false));
+                prepared.Add(PlanLanguageMember(release, destination));
+            }
+            foreach (LanguageInstall member in prepared)
+            {
+                token.ThrowIfCancellationRequested();
+                if (member.Queue is not null)
+                {
+                    await PrepareLanguageMemberAsync(member, destination, Report, token).ConfigureAwait(false);
+                }
             }
             token.ThrowIfCancellationRequested();
             if (!View.LanguageEntries.Any(entry => SameLanguageRelease(entry, release)))
@@ -77,12 +122,16 @@ public sealed partial class ModLibraryService
             }
             foreach (LanguageInstall member in prepared)
             {
+                bool alreadyApplied = member.Status is { Installed: true, RestartRequired: false } && member.Plan is null;
+                if (!alreadyApplied)
+                {
+                    Report(LanguageAcquisitionPhase.Installing, member.Entry);
+                }
                 if (member.Plan is { } plan)
                 {
                     await destination.RequestInstallAsync(plan, autoEnableNewMods: false, cancellationToken: token, repair: member.Status is { Installed: false, Error: not null } && member.Entry.Official is not null).ConfigureAwait(false);
                 }
-                string applied = member.Status is { Installed: true, RestartRequired: false } && member.Plan is null
-                    ? member.Status.PackageId : ApplyLanguagePackage(destination, member.Entry, token);
+                string applied = alreadyApplied ? member.Status!.PackageId : ApplyLanguagePackage(destination, member.Entry, token);
                 if (member.Entry.Id == release.Id && member.Entry.SourceId == release.SourceId)
                 {
                     packageId = applied;
@@ -114,7 +163,7 @@ public sealed partial class ModLibraryService
                 .SequenceEqual(reviewed.RequiredLanguagePackages.Select(component => (component.Id, component.Latest!.Version, component.Latest.Artifact)));
     }
 
-    private async Task<LanguageInstall> PrepareLanguageMemberAsync(RemoteModEntry release, ModPackageInstaller destination, CancellationToken token)
+    private LanguageInstall PlanLanguageMember(RemoteModEntry release, ModPackageInstaller destination)
     {
         if (destination.CompatibilityError(release) is string unavailable)
         {
@@ -132,7 +181,7 @@ public sealed partial class ModLibraryService
             {
                 throw new InvalidDataException($"Verified release metadata changed without a new version for '{release.Name}'.");
             }
-            return new(release, installed, null);
+            return new(release, installed);
         }
         if (installed is not null && !ApplicationInstallation.ModPathComparer.Equals(owner.ModsRoot, destination.ModsRoot))
         {
@@ -148,20 +197,36 @@ public sealed partial class ModLibraryService
             {
                 throw new InvalidOperationException($"'{release.Name}' has a different version waiting to be applied.");
             }
-            return new(release, installed, null);
+            return new(release, installed);
         }
         if (native ? !officialDownloadsAvailable : !downloadsAvailable)
         {
             throw new InvalidOperationException("Language downloads are unavailable. Close other mod library instances and try again.");
         }
         ModDownloadCoordinator queue = native ? officialDownloads! : downloads;
-        Guid id = queue.Enqueue(release, native ? OfficialModCatalog.SourceId : destination.TargetProfile);
+        DownloadJobSnapshot? existing = queue.FindMatchingJob(release, DownloadTarget(release, destination));
+        bool cached = existing is { Phase: ModDownloadPhase.ReadyToInstall, ArchivePath: not null }
+            || existing is { ArchivePath: string archive, Sha256: not null } && File.Exists(archive);
+        return new(release, installed, queue, countsDownload: !cached);
+    }
+
+    private static string DownloadTarget(RemoteModEntry release, ModPackageInstaller destination)
+    {
+        return release.SourceId == OfficialModCatalog.SourceId ? OfficialModCatalog.SourceId : destination.TargetProfile;
+    }
+
+    private static async Task PrepareLanguageMemberAsync(LanguageInstall member, ModPackageInstaller destination, Action<LanguageAcquisitionPhase, RemoteModEntry> report, CancellationToken token)
+    {
+        ModDownloadCoordinator queue = member.Queue!;
+        report(LanguageAcquisitionPhase.Preparing, member.Entry);
+        token.ThrowIfCancellationRequested();
+        Guid id = queue.Enqueue(member.Entry, DownloadTarget(member.Entry, destination));
+        bool alreadyReady = queue.GetCompletedPath(id) is not null;
         queue.Resume(id);
         try
         {
-            string archive = await WaitForLanguageDownloadAsync(queue, id, token).ConfigureAwait(false);
-            ModPackageInstallPlan plan = await destination.InspectAsync(archive, release, token).ConfigureAwait(false);
-            return new(release, installed, plan);
+            string archive = await WaitForLanguageDownloadAsync(queue, id, member, alreadyReady, report, token).ConfigureAwait(false);
+            member.Plan = await destination.InspectAsync(archive, member.Entry, token).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
@@ -185,20 +250,37 @@ public sealed partial class ModLibraryService
         return result.PackageId;
     }
 
-    private static async Task<string> WaitForLanguageDownloadAsync(ModDownloadCoordinator queue, Guid id, CancellationToken token)
+    private static async Task<string> WaitForLanguageDownloadAsync(ModDownloadCoordinator queue, Guid id, LanguageInstall member, bool alreadyReady, Action<LanguageAcquisitionPhase, RemoteModEntry> report, CancellationToken token)
     {
         while (true)
         {
             token.ThrowIfCancellationRequested();
-            DownloadJobSnapshot job = queue.Snapshot.Single(item => item.JobId == id);
+            DownloadJobSnapshot job = queue.GetJobSnapshot(id);
             switch (job.Phase)
             {
-                case ModDownloadPhase.ReadyToInstall when job.ArchivePath is not null:
-                    return job.ArchivePath;
+                case ModDownloadPhase.Downloading:
+                    member.CountsDownload = true;
+                    member.DownloadedBytes = job.CompletedBytes;
+                    member.TotalBytes = job.TotalBytes;
+                    report(LanguageAcquisitionPhase.Downloading, member.Entry);
+                    break;
+                case ModDownloadPhase.Verifying or ModDownloadPhase.ReadyToInstall:
+                    member.CountsDownload = !job.ReusedArchive && (!alreadyReady || member.CountsDownload);
+                    member.DownloadedBytes = job.CompletedBytes;
+                    member.TotalBytes = job.CompletedBytes;
+                    report(LanguageAcquisitionPhase.Verifying, member.Entry);
+                    if (job.Phase == ModDownloadPhase.ReadyToInstall && job.ArchivePath is not null)
+                    {
+                        return job.ArchivePath;
+                    }
+                    break;
                 case ModDownloadPhase.Failed or ModDownloadPhase.NeedsUserAction or ModDownloadPhase.Cancelled:
                     throw new IOException(job.Message ?? "The language download could not be completed.");
+                default:
+                    report(LanguageAcquisitionPhase.Preparing, member.Entry);
+                    break;
             }
-            await Task.Delay(200, token).ConfigureAwait(false);
+            await Task.Delay(100, token).ConfigureAwait(false);
         }
     }
 }

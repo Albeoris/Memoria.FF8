@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.IO;
+using System.Text;
 using System.Text.Json;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -17,25 +18,30 @@ namespace Memoria.FF8.TitleScene;
 /// </summary>
 public sealed partial class TitleArtworkRenderer : IDisposable
 {
+    private const string DefaultWordmark = "FINAL FANTASY VIII";
+    private const string Ff7Wordmark = "FINAL FANTASY VII";
     private const float DesignWidth = 1600f;
     private const float DesignHeight = 900f;
     private readonly GraphicsDevice graphicsDevice;
+    private readonly TitleSceneStyle style;
     private readonly BasicEffect effect;
     private readonly VertexBuffer? metalBuffer;
     private readonly VertexBuffer? glintBuffer;
-    private readonly VertexBuffer wordmarkBuffer;
+    private VertexBuffer? wordmarkBuffer;
     private readonly VertexBuffer wordmarkGlintBuffer;
     private readonly VertexBuffer[] sheenBuffers;
     private readonly int[] sheenPrimitiveCounts;
     private readonly int metalPrimitiveCount;
     private readonly int glintPrimitiveCount;
-    private readonly int wordmarkPrimitiveCount;
+    private int wordmarkPrimitiveCount;
     private readonly int wordmarkGlintPrimitiveCount;
+    private string? requestedWordmark;
+    private string? renderedWordmark;
     private RenderTarget2D? artworkSurface;
     private SpriteBatch? artworkBatch;
     private bool disposed;
 
-    public TitleArtworkRenderer(GraphicsDevice graphicsDevice, TitleSceneStyle style = TitleSceneStyle.FinalFantasyVIII)
+    public TitleArtworkRenderer(GraphicsDevice graphicsDevice, TitleSceneStyle style = TitleSceneStyle.FinalFantasyVIII, string? wordmark = null)
     {
         ArgumentNullException.ThrowIfNull(graphicsDevice);
         if (!Enum.IsDefined(style))
@@ -43,6 +49,7 @@ public sealed partial class TitleArtworkRenderer : IDisposable
             throw new ArgumentOutOfRangeException(nameof(style), style, "Unknown title scene style.");
         }
         this.graphicsDevice = graphicsDevice;
+        this.style = style;
         effect = new BasicEffect(graphicsDevice)
         {
             VertexColorEnabled = true,
@@ -66,13 +73,38 @@ public sealed partial class TitleArtworkRenderer : IDisposable
             sheenBuffers = [];
             sheenPrimitiveCounts = [];
         }
-        metal.Clear();
         glints.Clear();
-        BuildWordmark(metal, glints, style);
-        wordmarkBuffer = CreateBuffer(metal);
+        AddStroke(glints, style == TitleSceneStyle.FinalFantasyVII ? "M 128,568 L 1472,568" : "M 128,530 L 1472,530", 0.55, new Color(188, 207, 224, 95));
         wordmarkGlintBuffer = CreateBuffer(glints);
-        wordmarkPrimitiveCount = metal.Count / 3;
         wordmarkGlintPrimitiveCount = glints.Count / 3;
+        SetWordmark(wordmark);
+    }
+
+    /// <summary>Applies the localized FFVIII wordmark using the original vector materials.</summary>
+    public void SetWordmark(string? wordmark)
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        string fallback = style == TitleSceneStyle.FinalFantasyVII ? Ff7Wordmark : DefaultWordmark;
+        string requested = style == TitleSceneStyle.FinalFantasyVII || string.IsNullOrWhiteSpace(wordmark) ? fallback : wordmark;
+        if (requested == requestedWordmark)
+        {
+            return;
+        }
+
+        using SKTypeface typeface = SKTypeface.FromFamilyName("Times New Roman");
+        using SKFont font = new(typeface, 120);
+        string accepted = SupportsWordmark(font, requested) ? requested : fallback;
+        if (accepted != renderedWordmark)
+        {
+            List<VertexPositionColor> metal = [];
+            BuildWordmark(metal, style, font, accepted);
+            VertexBuffer replacement = CreateBuffer(metal);
+            wordmarkBuffer?.Dispose();
+            wordmarkBuffer = replacement;
+            wordmarkPrimitiveCount = metal.Count / 3;
+            renderedWordmark = accepted;
+        }
+        requestedWordmark = requested;
     }
 
     /// <summary>Draws the artwork, optionally preserving multisample coverage when drawing onto a single-sample backbuffer.</summary>
@@ -225,7 +257,7 @@ public sealed partial class TitleArtworkRenderer : IDisposable
         artworkBatch?.Dispose();
         metalBuffer?.Dispose();
         glintBuffer?.Dispose();
-        wordmarkBuffer.Dispose();
+        wordmarkBuffer?.Dispose();
         wordmarkGlintBuffer.Dispose();
         foreach (VertexBuffer buffer in sheenBuffers)
         {
@@ -300,10 +332,32 @@ public sealed partial class TitleArtworkRenderer : IDisposable
         return (buffers.ToArray(), primitiveCounts.ToArray());
     }
 
-    private static void BuildWordmark(List<VertexPositionColor> metal, List<VertexPositionColor> glints, TitleSceneStyle style)
+    private static bool SupportsWordmark(SKFont font, string wordmark)
     {
-        using SKTypeface typeface = SKTypeface.FromFamilyName("Times New Roman");
-        using SKFont font = new(typeface, 120);
+        if (wordmark.Length > 64)
+        {
+            return false;
+        }
+        foreach (Rune rune in wordmark.EnumerateRunes())
+        {
+            if (Rune.IsWhiteSpace(rune))
+            {
+                continue;
+            }
+            ushort glyph = font.GetGlyph(rune.Value);
+            using Geometry? outline = glyph != 0 ? font.GetGlyphPath(glyph) : null;
+            if (outline is null || outline.IsEmpty)
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static void BuildWordmark(List<VertexPositionColor> metal, TitleSceneStyle style, SKFont font, string wordmark)
+    {
+        const double wordmarkWidth = 1344;
+        const double minimumTracking = 3;
         using Geometry capital = font.GetTextPath("H");
         SKRect capBounds = capital.Bounds;
         float capHeight = style == TitleSceneStyle.FinalFantasyVII ? 90f : 50f;
@@ -314,12 +368,15 @@ public sealed partial class TitleArtworkRenderer : IDisposable
         double gapWeight = 0;
         bool wordSpace = false;
         int wordIndex = 0;
-        foreach (char character in style == TitleSceneStyle.FinalFantasyVII ? "FINAL FANTASY VII" : "FINAL FANTASY VIII")
+        foreach (Rune character in wordmark.EnumerateRunes())
         {
-            if (character == ' ')
+            if (Rune.IsWhiteSpace(character))
             {
+                if (!wordSpace && glyphs.Count > 0)
+                {
+                    wordIndex++;
+                }
                 wordSpace = true;
-                wordIndex++;
                 continue;
             }
 
@@ -331,8 +388,14 @@ public sealed partial class TitleArtworkRenderer : IDisposable
             wordSpace = false;
         }
 
-        double tracking = (1344 - naturalWidth) / gapWeight;
-        double cursor = 128;
+        double widthBudget = wordmarkWidth - minimumTracking * gapWeight;
+        if (naturalWidth > widthBudget)
+        {
+            horizontalScale *= widthBudget / naturalWidth;
+            naturalWidth = widthBudget;
+        }
+        double tracking = gapWeight > 0 ? (wordmarkWidth - naturalWidth) / gapWeight : 0;
+        double cursor = gapWeight > 0 ? 128 : (DesignWidth - naturalWidth) / 2;
         using Geometry outline = new() { FillType = SKPathFillType.EvenOdd };
         foreach ((Geometry glyph, double precedingGap) in glyphs)
         {
@@ -355,7 +418,6 @@ public sealed partial class TitleArtworkRenderer : IDisposable
             float brightness = 0.98f - position * 0.23f + MathF.Exp(-MathF.Pow((position - 0.51f) * 19f, 2f)) * 0.11f;
             return new Color(brightness, Math.Min(1f, brightness + 0.015f), Math.Min(1f, brightness + 0.025f));
         });
-        AddStroke(glints, style == TitleSceneStyle.FinalFantasyVII ? "M 128,568 L 1472,568" : "M 128,530 L 1472,530", 0.55, new Color(188, 207, 224, 95));
     }
 
     private static void AddStroke(List<VertexPositionColor> vertices, string path, double width, Color color)

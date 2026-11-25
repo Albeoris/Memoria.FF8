@@ -9,11 +9,13 @@ namespace Memoria.FF8;
 
 internal sealed partial class RecreateGame
 {
-    private sealed class LanguageChange(GameLanguageOffer offer, CancellationTokenSource cancellation, Task<string?> package)
+    private sealed class LanguageChange(GameLanguageOffer offer, CancellationTokenSource cancellation, Task<string?> package, bool fromConfig)
     {
         internal GameLanguageOffer Offer { get; } = offer;
         internal CancellationTokenSource Cancellation { get; } = cancellation;
         internal Task<string?> Package { get; } = package;
+        internal bool FromConfig { get; } = fromConfig;
+        internal bool Applying { get; set; }
         internal LanguageSelectionChange? Staged { get; set; }
         internal GameResourceHost? Candidate { get; set; }
         internal string? PreviousPackageId { get; set; }
@@ -147,7 +149,7 @@ internal sealed partial class RecreateGame
         }
     }
 
-    private void BeginLanguageChange(GameLanguageOffer offer, bool update)
+    private void BeginLanguageChange(GameLanguageOffer offer, bool update, IProgress<LanguageAcquisitionProgress> progress)
     {
         if (!CanManageLanguages() || languageChange is not null || offer.Profile is null)
         {
@@ -158,13 +160,14 @@ internal sealed partial class RecreateGame
         {
             GameResourceHost host = resourceHost!;
             Task<string?> package = offer.RequiresAcquisition || update
-                ? host.ModLibrary.AcquireLanguageAsync(offer, host.LanguageInstaller(offer.Profile), cancellation.Token, update)
+                ? host.ModLibrary.AcquireLanguageAsync(offer, host.LanguageInstaller(offer.Profile), cancellation.Token, update, progress)
                 : Task.FromResult(offer.InstalledPackage?.Id);
-            languageChange = new(offer, cancellation, package);
+            languageChange = new(offer, cancellation, package, gameMenus!.LanguageChangeFromConfig);
         }
         catch (Exception exception) when (IsLanguageFailure(exception))
         {
             cancellation.Dispose();
+            Console.Error.WriteLine(exception);
             gameMenus!.FinishLanguageChange(exception.Message);
         }
     }
@@ -181,7 +184,8 @@ internal sealed partial class RecreateGame
         }
         catch (Exception exception) when (IsLanguageFailure(exception))
         {
-            gameMenus!.FinishLanguageChange(exception.Message);
+            Console.Error.WriteLine(exception);
+            gameMenus!.ShowLanguageRemovalFailure(exception.Message);
         }
     }
 
@@ -195,6 +199,12 @@ internal sealed partial class RecreateGame
         {
             change.Cancellation.Token.ThrowIfCancellationRequested();
             string? packageId = change.Package.GetAwaiter().GetResult();
+            if (!change.Applying)
+            {
+                change.Applying = true;
+                gameMenus!.BeginApplyingLanguage();
+                return;
+            }
             GameResourceHost host = resourceHost!;
             GameLanguageProfile profile = change.Offer.Profile!;
             if (change.Staged is null)
@@ -272,11 +282,19 @@ internal sealed partial class RecreateGame
             if (separateHost)
             {
                 host.Dispose();
-                titleSelection = Array.FindIndex(titleActions, action => action.Action == TitleAction.Language);
-                drainUiButtons = true;
-                ShowSaveNotice(LocalizeAuthored("language.applied", "Language applied."));
+                if (change.FromConfig)
+                {
+                    gameMenus!.Open("config");
+                    gameMenus.SelectEntry("config", "config-language");
+                }
             }
             CompleteLanguageChange(change);
+            drainUiButtons = true;
+            if (!change.FromConfig)
+            {
+                titleSelection = Array.FindIndex(titleActions, action => action.Action == TitleAction.Language);
+                ShowSaveNotice(() => LocalizeAuthored("language.applied", "Language applied."));
+            }
         }
         catch (OperationCanceledException)
         {
@@ -351,6 +369,10 @@ internal sealed partial class RecreateGame
         finally
         {
             change.Cancellation.Dispose();
+        }
+        if (error is not null)
+        {
+            Console.Error.WriteLine(error);
         }
         gameMenus?.FinishLanguageChange(error, cancelled);
     }

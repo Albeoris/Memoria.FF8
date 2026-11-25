@@ -8,7 +8,7 @@ public interface IModLibraryService
     Task<ModPreviewDocument> OpenPreviewAsync(RemoteModEntry? entry, ModPackage? installed, CancellationToken cancellationToken = default) => Task.FromException<ModPreviewDocument>(new NotSupportedException("Package preview is unavailable."));
     void Queue(RemoteModEntry entry);
     void DownloadAndEnable(RemoteModEntry entry) => Queue(entry);
-    Task<string?> AcquireLanguageAsync(GameLanguageOffer offer, ModPackageInstaller destination, CancellationToken cancellationToken = default, bool update = false) => Task.FromException<string?>(new NotSupportedException("Language packages are unavailable."));
+    Task<string?> AcquireLanguageAsync(GameLanguageOffer offer, ModPackageInstaller destination, CancellationToken cancellationToken = default, bool update = false, IProgress<LanguageAcquisitionProgress>? progress = null) => Task.FromException<string?>(new NotSupportedException("Language packages are unavailable."));
     void CancelPendingEnable(RemoteModEntry entry) { }
     void Pause(Guid id);
     void Resume(Guid id);
@@ -21,6 +21,14 @@ public interface IModLibraryService
     void OpenDownloadPage(Guid id)
     {
     }
+}
+
+public enum LanguageAcquisitionPhase { Preparing, Downloading, Verifying, Installing }
+
+/// <summary>Transfer progress across the archives needed for this acquisition, including any validated partial downloads.</summary>
+public sealed record LanguageAcquisitionProgress(LanguageAcquisitionPhase Phase, string MemberName, long DownloadedBytes, long? TotalBytes)
+{
+    public string? OfficialMemberId { get; init; }
 }
 
 public sealed record ModLibrarySnapshot(long Revision, RemoteCatalogSnapshot Catalog, IReadOnlyList<ModLibraryJob> Jobs, string TargetProfile, bool TargetSupported, string? Error = null)
