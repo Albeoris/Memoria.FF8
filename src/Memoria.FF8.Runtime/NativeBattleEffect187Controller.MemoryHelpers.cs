@@ -1,4 +1,3 @@
-using System.Buffers.Binary;
 using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleEffect187Profile;
 
@@ -7,6 +6,8 @@ namespace Memoria.FF8.Runtime;
 public static partial class NativeBattleEffect187Controller
 {
     public const uint CommonAddress = 0x20DFAB8;
+
+    private static readonly (uint Address, int Length)[] modelRanges = [(NativeBattleEffect187Model.Address, 0x90), (NativeBattleEffect187Model.ControlAddress, 0x34)];
 
     public static NativeBattleModulePoolTask Read(NativeBattleEffect187Frame frame, uint address)
     {
@@ -57,7 +58,8 @@ public static partial class NativeBattleEffect187Controller
     public static NativeBattleEffectArena ReadBytes(NativeBattleEffect187Frame frame, uint address, int length)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(length);
-        NativeBattleEffectArena result = NativeBattleEffectArena.Clear().MarkUnknown(0, length);
+        NativeBattleEffectArena result = NativeBattleEffectArena.Clear();
+        result.RequireRange(0, length);
         int copied = 0;
         while (copied < length)
         {
@@ -95,8 +97,9 @@ public static partial class NativeBattleEffect187Controller
             }
             else
             {
-                source = NativeBattleTemporaryMemory.ReadView(RequireStaging(frame), current, count);
-                offset = 0;
+                result = NativeBattleTemporaryMemory.CopyToArena(RequireStaging(frame), current, result, copied, count);
+                copied += count;
+                continue;
             }
             result = CopyBytes(source, offset, result, copied, count);
             copied += count;
@@ -112,7 +115,15 @@ public static partial class NativeBattleEffect187Controller
         {
             uint current = checked(address + (uint)copied);
             int count = RegionLength(frame, current, length - copied, out int poolIndex, out int stateKind);
-            NativeBattleEffectArena selected = CopyBytes(source, copied, NativeBattleEffectArena.Clear().MarkUnknown(0, count), 0, count);
+            if (stateKind == 1 && !source.MayHaveResourcePointers())
+            {
+                NativeBattleEffectArena arena = frame.Memory.Arena ?? throw new NotSupportedException("Effect187 requires its current COMMON owner.");
+                arena = NativeBattleEffectNodeContextMemory.Copy(source, copied, arena, checked((int)(current - CommonAddress)), count);
+                frame = frame with { Memory = frame.Memory with { Arena = arena } };
+                copied += count;
+                continue;
+            }
+            NativeBattleEffectArena selected = CopyBytes(source, copied, NativeBattleEffectArena.Clear(), 0, count);
             if (poolIndex >= 0)
             {
                 NativeBattleEffectTaskPool pool = frame.Effect.Pools[poolIndex];
@@ -186,7 +197,7 @@ public static partial class NativeBattleEffect187Controller
                 return Math.Min(maximum, checked((int)((ulong)pool.Bank + (uint)length - address)));
             }
         }
-        foreach ((uint start, int count) in new (uint, int)[] { (NativeBattleEffect187Model.Address, 0x90), (NativeBattleEffect187Model.ControlAddress, 0x34) })
+        foreach ((uint start, int count) in modelRanges)
         {
             if (address >= start && (ulong)address < (ulong)start + (uint)count)
             {
@@ -210,6 +221,10 @@ public static partial class NativeBattleEffect187Controller
     public static NativeBattleEffectArena CopyBytes(NativeBattleEffectArena source, int sourceOffset, NativeBattleEffectArena destination, int destinationOffset, int count)
     {
         destination = NativeBattleEffectNodeContextMemory.Copy(source, sourceOffset, destination, destinationOffset, count);
+        if (!source.MayHaveResourcePointers())
+        {
+            return destination;
+        }
         foreach ((int offset, NativeBattleResourcePointer? pointer) in source.EnumerateResourcePointers())
         {
             if (offset >= sourceOffset && offset + 4 <= sourceOffset + count)
@@ -218,6 +233,17 @@ public static partial class NativeBattleEffect187Controller
             }
         }
         return destination;
+    }
+
+    private static uint ReadDword(NativeBattleEffect187Frame frame, uint address)
+    {
+        int length = RegionLength(frame, address, sizeof(uint), out _, out int stateKind);
+        if (stateKind == 1 && length == sizeof(uint))
+        {
+            NativeBattleEffectArena arena = frame.Memory.Arena ?? throw new NotSupportedException("Effect187 requires its current COMMON owner.");
+            return arena.ReadUInt32(checked((int)(address - CommonAddress)));
+        }
+        return ReadBytes(frame, address, sizeof(uint)).ReadUInt32(0);
     }
 
     public static NativeBattleEffect187Frame ClearDwords6DA380(NativeBattleEffect187Frame frame, uint address, int count) => WriteBytes(frame, address, NativeBattleEffectArena.Clear().Write(0, new byte[checked(count * 4)]), checked(count * 4));

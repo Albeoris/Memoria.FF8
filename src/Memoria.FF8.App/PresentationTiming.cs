@@ -128,9 +128,11 @@ internal sealed class PresentationTiming
         return menu ? preferences.MenuFps : battle ? preferences.BattleFps : worldMap ? preferences.WorldFps : preferences.FieldFps;
     }
 
-    public static TimeSpan UpdateStep(int frameLimit, double nativeCallbackRate)
+    public static TimeSpan UpdateStep(double nativeCallbackRate)
     {
-        double rate = Math.Max(60, frameLimit == 0 ? nativeCallbackRate : Math.Min(frameLimit, nativeCallbackRate));
+        // At high battle speeds, a display interval may contain multiple native
+        // callbacks. Give the update work budget a chance to yield between them.
+        double rate = Math.Max(60, nativeCallbackRate);
         return TimeSpan.FromSeconds(1d / rate);
     }
 

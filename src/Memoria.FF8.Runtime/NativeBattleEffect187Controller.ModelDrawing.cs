@@ -39,14 +39,14 @@ public static partial class NativeBattleEffect187Controller
             process = process.PublishModelColor(color);
             Dictionary<int, (ImmutableArray<ushort> Counts, int First, int End)> metadata = [];
             int geometryLength = resource.Section(2) - resource.Section(1);
-            NativeBattleEffect187Frame current = frame;
+            NativeBattleEffectArena geometry = ReadBytes(frame, geometryAddress, geometryLength);
             ImmutableArray<NativeBattleRawMesh> meshes = NativeBattleRawGeometryReader.Read((offset, count) =>
             {
                 if (offset < 0 || count < 0 || offset > geometryLength - count)
                 {
                     throw new InvalidDataException("Effect187 model drawing leaves its actual geometry owner.");
                 }
-                return ReadBytes(current, checked(geometryAddress + (uint)offset), count).Read(0, count);
+                return geometry.Read(offset, count);
             }, resource.PoseSource.BoneCount, (index, counts, first, end) => metadata.Add(index, (counts, first, end)));
             uint firstPacket = BinaryPrimitives.ReadUInt32LittleEndian(RequireStaging(frame).Read(0x1D8E054, 4));
             for (int objectIndex = 0; objectIndex < meshes.Length; objectIndex++)

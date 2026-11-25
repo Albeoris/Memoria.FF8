@@ -25,7 +25,7 @@ public sealed class PresentationTimingTests
             long timestamp = (long)display * TimeSpan.TicksPerSecond / 120;
             timing.Accumulate(TimeSpan.FromTicks(timestamp - previous));
             previous = timestamp;
-            timing.RunUpdates(TimeSpan.FromSeconds(1d / (cap == 0 ? 120 : cap)), () => PresentationTiming.UpdateStep(cap, Memoria.FF8.Runtime.BattlePresentationTiming.CallbacksPerSecond), step =>
+            timing.RunUpdates(TimeSpan.FromSeconds(1d / (cap == 0 ? 120 : cap)), () => PresentationTiming.UpdateStep(BattlePresentationTiming.CallbacksPerSecond), step =>
             {
                 native = Memoria.FF8.Runtime.BattlePresentationTiming.Advance(native.Subticks, native.HalfSubtick, step);
                 callbacks += native.Callbacks;
@@ -333,18 +333,13 @@ public sealed class PresentationTimingTests
     }
 
     [Theory]
-    [InlineData(15, 90, 60)]
-    [InlineData(30, 90, 60)]
-    [InlineData(60, 90, 60)]
-    [InlineData(90, 90, 90)]
-    [InlineData(120, 90, 90)]
-    [InlineData(144, 90, 90)]
-    [InlineData(0, 90, 90)]
-    [InlineData(120, 30, 60)]
-    [InlineData(0, 0, 60)]
-    public void Native_battle_host_steps_can_present_each_accelerated_callback(int frameLimit, int callbacks, int expectedRate)
+    [InlineData(93, 93)]
+    [InlineData(155, 155)]
+    [InlineData(30, 60)]
+    [InlineData(0, 60)]
+    public void Native_battle_host_steps_follow_the_accelerated_callback_rate(int callbacks, int expectedRate)
     {
-        TimeSpan step = PresentationTiming.UpdateStep(frameLimit, callbacks);
+        TimeSpan step = PresentationTiming.UpdateStep(callbacks);
         Assert.Equal(TimeSpan.FromSeconds(1d / expectedRate), step);
         PresentationTiming timing = new();
         timing.Accumulate(step * expectedRate);
@@ -356,6 +351,34 @@ public sealed class PresentationTimingTests
         // Accumulation is bounded to a quarter second, even at higher battle update rates.
         Assert.Equal(Math.Min(expectedRate, PresentationTiming.MaximumElapsed.Ticks / step.Ticks), updates);
         Assert.Equal(step * updates, timing.SimulationTotal);
+    }
+
+    [Fact]
+    public void Accelerated_battle_can_yield_between_native_callbacks_at_sixty_fps()
+    {
+        const int speed = 6;
+        PresentationTiming timing = new();
+        ManualTimeProvider clock = new();
+        TimeSpan step = PresentationTiming.UpdateStep(BattlePresentationTiming.CallbacksPerSecond * speed);
+        TimeSpan budget = PresentationTiming.SimulationStep;
+        timing.Accumulate(budget * 2);
+        BattlePresentationCallbackStep native = default;
+        long callbacks = 0;
+
+        timing.RunUpdates(budget, () => step, Advance, clock);
+        Assert.Equal(step, timing.SimulationTotal);
+        timing.RunUpdates(budget, () => step, Advance, clock);
+        Assert.Equal(step * 2, timing.SimulationTotal);
+        Assert.Equal(BattlePresentationTiming.Advance(0, false, timing.SimulationTotal * speed).Callbacks, callbacks);
+
+        bool Advance(TimeSpan elapsed)
+        {
+            native = BattlePresentationTiming.Advance(native.Subticks, native.HalfSubtick, elapsed * speed);
+            Assert.InRange(native.Callbacks, 0, 1);
+            callbacks += native.Callbacks;
+            clock.Advance(TimeSpan.FromMilliseconds(9));
+            return true;
+        }
     }
 
     [Theory]

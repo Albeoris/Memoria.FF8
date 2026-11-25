@@ -1,5 +1,3 @@
-using System.Buffers.Binary;
-
 namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleEffect187Controller
@@ -9,27 +7,26 @@ public static partial class NativeBattleEffect187Controller
         (frame, uint spriteAddress) = Allocate(frame, 180);
         (frame, uint scratchAddress) = Allocate(frame, 104);
         NativeBattleEffectArena scratch = Context(frame, scratchAddress, 104);
-        scratch = CopyBytes(PackedArena(inputs.ReadView(frame)), 0, scratch, 8, 32);
-        NativeBattleEffectArena sprite = Context(frame, spriteAddress, 180).Write(0, BitConverter.GetBytes(0xE3CFD0u)).Write(4, BitConverter.GetBytes((ushort)0)).Write(12, BitConverter.GetBytes(4096)).Write(20, BitConverter.GetBytes(4096)).Write(0x24, BitConverter.GetBytes((ushort)2));
-        frame = PublishContext(PublishContext(frame, scratchAddress, scratch, 104), spriteAddress, sprite, 180);
         NativeBattlePackedMatrix32 view = inputs.ReadView(frame);
+        scratch = CopyBytes(PackedArena(view), 0, scratch, 8, 32);
+        NativeBattleEffectArena sprite = Context(frame, spriteAddress, 180).Write(0, BitConverter.GetBytes(0xE3CFD0u)).Write(4, BitConverter.GetBytes((ushort)0)).Write(12, BitConverter.GetBytes(4096)).Write(20, BitConverter.GetBytes(4096)).Write(0x24, BitConverter.GetBytes((ushort)2));
         frame = frame with { Memory = NativeBattleEffect315Gte.LoadAlternateTranslation64DDA0(NativeBattleEffect315Gte.LoadRotation45DE50(frame.Memory, view), view) };
         int survivors = 0;
+        uint rainBank = frame.State.ReadDword(0xE41E50);
         for (int index = 0; index < 150; index++)
         {
-            uint rowAddress = checked(frame.State.ReadDword(0xE41E50) + (uint)(index * 24));
-            NativeBattleEffectArena row = ReadBytes(frame, rowAddress, 24);
-            if ((ParticleDword(row, 0) & 1) == 0)
+            uint rowAddress = checked(rainBank + (uint)(index * 24));
+            if ((ReadDword(frame, rowAddress) & 1) == 0)
             {
                 continue;
             }
+            NativeBattleEffectArena row = ReadBytes(frame, rowAddress, 24);
             frame = TransformParticlePosition(frame, row);
             int width = ParticleSigned(row, 6);
             frame = frame with { Memory = NativeBattleEffect315Gte.SetDiagonal64DE00(frame.Memory, unchecked((ushort)width)) };
-            sprite = Context(frame, spriteAddress, 180).Write(0x10, BitConverter.GetBytes(unchecked(width * 2 + 0x1200)));
-            frame = PublishContext(frame, spriteAddress, sprite, 180);
+            sprite = sprite.Write(0x10, BitConverter.GetBytes(unchecked(width * 2 + 0x1200)));
             frame = frame with { Memory = IrToTranslation64DE90(frame.Memory) };
-            frame = DrawSprite(frame, spriteAddress, resources, inputs, Visual187(frame, address, inputs, unchecked((uint)ParticleDword(Context(frame, spriteAddress, 180), 0)), rowAddress));
+            frame = DrawFallingSprite(frame, ref sprite, resources, inputs, Visual187(frame, address, inputs, 0xE3CFD0, rowAddress));
             if ((inputs.ReadFlags(frame) & 0x201) != 0)
             {
                 continue;
@@ -55,33 +52,33 @@ public static partial class NativeBattleEffect187Controller
             }
             frame = WriteBytes(frame, rowAddress, row, 24);
         }
-        sprite = Context(frame, spriteAddress, 180).Write(0, BitConverter.GetBytes(0xE3CFF8u)).Write(0x24, BitConverter.GetBytes((ushort)0x200));
-        frame = PublishContext(frame, spriteAddress, sprite, 180);
-        scratch = Context(frame, scratchAddress, 104).Write(0, BitConverter.GetBytes((ushort)0x400)).Write(2, new byte[4]);
+        sprite = sprite.Write(0, BitConverter.GetBytes(0xE3CFF8u)).Write(0x24, BitConverter.GetBytes((ushort)0x200));
+        scratch = scratch.Write(0, BitConverter.GetBytes((ushort)0x400)).Write(2, new byte[4]);
         NativeBattleActionMatrix basis = NativeBattleGfMatrices.Euler56CE30(new(0x400, 0, 0));
         scratch = CopyBytes(PackedArena(NativeBattlePackedMatrix32.FromMatrix(basis, null)), 0, scratch, 8, 20);
-        frame = PublishContext(frame, scratchAddress, scratch, 104);
+        uint rippleBank = frame.State.ReadDword(0xE41E54);
+        NativeBattleActionMatrix camera = view.ReadMatrix();
         for (int index = 0; index < 150; index++)
         {
-            uint rowAddress = checked(frame.State.ReadDword(0xE41E54) + (uint)(index * 24));
-            NativeBattleEffectArena row = ReadBytes(frame, rowAddress, 24);
-            if ((ParticleDword(row, 0) & 1) == 0)
+            uint rowAddress = checked(rippleBank + (uint)(index * 24));
+            if ((ReadDword(frame, rowAddress) & 1) == 0)
             {
                 continue;
             }
+            NativeBattleEffectArena row = ReadBytes(frame, rowAddress, 24);
             int scale = ParticleSigned(row, 6);
             NativeBattleActionMatrix local = NativeBattlePoseMatrices.Scale56BEF0(basis, scale, scale, scale) with { X = ParticleSigned(row, 8), Y = ParticleSigned(row, 10), Z = ParticleSigned(row, 12) };
-            NativeBattleActionMatrix matrix = NativeBattleGfMatrices.Compose56C2F0(inputs.ReadView(frame).ReadMatrix(), local);
-            scratch = Context(frame, scratchAddress, 104).Write(0x48, BitConverter.GetBytes(scale)).Write(0x4C, BitConverter.GetBytes(scale)).Write(0x50, BitConverter.GetBytes(scale));
-            scratch = CopyBytes(PackedArena(NativeBattlePackedMatrix32.FromMatrix(matrix, null)), 0, scratch, 0x28, 32);
-            frame = PublishContext(frame, scratchAddress, scratch, 104);
-            frame = LoadMatrix(frame, NativeBattlePackedMatrix32.FromMatrix(matrix, null));
-            frame = PublishContext(frame, spriteAddress, ParticleWord(Context(frame, spriteAddress, 180), 4, ParticleSigned(row, 4)), 180);
-            frame = DrawSprite(frame, spriteAddress, resources, inputs, Visual187(frame, address, inputs, unchecked((uint)ParticleDword(Context(frame, spriteAddress, 180), 0)), rowAddress));
+            NativeBattleActionMatrix matrix = NativeBattleGfMatrices.Compose56C2F0(camera, local);
+            NativeBattlePackedMatrix32 packed = NativeBattlePackedMatrix32.FromMatrix(matrix, null);
+            scratch = scratch.Write(0x48, BitConverter.GetBytes(scale)).Write(0x4C, BitConverter.GetBytes(scale)).Write(0x50, BitConverter.GetBytes(scale));
+            scratch = CopyBytes(PackedArena(packed), 0, scratch, 0x28, 32);
+            frame = LoadMatrix(frame, packed);
+            sprite = ParticleWord(sprite, 4, ParticleSigned(row, 4));
+            frame = DrawFallingSprite(frame, ref sprite, resources, inputs, Visual187(frame, address, inputs, 0xE3CFF8, rowAddress));
             if ((inputs.ReadFlags(frame) & 0x201) == 0)
             {
                 row = ParticleWord(row, 4, ParticleSigned(row, 4) + 1);
-                if (ParticleSigned(Context(frame, spriteAddress, 180), 0x28) < 0)
+                if (ParticleSigned(sprite, 0x28) < 0)
                 {
                     row = row.Write(0, BitConverter.GetBytes(0u));
                 }
@@ -92,6 +89,9 @@ public static partial class NativeBattleEffect187Controller
                 frame = WriteBytes(frame, rowAddress, row, 24);
             }
         }
+        // 571C80 updates this local scratch. COMMON delivery reads the resulting batch
+        // and its own packet cursor. Retain the final temporary bytes before release.
+        frame = PublishContext(PublishContext(frame, scratchAddress, scratch, 104), spriteAddress, sprite, 180);
         frame = Release(Release(frame, 104), 180);
         if ((inputs.ReadFlags(frame) & 0x201) != 0)
         {
@@ -139,13 +139,20 @@ public static partial class NativeBattleEffect187Controller
         return inputs.Execute(frame, new NativeBattleEffect187DeliverBatch(drawn.Batch, 0x1D8E054));
     }
 
+    private static NativeBattleEffect187Frame DrawFallingSprite(NativeBattleEffect187Frame frame, ref NativeBattleEffectArena sprite, NativeBattleEffect187Resources resources, NativeBattleEffect187Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity)
+    {
+        NativeBattleModuleSpriteDraw drawn = NativeBattleEffect187SpriteDrawing.Draw571C80(frame.Memory, sprite, resources.Sprite, inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), pilotIdentity);
+        sprite = drawn.Temporary180;
+        return inputs.Execute(frame with { Memory = drawn.Memory }, new NativeBattleEffect187DeliverBatch(drawn.Batch, 0x1D8E054));
+    }
+
     private static uint? FindFreeParticle(NativeBattleEffect187Frame frame, uint global, NativeBattleModulePoolTask? owner = null)
     {
         uint start = frame.State.ReadDword(global);
         for (int index = 0; index < 150; index++)
         {
             uint address = checked(start + (uint)(index * 24));
-            if (ParticleDword(ReadBytes(frame, address, 4), 0) == 0)
+            if (ReadDword(frame, address) == 0)
             {
                 if (owner is not null)
                 {

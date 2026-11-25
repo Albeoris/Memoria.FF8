@@ -62,14 +62,15 @@ public static partial class NativeBattleEffect187Controller
         frame = PublishContext(frame, spriteAddress, sprite, 180);
         frame = frame with { Memory = NativeBattleEffect315Gte.LoadAlternateTranslation64DDA0(NativeBattleEffect315Gte.LoadRotation45DE50(frame.Memory, view), view) };
         int survivors = 0;
+        uint bank = frame.State.ReadDword(0xE41E58);
         for (int index = 0; index < 150; index++)
         {
-            uint rowAddress = frame.State.ReadDword(0xE41E58) + (uint)(index * 24);
-            NativeBattleEffectArena row = ReadBytes(frame, rowAddress, 24);
-            if ((ParticleDword(row, 0) & (paired ? 2u : 1u)) == 0)
+            uint rowAddress = bank + (uint)(index * 24);
+            if ((ReadDword(frame, rowAddress) & (paired ? 2u : 1u)) == 0)
             {
                 continue;
             }
+            NativeBattleEffectArena row = ReadBytes(frame, rowAddress, 24);
             (byte[] packedW, bool[] knownW) = row.ReadSnapshot(14, 2);
             short? w = knownW.All(value => value) ? BinaryPrimitives.ReadInt16LittleEndian(packedW) : null;
             NativeBattleVector position = new(ParticleSigned(row, 8), ParticleSigned(row, 10), ParticleSigned(row, 12));
@@ -135,8 +136,9 @@ public static partial class NativeBattleEffect187Controller
     {
         for (int birth = 0; birth < (paired ? 3 : 5); birth++)
         {
+            uint bank = frame.State.ReadDword(0xE41E58);
             int index = 0;
-            while (index < 150 && ParticleDword(ReadBytes(frame, frame.State.ReadDword(0xE41E58) + (uint)(index * 24), 4), 0) != 0)
+            while (index < 150 && ReadDword(frame, bank + (uint)(index * 24)) != 0)
             {
                 index++;
             }
@@ -144,7 +146,7 @@ public static partial class NativeBattleEffect187Controller
             {
                 break;
             }
-            uint destination = frame.State.ReadDword(0xE41E58) + (uint)(index * 24);
+            uint destination = bank + (uint)(index * 24);
             if (owner is not null)
             {
                 NativeBattleShotVisualLifetimes.Allocated(187, owner, unchecked((int)destination));

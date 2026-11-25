@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
+using System.Runtime.InteropServices;
 
 namespace Memoria.FF8.Runtime;
 
@@ -90,20 +91,13 @@ public static class NativeBattleProjectedSpriteD8
         }
         NativeBattleGeometryRegisterStep step = new(head.Memory.GeometryRegisters ?? throw new NotSupportedException("Projected sprite requires its actual geometry register owner."), head.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Projected sprite requires its actual data register owner."));
         NativeBattlePackedMatrix32 captured = NativeBattleModuleSpriteSetup.CaptureCurrentMatrix(step.Geometry);
-        for (int index = 0; index < 32; index++)
-        {
-            temporary = temporary.Write(0x84 + index, [captured.Bytes[index]]);
-            if (!captured.Known[index])
-            {
-                temporary = temporary.MarkUnknown(0x84 + index, 1);
-            }
-        }
+        temporary = temporary.WriteWithKnownness(0x84, captured.Bytes.AsSpan(), captured.Known.AsSpan());
         int callerAngle = (flags & 1) != 0 ? unchecked(ReadInt(temporary, 8) - cameraRoll) : -(int)cameraRoll;
         NativeBattleActionMatrix main = NativeBattleGfMatrices.RotateZ56D090(ReadMatrix(temporary, 0x84), callerAngle);
         if (!readD8DepthBias && allowCallerScale && (flags & 2) != 0)
         {
             temporary = Dword(temporary, 0x14, 4096);
-            int[] scales = [ReadInt(temporary, 0x0C), ReadInt(temporary, 0x10), 4096];
+            ReadOnlySpan<int> scales = [ReadInt(temporary, 0x0C), ReadInt(temporary, 0x10), 4096];
             short[] rotation = main.Rotation.ToArray();
             for (int row = 0; row < 3; row++)
             {
@@ -113,12 +107,9 @@ public static class NativeBattleProjectedSpriteD8
                     rotation[index] = unchecked((short)(unchecked(rotation[index] * scales[row]) >> 12));
                 }
             }
-            main = main with { Rotation = rotation.ToImmutableArray() };
+            main = main with { Rotation = ImmutableCollectionsMarshal.AsImmutableArray(rotation) };
         }
-        for (int index = 0; index < 9; index++)
-        {
-            temporary = Word(temporary, 0x84 + index * 2, unchecked((ushort)main.Rotation[index]));
-        }
+        WriteRotation(temporary, 0x84, main.Rotation.AsSpan());
         if ((flags & 4) == 0)
         {
             temporary = Dword(temporary, 0x1C, 0x808080);
@@ -177,10 +168,7 @@ public static class NativeBattleProjectedSpriteD8
                 }
             }
             NativeBattleActionMatrix local = NativeBattlePoseMatrices.ModuleSpriteQuadCamera(NativeBattleCuragaMatrices.Identity8DD770(), quad);
-            for (int index = 0; index < 9; index++)
-            {
-                temporary = Word(temporary, 0x64 + index * 2, unchecked((ushort)local.Rotation[index]));
-            }
+            WriteRotation(temporary, 0x64, local.Rotation.AsSpan());
             short width = (short)(8 * quad[0]);
             short height = (short)(8 * quad[2]);
             NativeBattleVector[] corners = [new(unchecked((short)-width), unchecked((short)-height), 0), new(width, unchecked((short)-height), 0), new(unchecked((short)-width), height, 0), new(width, height, 0)];
@@ -295,29 +283,45 @@ public static class NativeBattleProjectedSpriteD8
 
     private static short? Padding(NativeBattleEffectArena memory, int offset)
     {
-        (byte[] bytes, bool[] known) = memory.ReadSnapshot(offset, 2);
-        return known.All(value => value) ? BinaryPrimitives.ReadInt16LittleEndian(bytes) : null;
+        Span<byte> bytes = stackalloc byte[2];
+        Span<bool> known = stackalloc bool[2];
+        memory.ReadWithKnownness(offset, bytes, known);
+        return known[0] && known[1] ? BinaryPrimitives.ReadInt16LittleEndian(bytes) : null;
     }
 
     private static NativeBattleActionMatrix ReadMatrix(NativeBattleEffectArena memory, int offset)
     {
-        short[] rotation = Enumerable.Range(0, 9).Select(index => unchecked((short)ReadWord(memory, offset + index * 2))).ToArray();
-        return new(rotation.ToImmutableArray(), ReadInt(memory, offset + 20), ReadInt(memory, offset + 24), ReadInt(memory, offset + 28), 4096);
+        Span<byte> words = stackalloc byte[18];
+        memory.ReadInto(offset, words);
+        short[] rotation = new short[9];
+        for (int index = 0; index < rotation.Length; index++)
+        {
+            rotation[index] = BinaryPrimitives.ReadInt16LittleEndian(words[(index * 2)..]);
+        }
+        return new(ImmutableCollectionsMarshal.AsImmutableArray(rotation), ReadInt(memory, offset + 20), ReadInt(memory, offset + 24), ReadInt(memory, offset + 28), 4096);
+    }
+
+    private static void WriteRotation(NativeBattleEffectArena memory, int offset, ReadOnlySpan<short> rotation)
+    {
+        Span<byte> words = stackalloc byte[18];
+        for (int index = 0; index < rotation.Length; index++)
+        {
+            BinaryPrimitives.WriteInt16LittleEndian(words[(index * 2)..], rotation[index]);
+        }
+        memory.Write(offset, words);
     }
 
     private static short Signed(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));
-    private static ushort ReadWord(NativeBattleEffectArena memory, int offset) => BinaryPrimitives.ReadUInt16LittleEndian(memory.Read(offset, 2));
-    private static int ReadInt(NativeBattleEffectArena memory, int offset) => BinaryPrimitives.ReadInt32LittleEndian(memory.Read(offset, 4));
+    private static ushort ReadWord(NativeBattleEffectArena memory, int offset) => memory.ReadUInt16(offset);
+    private static int ReadInt(NativeBattleEffectArena memory, int offset) => memory.ReadInt32(offset);
     private static NativeBattleEffectArena Word(NativeBattleEffectArena memory, int offset, ushort value)
     {
-        byte[] bytes = new byte[2];
-        BinaryPrimitives.WriteUInt16LittleEndian(bytes, value);
-        return memory.Write(offset, bytes);
+        memory.WriteUInt16(offset, value);
+        return memory;
     }
     private static NativeBattleEffectArena Dword(NativeBattleEffectArena memory, int offset, uint value)
     {
-        byte[] bytes = new byte[4];
-        BinaryPrimitives.WriteUInt32LittleEndian(bytes, value);
-        return memory.Write(offset, bytes);
+        memory.WriteUInt32(offset, value);
+        return memory;
     }
 }

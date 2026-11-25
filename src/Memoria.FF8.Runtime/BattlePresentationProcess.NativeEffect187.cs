@@ -16,6 +16,7 @@ public sealed partial class BattlePresentationProcess
         NativeBattleEffect187Resources resources = effect.Binding.Effect187Resources ?? throw new NotSupportedException("Effect187 requires its original resources.");
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect187 requires its current process memory.");
         NativeBattleEffect187Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect187 requires its current CRT stream."), memory.Effect187 ?? throw new NotSupportedException("Effect187 requires its retained storage; explicitly migrate a needed older snapshot.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Effect187 requires its addressed memory.") };
+        NativeBattleEffectPresentationPackets.Collector presentationPackets = new();
         int commonStart = frame.Memory.PrimitiveProcess?.ByteCursor ?? throw new NotSupportedException("Effect187 requires its actual callback COMMON cursor.");
         frame = SynchronizeCursor(frame);
         NativeBattleEffect187Inputs inputs = new(this.resources.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect187 requires its arithmetic constants."), _ => nativeActionPackets, _ => graphics.Flags, current => new(current, NativeEffectIoResult ?? throw new NotSupportedException("Effect187 requires its current signed I/O result.")), _ => Camera().CapturePackedView1D97778(), _ => Projection(), _ => Camera().Roll, _ => (Camera().CurrentPose ?? throw new NotSupportedException("Effect187 requires its current camera pose.")) with { FocalLength = Camera().FocalLength, Roll = Camera().Roll }, _ => Camera().EyePaddingF6, _ => Camera().TargetPaddingFE, (_, actor) => graphics.ActorModels.Get(actor), (_, actor) => NativeBattlePackedMatrix32.FromMatrix(graphics.ActorModels.Get(actor).GeometryWorldMatrix ?? throw new NotSupportedException("Effect187 requires its current actor world matrix."), null), Center, Point, (_, handle) => (NativeVibrationProcess ?? throw new NotSupportedException("Effect187 requires its current vibration process.")).IsPlaying(handle), Execute)
@@ -26,7 +27,7 @@ public sealed partial class BattlePresentationProcess
         };
         frame = initialize ? Initialize(frame, resources, inputs) : NativeBattleEffect187Controller.Advance(frame, resources, inputs);
         int commonEnd = frame.Memory.PrimitiveProcess?.ByteCursor ?? throw new NotSupportedException("Effect187 lost its actual callback COMMON cursor.");
-        frame = frame with { State = frame.State with { CommonPacketStart = commonStart, CommonPacketEnd = commonEnd } };
+        frame = frame with { State = frame.State with { CommonPacketStart = commonStart, CommonPacketEnd = commonEnd }, Effect = frame.Effect with { PresentationPackets = presentationPackets.Capture() } };
         Publish(frame);
         return graphics with { OriginalEffect = frame.Effect };
 
@@ -154,7 +155,7 @@ public sealed partial class BattlePresentationProcess
                 case NativeBattleEffect187DeliverBatch draw when draw.CursorGlobal == 0x1D8E054:
                     NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Effect187 requires its current ordering table.");
                     NativeBattlePrimitiveProcess process = current.Memory.PrimitiveProcess ?? throw new NotSupportedException("Effect187 requires its actual COMMON packet process.");
-                    current = current with { Effect = current.Effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(current.Effect.PresentationPackets, process.PacketBank!, process.PacketBuffer, process.ByteCursor!.Value, draw.Batch) } };
+                    presentationPackets.Record(process.PacketBank!, process.PacketBuffer, process.ByteCursor!.Value, draw.Batch);
                     NativeBattleCommonPacketWrite written = NativeBattleCommonPacketDelivery.Deliver(process, primitive.Pending, draw.Batch, draw.Flags);
                     graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
                     return SynchronizeCursor(current with { Memory = current.Memory with { PrimitiveProcess = written.Process } });

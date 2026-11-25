@@ -39,7 +39,7 @@ internal sealed partial class RecreateGame
         {
             gameplayClock.Configure(uiPreferences.FastForwardMultiplier, uiPreferences.BattleSpeedPercent);
             double nativeCallbackRate = ActiveBattle is null ? 0 : BattlePresentationTiming.CallbacksPerSecond * gameplayClock.EffectiveSpeed(session.State.Scene, battle: true);
-            return PresentationTiming.UpdateStep(appliedFrameLimit ?? 60, nativeCallbackRate);
+            return PresentationTiming.UpdateStep(nativeCallbackRate);
         }, step =>
         {
             updated = true;
