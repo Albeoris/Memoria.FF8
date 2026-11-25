@@ -40,12 +40,12 @@ public sealed class AutoPlayTrainSecondWagonTests(ITestOutputHelper output)
     }
 
     [Theory]
-    [InlineData(360, 660, 589, true)]
-    [InlineData(359, 660, 589, true)]
-    [InlineData(358, 660, 589, false)]
-    [InlineData(360, 359, 589, true)]
-    [InlineData(360, 358, 589, false)]
-    [InlineData(360, 200, 592, false)]
+    [InlineData(360, 660, 588, true)]
+    [InlineData(359, 660, 588, true)]
+    [InlineData(358, 660, 588, false)]
+    [InlineData(360, 359, 588, true)]
+    [InlineData(360, 358, 588, false)]
+    [InlineData(360, 200, 591, false)]
     [InlineData(360, 660, 602, false)]
     public void SecondWagonDescentRequiresAWholePatrolWaitFromBothCurrentFibers(int blueRemaining, int redRemaining, int redPosition, bool safe)
     {
@@ -59,11 +59,11 @@ public sealed class AutoPlayTrainSecondWagonTests(ITestOutputHelper output)
         Assert.Equal(200, program.Operations[590].Parameter);
         EventEngine engine = Create(program, 1);
         System.Collections.IList fibers = (System.Collections.IList)Get(engine, "fibers");
-        foreach ((int owner, int script, int position, int remaining) in new[] { (3, 28, 472, blueRemaining), (4, 34, redPosition, redRemaining) })
+        foreach ((int owner, int script, int position, int remaining) in new[] { (3, 28, 471, blueRemaining), (4, 34, redPosition, redRemaining) })
         {
             object fiber = Fiber(program, owner, script, position);
-            Set(fiber, "WaitReason", WaitReason.Frames);
-            Set(fiber, "WaitUntil", (long)remaining);
+            object stack = fiber.GetType().GetProperty("Stack")!.GetValue(fiber)!;
+            stack.GetType().GetMethod("Push", [typeof(int)])!.Invoke(stack, [remaining]);
             fibers.Add(fiber);
         }
         Assert.Equal(safe, (bool)Invoke(engine, "HasAutoPlaySecondWagonPatrolWindow")!);
@@ -80,11 +80,11 @@ public sealed class AutoPlayTrainSecondWagonTests(ITestOutputHelper output)
         JsmProgram program = JsmProgram.Read(assets.LoadField(903).Jsm);
         EventEngine engine = Create(program, 1, 4);
         System.Collections.IList fibers = (System.Collections.IList)Get(engine, "fibers");
-        foreach ((int owner, int script, int position) in new[] { (3, 28, 472), (4, 34, 589) })
+        foreach ((int owner, int script, int position) in new[] { (3, 28, 471), (4, 34, 588) })
         {
             object fiber = Fiber(program, owner, script, position);
-            Set(fiber, "WaitReason", WaitReason.Frames);
-            Set(fiber, "WaitUntil", (long)remaining);
+            object stack = fiber.GetType().GetProperty("Stack")!.GetValue(fiber)!;
+            stack.GetType().GetMethod("Push", [typeof(int)])!.Invoke(stack, [remaining]);
             fibers.Add(fiber);
         }
         Assert.Equal(safe, (bool)Invoke(engine, "HasAutoPlaySecondWagonPatrolWindow")!);
@@ -124,7 +124,7 @@ public sealed class AutoPlayTrainSecondWagonTests(ITestOutputHelper output)
             if (command is { FieldId: 903, ObjectId: 6, ScriptId: 46, Operation: 1073 })
             {
                 System.Collections.IEnumerable fibers = (System.Collections.IEnumerable)Get(engine, "fibers");
-                patrolDeadline = fibers.Cast<object>().Where(fiber => !(bool)Get(fiber, "Complete") && (int)fiber.GetType().GetProperty("ObjectId")!.GetValue(fiber)! is 3 or 4 && (WaitReason)Get(fiber, "WaitReason") == WaitReason.Frames).Min(fiber => (long)Get(fiber, "WaitUntil"));
+                patrolDeadline = engine.Frame + fibers.Cast<object>().Where(fiber => !(bool)Get(fiber, "Complete") && (int)fiber.GetType().GetProperty("ObjectId")!.GetValue(fiber)! is 3 or 4 && (int)Get(fiber, "Position") is 471 or 588 && (WaitReason)Get(fiber, "WaitReason") == WaitReason.None).Select(fiber => (IEnumerable<int>)fiber.GetType().GetProperty("Stack")!.GetValue(fiber)!).Min(stack => stack.First());
                 enteredAt = engine.Frame;
                 descents++;
                 output.WriteLine($"Descent {descents} at {engine.Frame}, earliest patrol deadline {patrolDeadline}, accepted codes {engine.EventMemory.Read(1038, 1).RequireExact()}, timer {session.ExamTimer}.");
@@ -132,7 +132,7 @@ public sealed class AutoPlayTrainSecondWagonTests(ITestOutputHelper output)
         };
         for (int callback = 0; callback < 10000 && engine.EventMemory.Read(1038, 1).RequireExact() < 5; callback++)
         {
-            if (engine.CurrentDialogue is { CanConfirm: true })
+            if (engine.CurrentDialogue is { CanConfirm: true } dialogue && engine.CanReceiveDialogueInput(dialogue))
             {
                 if (engine.CurrentDialogue.FirstChoice is not null)
                 {

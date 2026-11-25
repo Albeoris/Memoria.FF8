@@ -648,12 +648,33 @@ internal sealed partial class AutoPlayController
                 ResetIdleDeadline();
             }
             int directField = session.State.FieldId;
-            for (int callback = 0; callback < 256 && session.State.Scene == SceneKind.Field && session.State.FieldId == directField && (directField == 75 || !world.Events.IsUserControlEnabled) && world.CurrentDialogue?.CanConfirm != true && session.State.NativeGameOver is null; callback++)
+            void ObservePatrolWait(ScriptCommand command)
             {
-                AdvanceInputFrame(world);
-                if (world.Events.LastFault is { } directStepFault)
+                if (command is { FieldId: 903, Name: "WAIT" } && command.Arguments.Count == 1 && (command.ObjectId, command.ScriptId, command.Operation, command.Arguments[0]) is (3, 28, 471, 360) or (4, 34, 588, 660))
                 {
-                    throw new EventScriptException(directStepFault.Message);
+                    ResetIdleDeadline();
+                }
+            }
+            if (directField == 903)
+            {
+                world.Events.CommandExecuted += ObservePatrolWait;
+            }
+            try
+            {
+                for (int callback = 0; callback < 256 && session.State.Scene == SceneKind.Field && session.State.FieldId == directField && (directField == 75 || !world.Events.IsUserControlEnabled) && world.CurrentDialogue?.CanConfirm != true && session.State.NativeGameOver is null; callback++)
+                {
+                    AdvanceInputFrame(world);
+                    if (world.Events.LastFault is { } directStepFault)
+                    {
+                        throw new EventScriptException(directStepFault.Message);
+                    }
+                }
+            }
+            finally
+            {
+                if (directField == 903)
+                {
+                    world.Events.CommandExecuted -= ObservePatrolWait;
                 }
             }
             return;

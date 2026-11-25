@@ -25,7 +25,7 @@ public sealed partial class EventEngine
 
     private bool TryApplyAutoPlayTrainDialogue(DialogueState dialogue)
     {
-        if (!HasDirectAutoPlayCodeScene || !dialogue.CanConfirm || dialogue.Channel != 0 || dialogue.FirstChoice != 2 || dialogue.LastChoice != 3)
+        if (!HasDirectAutoPlayCodeScene || !dialogue.CanConfirm || !CanReceiveDialogueInput(dialogue) || dialogue.Channel != 0 || dialogue.FirstChoice != 2 || dialogue.LastChoice != 3)
         {
             return false;
         }

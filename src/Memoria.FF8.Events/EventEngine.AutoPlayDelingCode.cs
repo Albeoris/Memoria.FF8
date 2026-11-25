@@ -12,7 +12,7 @@ public sealed partial class EventEngine
 
     private bool TryApplyAutoPlayDelingCode(DialogueState dialogue)
     {
-        if (AutoPlayCodeEntry is null || FieldId != 761 || dialogue.ObjectId != 15 || dialogue.ScriptId != 145 || !dialogue.CanConfirm)
+        if (AutoPlayCodeEntry is null || FieldId != 761 || dialogue.ObjectId != 15 || dialogue.ScriptId != 145 || !dialogue.CanConfirm || !CanReceiveDialogueInput(dialogue))
         {
             return false;
         }

@@ -55,7 +55,7 @@ public sealed partial class EventEngine
         {
             throw new NotSupportedException("Automatic second-wagon navigation requires the original patrol wait.");
         }
-        if (program.Operations[470].Parameter != 360 || program.Operations[590].Opcode != Jsm.Opcode.PSHN_L || program.Operations[590].Parameter != 200 || program.Operations[591].Opcode != Jsm.Opcode.WAIT)
+        if (program.Operations[470].Parameter != 360 || program.Operations[587].Opcode != Jsm.Opcode.PSHN_L || program.Operations[587].Parameter != 660 || program.Operations[588].Opcode != Jsm.Opcode.WAIT || program.Operations[590].Opcode != Jsm.Opcode.PSHN_L || program.Operations[590].Parameter != 200 || program.Operations[591].Opcode != Jsm.Opcode.WAIT)
         {
             throw new NotSupportedException("Automatic second-wagon navigation has an unsupported patrol interval.");
         }
@@ -69,8 +69,12 @@ public sealed partial class EventEngine
         {
             reserve -= 100;
         }
-        int pollingDelay = 1;
-        return fibers.Any(fiber => !fiber.Complete && fiber.ObjectId == 3 && fiber.Script.Id == 28 && fiber.Position == 472 && fiber.WaitReason == WaitReason.Frames && fiber.WaitUntil - Frame >= reserve - pollingDelay)
-            && fibers.Any(fiber => !fiber.Complete && fiber.ObjectId == 4 && fiber.Script.Id == 34 && fiber.Position == 589 && fiber.WaitReason == WaitReason.Frames && fiber.WaitUntil - Frame >= reserve - pollingDelay);
+        const int pollingDelay = 1;
+        return HasRetainedWait(3, 28, 471, 360) && HasRetainedWait(4, 34, 588, 660);
+
+        bool HasRetainedWait(int objectId, int scriptId, int operation, int maximum)
+        {
+            return fibers.Any(fiber => !fiber.Complete && fiber.ObjectId == objectId && fiber.Script.Id == scriptId && fiber.Position == operation && fiber.WaitReason == WaitReason.None && fiber.Stack.Count > 0 && fiber.Stack.PeekValue().IsExact && fiber.Stack.Peek() >= reserve - pollingDelay && fiber.Stack.Peek() <= maximum);
+        }
     }
 }
