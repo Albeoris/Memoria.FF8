@@ -59,6 +59,10 @@ public sealed class BattleTargetModelPointerTests
 
     private static BattleHudController CreateHud(bool group = false)
     {
+        BattleNativeAction native = new(2, 1, 1, 1)
+        {
+            MagicId = 1, AttackType = 2, Power = 10, HitCount = 1, TargetFlags = 0x04, AttackFlags = 0, DamagePresentation = 0, Element = 0, ElementPercent = null, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = null, Critical = null, PowerModifier = null, LevelModifier = null, RawRecord = [], SupplementalRecord = []
+        };
         BattleSession battle = new(new BattleDefinition
         {
             Combatants =
@@ -67,9 +71,9 @@ public sealed class BattleTargetModelPointerTests
                 new() { Id = "first", Name = "Same monster" },
                 new() { Id = "second", Name = "Same monster" }
             ],
-            ActionDefinitions = group ? [new(BattleAbility.Magic, 1, "Group", BattleActionEffect.Damage, 10, false, AllTargets: true)] : []
+            ActionDefinitions = group ? [new(BattleAbility.Magic, 1, "Group", BattleActionEffect.Damage, 10, false, AllTargets: true) { NativeAction = native }] : []
         }, BattleAtbMode.TurnBased);
-        return new(battle, (_, _) => { }, () => { }, () => { });
+        return new(battle, (_, _) => { }, () => { }, () => { }, readPresentationUi: BattleHudTestPresentation.Visible);
     }
 
     private static List<UiRect> ModelPointers(BattleHudController hud, int width, int height)

@@ -87,6 +87,7 @@ internal sealed class MenuArtworkProvider(string gameDirectory, ResourceService?
             UiImageKind.ControllerButton => (portraits ??= NativeMenuArtwork.Load(gameDirectory, resources)).GetControllerButtonIcon(source.Id),
             UiImageKind.SilverCrest => silverCrest ??= ReadSilverCrest(),
             UiImageKind.SystemTimerDigit => ReadTimerDigit(source.Id),
+            UiImageKind.StatusSymbol => BattleStatusSymbolArtwork.Read((NativeStatusId)source.Id),
             UiImageKind.CharacterPortrait => (portraits ??= NativeMenuArtwork.Load(gameDirectory, resources)).GetCharacterPortrait(source.Id),
             UiImageKind.CharacterPortraitGrayscale => TrackGrayscale((portraits ??= NativeMenuArtwork.Load(gameDirectory, resources)).GetCharacterPortrait(source.Id)),
             UiImageKind.GuardianForcePortrait => (portraits ??= NativeMenuArtwork.Load(gameDirectory, resources)).GetGuardianForcePortrait(source.Id),

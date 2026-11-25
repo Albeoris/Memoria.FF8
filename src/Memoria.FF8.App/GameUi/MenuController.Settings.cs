@@ -135,6 +135,7 @@ public sealed partial class MenuController
             "Show FPS" => preferences.ShowFps ? "On" : "Off",
             "Achievement progress" => preferences.ShowAchievementProgress ? "On" : "Off",
             "Enemy spell names" => preferences.ShowEnemySpellNames ? "On" : "Off",
+            "Scan hints" => preferences.BattleScanHints.ToString(),
             "Quick saves" => preferences.QuickSaveCount.ToString(System.Globalization.CultureInfo.InvariantCulture),
             "Autosaves" => preferences.AutoSaveEnabled ? "On" : "Off",
             "Autosaves to keep" => preferences.AutoSaveCount.ToString(System.Globalization.CultureInfo.InvariantCulture),

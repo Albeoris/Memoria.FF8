@@ -29,7 +29,7 @@ public sealed partial class BattleSession
         return new(actor.ModelId, actor.Name, actor.IsPlayer, actor.HasNativeDisplayNameOverride)
         {
             TargetData = new(NativeModelId(actor), actor.Level, ScanHp(actor.CurrentHp), ScanHp(actor.MaximumHp), EffectiveStat(actor, BattleStatId.Strength), EffectiveStat(actor, BattleStatId.Vitality), actor.Speed, actor.Magic, EffectiveStat(actor, BattleStatId.Spirit), actor.Evasion,
-                hidden ? [] : [.. actor.ElementDefenses], !hidden && actor.NativeStatusResistances.Count == 40 ? [.. actor.NativeStatusResistances] : [])
+                hidden ? [] : [.. Enumerable.Range(0, 8).Select(element => EffectiveNativeElementDefense(actor, element))], !hidden && actor.NativeStatusResistances.Count == 40 ? [.. actor.NativeStatusResistances] : [])
         };
 
         int? ScanHp(int hp) => !hidden && hp < 100000 ? hp : null;

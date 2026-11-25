@@ -86,7 +86,7 @@ public sealed partial class BattleSession
         return Enumerable.Range(0, 4).Any(slot => mug.Item(target.Level, slot) is { Id: > 0, Count: > 0 });
     }
 
-    private bool CanSmartCast(BattleCombatant actor, BattleCombatant target)
+    public bool CanSmartCast(BattleCombatant actor, BattleCombatant target)
     {
         return magicVitals is not null && actor.MagicRecordId is int row && magicVitals.MagicSystem.AttackModes[row] == MagicAttackMode.SmartMagic && actor.IsPlayer && actor.IsAlive && target.IsAlive && target.IsActive && !target.IsPlayer && !target.Untargetable && PhysicalCommand(actor) is 1 or 12 && (actor.Abilities.Contains(BattleAbility.Magic) || actor.Abilities.Contains(BattleAbility.Draw)) && CanNativeBattleActorAct(actor) && !RequiresNativeCompelledCommand(actor) && (NativeSavedStatusBits(actor) & 0x10) == 0 && !HasStatus(actor, BattleStatusKind.Silence);
     }
@@ -175,7 +175,7 @@ public sealed partial class BattleSession
     {
         uint statuses = NativeBattleStatusBits(target);
         ushort saved = NativeSavedStatusBits(target);
-        bool immune = (native.Statuses1 & 0x4000000) == 0 && ((saved & 5) != 0 || (statuses & 0x200800) != 0 || (native.Element & 8) != 0 && (statuses & 0x2000) != 0);
+        bool immune = NativeMagicContactBlocked(native, saved, statuses);
         uint statusMask = native.Statuses1;
         int resistanceIndex = StatusStatRules.TryGetStatusId(false, statusMask, out NativeStatusId status) ? (int)status - 8 : -1;
         int[] powers = new int[casts];
@@ -284,7 +284,7 @@ public sealed partial class BattleSession
     private static int ForecastElement(BattleCombatant target, BattleNativeAction native, int damage, bool physical)
     {
         int element = native.Element == 0 ? 0 : System.Numerics.BitOperations.TrailingZeroCount((uint)native.Element);
-        int defense = (NativeSavedStatusBits(target) & 0x40) != 0 && element == 7 ? 700 : target.ElementDefenses[element];
+        int defense = EffectiveNativeElementDefense(target, element);
         return NativeBattleDamage.Element(damage, native.Element, defense, physical, native.ElementPercent.GetValueOrDefault());
     }
 }

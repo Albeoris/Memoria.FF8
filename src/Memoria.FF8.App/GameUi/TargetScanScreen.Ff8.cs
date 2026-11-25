@@ -48,9 +48,15 @@ internal static class Ff8TargetScan
                 int resistanceIndex = status < 16 ? status : status - 8;
                 statuses.Add(TargetScanScreen.Status(index, data.StatusResistances[resistanceIndex] - 100, localize));
             }
+            foreach (NativeStatusId status in AdditionalStatuses)
+            {
+                statuses.Add(TargetScanScreen.Status(status, data.StatusResistances[(int)status - 8] - 100, localize));
+            }
             statuses.Add(TargetScanScreen.Eject(data.StatusResistances[24] - 100, localize));
         }
         string title = SystemTextCatalog.Translate(localize, "battle.scan.title", "Scan");
         return new(title, name, description, data.Level, data.Hp, data.MaximumHp, data.Strength, data.Vitality, data.Speed, data.Magic, data.Spirit, data.Evasion, elements, statuses);
     }
+
+    private static readonly NativeStatusId[] AdditionalStatuses = [NativeStatusId.Doom, NativeStatusId.Petrifying, NativeStatusId.Vit0];
 }

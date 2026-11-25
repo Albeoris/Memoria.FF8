@@ -6,7 +6,7 @@ using Memoria.FF8.Ui;
 namespace Memoria.FF8.GameUi;
 
 internal sealed record TargetScanData(string Title, string Name, string Description, int Level, long? Hp, long? MaximumHp, int Strength, int Vitality, int Speed, int Magic, int Spirit, int Evasion, IReadOnlyList<TargetScanResistance> Elements, IReadOnlyList<TargetScanResistance> Statuses);
-internal readonly record struct TargetScanResistance(string Name, int? Icon, int Percent);
+internal readonly record struct TargetScanResistance(string Name, UiImageSource? Icon, int Percent);
 
 internal static class TargetScanScreen
 {
@@ -22,20 +22,31 @@ internal static class TargetScanScreen
 
     public static TargetScanResistance Status(int index, int percent, Func<string, string, string>? localize)
     {
-        NativeStatusId status = Statuses[index];
-        return new(SystemTextCatalog.Translate(localize, BattleStatusLocalization.SemanticId(status), SystemTextCatalog.Defaults[BattleStatusLocalization.SemanticId(status)]), 272 + index, percent);
+        return Status(Statuses[index], percent, localize);
+    }
+
+    public static TargetScanResistance Status(NativeStatusId status, int percent, Func<string, string, string>? localize)
+    {
+        if (status == NativeStatusId.Eject)
+        {
+            return Eject(percent, localize);
+        }
+        string id = BattleStatusLocalization.SemanticId(status);
+        int index = Array.IndexOf(Statuses, status);
+        UiImageSource? icon = index >= 0 ? new UiImageSource(UiImageKind.Icon, 272 + index) : BattleStatusSymbolArtwork.Source(status);
+        return new(SystemTextCatalog.Translate(localize, id, SystemTextCatalog.Defaults[id]), icon, percent);
     }
 
     public static TargetScanResistance Eject(int percent, Func<string, string, string>? localize)
     {
-        return new(SystemTextCatalog.Translate(localize, "battle.status.eject", "Eject"), HolyIcon, percent);
+        return new(SystemTextCatalog.Translate(localize, "battle.status.eject", "Eject"), new UiImageSource(UiImageKind.Icon, HolyIcon), percent);
     }
 
     public static TargetScanResistance Element(int index, int percent, Func<string, string, string>? localize, string? nativeName = null)
     {
         string id = "junction.dashboard.elemental-" + index;
         string fallback = nativeName ?? SystemTextCatalog.Defaults[id];
-        return new(SystemTextCatalog.Translate(localize, id, fallback), 288 + index, percent);
+        return new(SystemTextCatalog.Translate(localize, id, fallback), new UiImageSource(UiImageKind.Icon, 288 + index), percent);
     }
 
     public static void Draw(IUiCanvas canvas, UiTheme theme, BattleHudLayout layout, float textScale, TargetScanData data, Func<string, string, string>? localize, Action<UiRect>? drawModel = null)
@@ -45,7 +56,6 @@ internal static class TargetScanScreen
             return;
         }
         float scale = layout.Scale;
-        UiColor gold = new(255, 220, 96);
         UiColor rule = new(125, 155, 179, 150);
         string Text(string id, string fallback) => SystemTextCatalog.Translate(localize, id, fallback);
         string Format(string id, string fallback, params object?[] args) => SystemTextCatalog.Format(Text(id, fallback), fallback, args);
@@ -103,8 +113,8 @@ internal static class TargetScanScreen
         Stat("spirit", "Spr", data.Spirit, 1, 1);
         Stat("evasion", "Eva", data.Evasion, 2, 1);
 
-        ResistancePanel(Text("junction.dashboard.elements", "Elements"), data.Elements, 74, 226, highlightWeakness: true);
-        ResistancePanel(Text("battle.scan.status-resistance", "Status resistance"), data.Statuses, 309, 355, highlightWeakness: false);
+        ResistancePanel(Text("junction.dashboard.elements", "Elements"), data.Elements, 74, 226, status: false);
+        ResistancePanel(Text("battle.scan.status-resistance", "Status resistance"), data.Statuses, 309, 355, status: true);
 
         void Stat(string stat, string fallback, int value, int column, int row)
         {
@@ -114,7 +124,7 @@ internal static class TargetScanScreen
             Label(stat == "evasion" ? Percent(value) : value.ToString(CultureInfo.CurrentCulture), 19, x + 72, y, 54, 31, alignment: UiAlignment.End);
         }
 
-        void ResistancePanel(string title, IReadOnlyList<TargetScanResistance> entries, float y, float height, bool highlightWeakness)
+        void ResistancePanel(string title, IReadOnlyList<TargetScanResistance> entries, float y, float height, bool status)
         {
             theme.Panel(canvas, layout.Rect(454, y, 498, height));
             Label(title, 24, 469, y + 8, 468, 35);
@@ -131,17 +141,13 @@ internal static class TargetScanScreen
                 TargetScanResistance entry = entries[index];
                 float x = 469 + index / rows * 237;
                 float top = y + 50 + index % rows * rowHeight;
-                bool weak = highlightWeakness && entry.Percent < 0;
-                if (weak)
+                UiColor color = BattleResistanceColors.Tone(entry.Percent, status).Color(theme);
+                if (entry.Icon is { } icon)
                 {
-                    canvas.Fill(layout.Rect(x, top, 230, rowHeight), new(104, 78, 20, 175));
+                    canvas.Image(icon, layout.Rect(x + 3, top + 5, 24, rowHeight - 10));
                 }
-                if (entry.Icon is int icon)
-                {
-                    canvas.Image(new(UiImageKind.Icon, icon), layout.Rect(x + 3, top + 5, 24, rowHeight - 10));
-                }
-                Label(entry.Name, 20, x + 34, top, 129, rowHeight, weak ? gold : null);
-                Label(Percent(entry.Percent), 20, x + 163, top, 63, rowHeight, weak ? gold : null, UiAlignment.End);
+                Label(entry.Name, 20, x + 34, top, 129, rowHeight, color);
+                Label(Percent(entry.Percent), 20, x + 163, top, 63, rowHeight, color, UiAlignment.End);
                 Horizontal(x, x + 230, top + rowHeight);
             }
         }
@@ -166,5 +172,5 @@ internal static class TargetScanScreen
         }
     }
 
-    private static string Percent(int value) => (value / 100m).ToString("P0", CultureInfo.CurrentCulture);
+    internal static string Percent(int value) => (value / 100m).ToString("P0", CultureInfo.CurrentCulture);
 }

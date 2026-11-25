@@ -20,6 +20,8 @@ public sealed partial class BattleHudController
     internal void ConfigureLocalization(LocalizationBattlePresentation presentation)
     {
         localizedActionName = presentation.ActionName;
+        hintLocalization = presentation;
+        resistanceRows.Clear();
         localizedCombatantName = presentation.CombatantName;
         localizedCommandName = presentation.CommandName;
         localizedBattleMessage = presentation.Message;

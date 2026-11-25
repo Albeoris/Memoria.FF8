@@ -16,6 +16,7 @@ internal sealed record UiPreferences
     public bool ShowFps { get; init; }
     public bool ShowAchievementProgress { get; init; }
     public bool ShowEnemySpellNames { get; init; }
+    public BattleScanHintMode BattleScanHints { get; init; } = BattleScanHintMode.Targets;
     public int FieldFps { get; init; } = 60;
     public int WorldFps { get; init; } = 60;
     public int BattleFps { get; init; } = 60;
@@ -208,6 +209,17 @@ internal sealed record UiPreferences
                 "Off" => this with { ShowFps = false },
                 _ => throw new ArgumentException("Show FPS requires On or Off.")
             };
+        }
+        if (key == "Scan hints")
+        {
+            BattleScanHintMode mode = value switch
+            {
+                "Off" => BattleScanHintMode.Off,
+                "Targets" => BattleScanHintMode.Targets,
+                "Full" => BattleScanHintMode.Full,
+                _ => throw new ArgumentException("Scan hints requires Off, Targets or Full.")
+            };
+            return this with { BattleScanHints = mode };
         }
         if (key == "Enemy spell names")
         {
@@ -552,6 +564,10 @@ internal sealed record UiPreferences
             throw new InvalidDataException("Graphics preferences must be an object.");
         }
         Graphics.Validate();
+        if (!Enum.IsDefined(BattleScanHints))
+        {
+            throw new InvalidDataException("Invalid Scan hint mode.");
+        }
         if (WorldMovementSpeedPercent is < 50 or > 300 || FieldMovementSpeedPercent is < 50 or > 300 || BattleSpeedPercent is < 50 or > 300 || FastForwardMultiplier is < 2 or > 10)
         {
             throw new InvalidDataException("Speed preferences are outside their supported ranges.");
@@ -586,6 +602,13 @@ internal sealed record UiPreferences
             throw new InvalidDataException("UI presentation preferences are outside their supported ranges.");
         }
     }
+}
+
+public enum BattleScanHintMode
+{
+    Off,
+    Targets,
+    Full
 }
 
 public enum GameTextFontMode

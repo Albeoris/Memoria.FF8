@@ -27,7 +27,7 @@ public sealed partial class BattleSession
         }
         bool applied = false;
         uint before = NativeBattleStatusBits(recipient);
-        bool physical = action.AttackType is 1 or 7 or 9 or 10 or 18 or 34 or 36;
+        bool physical = action.UsesPhysicalDamageFormula;
         int attack = physical ? EffectiveStat(actor, BattleStatId.Strength) : actor.Magic;
         int defense = EffectiveStat(recipient, physical ? BattleStatId.Vitality : BattleStatId.Spirit);
         for (int bit = 0; bit < 7; bit++)

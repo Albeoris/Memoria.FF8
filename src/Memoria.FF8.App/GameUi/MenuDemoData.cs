@@ -1,3 +1,4 @@
+using Memoria.FF8.Resources.Localization;
 using Memoria.FF8.Runtime;
 using Memoria.FF8.Ui;
 
@@ -107,6 +108,7 @@ public static class MenuDemoData
         {
             data.Settings[setting.Id] = setting.Values[0];
         }
+        data.Settings["Scan hints"] = nameof(BattleScanHintMode.Targets);
         data.Settings["Triple Triad width"] = "3";
         data.Settings["Triple Triad height"] = "3";
         data.Settings["Triple Triad hand size"] = "5";
@@ -203,6 +205,7 @@ public static class MenuSettings
     [
         new("Show FPS", "Show presentation FPS and visual Changes/s. A static scene can present frames while Changes/s is zero.", ["Off", "On"]),
         new("Enemy spell names", "Show brief names of spells and abilities used by enemies. Off by default; shared by all saves.", ["Off", "On"]),
+        new("Scan hints", SystemTextCatalog.Defaults["setting.scan-hints.help"], ["Off", "Targets", "Full"]),
         new("Achievement progress", "Show achievement progress at the top of the screen. Achievement tracking and unlock notifications remain active when Off.", ["Off", "On"]),
         new("Window mode", "Choose a resizable window or borderless full-screen display. Alt+Enter toggles the mode. Shared across saves and retained across launches.", ["Windowed", "Borderless"]),
         new("Native field shadows", "Show original circular character shadows in FFVIII fields, including when used as the lighting fallback.", ["On", "Off"]),

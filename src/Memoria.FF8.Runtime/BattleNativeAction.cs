@@ -35,6 +35,16 @@ public sealed record BattleNativeAction(byte Command, ushort ActionId, int Kerne
     public required ImmutableArray<byte> RawRecord { get; init; }
     public required ImmutableArray<byte> SupplementalRecord { get; init; }
 
+    internal bool UsesPhysicalDamageFormula => AttackType is 1 or 7 or 9 or 10 or 18 or 34 or 36;
+    internal bool UsesMagicDamageFormula => AttackType is 2 or 8 or 11 or 15 or 20 or 22 or 26 or 33;
+    internal bool UsesFixedDamageFormula => AttackType is 27 or 28 or 29 or 35;
+    internal bool UsesPercentageDamageFormula => AttackType is 7 or 8 or 20;
+    internal bool IgnoresImmunity => (Statuses1 & 0x4000000) != 0;
+    internal bool HasEarthElement => (Element & 8) != 0;
+    internal bool DrainsHitPoints => (Statuses1 & 0x8000) != 0;
+    // Drain and the immunity bypass are contact behavior, separate from persistent statuses.
+    internal uint AppliedBattleStatuses => Statuses1 & ~0x4008000u;
+
     public BattleNativePresentationInvocation ReadPresentationInvocation()
     {
         byte command = DispatchCommand ?? Command;

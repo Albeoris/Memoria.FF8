@@ -756,6 +756,7 @@ public sealed partial class BattleCombatant
     public int ElementAttackPercent => definition.ElementAttackPercent;
     internal IReadOnlyList<int> HumanElementDefenses => Array.AsReadOnly(definition.ElementDefenses);
     public IReadOnlyList<int> ElementDefenses => GuardianFormVitals is { } form ? form.ElementDefenses : HumanElementDefenses;
+    internal int ElementDefenseAt(int index) => GuardianFormVitals is { } form ? form.ElementDefenses[index] : definition.ElementDefenses[index];
     private readonly NativeMagicStock[] nativeMagicInventory = Enumerable.Repeat(new NativeMagicStock(0, 0), 32).ToArray();
     internal Func<NativeCharacterVitals>? MagicOwner { get; set; }
     internal Action<NativeCharacterVitals>? SetMagicOwner { get; set; }

@@ -1096,6 +1096,11 @@ public static partial class SystemTextCatalog
         defaults["setting.enemy-spell-names.help"] = "Show brief names of spells and abilities used by enemies. Off by default; shared by all saves.";
         defaults["setting.enemy-spell-names.option.0"] = "Off";
         defaults["setting.enemy-spell-names.option.1"] = "On";
+        defaults["setting.scan-hints"] = "Scan hints";
+        defaults["setting.scan-hints.help"] = "Targets shows resistances when aiming. Full also previews scanned enemies while choosing magic. Blue marks a weakness, gray an immunity, and coral absorption or a spell ineffective against every enemy.";
+        defaults["setting.scan-hints.option.0"] = "Off";
+        defaults["setting.scan-hints.option.1"] = "Targets";
+        defaults["setting.scan-hints.option.2"] = "Full";
         defaults["setting.achievement-progress"] = "Achievement progress";
         defaults["setting.achievement-progress.help"] = "Show achievement progress at the top of the screen. Achievement tracking and unlock notifications remain active when Off.";
         defaults["setting.achievement-progress.option.0"] = "Off";

@@ -5,6 +5,8 @@ namespace Memoria.FF8.GameUi;
 public sealed partial class BattleHudController
 {
     private BattleSmartAttackPreview? displayedSmartPreview;
+    private BattleSmartAttackPreview? drawSmartPreview;
+    private BattleActionDefinition? smartSpell;
 
     public string PhysicalOverrideBindingHint { get; set; } = new KeyboardInput().BindingPrompt(ControlAction.CameraLeft);
     public bool ForcePhysical => !HasGuardianFormCommands && SelectingTarget && SelectedCommand == BattleAbility.Attack && (nativeCommandHeldButtons & 0x03) == 0x01;
@@ -12,11 +14,19 @@ public sealed partial class BattleHudController
     {
         get
         {
+            if (drawingPresentation && drawSmartPreview is not null)
+            {
+                return drawSmartPreview;
+            }
             if (HasGuardianFormCommands || !SelectingTarget || SelectedCommand != BattleAbility.Attack || SelectedActor is not { } actor || SelectedTarget is not { } target)
             {
                 return null;
             }
             displayedSmartPreview = session.PreviewSmartAttack(actor.Id, target.Id, ForcePhysical);
+            if (drawingPresentation)
+            {
+                drawSmartPreview = displayedSmartPreview;
+            }
             return displayedSmartPreview;
         }
     }
@@ -33,7 +43,7 @@ public sealed partial class BattleHudController
             BattleCommandPresentation command = BattleCommandPresentation.Read(actor).First(choice => choice.Ability == BattleAbility.Attack);
             return FormatBattleText(localizedCommandName?.Invoke(command.Command, preview.Name) ?? preview.Name);
         }
-        BattleActionDefinition? action = session.ActionDefinitions.FirstOrDefault(action => action.Ability == BattleAbility.Magic && action.Id == preview.ActionId);
+        BattleActionDefinition? action = SmartSpell(preview.ActionId);
         string name = action is null ? preview.Name : localizedActionName?.Invoke(action) ?? action.DisplayName ?? action.Name;
         if (preview.Ability == BattleAbility.Draw && action is not null)
         {
@@ -41,6 +51,15 @@ public sealed partial class BattleHudController
             name = (localizedCommandName?.Invoke(draw.Command, draw.Name) ?? draw.Name) + ": " + name;
         }
         return FormatBattleText(name);
+    }
+
+    private BattleActionDefinition? SmartSpell(int id)
+    {
+        if (smartSpell?.Id != id)
+        {
+            smartSpell = session.GetActionDefinition(BattleAbility.Magic, id);
+        }
+        return smartSpell;
     }
 
     public string TargetActionCaption

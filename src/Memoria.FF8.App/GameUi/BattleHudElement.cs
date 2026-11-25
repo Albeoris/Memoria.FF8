@@ -17,7 +17,7 @@ internal sealed partial class BattleHudElement : UiElement
     private float CommandPanelHeight { get; set; } = 132;
     private BattleHudTargetList targetList;
     private string[] drawnTargetIds = [];
-    private (UiRect Bounds, float TextScale) drawnTargetLayout;
+    private (UiRect Bounds, float TextScale, BattleScanHintMode HintMode) drawnTargetLayout;
     private int? requestedTargetListStart;
     private string? lastDrawnTargetId;
     private UiRect targetHelpBounds;
@@ -27,6 +27,7 @@ internal sealed partial class BattleHudElement : UiElement
     private (UiRect Bounds, float TextScale) drawnPartyLayout;
     private int? requestedPartyStart;
     private bool drewExpandedParty;
+    private bool drewBattleMessage;
     private float Top => Layout.Top;
 
     public BattleHudElement(BattleHudController controller)
@@ -67,6 +68,7 @@ internal sealed partial class BattleHudElement : UiElement
     private void DrawPresentation(IUiCanvas canvas, UiTheme theme)
     {
         drewExpandedParty = false;
+        drewBattleMessage = false;
         if (controller.CardSlotsOwnsInput)
         {
             if (controller.SlotsCards is { } cards && controller.Session.PendingSlotsDeal is { } deal)
@@ -97,6 +99,7 @@ internal sealed partial class BattleHudElement : UiElement
         }
         if (!controller.CommandMenuHidden && controller.BattleMessageDocument is { } battleMessage && session.Outcome == BattleOutcome.Active)
         {
+            drewBattleMessage = true;
             theme.Panel(canvas, Layout.MessagePanel);
             float messageSize = (controller.BattleMessageIsActionTitle ? 26 : 20) * Scale * controller.TextScale;
             if (canvas is IBattleMessageCanvas rich)
@@ -476,14 +479,15 @@ internal sealed partial class BattleHudElement : UiElement
         float helpGap = Math.Max(18, UiTheme.DefaultCaptionFontSize * controller.TextScale * 0.75f + 8);
         string[] ids = targets.Select(actor => actor.Id).ToArray();
         string[] names = targets.Select(controller.CombatantDisplayName).ToArray();
+        BattleTargetResistanceRow[]? hintRows = MeasureResistanceRows(canvas, targets);
         bool sameTargets = drawnTargetIds.SequenceEqual(ids);
         int previousStart = sameTargets ? requestedTargetListStart ?? targetList.StartRow : 0;
         bool revealSelection = !group || !sameTargets || requestedTargetListStart is null && lastDrawnTargetId != selectedTargetId;
-        targetList = Layout.MeasureTargetList(canvas, theme, names, controller.TextScale, helpPanelHeight + helpGap, maximumWidth, previousStart, revealSelection ? Array.IndexOf(ids, selectedTargetId) : -1);
+        targetList = Layout.MeasureTargetList(canvas, theme, names, controller.TextScale, helpPanelHeight + helpGap, maximumWidth, previousStart, revealSelection ? Array.IndexOf(ids, selectedTargetId) : -1, hintRows);
         requestedTargetListStart = null;
         lastDrawnTargetId = selectedTargetId;
         drawnTargetIds = ids;
-        drawnTargetLayout = (Bounds, controller.TextScale);
+        drawnTargetLayout = (Bounds, controller.TextScale, controller.ScanHintMode);
         UiRect panel = targetList.Panel;
         float captionSize = UiTheme.DefaultCaptionFontSize * Scale * controller.TextScale;
         string caption = controller.CanChangeTargetSide ? controller.SelectedTarget?.IsPlayer == true ? controller.SystemText("battle.hud.target-allies", "TARGET  < ALLIES >") : controller.SystemText("battle.hud.target-enemies", "TARGET  < ENEMIES >") : controller.SystemText("battle.hud.target", "TARGET");
@@ -492,8 +496,11 @@ internal sealed partial class BattleHudElement : UiElement
         {
             BattleCombatant actor = targets[index];
             UiRect row = targetList.Cell(index);
-            float statusOffset = targetList.Expanded ? row.Height - targetList.StatusHeight : 25;
-            UiRect text = Rect(row.X + 30, row.Y, row.Width - 42, targetList.Expanded ? statusOffset : row.Height);
+            bool measured = targetList.Expanded || hintRows is not null;
+            float statusOffset = measured ? row.Height - targetList.StatusHeight : 25;
+            float textWidth = hintRows?[index].NameWidth ?? row.Width - 42;
+            float textHeight = hintRows?[index].NameHeight ?? (measured ? statusOffset : row.Height);
+            UiRect text = Rect(row.X + 30, row.Y, textWidth, textHeight);
             if (group || selectedTargetId == actor.Id)
             {
                 if (targetList.Expanded)
@@ -509,13 +516,18 @@ internal sealed partial class BattleHudElement : UiElement
             try
             {
                 float font = 24 * Scale * controller.TextScale;
-                canvas.Text(names[index], font, text, theme.Foreground, UiAlignment.Start, targetList.Expanded ? UiTextFlow.Wrap : UiTextFlow.SingleLine);
+                canvas.Text(names[index], font, text, theme.Foreground, UiAlignment.Start, measured ? UiTextFlow.Wrap : UiTextFlow.SingleLine);
             }
             finally
             {
                 canvas.PopClip();
             }
-            if (targetList.Expanded)
+            if (hintRows is not null && hintRows[index].Badges is { Count: > 0 } badges)
+            {
+                BattleTargetResistanceRow hints = hintRows[index];
+                DrawResistanceBadges(canvas, theme, Scale, hints.Grid, badges, Rect(row.X + 30 + hints.BadgeX, row.Y + hints.BadgeY, hints.Grid.Width, hints.Grid.Height));
+            }
+            if (measured)
             {
                 canvas.PushClip(Rect(row.X, row.Y, row.Width, row.Height));
             }
@@ -525,7 +537,7 @@ internal sealed partial class BattleHudElement : UiElement
             }
             finally
             {
-                if (targetList.Expanded)
+                if (measured)
                 {
                     canvas.PopClip();
                 }
@@ -661,7 +673,7 @@ internal sealed partial class BattleHudElement : UiElement
 
     private bool TargetListIsCurrent()
     {
-        return drawnTargetLayout == (Bounds, controller.TextScale) && drawnTargetIds.SequenceEqual(controller.VisibleTargets.Select(target => target.Id));
+        return drawnTargetLayout == (Bounds, controller.TextScale, controller.ScanHintMode) && drawnTargetIds.SequenceEqual(controller.VisibleTargets.Select(target => target.Id));
     }
 
     private void ScrollTargetPage(int direction)

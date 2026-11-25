@@ -11,7 +11,7 @@ namespace Memoria.FF8.App.Tests;
 public sealed class TargetScanScreenTests
 {
     [Fact]
-    public void Standard_scan_rows_show_signed_resistance_and_highlight_only_elemental_weakness()
+    public void Scan_shows_signed_resistance_with_the_same_colors_as_battle_hints()
     {
         NativeBattlePreparedScanActor actor = new(16, "Target", false, false);
         NativeBattlePreparedScan prepared = new(null!, null!, null!, ImmutableDictionary<int, NativeBattlePreparedScanExtra>.Empty, ImmutableDictionary<byte, ImmutableArray<byte>>.Empty, null, null, actor);
@@ -22,19 +22,30 @@ public sealed class TargetScanScreenTests
         TargetScanData scan = Ff8TargetScan.Create(prepared, facts, actor.Name, "", "en", (key, original) => original);
 
         Assert.Equal(new[] { -100, 50, 0, 0, 0, 0, 100, 200 }, scan.Elements.Select(row => row.Percent));
-        Assert.Equal(new TargetScanResistance("Eject", TargetScanScreen.HolyIcon, 100), scan.Statuses[^1]);
+        Assert.Equal(new TargetScanResistance("Eject", new UiImageSource(UiImageKind.Icon, TargetScanScreen.HolyIcon), 100), scan.Statuses[^1]);
         Assert.Equal(-10, scan.Statuses.Single(row => row.Name == "Zombie").Percent);
 
         RecordingCanvas canvas = new();
         TargetScanScreen.Draw(canvas, new VectorUiTheme(), new(new UiRect(0, 0, 960, 672)), 1, scan, null);
         Assert.Equal(new[] { "Str", "Vit", "Spd" }, StatLabels(591));
         Assert.Equal(new[] { "Mag", "Spr", "Eva" }, StatLabels(623));
-        UiColor weaknessColor = new(255, 220, 96);
-        var highlighted = canvas.Texts.Where(entry => entry.Color == weaknessColor).Select(entry => entry.Value).ToArray();
-        Assert.Equal(new[] { "Fire", (-1m).ToString("P0", CultureInfo.CurrentCulture) }, highlighted);
+        var theme = new VectorUiTheme();
+        Assert.Equal(BattleResistanceTone.Favorable.Color(theme), ColorOf("Fire"));
+        Assert.Equal(ColorOf("Fire"), ColorOf((-1m).ToString("P0", CultureInfo.CurrentCulture)));
+        Assert.Equal(ColorOf("Fire"), ColorOf("Zombie"));
+        Assert.Equal(ColorOf("Fire"), ColorOf("Vit 0"));
+        Assert.Equal(theme.Foreground, ColorOf("Ice"));
+        Assert.Equal(theme.Muted, ColorOf("Water"));
+        Assert.Equal(theme.Muted, ColorOf("Eject"));
+        Assert.Equal(BattleResistanceTone.Warning.Color(theme), ColorOf("Holy"));
         Assert.Contains(new UiImageSource(UiImageKind.Icon, TargetScanScreen.HolyIcon), canvas.Images);
+        foreach (NativeStatusId symbol in new[] { NativeStatusId.Doom, NativeStatusId.Petrifying, NativeStatusId.Vit0 })
+        {
+            Assert.Contains(new UiImageSource(UiImageKind.StatusSymbol, (int)symbol), canvas.Images);
+        }
 
         string[] StatLabels(float y) => canvas.Texts.Where(row => row.Bounds.Y == y && char.IsLetter(row.Value[0])).Select(row => row.Value).ToArray();
+        UiColor ColorOf(string text) => Assert.Single(canvas.Texts, row => row.Value == text).Color;
     }
 
     [Fact]

@@ -10,6 +10,7 @@ namespace Memoria.FF8;
 /// <summary>Reads current Unicode presentation values without changing the battle's original native content owners.</summary>
 internal sealed class LocalizationBattlePresentation(ResourceService resources)
 {
+    internal long CatalogGeneration => resources.CatalogGeneration;
     internal string SystemText(string id, string original) => Memoria.FF8.Resources.Localization.SystemTextCatalog.Translate(resources.Localize, id, original);
 
     internal string GlobalMessage(int ordinal, string original) => Kernel("MiscTexts", "Text", ordinal, original);

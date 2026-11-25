@@ -30,6 +30,7 @@ public enum NativeStatusId
     Float = 29,
     Confuse = 30,
     Drain = 31,
+    Eject = 32,
     Double = 33,
     Triple = 34,
     Vit0 = 40,

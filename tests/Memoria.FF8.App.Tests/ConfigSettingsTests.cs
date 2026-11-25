@@ -1,10 +1,57 @@
 using Memoria.FF8.GameUi;
+using Memoria.FF8.Resources.Localization;
 using Memoria.FF8.Ui;
 
 namespace Memoria.FF8.App.Tests;
 
 public sealed class ConfigSettingsTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Scan_hints_default_to_targets_and_every_menu_choice_persists(bool activeGame)
+    {
+        string path = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".json");
+        try
+        {
+            Assert.Equal(BattleScanHintMode.Targets, UiPreferences.Load(path).BattleScanHints);
+            File.WriteAllText(path, """{"MusicVolume":75}""");
+            UiPreferences preferences = UiPreferences.Load(path);
+            Assert.Equal(BattleScanHintMode.Targets, preferences.BattleScanHints);
+            MenuData data = new();
+            MenuController menu = new(() => data, action =>
+            {
+                preferences = preferences.WithInstallationSetting(action.SubjectId, action.Value, activeGame);
+                preferences.Save(path);
+                data.Settings[action.SubjectId] = action.Value;
+            });
+            menu.ConnectPreferences(() => preferences);
+            menu.PopulateHostSettingValues(data, ["Scan hints"]);
+            var translations = SystemTextCatalog.Defaults.Where(pair => pair.Key.StartsWith("setting.scan-hints", StringComparison.Ordinal)).ToDictionary(pair => SystemTextCatalog.Key(pair.Key), pair => "Translated " + pair.Value);
+            menu.ConnectLocalizationText((key, fallback) => translations.GetValueOrDefault(key, fallback));
+            menu.Open("config-interface");
+            MenuSetting setting = Assert.Single(MenuSettings.Definitions, item => item.Id == "Scan hints");
+            MenuEntry entry = Assert.Single(menu.Entries, item => item.Id == setting.Id);
+            Assert.Equal("Translated Scan hints", entry.Label);
+            Assert.Equal("Translated " + setting.Description, entry.Help);
+            UiChoiceRow row = Assert.Single(Descendants(menu.BuildView().Root).OfType<UiChoiceRow>(), item => item.Id == setting.Id);
+            Assert.Equal(["Translated Off", "Translated Targets", "Translated Full"], row.Items);
+            Assert.Equal(1, row.SelectedIndex);
+            foreach (BattleScanHintMode expected in new[] { BattleScanHintMode.Full, BattleScanHintMode.Off, BattleScanHintMode.Targets })
+            {
+                menu.Execute(menu.Entries.Single(item => item.Id == setting.Id).Action!);
+                UiPreferences saved = UiPreferences.Load(path);
+                Assert.Equal(expected, saved.BattleScanHints);
+                Assert.Equal(75, saved.MusicVolume);
+            }
+            Assert.Throws<ArgumentException>(() => preferences.WithSetting(setting.Id, "Unknown"));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
     [Fact]
     public void Window_size_uses_defaults_config_or_explicit_launch_resolution()
     {

@@ -189,15 +189,16 @@ public sealed partial class BattleSession
             ResolveNativeLevelChange(actor, recipient, command, native);
             return;
         }
-        bool bypass = (native.Statuses1 & 0x4000000) != 0;
-        bool physical = native.AttackType is 1 or 7 or 9 or 10 or 18 or 34 or 36;
+        bool bypass = native.IgnoresImmunity;
+        bool physical = native.UsesPhysicalDamageFormula;
+        bool offensiveContactBlocked = NativeOffensiveContactBlocked(native, saved, statuses);
         bool curative = native.AttackType is 3 or 4 or 5 or 6 or 21 or 25 or 32;
         if (native.Command is 243 or 248 or 251 or 253 && NativeGunbladeAttack.TriggerSucceeded(ReadGunbladeTiming(actor, command)))
         {
             //48FE20 publishes ADEbit2 before the type10 formula, including its immunity return and separate damage critical byte.
             MarkNativeContactFlags(0, 2);
         }
-        if (physical && !bypass && ((saved & 4) != 0 || (statuses & 0x180800) != 0))
+        if (physical && offensiveContactBlocked)
         {
             Log("Miss", actor.Id, recipient.Id, 0, $"{action.Name}: {recipient.Name} is immune.");
             return;
@@ -214,7 +215,7 @@ public sealed partial class BattleSession
             {
                 curative = false;
                 //491940/4935A0 enter the complete491AD0 contract, including immunity before RNG/statuses.
-                if (!bypass && ((saved & 5) != 0 || (statuses & 0x200800) != 0 || (native.Element & 8) != 0 && (statuses & 0x2000) != 0))
+                if (NativeMagicContactBlocked(native, saved, statuses))
                 {
                     MarkNativeContactFlags(0, 4);
                     Log("Miss", actor.Id, recipient.Id, 0, $"{action.Name}: {recipient.Name} is immune.");
@@ -274,13 +275,13 @@ public sealed partial class BattleSession
                 MarkNativeContactFlags(0, 2);
             }
             int vitality = native.AttackType == 36 ? 0 : EffectiveStat(recipient, BattleStatId.Vitality);
-            if (native.AttackType == 7 && (recipient.NativeCombatantFlags & 0x10000) != 0)
+            if (native.AttackType == 7 && BlocksPercentageDamage(recipient))
             {
                 MarkNativeContactFlags(0, 4);
             }
             damage = native.AttackType switch
             {
-                7 => (recipient.NativeCombatantFlags & 0x10000) != 0 ? 0 : (int)((long)native.Power * recipient.CurrentHp / 16),
+                7 => BlocksPercentageDamage(recipient) ? 0 : (int)((long)native.Power * recipient.CurrentHp / 16),
                 18 => 5 * actor.MaximumHp,
                 34 => recipient.IsPlayer ? native.Power * recipient.NativeKillCount : 0,
                 10 => NativeGunbladeAttack.Damage(EffectiveStat(actor, BattleStatId.Strength), vitality, native.Power, NextRandomByte(), ResolveGunbladeTiming(actor, recipient, command)),
@@ -311,11 +312,10 @@ public sealed partial class BattleSession
         else
         {
             int spirit = native.AttackType is 15 or 22 ? 0 : EffectiveStat(recipient, BattleStatId.Spirit);
-            bool magic = native.AttackType is 2 or 8 or 11 or 15 or 20 or 22 or 26 or 33;
+            bool magic = native.UsesMagicDamageFormula;
             bool magicCure = native.AttackType is 3 or 21;
-            bool fixedDamage = native.AttackType is 27 or 28 or 29 or 35;
-            bool earthImmune = (native.Element & 8) != 0 && (statuses & 0x2000) != 0;
-            if (magic && !bypass && ((saved & 5) != 0 || (statuses & 0x200800) != 0 || earthImmune) || magicCure && !bypass && ((saved & 1) != 0 || (statuses & 0x200000) != 0 || earthImmune) || fixedDamage && ((saved & 4) != 0 || (statuses & 0x800) != 0))
+            bool earthImmune = native.HasEarthElement && HasNativeFloat(statuses);
+            if (offensiveContactBlocked || magicCure && !bypass && ((saved & 1) != 0 || (statuses & 0x200000) != 0 || earthImmune))
             {
                 if (magic || magicCure)
                 {
@@ -366,10 +366,10 @@ public sealed partial class BattleSession
                     damage = (int)(-(long)native.Power * recipient.MaximumHp / 16);
                     break;
                 case 8:
-                    damage = (recipient.NativeCombatantFlags & 0x10000) != 0 ? 0 : (int)((long)native.Power * recipient.CurrentHp / 16);
+                    damage = BlocksPercentageDamage(recipient) ? 0 : (int)((long)native.Power * recipient.CurrentHp / 16);
                     break;
                 case 20:
-                    damage = (recipient.NativeCombatantFlags & 0x10000) != 0 ? 0 : (int)((long)action.Level * recipient.MaximumHp / ((native.PowerModifier ?? 0) - (native.LevelModifier ?? 0) + 100));
+                    damage = BlocksPercentageDamage(recipient) ? 0 : (int)((long)action.Level * recipient.MaximumHp / ((native.PowerModifier ?? 0) - (native.LevelModifier ?? 0) + 100));
                     break;
                 case 11:
                 case 15:
@@ -427,15 +427,15 @@ public sealed partial class BattleSession
                     damage = -damage;
                 }
             }
-            else if (native.AttackType is 2 or 8 or 11 or 15 or 20 or 22 or 26 or 33)
+            else if (magic)
             {
                 damage = ModifyNativeMagicDamage(recipient, native, damage);
             }
         }
-        bool drainFormula = physical || native.AttackType is 2 or 8 or 11 or 15 or 20 or 22 or 26 or 33 || native.AttackType is 5 or 6 && !curative;
+        bool drainFormula = physical || native.UsesMagicDamageFormula || native.AttackType is 5 or 6 && !curative;
         int? drainDamage = null;
         bool drainHealing = false;
-        if (drainFormula && (native.Statuses1 & 0x8000) != 0)
+        if (drainFormula && native.DrainsHitPoints)
         {
             //48F600/491AD0 resolve the secondary half before statuses and primary commitment modifiers.
             int percent = native.StatusAttack - GetNativeStatusResistance(recipient, 23);
@@ -449,7 +449,7 @@ public sealed partial class BattleSession
         }
         if (applyStatuses)
         {
-            ApplyNativeActionStatuses(actor, recipient, native with { Statuses1 = native.Statuses1 & ~0x4008000u }, curative);
+            ApplyNativeActionStatuses(actor, recipient, native with { Statuses1 = native.AppliedBattleStatuses }, curative);
         }
         if (command.DrawCast)
         {
@@ -547,9 +547,36 @@ public sealed partial class BattleSession
             return damage;
         }
         int element = System.Numerics.BitOperations.TrailingZeroCount((uint)native.Element);
-        int defense = (NativeSavedStatusBits(recipient) & 0x40) != 0 && element == 7 ? 700 : recipient.ElementDefenses[element];
+        int defense = EffectiveNativeElementDefense(recipient, element);
         return NativeBattleDamage.Element(damage, native.Element, defense, physical, native.ElementPercent.GetValueOrDefault());
     }
+
+    private static int EffectiveNativeElementDefense(BattleCombatant target, int element)
+    {
+        return element == 7 && (NativeSavedStatusBits(target) & 0x40) != 0 ? 700 : target.ElementDefenseAt(element);
+    }
+
+    private static bool HasNativeFloat(uint battleStatuses) => (battleStatuses & 0x2000) != 0;
+
+    private static bool NativeMagicContactBlocked(BattleNativeAction native, ushort saved, uint statuses)
+    {
+        return !native.IgnoresImmunity && ((saved & 5) != 0 || (statuses & 0x200800) != 0 || native.HasEarthElement && HasNativeFloat(statuses));
+    }
+
+    private static bool NativeOffensiveContactBlocked(BattleNativeAction native, ushort saved, uint statuses)
+    {
+        if (native.UsesPhysicalDamageFormula)
+        {
+            return !native.IgnoresImmunity && ((saved & 4) != 0 || (statuses & 0x180800) != 0);
+        }
+        if (native.UsesMagicDamageFormula)
+        {
+            return NativeMagicContactBlocked(native, saved, statuses);
+        }
+        return native.UsesFixedDamageFormula && ((saved & 4) != 0 || (statuses & 0x800) != 0);
+    }
+
+    private static bool BlocksPercentageDamage(BattleCombatant target) => (target.NativeCombatantFlags & 0x10000) != 0;
 
     private void DispatchNativeActionCounter(BattleCombatant recipient)
     {

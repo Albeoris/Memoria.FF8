@@ -257,7 +257,7 @@ public sealed class BattleHudTargetLayoutTests
     private static BattleHudController Create(int count, List<string>? confirmed = null, int allies = 1, bool selectingTarget = true)
     {
         BattleSession battle = new(CreateDefinition(count, allies), BattleAtbMode.TurnBased);
-        BattleHudController hud = new(battle, (_, target) => confirmed?.Add(target), () => { }, () => { });
+        BattleHudController hud = new(battle, (_, target) => confirmed?.Add(target), () => { }, () => { }, readPresentationUi: BattleHudTestPresentation.Visible);
         if (selectingTarget)
         {
             hud.Navigate(MenuInput.Confirm);
@@ -272,7 +272,7 @@ public sealed class BattleHudTargetLayoutTests
         definition.Combatants[0] = definition.Combatants[0] with { Abilities = [BattleAbility.Item] };
         BattleNativeAction native = new(4, 1, 7, 1) { MagicId = 0, AttackType = 2, Power = 10, HitCount = 1, TargetFlags = 0x20, AttackFlags = 0, DamagePresentation = 0, Element = 0, ElementPercent = null, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = null, Critical = null, PowerModifier = null, LevelModifier = null, RawRecord = [], SupplementalRecord = [] };
         BattleSession battle = new(definition with { Items = [new(1, 1)], ActionDefinitions = [new(BattleAbility.Item, 1, "Group item", BattleActionEffect.Damage, 10, false, AllTargets: true) { NativeAction = native }] }, BattleAtbMode.TurnBased);
-        BattleHudController hud = new(battle, (_, _) => { }, () => { }, () => { }, execute: _ => throw new Xunit.Sdk.XunitException("Browsing should not confirm the action."));
+        BattleHudController hud = new(battle, (_, _) => { }, () => { }, () => { }, execute: _ => throw new Xunit.Sdk.XunitException("Browsing should not confirm the action."), readPresentationUi: BattleHudTestPresentation.Visible);
         hud.Navigate(MenuInput.Confirm);
         hud.Navigate(MenuInput.Confirm);
         Assert.True(hud.SelectingTargetGroup);

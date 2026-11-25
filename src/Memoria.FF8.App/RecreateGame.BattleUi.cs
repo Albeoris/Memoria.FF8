@@ -311,6 +311,7 @@ internal sealed partial class RecreateGame
         battleHud.ShowActorDialogue = !ReferenceEquals(diagnosticIdleBattle?.Battle, active);
         battleHud!.TextScale = uiPreferences.TextScale / 100f * uiPreferences.UiFontSize / 24f;
         battleHud.CursorMemory = uiPreferences.CursorMemory;
+        battleHud.ScanHintMode = uiPreferences.BattleScanHints;
         battleHud.ShowEnemySpellNames = uiPreferences.ShowEnemySpellNames;
         battleHud.SlotsNavigationHint = string.Join(" / ", new[] { ControlAction.MoveUp, ControlAction.MoveDown, ControlAction.MoveLeft, ControlAction.MoveRight }.Select(keyboard.BindingPrompt));
         battleHud.SlotsConfirmHint = keyboard.BindingPrompt(ControlAction.Confirm);

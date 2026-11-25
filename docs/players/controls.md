@@ -111,6 +111,27 @@ The same setting is stored in the `Graphics` section of `%LOCALAPPDATA%/Memoria/
 
 The preference is stored as `ShowEnemySpellNames` in `ui-settings.json`; existing configurations without the property default to Off.
 
+## Scan hints
+
+**Config → Interface → Scan hints** controls when battles show what Scan has revealed about an enemy.
+
+- **Off** hides the extra hints.
+- **Targets** (default) shows hints while selecting a target.
+- **Full** also shows icons beside scanned enemies while choosing magic and colors spell names in the list.
+
+The choice is shared across saves and retained across launches. A successful party Scan also identifies that monster model in later encounters. A target with concealed Scan data keeps its defenses hidden.
+
+At target selection, a physical attack shows its active elemental and status attack junctions. Offensive spells and summons show their own elements and statuses. Each percentage is the target's resistance to that effect. For example, −50% Fire resistance means that a fully elemental Fire attack deals 1.5 times its usual damage. A status's chance to land also depends on the attack. An unidentified enemy shows the action's icons with **??** and stays unmarked while browsing spells.
+
+| Color | Meaning |
+| --- | --- |
+| Light blue | Elemental weakness (below 0%) or susceptibility to a status (50% or less). |
+| White | Ordinary resistance, including 0% for an element and 51–99% for a status. |
+| Gray | Immunity to this effect. An elemental resistance of 100% blocks its damage. |
+| Coral | An elemental resistance above 100% absorbs damage and heals the target. |
+
+In **Full**, a light-blue spell name means at least one eligible enemy has a known weakness or status susceptibility. A coral name warns that every eligible enemy is known and resists all the spell's relevant effects. An unknown enemy leaves that verdict open. For example, Fire stays white against an immune enemy and an unidentified enemy. Spell charges keep their usual color, and a coral spell can still be cast.
+
 ## Achievement notifications
 
 Achievement unlock notifications appear automatically. Progress notifications are disabled by default; achievement tracking continues while they are hidden.

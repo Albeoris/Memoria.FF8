@@ -51,28 +51,35 @@ internal sealed partial class BattleHudElement
         CommandPanelY = 648 - CommandPanelHeight;
         CommandContentY = CommandPanelY + contentOffset;
         UiRect panel = Rect(30, CommandPanelY, CommandWidth, CommandPanelHeight);
+        if (magic && controller.ScanHintMode == BattleScanHintMode.Full)
+        {
+            DrawModelResistanceHints(canvas, theme, panel with { Y = panel.Y - captionSize, Height = panel.Height + captionSize });
+        }
         theme.Panel(canvas, panel, !magic && controller.DrawCast ? null : caption, captionSize);
         if (!magic && controller.DrawCast)
         {
             theme.Caption(canvas, panel, caption, captionSize, new UiColor(255, 255, 0));
         }
         UiColor guardianColor = LearnedAbilityHighlight.Color(controller.BattlePresentationSeconds);
+        BattleCombatant? caster = magic ? controller.SelectedActor : null;
+        int selectedIndex = controller.ChoiceIndex;
         for (int index = 0; index < actions.Count; index++)
         {
             (int column, int row) = drawLayout.GetCell(index);
             float x = 30 + column * drawColumnWidth;
             float y = CommandContentY + row * drawRowHeight;
-            if (index == controller.ChoiceIndex)
+            if (index == selectedIndex)
             {
                 theme.Pointer(canvas, Left + (x + 8) * Scale, Top + (y + 5) * Scale, 10 * Scale);
             }
-            bool unavailable = magic && (!actions[index].Available || controller.SelectedActor is { } caster && !controller.Session.QuoteMagic(caster.Id, actions[index].Id).Allowed);
+            bool unavailable = magic && (!actions[index].Available || caster is not null && !controller.Session.QuoteMagic(caster.Id, actions[index].Id).Allowed);
             UiColor color = unavailable ? theme.Muted : !magic && controller.IsDrawGuardianForce(actions[index]) ? guardianColor : theme.Foreground;
+            UiColor nameColor = caster is not null && !unavailable ? controller.MagicHintTone(caster, actions[index]).Color(theme) : color;
             float textWidth = drawColumnWidth - 38 - ownerWidth - (valueWidth > 0 ? valueWidth + 12 : 0);
             canvas.PushClip(Rect(x + 30, y, textWidth, drawRowHeight));
             try
             {
-                canvas.Text(labels[index], fontSize * Scale, Rect(x + 30, y, textWidth, drawRowHeight), color);
+                canvas.Text(labels[index], fontSize * Scale, Rect(x + 30, y, textWidth, drawRowHeight), nameColor);
             }
             finally
             {

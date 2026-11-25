@@ -95,6 +95,8 @@ public sealed partial class BattleHudController
     internal void EndPresentationDraw()
     {
         drawingPresentation = false;
+        drawHintSelection = null;
+        drawSmartPreview = null;
         presentationActionChoices = null;
         presentationMagicStockChoices = null;
     }
