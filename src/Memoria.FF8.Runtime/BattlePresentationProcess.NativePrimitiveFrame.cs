@@ -349,7 +349,7 @@ public sealed partial class BattlePresentationProcess
         NativeSoftwareDrawingEnvironmentBuffers environments = process.Software?.EnvironmentBuffers ?? throw new NotSupportedException("A completed scene source requires its retained drawing environments.");
         int drawnBuffer = buffer ^ 1;
         ImmutableArray<byte> environment = drawnBuffer == 0 ? environments.Buffer0 : environments.Buffer1;
-        NativeBattlePreparedPrimitiveFrame completed = PrepareNativePrimitiveFrame(frame) with { SceneReplaySources = null, LastCommands = ExcludeSceneCopyCommands(frame.LastCommands) };
+        NativeBattlePreparedPrimitiveFrame completed = PrepareNativePrimitiveFrame(graphics, frame) with { SceneReplaySources = null, LastCommands = ExcludeSceneCopyCommands(frame.LastCommands) };
         NativeBattleEffectTextureState sourceTextures = memory.Textures ?? throw new NotSupportedException("A completed scene source requires its retained texture image.");
         bool orderedTextures = true;
         foreach (ref readonly NativeBattleLogicalResolvedCommand command in completed.LastCommands)

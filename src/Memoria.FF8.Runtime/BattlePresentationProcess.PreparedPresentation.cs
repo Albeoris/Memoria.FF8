@@ -19,7 +19,7 @@ public sealed partial class BattlePresentationProcess
             ? host.CaptureModels(roster, hostedModelRegistry)
             : frame;
         current.ValidateCurrentModels(roster, graphics);
-        NativeBattlePreparedPrimitiveFrame primitives = PrepareNativePrimitiveFrame(primitiveFrame, frame);
+        NativeBattlePreparedPrimitiveFrame primitives = PrepareNativePrimitiveFrame(graphics, primitiveFrame, frame);
         if (PreparedPresentation?.Primitives == primitives)
         {
             primitives = PreparedPresentation.Primitives;
@@ -39,13 +39,25 @@ public sealed partial class BattlePresentationProcess
         PreparedPresentation = new(++preparedPresentationVersion, graphics.Callback, frameNumber, skippingGuardian, primitives, NativeEffectMemory?.Textures, NativeEffectMemory?.PrimitiveProcess?.TextureWindowCache, NativeEffectMemory?.UiImmediateFrame, EncounterPresentationCamera, graphics.Effects.TextDraws, NativeStage?.ResourceStageId, NativeStage?.TextureAnimationStartCallback, actors.ToImmutable(), scan) { PrimitiveCapabilities = this.resources.NativeGraphics?.PrimitiveCapabilities, SceneMotion = graphics.OriginalEffect is null, PilotEffect = pilotEffect, PilotGeneration = pilotEffect.HasValue && graphics.OriginalEffect?.Pools is { Length: > 0 } pilotPools ? NativeBattlePilotVisualLifetimes.EpochFor(pilotPools[0].RequireOwner()) : 0, PilotCamera = nativePilotSourceCamera, PilotProjection = nativePilotSourceProjection };
     }
 
-    private NativeBattlePreparedPrimitiveFrame PrepareNativePrimitiveFrame(NativeBattlePrimitiveFrame frame, NativeBattleModelLifecycleServices? hostedServices = null)
+    private NativeBattlePreparedPrimitiveFrame PrepareNativePrimitiveFrame(NativeBattleGraphicsState graphics, NativeBattlePrimitiveFrame frame, NativeBattleModelLifecycleServices? hostedServices = null)
     {
         NativeBattlePreparedPrimitiveFrame primitives = NativeBattlePreparedPrimitiveFrame.From(frame);
         ImmutableDictionary<string, float>? opacities = HasBattleEntry
             ? (hostedServices ?? hostedFrameServices)?.ActorOpacities ?? throw new InvalidOperationException("Hosted primitive publication requires the current frame's actor opacities.")
             : null;
-        return opacities is null ? primitives : primitives with { ActorOpacities = ReadEncounterArrivalOpacities(opacities) };
+        if (opacities is not null)
+        {
+            primitives = primitives with { ActorOpacities = ReadEncounterArrivalOpacities(opacities) };
+        }
+        ImmutableHashSet<string>.Builder? petrifiedEnemies = null;
+        foreach (BattleModelEntry<BattleEnemyModelOwner> entry in graphics.ActorModels.Enemies.Entries)
+        {
+            if (entry.Owner is BattleEnemyActorModel && (entry.State.Flags8.GetValueOrDefault() & 0x10) != 0)
+            {
+                (petrifiedEnemies ??= ImmutableHashSet.CreateBuilder<string>()).Add(ReadGraphicsPresentationId(entry.Owner));
+            }
+        }
+        return petrifiedEnemies is null ? primitives : primitives with { PetrifiedEnemyActors = petrifiedEnemies.ToImmutable() };
     }
 
     private NativeBattlePreparedScan? PrepareScanPresentation(NativeBattleGraphicsState graphics, BattlePresentationServices host)

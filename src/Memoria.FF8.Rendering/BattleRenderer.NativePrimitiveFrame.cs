@@ -300,6 +300,10 @@ public sealed partial class BattleRenderer
                 texture = drawMode.SceneCaptureSample is null
                     ? ResolveNativePrimitiveTexture(frame, command, drawMode, textures, capabilities, textureWindowCache, replacements, colorState, previousTextureOwner, sameReplacements, quad ? 4 : 3, affine, out prefixUvScale)
                     : ResolveSceneCaptureTexture(frame, drawMode, capabilities, colorState);
+                if (drawMode.SceneCaptureSample is null && command.PresentationActorId is { } actorId && frame.PetrifiedEnemyActors?.Contains(actorId) == true)
+                {
+                    texture = PetrifiedActorTextures.GetValue(texture, CreatePetrifiedActorTexture);
+                }
             }
             NativeBattlePilotPrimitiveSample pilot = command.SceneCapture?.Kind == NativeBattleSceneCaptureKind.Image ? default : PreparePilotPrimitiveSample(command, state, perspective);
             NativeBattlePrimitiveViewportProjector viewport = default;

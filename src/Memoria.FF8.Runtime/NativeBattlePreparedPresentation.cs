@@ -13,6 +13,8 @@ public sealed record NativeBattlePreparedPrimitiveFrame(NativeBattleResolvedComm
     public ImmutableArray<NativeBattlePcTextureWindowPixels>? LastTextureSnapshots { get; init; }
     public NativeBattlePcRenderTailReceipt? LastPcRenderTail { get; init; }
     public ImmutableDictionary<string, float> ActorOpacities { get; init; } = ImmutableDictionary<string, float>.Empty;
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public ImmutableHashSet<string>? PetrifiedEnemyActors { get; init; }
 
     public float ActorOpacity(string? actorId)
     {

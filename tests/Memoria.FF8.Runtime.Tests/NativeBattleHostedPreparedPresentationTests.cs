@@ -83,6 +83,28 @@ public sealed class NativeBattleHostedPreparedPresentationTests
     }
 
     [Fact]
+    public void EnemyPetrificationIsCapturedFromTheCurrentGraphicsStatus()
+    {
+        var (owner, child, graphics) = Fixture();
+        NativeBattleModelLifecycleServices services = owner.CaptureModelLifecycleServices(graphics.ActorModels.Roster);
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(Ally, graphics.ActorModels.Get(Ally) with { Flags8 = 0x10 }) };
+        Set(child, nameof(BattlePresentationProcess.NativeGraphics), graphics);
+        Publish(child, services);
+        Assert.Null(child.PreparedPresentation!.Primitives.PetrifiedEnemyActors);
+
+        NativeBattleGraphicsState petrified = graphics with { ActorModels = graphics.ActorModels.Set(Enemy, graphics.ActorModels.Get(Enemy) with { Flags8 = 0x10 }) };
+        Set(child, nameof(BattlePresentationProcess.NativeGraphics), petrified);
+        Publish(child, services);
+        NativeBattlePreparedPrimitiveFrame captured = child.PreparedPresentation!.Primitives;
+        Assert.Equal("enemy-4", Assert.Single(captured.PetrifiedEnemyActors!));
+
+        Set(child, nameof(BattlePresentationProcess.NativeGraphics), graphics);
+        Publish(child, services);
+        Assert.Null(child.PreparedPresentation!.Primitives.PetrifiedEnemyActors);
+        Assert.Equal("enemy-4", Assert.Single(captured.PetrifiedEnemyActors!));
+    }
+
+    [Fact]
     public void Prepared_scan_uses_canonical_enemy_identity_and_bound_text_for_an_extended_viewer()
     {
         var (owner, child, graphics) = Fixture();

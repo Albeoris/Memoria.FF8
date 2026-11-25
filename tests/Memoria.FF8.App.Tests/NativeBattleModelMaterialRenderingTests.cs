@@ -9,6 +9,27 @@ public sealed class NativeBattleModelMaterialRenderingTests
 {
     private const ushort Clut = 0x4000;
 
+    [Fact]
+    public void PetrifiedActorChangesColorWithoutChangingItsSharedTexture()
+    {
+        NativeBattlePrimitiveDrawMode mode = FullWindowMode();
+        NativeBattleLogicalResolvedCommand first = Quad(10, null, mode);
+        NativeBattleLogicalResolvedCommand second = Quad(40, null, mode);
+        first = first with { Command = first.Command.ToCommand() with { PresentationActorId = "first" } };
+        second = second with { Command = second.Command.ToCommand() with { PresentationActorId = "second" } };
+        NativeBattlePreparedPrimitiveFrame normal = NativeBattlePreparedPrimitiveFrame.From(Frame([first, second, Quad(70, null, mode)]));
+        NativeBattlePreparedPrimitiveFrame petrified = normal with { PetrifiedEnemyActors = ImmutableHashSet.Create("first") };
+        NativeBattleEffectTextureState textures = Texture(0x001F);
+        BattleRenderer renderer = new(320, 216);
+
+        AssertPixel(renderer.RenderNativePrimitiveFrame(normal, textures), 20, 255, 0, 0);
+        byte[] stone = renderer.RenderNativePrimitiveFrame(petrified, textures);
+        AssertPixel(stone, 20, 90, 90, 90);
+        AssertPixel(stone, 50, 255, 0, 0);
+        AssertPixel(stone, 80, 255, 0, 0);
+        AssertPixel(renderer.RenderNativePrimitiveFrame(normal, textures), 20, 255, 0, 0);
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
