@@ -20,13 +20,19 @@ internal sealed record NativeScanWindowText(int Index, NativeBattleScanRect Oute
 /// <summary>Projects current native text progress into semantic runs for the system text renderer.</summary>
 internal static class NativeScanWindowTextProjection
 {
+    public static bool IsVisible(NativeBattleScanTextWindows windows, int index, NativeBattleScanRect drawArea)
+    {
+        NativeBattleScanByteOwner backend = windows.Backend(windows.Row(index).ReadByte(0x18));
+        return CanDraw(backend) && NativeBattleScanDrawRectangles.ClipForPresentation4B6400(backend, drawArea).Visible;
+    }
+
     public static IReadOnlyList<NativeScanWindowText> ProjectForViewport(NativeBattleScanTextFrame frame, NativeBattleScanTextExpansionServices services, NativeBattleScanRect drawArea, string language)
     {
         NativeBattleScanTextWindows windows = frame.Windows;
         for (byte index = 0; index < 8; index++)
         {
             NativeBattleScanByteOwner backend = windows.Backend(index);
-            if (backend.ReadByte(0x34) == 0 || backend.ReadByte(0x35) == 0 || backend.ReadByte(0x36) != 0)
+            if (!CanDraw(backend))
             {
                 continue;
             }
@@ -46,7 +52,7 @@ internal static class NativeScanWindowTextProjection
         {
             NativeBattleScanByteOwner row = frame.Windows.Row(index);
             NativeBattleScanByteOwner backend = frame.Windows.Backend(row.ReadByte(0x18));
-            if (backend.ReadByte(0x34) == 0 || backend.ReadByte(0x35) == 0 || backend.ReadByte(0x36) != 0)
+            if (!CanDraw(backend))
             {
                 continue;
             }
@@ -136,6 +142,8 @@ internal static class NativeScanWindowTextProjection
         }
         return windows;
     }
+
+    private static bool CanDraw(NativeBattleScanByteOwner backend) => backend.ReadByte(0x34) != 0 && backend.ReadByte(0x35) != 0 && backend.ReadByte(0x36) == 0;
 
     private static NativeBattleScanRect Rect(NativeBattleScanByteOwner owner, int offset) => new(unchecked((short)owner.ReadWord(offset)), unchecked((short)owner.ReadWord(offset + 2)), unchecked((short)owner.ReadWord(offset + 4)), unchecked((short)owner.ReadWord(offset + 6)));
 }

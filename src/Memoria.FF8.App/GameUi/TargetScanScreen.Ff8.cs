@@ -6,6 +6,24 @@ namespace Memoria.FF8.GameUi;
 
 internal static class Ff8TargetScan
 {
+    internal static NativeBattleScanRect NativeTextArea { get; } = new(0, 0, 320, 224);
+
+    public static NativeBattlePreparedScanActor? VisibleActor(NativeBattlePreparedScan? scan)
+    {
+        if (scan?.Actor is not { TargetData: not null } actor)
+        {
+            return null;
+        }
+        for (int index = 0; index <= 2; index++)
+        {
+            if (NativeScanWindowTextProjection.IsVisible(scan.Text.Windows, index, NativeTextArea))
+            {
+                return actor;
+            }
+        }
+        return null;
+    }
+
     public static TargetScanData Create(NativeBattlePreparedScan scan, NativeBattleScanTargetData data, string name, string description, string language, Func<string, string, string> localize)
     {
         var encoding = NativeTextEncoding.Create(language);

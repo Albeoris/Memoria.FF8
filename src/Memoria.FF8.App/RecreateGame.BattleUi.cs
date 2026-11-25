@@ -17,6 +17,7 @@ internal sealed partial class RecreateGame
     private BattleDebugCatalog? presentationBattleCatalog;
     private BattleSession? debugBattle;
     private BattleHudController? battleHud;
+    private readonly TargetScanDismissal targetScanDismissal = new();
     private object? authoringScanOwner;
     private long authoringScanLifetime;
     private readonly Dictionary<int, (uint Source, string Key, int Model)> authoringScanWindows = [];
@@ -28,7 +29,7 @@ internal sealed partial class RecreateGame
     private bool slotsInputReleasePending;
     private bool SlotsModalBlocksGameplay => ActiveBattle is { } active && (active.PendingSlotsDeal is not null || ReferenceEquals(active, presentedBattle) && (battleHud?.CardSlotsOwnsInput == true || slotsInputReleasePending));
     private bool DuelOwnsInput => ActiveBattle is { } active && active.Combatants.Any(actor => active.GetNativeDuel(actor.Id) is { WidgetClosed: false });
-    private bool BattleModalBlocksGameplay => SlotsModalBlocksGameplay || DuelOwnsInput;
+    private bool BattleModalBlocksGameplay => SlotsModalBlocksGameplay || DuelOwnsInput || Ff8TargetScan.VisibleActor(ActiveBattle?.PreparedPresentation?.Scan) is not null;
     private BattleSession? presentedBattle;
     private BattleDebugPresets? battleDebugPresets;
     private BattleSession? ActiveBattle => debugBattle ?? world?.Battle;
@@ -131,8 +132,9 @@ internal sealed partial class RecreateGame
             slotsInputReleasePending = false;
         }
         slotsOwned |= SlotsModalBlocksGameplay;
-        bool skipInput = !slotsOwned && !duelOwned && keyboard.GuardianFormSkipRequested && active.CanSkipGuardianFormFinisher;
-        bool boostInput = !slotsOwned && !duelOwned && keyboard.GuardianBoostRequested && active.NativeGuardianBoost is not null && battleHud.PresentationUi.GuardianBoostOwnsInput;
+        bool scanOwnsInput = !slotsOwned && !duelOwned && Ff8TargetScan.VisibleActor(active.PreparedPresentation?.Scan) is not null;
+        bool skipInput = !slotsOwned && !duelOwned && !scanOwnsInput && keyboard.GuardianFormSkipRequested && active.CanSkipGuardianFormFinisher;
+        bool boostInput = !slotsOwned && !duelOwned && !scanOwnsInput && keyboard.GuardianBoostRequested && active.NativeGuardianBoost is not null && battleHud.PresentationUi.GuardianBoostOwnsInput;
         if (boostInput)
         {
             ApplyBattleCommand(new BattleInput(BattleInputKind.GuardianBoost));
@@ -143,9 +145,12 @@ internal sealed partial class RecreateGame
         }
         if (!options.ControlExclusive || options.IsDiagnosticGraphicalHost)
         {
-            active.PublishNativeEscapeButtons(slotsOwned || duelOwned ? (ushort)0 : keyboard.HeldControlButtons);
-            active.PublishNativeScanMappedButtons(slotsOwned || duelOwned ? (ushort)0 : ReadDiagnosticScanMappedButtons(active, keyboard.HeldFieldButtons));
-            active.PublishNativeGuardianBoostMappedButtons(slotsOwned || duelOwned ? (ushort)0 : keyboard.HeldFieldButtons);
+            bool scanPointerPressed = !options.IsDiagnosticGraphicalHost && physicalInput.CanRead && mouseHeld && !previousBattleMouse;
+            bool scanExiting = active.Presentation?.Memory?.Scan?.Presentation.Exit269CE2C is > 0;
+            ushort scanButtons = targetScanDismissal.Sample(keyboard.HeldFieldButtons, scanOwnsInput, scanExiting, input, scanPointerPressed);
+            active.PublishNativeEscapeButtons(slotsOwned || duelOwned || scanOwnsInput ? (ushort)0 : keyboard.HeldControlButtons);
+            active.PublishNativeScanMappedButtons(slotsOwned || duelOwned ? (ushort)0 : ReadDiagnosticScanMappedButtons(active, scanButtons));
+            active.PublishNativeGuardianBoostMappedButtons(slotsOwned || duelOwned || scanOwnsInput ? (ushort)0 : keyboard.HeldFieldButtons);
         }
         AdvanceMeasuredBattlePresentation(active, elapsed);
         battlePresentationUpdated = true;
@@ -164,6 +169,12 @@ internal sealed partial class RecreateGame
         ObserveScanAuthoringDialogues(active);
         if (ActiveBattle is null || battleHud is null)
         {
+            return true;
+        }
+        if (scanOwnsInput || !slotsOwned && !duelOwned && Ff8TargetScan.VisibleActor(active.PreparedPresentation?.Scan) is not null)
+        {
+            previousBattleMouse = mouseHeld;
+            SynchronizeBattleAudio();
             return true;
         }
         if (!options.ControlExclusive || options.IsDiagnosticGraphicalHost)
@@ -294,6 +305,7 @@ internal sealed partial class RecreateGame
             battleHud.SlotsSoundRequested += cue => fieldAudio?.PlayTripleTriadSound(cue);
             battleHud.NativeButtonBindingHint = keyboard.NativeButtonBindingPrompt;
             slotsInputReleasePending = false;
+            targetScanDismissal.Reset();
         }
         battleHud!.OriginalCompatibleLayout = OriginalTextLayout;
         battleHud.ShowActorDialogue = !ReferenceEquals(diagnosticIdleBattle?.Battle, active);
@@ -667,29 +679,35 @@ internal sealed partial class RecreateGame
         BattleSession active = ActiveBattle!;
         UiRect viewport = new(bounds.X, bounds.Y, bounds.Width, bounds.Height);
         batch.Draw(battleGpu?.Target ?? battleTexture!, bounds, Color.White);
-        battleScene!.DrawEffects(active, uiCanvas!, new UiRect(bounds.X, bounds.Y, bounds.Width, bounds.Height));
-        UiView view = battleHud!.BuildView();
-        view.Resize(bounds.Width, bounds.Height);
-        battleHud.TargetModelBounds = actorId => battleScene.GetActorBounds(actorId, new UiRect(bounds.X, bounds.Y, bounds.Width, bounds.Height));
-        view.Draw(uiCanvas!, uiTheme);
-        if (!SlotsModalBlocksGameplay && battleScene.PresentedNativeFrame is { Scan: { } scan } presentation)
+        NativeBattlePreparedPresentation? presentation = battleScene!.PresentedNativeFrame;
+        bool slotsOwned = SlotsModalBlocksGameplay;
+        if (!slotsOwned && presentation?.Scan is { } targetScan && Ff8TargetScan.VisibleActor(targetScan) is { TargetData: { } target } actor)
         {
             var resources = (resourceHost ?? throw new InvalidOperationException("Native scan text requires its resource source.")).Resources;
             LocalizationBattlePresentation localization = new(resources);
-            IReadOnlyList<NativeScanWindowText> windows = NativeScanWindowTextProjection.ProjectForViewport(scan.Text, scan.CreateExpansionServices(), new(0, 0, 320, 224), resources.Source.Language);
+            var (name, description) = localization.TargetScanText(targetScan, actor, target.DescriptionIndex);
+            TargetScanData data = Ff8TargetScan.Create(targetScan, target, name, description, resources.Source.Language, LocalizeUiText);
             float textScale = uiPreferences.TextScale / 100f * uiPreferences.UiFontSize / 24f;
-            if (scan.Actor is { TargetData: { } target } actor && windows.Any(window => window.Index is 0 or 1 or 2))
-            {
-                var (name, description) = localization.TargetScanText(scan, actor, target.DescriptionIndex);
-                TargetScanData data = Ff8TargetScan.Create(scan, target, name, description, resources.Source.Language, LocalizeUiText);
-                TargetScanScreen.Draw(uiCanvas!, uiTheme, new(viewport), textScale, data, LocalizeUiText);
-                return;
-            }
+            TargetScanScreen.Draw(uiCanvas!, uiTheme, new(viewport), textScale, data, LocalizeUiText);
+            return;
+        }
+
+        battleScene.DrawEffects(active, uiCanvas!, viewport);
+        UiView view = battleHud!.BuildView();
+        view.Resize(bounds.Width, bounds.Height);
+        battleHud.TargetModelBounds = actorId => battleScene.GetActorBounds(actorId, viewport);
+        view.Draw(uiCanvas!, uiTheme);
+        if (!slotsOwned && presentation is { Scan: { } scan })
+        {
+            var resources = (resourceHost ?? throw new InvalidOperationException("Native scan text requires its resource source.")).Resources;
+            LocalizationBattlePresentation localization = new(resources);
+            IReadOnlyList<NativeScanWindowText> windows = NativeScanWindowTextProjection.ProjectForViewport(scan.Text, scan.CreateExpansionServices(), Ff8TargetScan.NativeTextArea, resources.Source.Language);
+            float textScale = uiPreferences.TextScale / 100f * uiPreferences.UiFontSize / 24f;
             PixelBounds fit = ViewportLayout.Fit(320, 240, bounds.Width, bounds.Height);
             UiRect nativeViewport = new(bounds.X + fit.X, bounds.Y + fit.Y, fit.Width, fit.Height);
             NativeScanWindowDrawing.Draw(uiCanvas!, uiTheme, localization.Scan(scan, windows), nativeViewport, BattlePresentationTiming.ElapsedForCallbacks(presentation.Callback).TotalSeconds, textScale);
         }
-        if (!SlotsModalBlocksGameplay && active.NativeExamTimer is { DisplayEnabled: true } timer)
+        if (!slotsOwned && active.NativeExamTimer is { DisplayEnabled: true } timer)
         {
             DrawTimerUi(bounds, timer);
         }

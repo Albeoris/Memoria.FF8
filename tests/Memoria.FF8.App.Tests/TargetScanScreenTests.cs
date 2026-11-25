@@ -54,18 +54,58 @@ public sealed class TargetScanScreenTests
         Assert.Equal(new[] { "Fire", "Ice", "Thunder", "Earth", "Poison", "Wind", "Water", "Holy" }, scan.Elements.Select(row => row.Name));
     }
 
+    [Fact]
+    public void Description_reflows_explicit_line_breaks_across_the_full_panel()
+    {
+        const string description = "В сумерках \r\n ящер прячется\nсреди\n\nкамней.\rУтром он\t ищет воду\nу старой башни.";
+        TargetScanData scan = new("Scan", "Ящер", description, 1, 100, 100, 1, 2, 3, 4, 5, 6, [], []);
+        RecordingCanvas canvas = new();
+
+        TargetScanScreen.Draw(canvas, new VectorUiTheme(), new(new UiRect(0, 0, 960, 672)), 1, scan, null);
+
+        var drawn = Assert.Single(canvas.Texts, entry => entry.Bounds.Y == 470);
+        Assert.Equal("В сумерках ящер прячется среди камней. Утром он ищет воду у старой башни.", drawn.Value);
+        Assert.Equal(409, drawn.Bounds.Width);
+        Assert.Equal(19, drawn.FontSize);
+        Assert.Equal(UiTextFlow.Wrap, drawn.Flow);
+    }
+
+    [Fact]
+    public void Long_description_uses_the_largest_text_that_fits_the_panel()
+    {
+        string description = string.Join(' ', Enumerable.Repeat("A long monster description.", 13));
+        TargetScanData scan = new("Scan", "Target", description, 1, 100, 100, 1, 2, 3, 4, 5, 6, [], []);
+        RecordingCanvas canvas = new();
+
+        TargetScanScreen.Draw(canvas, new VectorUiTheme(), new(new UiRect(0, 0, 960, 672)), 1, scan, null);
+
+        var drawn = Assert.Single(canvas.Texts, entry => entry.Bounds.Y == 470);
+        Assert.True(canvas.MeasureText(description, drawn.FontSize, drawn.Bounds.Width).Height <= drawn.Bounds.Height);
+        Assert.True(canvas.MeasureText(description, drawn.FontSize + 0.1f, drawn.Bounds.Width).Height > drawn.Bounds.Height);
+    }
+
     private sealed class RecordingCanvas : IUiCanvas
     {
-        public List<(string Value, UiRect Bounds, UiColor Color)> Texts { get; } = [];
+        public List<(string Value, UiRect Bounds, UiColor Color, float FontSize, UiTextFlow Flow)> Texts { get; } = [];
         public List<UiImageSource> Images { get; } = [];
 
-        public UiSize MeasureText(string text, float fontSize, float maximumWidth) => new(text.Length * fontSize / 2, fontSize);
+        public UiSize MeasureText(string text, float fontSize, float maximumWidth)
+        {
+            float width = text.Length * fontSize / 2;
+            float lines = Math.Max(1, MathF.Ceiling(width / maximumWidth));
+            return new(Math.Min(width, maximumWidth), lines * fontSize);
+        }
 
         public void Text(string text, float fontSize, UiRect bounds, UiColor color)
         {
+            Text(text, fontSize, bounds, color, UiAlignment.Start, UiTextFlow.Auto);
+        }
+
+        public void Text(string text, float fontSize, UiRect bounds, UiColor color, UiAlignment verticalAlignment, UiTextFlow flow)
+        {
             if (!string.IsNullOrEmpty(text))
             {
-                Texts.Add((text, bounds, color));
+                Texts.Add((text, bounds, color, fontSize, flow));
             }
         }
 

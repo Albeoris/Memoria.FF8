@@ -69,13 +69,31 @@ internal static class TargetScanScreen
         canvas.Line(model.Right, model.Y, model.Right, model.Bottom, rule, Math.Max(1, scale));
         theme.Panel(canvas, layout.Rect(8, 459, 437, 205));
         UiRect description = layout.Rect(22, 470, 409, 92);
-        float descriptionSize = Math.Min(24, 19 * textScale) * scale;
-        float descriptionHeight = canvas.MeasureText(data.Description, descriptionSize, description.Width).Height;
-        if (descriptionHeight > description.Height)
+        string descriptionText = string.Join(' ', data.Description.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        if (LocalizationTextTrace.Find(data.Description) is { } descriptionBinding)
         {
-            descriptionSize *= description.Height / descriptionHeight;
+            descriptionText = LocalizationTextTrace.Attach(descriptionText, descriptionBinding);
         }
-        canvas.Text(data.Description, descriptionSize, description, theme.Foreground, UiAlignment.Start, UiTextFlow.Wrap);
+        float descriptionSize = Math.Min(24, 19 * textScale) * scale;
+        if (canvas.MeasureText(descriptionText, descriptionSize, description.Width).Height > description.Height)
+        {
+            float lower = 0;
+            float upper = descriptionSize;
+            for (int attempt = 0; attempt < 8; attempt++)
+            {
+                float candidate = (lower + upper) / 2;
+                if (canvas.MeasureText(descriptionText, candidate, description.Width).Height <= description.Height)
+                {
+                    lower = candidate;
+                }
+                else
+                {
+                    upper = candidate;
+                }
+            }
+            descriptionSize = lower;
+        }
+        canvas.Text(descriptionText, descriptionSize, description, theme.Foreground, UiAlignment.Start, UiTextFlow.Wrap);
         Label(Text("junction.dashboard.stats", "Stats"), 22, 22, 561, 409, 27);
         Horizontal(22, 431, 589);
         Stat("strength", "Str", data.Strength, 0, 0);
