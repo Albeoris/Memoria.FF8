@@ -117,7 +117,6 @@ internal sealed partial class AutoPlayController
             829 => player.X is >= -300 and <= 300,
             832 => true,
             836 => player.Z == 0 && player.Y <= 1600,
-            838 => player.Y > 560,
             840 => Math.Abs(player.X) < 30 && Math.Abs(player.Y - 37) is > 100 and < 180,
             842 => player.X > -300 && player.Y > -150,
             844 => player.X is > -200 and < 1000 && player.Y <= 2100,
@@ -138,7 +137,8 @@ internal sealed partial class AutoPlayController
         {
             823 => new(0, player.Y > 513 ? 670 : 355),
             836 => new(1032, 1559),
-            838 => new(-250, 800),
+            // NG-075: This Propagator tests the trailing party member, beyond the pursuit start.
+            838 => new(-229, 1120),
             840 => new(0, player.Y > 37 ? 180 : -106),
             842 => new(0, -125),
             844 => new(0, 1650),
@@ -154,7 +154,7 @@ internal sealed partial class AutoPlayController
             return false;
         }
         RecordRecentAction($"Walk toward the native Propagator encounter in field {field}");
-        AutoPlayWalkResult result = world.WalkAutoPlayRoute(route, ResetIdleDeadline);
+        AutoPlayWalkResult result = world.WalkAutoPlayRoute(route, ResetIdleDeadline, allowFast: field != 838);
         if (result.Arrived)
         {
             Apply(new(PlayerActionKind.Wait, Frames: 120, WaitWhilePlayable: true));
