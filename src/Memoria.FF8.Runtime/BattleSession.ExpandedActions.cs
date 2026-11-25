@@ -229,6 +229,7 @@ public sealed partial class BattleSession
         NativeBattleActionHeaderPreparation? reflectedHeader = null;
         (BattleActionPresentation Command, ImmutableArray<ExpandedBattleContact> Contacts, NativeBattleActionHeaderPreparation Header)? phoenixRevival = null;
         bool phoenixPinion = command is { Ability: BattleAbility.Item, ActionId: 31, IndependentGuardian.Action: not null };
+        bool automaticPhoenix = command.NativePlayerReaction == BattleNativePlayerReaction.AutomaticGuardian && originalNative is { Command: 245, ActionId: 1 };
         ReserveExpandedAiInvocation(resolved, hostedHeader);
         resolvingNativeAction = formulaCommand;
         expandedRecoverSourceHp = native.AttackType == 25 ? actor.CurrentHp : null;
@@ -284,7 +285,7 @@ public sealed partial class BattleSession
             {
                 RefreshNativeEnemyDrawSlots();
             }
-            if (phoenixPinion)
+            if (phoenixPinion || automaticPhoenix)
             {
                 phoenixRevival = ResolveExpandedPhoenixRevival(actor, resolved);
             }

@@ -955,6 +955,12 @@ public sealed partial class BattleSession
             {
                 return;
             }
+            bool recoveryAlreadyConsidered = DiagnosticTerminalHold is { } recoveryHold && recoveryHold.Sequence > recoveryHold.Rearms &&
+                recoveryHold.Phase is BattleDiagnosticTerminalHoldPhase.Held or BattleDiagnosticTerminalHoldPhase.Released or BattleDiagnosticTerminalHoldPhase.Expired;
+            if (!recoveryAlreadyConsidered && TryQueueExpandedPhoenixRecovery())
+            {
+                return;
+            }
             if (DeferDiagnosticTerminalOutcome(BattleOutcome.Defeat))
             {
                 return;

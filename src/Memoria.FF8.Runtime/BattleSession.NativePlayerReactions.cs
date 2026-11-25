@@ -99,7 +99,12 @@ public sealed partial class BattleSession
         }
         uint? flags = actor.NativePlayerStatRules?.NativeStatusPassiveFlags;
         byte learned = definition.LimitProgress?.AngeloFlags ?? 0;
-        bool supportOwner = reaction is not (BattleNativePlayerReaction.AngeloPeriodic or BattleNativePlayerReaction.AutomaticGuardian or BattleNativePlayerReaction.PhoenixRevival) || nativeSupport is { EntryInitialized: true };
+        bool supportOwner = reaction switch
+        {
+            BattleNativePlayerReaction.AutomaticGuardian when native is { Command: 245, ActionId: 1 } => definition.EncounterId != 317 && PhoenixRecoveryUnlocked(),
+            BattleNativePlayerReaction.AngeloPeriodic or BattleNativePlayerReaction.AutomaticGuardian or BattleNativePlayerReaction.PhoenixRevival => nativeSupport is { EntryInitialized: true },
+            _ => true
+        };
         bool valid = actor.IsPlayer && supportOwner && (reaction switch
         {
             BattleNativePlayerReaction.Counter => flags.HasValue && ability == BattleAbility.Attack && native?.Command == 1 && native.ActionId == 0 && (flags & 4) != 0,

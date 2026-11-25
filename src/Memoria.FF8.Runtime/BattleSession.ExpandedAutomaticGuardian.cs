@@ -9,8 +9,28 @@ public sealed partial class BattleSession
 
     private static bool IsExpandedAutomaticGuardianAction(BattleNativeAction? action)
     {
-        return action is { Command: 245, KernelSection: 9, ActionId: 0 or 7 or 8 or 9 or 10, AttackType: 11 or 35, HitCount: 1, TargetFlags: byte flags } &&
+        return action is { Command: 245, KernelSection: 9, ActionId: 0 or 1 or 7 or 8 or 9 or 10, AttackType: 11 or 35, HitCount: 1, TargetFlags: byte flags } &&
             (flags & 0x72) == 0x40;
+    }
+
+    private bool PhoenixRecoveryUnlocked()
+    {
+        const byte phoenixUnlocked = 4;
+        return (definition.NativeSavedBattleFlagsKnownMask & phoenixUnlocked) != 0 && (CurrentNativeSavedBattleFlags() & phoenixUnlocked) != 0;
+    }
+
+    private bool TryQueueExpandedPhoenixRecovery()
+    {
+        // 486450 reaches 483270 after the death callbacks, with a KO party row and a capable enemy.
+        // NG-005: Original483270 excludes encounter317.
+        if (definition.EncounterId == 317 || !PhoenixRecoveryUnlocked() ||
+            !allies.Any(actor => actor.IsActive && actor.Slot.HasValue && (NativeSavedStatusBits(actor) & 5) == 1) ||
+            !ExpandedAutomaticGuardianTargets().Any(IsNativeBattleCapable) || NextRandomByte() > 64)
+        {
+            return false;
+        }
+        QueueExpandedAutomaticGuardian(1);
+        return true;
     }
 
     private BattleCombatant[] ExpandedAutomaticGuardianTargets()

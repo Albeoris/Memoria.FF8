@@ -140,7 +140,7 @@ public sealed partial class BattleSession
     {
         // 484050 selects every allocated party row with the KO modifier before command 0/8 runs.
         BattleNativeAction revival = NativePhoenixRevivalAction() with { Name = source.NativeAction!.Name };
-        BattleActionDefinition action = new(BattleAbility.Item, source.ActionId, revival.Name ?? "Rebirth Flame", BattleActionEffect.Native, 0, true) { NativeAction = revival };
+        BattleActionDefinition action = new(source.Ability, source.ActionId, revival.Name ?? "Rebirth Flame", BattleActionEffect.Native, 0, true) { NativeAction = revival };
         BattleTargetRequest request = new(new BattleTargetSelection.SideGroup(BattleTargetSide.Allies), BattleTargetEligibility.SavedStatus, true, BattleTargetReplacement.UseCurrentBattlePolicy);
         BattleActionPresentation command = source with { NativeQueuedCommand = 0, NativeAction = revival, TargetRequest = request };
         NativeBattleActionHeaderPreparation header = BuildExpandedActionHeaderPreparation(command, revival);
