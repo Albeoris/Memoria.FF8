@@ -11,9 +11,19 @@ public sealed partial class GameSession
     /// <summary>A field keeps its shared graphics memory through its movie and the callback that requests its successor.</summary>
     public bool OwnsNativeFieldMemory(int fieldId)
     {
-        if (HasActiveBattle || !HasActiveFieldScene)
+        return OwnsNativeFieldMemory(fieldId, null);
+    }
+
+    /// <summary>The current field draw may finish after its native world gateway publishes the accepted packet.</summary>
+    public bool OwnsNativeFieldMemory(int fieldId, WorldTransition? completingWorldDeparture)
+    {
+        if (HasActiveBattle)
         {
             return false;
+        }
+        if (!HasActiveFieldScene)
+        {
+            return liveFieldMemory is not null && completingWorldDeparture is not null && State.Scene == SceneKind.WorldMap && State.FieldId == fieldId && State.WorldArrival == completingWorldDeparture;
         }
         // INF publishes the accepted request during player movement, before the outgoing model draw.
         // The destination loader consumes that request before it starts its own field callbacks.

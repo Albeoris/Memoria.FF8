@@ -38,7 +38,7 @@ public sealed partial class EventEngine
         }
     }
 
-    private void PublishNativeFieldEyeProcess(NativeFieldEyeProcess process)
+    private void PublishNativeFieldEyeProcess(NativeFieldEyeProcess process, WorldTransition? completingWorldDeparture = null)
     {
         process.Validate(Scene.NativeFieldRegistration ?? throw new InvalidDataException("Native eye process lost its actual registered instances."));
         if (services is not GameSession session)
@@ -46,7 +46,7 @@ public sealed partial class EventEngine
             throw new NotSupportedException("Native eye process requires its shared game-session owners.");
         }
         process = process.RestoreOwned();
-        if (session.OwnsNativeFieldMemory(FieldId))
+        if (session.OwnsNativeFieldMemory(FieldId, completingWorldDeparture))
         {
             session.SetNativeFieldEyeOwners(process.Memory, process.CrtRandom);
         }
@@ -113,9 +113,14 @@ public sealed partial class EventEngine
         {
             return;
         }
-        process = ReadCurrentNativeEyeProcess(process);
+        WorldTransition? completingWorldDeparture = null;
+        if (transitionRequested && Scene.WorldTransitionRequest is { Origin: NativeWorldTransitionOrigin.Gateway } request && request.SourceFieldId == FieldId && request.SourceFrame == Frame)
+        {
+            completingWorldDeparture = request.Transition;
+        }
+        process = ReadCurrentNativeEyeProcess(process, completingWorldDeparture);
         NativeBattleFieldResourceReloadResult result = NativeFieldRegistrationMachine.AdvanceEyes530810(registration, process.Memory, process.CrtRandom);
-        PublishNativeFieldEyeProcess(new(1, result.Memory, result.CrtRandomAfter));
+        PublishNativeFieldEyeProcess(new(1, result.Memory, result.CrtRandomAfter), completingWorldDeparture);
         foreach (NativeFieldRegisteredInstance instance in registration.Instances)
         {
             ActorState actor = actors[instance.ObjectId];
@@ -127,9 +132,9 @@ public sealed partial class EventEngine
         }
     }
 
-    private NativeFieldEyeProcess ReadCurrentNativeEyeProcess(NativeFieldEyeProcess cached)
+    private NativeFieldEyeProcess ReadCurrentNativeEyeProcess(NativeFieldEyeProcess cached, WorldTransition? completingWorldDeparture = null)
     {
-        if (services is GameSession session && session.OwnsNativeFieldMemory(FieldId))
+        if (services is GameSession session && session.OwnsNativeFieldMemory(FieldId, completingWorldDeparture))
         {
             NativeBattleRetainedMemory memory = session.CurrentNativeBattleMemory ?? throw new NotSupportedException("Native eye process lost its current shared memory owner.");
             return new(1, memory, session.State.CrtRandom);
