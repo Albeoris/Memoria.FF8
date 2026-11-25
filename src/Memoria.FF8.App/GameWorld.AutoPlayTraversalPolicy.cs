@@ -474,6 +474,11 @@ internal static class AutoPlayTraversalPolicy
 
     internal static string? TimberBroadcastPassage(string visitKey, bool pubCleared)
     {
+        // NG-127: Enter the studio while the original soldier is inactive.
+        if (visitKey == "927:280")
+        {
+            return "927:line:13";
+        }
         // NG-126: Follow the original pub exit and alley after the drifter moves.
         if (!pubCleared)
         {
