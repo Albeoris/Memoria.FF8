@@ -504,6 +504,27 @@ internal static class AutoPlayTraversalPolicy
         };
     }
 
+    internal static string? GalbadiaAssignmentPassage(string visitKey)
+    {
+        // NG-129: Meet Martine before leaving Galbadia Garden for the train.
+        return visitKey switch
+        {
+            "712:330" or "712:333" => "712:talk:3",
+            "world:330" or "world:333" => "world-entry:712:6",
+            "904:330" => "904:gateway:0",
+            "908:330" => "908:gateway:2",
+            "911:330" => "911:gateway:0",
+            "910:330" => "910:gateway:1",
+            "920:330" => "920:gateway:2",
+            "918:330" => "918:gateway:0",
+            "917:330" => "917:gateway:1",
+            "900:330" => "900:gateway:1",
+            "916:330" => "916:gateway:2",
+            "899:330" => "899:gateway:0",
+            _ => null
+        };
+    }
+
     internal static int? CastleRouteOrder(string eventId, bool sphinxDefeated)
     {
         // NG-083: Use the original side corridor and clock-tower exits.

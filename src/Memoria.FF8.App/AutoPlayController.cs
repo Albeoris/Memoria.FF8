@@ -974,14 +974,11 @@ internal sealed partial class AutoPlayController
             }
         }
         int timberPhase = (visit.EndsWith(":270", StringComparison.Ordinal) || visit.EndsWith(":285", StringComparison.Ordinal)) && world.Events.EventMemory.Read(528, 2).Values is [int phase] ? phase : 0;
-        if ((AutoPlayTraversalPolicy.GardenExamPassage(visit, world.Events.PlayerActor?.Y) ?? AutoPlayTraversalPolicy.BalambStationPassage(visit) ?? AutoPlayTraversalPolicy.OrphanageDeparturePassage(visit) ?? AutoPlayTraversalPolicy.TimberBroadcastPassage(visit, timberPhase)) is string departure)
+        string? departure = AutoPlayTraversalPolicy.GardenExamPassage(visit, world.Events.PlayerActor?.Y) ?? AutoPlayTraversalPolicy.BalambStationPassage(visit) ?? AutoPlayTraversalPolicy.OrphanageDeparturePassage(visit) ?? AutoPlayTraversalPolicy.TimberBroadcastPassage(visit, timberPhase) ?? AutoPlayTraversalPolicy.GalbadiaAssignmentPassage(visit);
+        if (AvailableProgressionPassage(visit, departure) is { } progressionPassage && next?.Event.Id != progressionPassage.Event.Id)
         {
-            AutoPlayEventCoverage? passage = run.Coverage.Visits.Single(item => item.Visit.Key == visit).Events.FirstOrDefault(item => item.Event.Id == departure && item.Available && !item.Unavailable && item.BlockedReason is null);
-            if (passage is not null && next?.Event.Id != departure)
-            {
-                next = new(visit, passage.Event, false);
-                resumedWalk = null;
-            }
+            next = progressionPassage;
+            resumedWalk = null;
         }
         next ??= PlanWithExhaustedSurvey(run, planner, navigation, candidate => NeedsVisitRefresh(world, candidate), vertex => IsNavigationResourceCurrent(world, vertex), guard => world.ReadAutoPlayFieldProgramHash(guard.FieldId) == guard.ProgramHash ? world.Events.ReadPersistentPredicateFingerprint(guard.Reads) : null, canTravel, preferredGoal);
         if (resumedWalk is null && session.State.WorldEntryMemory?.StoryWord == 894)
@@ -1788,7 +1785,7 @@ internal sealed partial class AutoPlayController
         run.ActiveAvailabilityFingerprint = null;
         run.SceneFrames = 0;
         SaveLocationEntry();
-        AutoPlayPlanStep next = planner.PlanNavigation(navigation, run.RefreshTargetVisit is null ? null : _ => false, run.RefreshTargetVisit, vertex => IsNavigationResourceCurrent(world, vertex), canTravel: TravelAdmission(navigation), preferredGoal: preferredGoal) ?? throw new NotSupportedException("Reachable world frontier exhausted before the ending.");
+        AutoPlayPlanStep next = AvailableProgressionPassage(visit, AutoPlayTraversalPolicy.GalbadiaAssignmentPassage(visit)) ?? planner.PlanNavigation(navigation, run.RefreshTargetVisit is null ? null : _ => false, run.RefreshTargetVisit, vertex => IsNavigationResourceCurrent(world, vertex), canTravel: TravelAdmission(navigation), preferredGoal: preferredGoal) ?? throw new NotSupportedException("Reachable world frontier exhausted before the ending.");
         UpdateExhaustedSurveyTarget(run, next.RefreshVisitKey);
         WorldAutoPlayTarget target = targets.Single(item => item.Id == next.Event.Id);
         string beforeCheckpoint = StageAttempt($"world-{run.Steps:D10}.json", CaptureState());
@@ -1836,6 +1833,16 @@ internal sealed partial class AutoPlayController
         bool sphinxDefeated = session.State.WorldEntryMemory?.StoryWord == 4050 && (session.State.EventMemory.Read(372, 1).RequireExact() & 1) != 0;
         bool inTrainingClothes = session.State.WorldEntryMemory?.StoryWord == 155 && session.State.EventMemory.Read(720, 1).Values is [0];
         return AutoPlayTraversalPolicy.ProgressionEntryOrder(visit, item, keys, hasIntroductionLetter, laboratoryProgress, sphinxDefeated, inTrainingClothes);
+    }
+
+    private AutoPlayPlanStep? AvailableProgressionPassage(string visit, string? departure)
+    {
+        if (departure is null)
+        {
+            return null;
+        }
+        AutoPlayEventCoverage? passage = run.Coverage.Visits.Single(item => item.Visit.Key == visit).Events.FirstOrDefault(item => item.Event.Id == departure && item.Available && !item.Unavailable && item.BlockedReason is null);
+        return passage is null ? null : new(visit, passage.Event, false);
     }
 
     private void ParkAutoPlayRental(WorldMapScene scene)
