@@ -2,33 +2,33 @@
   "schemaVersion": 1,
   "channels": {
     "release": {
-      "name": "v0.9.11",
-      "engineCompatibilityVersion": "0.8.17",
-      "publishedAt": "2026-11-25T02:10:09.0000000+00:00",
+      "publishedAt": "2026-11-25T07:35:49.0000000+00:00",
       "artifacts": {
         "win-x64": {
-          "sha256": "b2f960f27d8915dce10341e4a0c937d70afefacb680b89ae24855ec23144fbd5",
-          "size": 627201813,
-          "url": "https://github.com/Albeoris/Memoria.FF8/releases/download/v0.9.11/Memoria-FF8-win-x64.zip"
+          "size": 627485275,
+          "url": "https://github.com/Albeoris/Memoria.FF8/releases/download/v0.9.12/Memoria-FF8-win-x64.zip",
+          "sha256": "886682cbd7bf18739d896f347c915b865152b3299dc3f9fda316fef243bf23d4"
         },
         "linux-x64": {
-          "sha256": "32e24c516d555dc98011095310d90f4127ceab338f7fc6854f1d82c6fa184289",
-          "size": 299629270,
-          "url": "https://github.com/Albeoris/Memoria.FF8/releases/download/v0.9.11/Memoria-FF8-linux-x64.tar.gz"
+          "size": 299733407,
+          "url": "https://github.com/Albeoris/Memoria.FF8/releases/download/v0.9.12/Memoria-FF8-linux-x64.tar.gz",
+          "sha256": "ffe0a3e48da8666a25082d2d8fa5c72b5efb80613afea80596d765d6e2a73e88"
         },
         "osx-x64": {
-          "sha256": "baf2ed9ba471f4ee17ab1058092539fd1ca931c429d90777c95acaeb65f2b02a",
-          "size": 297517074,
-          "url": "https://github.com/Albeoris/Memoria.FF8/releases/download/v0.9.11/Memoria-FF8-osx-x64.tar.gz"
+          "size": 297657506,
+          "url": "https://github.com/Albeoris/Memoria.FF8/releases/download/v0.9.12/Memoria-FF8-osx-x64.tar.gz",
+          "sha256": "cee4973841b4e56652ccdeed4ded9569fdb2db90c14ff7e1884d78a0ca49ec61"
         },
         "osx-arm64": {
-          "sha256": "e59712977795eee5df4ef72790427784c28000f2a480e2fa23262e8de1bde80b",
-          "size": 276674160,
-          "url": "https://github.com/Albeoris/Memoria.FF8/releases/download/v0.9.11/Memoria-FF8-osx-arm64.tar.gz"
+          "size": 276780724,
+          "url": "https://github.com/Albeoris/Memoria.FF8/releases/download/v0.9.12/Memoria-FF8-osx-arm64.tar.gz",
+          "sha256": "278e977948443f0171c0bd79cf7500313a3d758f7b98c86b957fe752e540e0dd"
         }
       },
-      "buildId": "e72c826ba8be323a871b03880073f9d4a81d9d97",
-      "tag": "v0.9.11"
+      "name": "v0.9.12",
+      "buildId": "4bf998852039378963f58914bb5765b3ef7fb0ce",
+      "engineCompatibilityVersion": "0.8.17",
+      "tag": "v0.9.12"
     },
     "nightly": {
       "publishedAt": "2026-11-25T02:08:19+00:00",
