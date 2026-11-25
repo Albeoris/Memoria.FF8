@@ -1225,7 +1225,7 @@ internal sealed partial class AutoPlayController
             {
                 if (!skippedInterruptedVariant)
                 {
-                    planner.Block(visit, target.CoverageId, "No native walking approach activated the intended contact callback.", AutoPlayBlockKind.Walking);
+                    planner.Block(visit, target.CoverageId, "No native walking approach activated the intended contact callback.", AutoPlayBlockKind.Walking, target.CoverageId.Contains(":push:", StringComparison.Ordinal) ? PushWalkingSearchRevision : AutoPlayPlanner.CurrentWalkingSearchRevision);
                 }
                 run.ActiveVisit = null;
                 run.ActiveNavigationKey = null;

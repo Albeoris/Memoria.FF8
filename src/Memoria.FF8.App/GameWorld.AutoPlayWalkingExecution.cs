@@ -66,6 +66,16 @@ internal sealed partial class GameWorld
         WalkmeshPosition waypoint = new(new Vector3(destination, target.ApproachZ ?? target.Z), target.ApproachTriangle ?? target.Triangle);
         int approachObjectId = target.ObjectId;
         AutoPlayTarget? contactTarget = target.Kind == AutoPlayTargetKind.Talk ? null : target;
+        if (target.Kind == AutoPlayTargetKind.Contact && target.CoverageId.StartsWith($"{field}:push:", StringComparison.Ordinal) && Events.PlayerActor is { } leader)
+        {
+            ActorState peer = Events.Actors[approachObjectId];
+            Vector2 delta = new(peer.X - leader.X, peer.Y - leader.Y);
+            if (delta != Vector2.Zero && Events.ProbeAutoPlayPushContact(approachObjectId, delta))
+            {
+                return StepAutoPlayWalking(delta, field, pending, approachObjectId, contactTarget, out _, allowFast: false);
+            }
+        }
+
         NativePlayerMovementResult AvoidLines(FieldFixedPosition position, NativePlayerMovementResult result)
         {
             if (result.Accepted && avoidedLines is { Count: > 0 })

@@ -251,6 +251,19 @@ public sealed partial class EventEngine
         return ProbeAutoPlayMovement(position, triangle, worldDelta, player, AutoPlayMovementProbeSpeed, probe => EvaluateNativePlayerGroundContacts(player, probe).Collision);
     }
 
+    /// <summary>Predicts a native push callback from an ordinary movement proposal, including blocked displacement.</summary>
+    public bool ProbeAutoPlayPushContact(int objectId, Vector2 worldDelta)
+    {
+        ActorState player = RequireAutoPlayMovementPlayer();
+        if (Scene.NativePlayerPosition is not { } position || ResolvePartyActor(0)?.ObjectId != player.ObjectId || !Scene.NativeActorObjectIds.Contains(objectId) || actors[objectId] is not { PushEnabled: true } peer || !CanContactNativePlayerPeer(player, peer))
+        {
+            return false;
+        }
+        NativePlayerContactPeer contact = ReadNativePlayerContactPeer(player, peer);
+        NativePlayerMovementResult movement = ProbeAutoPlayMovement(position, player.WalkmeshTriangle, worldDelta, player, AutoPlayMovementProbeSpeed, probe => EvaluateNativePlayerGroundContacts(player, probe).Collision, allowFast: false);
+        return movement.ProposalGroundProbes?.Any(probes => probes.Any(probe => NativePlayerPeerTouchesGround(contact, probe))) == true;
+    }
+
     /// <summary>Creates a probe for a single read-only route search. Discard it before publishing a movement callback.</summary>
     public Func<FieldFixedPosition, int, Vector2, NativePlayerMovementResult> CreateAutoPlayRouteProbe()
     {
@@ -275,7 +288,7 @@ public sealed partial class EventEngine
         return player;
     }
 
-    private NativePlayerMovementResult ProbeAutoPlayMovement(FieldFixedPosition position, int triangle, Vector2 worldDelta, ActorState player, int speed, Func<NativePlayerGroundProbe, bool> collision)
+    private NativePlayerMovementResult ProbeAutoPlayMovement(FieldFixedPosition position, int triangle, Vector2 worldDelta, ActorState player, int speed, Func<NativePlayerGroundProbe, bool> collision, bool allowFast = true)
     {
         byte retry = Scene.NativePlayerEarlyRetryState is byte known && known <= 1 ? known : throw new NotSupportedException("Autoplay walking requires preserved native movement retry state.");
         Vector2 axes = AutoPlayMovementAxes(worldDelta);
@@ -284,7 +297,7 @@ public sealed partial class EventEngine
             axes = Vector2.Normalize(axes);
         }
         int direction = axes == Vector2.Zero ? (byte)player.Direction : (byte)(NativePartyDirection(0, 0, (int)(axes.X * 4096), (int)(axes.Y * 4096)) + InputAxisDirection + PlayerInputDirectionOffset);
-        int fastSpeed = AutoPlayFastStepSpeed(player, position, speed, worldDelta.Length());
+        int fastSpeed = allowFast ? AutoPlayFastStepSpeed(player, position, speed, worldDelta.Length()) : 0;
         NativePlayerMovementQuery query = new(player.ObjectId, triangle, position.X, position.Y, position.Z, direction, (short)speed, player.PushRadius, retry, collision, EffectivePlayerMovementSpeedPercent, fastSpeed);
         return ResolveNativePlayerMovement!(query) ?? throw new NotSupportedException("Autoplay walking encountered an unsupported native movement probe.");
     }

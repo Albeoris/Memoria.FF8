@@ -8,6 +8,7 @@ internal sealed record AutoPlayExhaustedSurveyRequest(string NavigationKey, stri
 internal sealed partial class AutoPlayController
 {
     private const int FieldDiscoveryRevision = 1;
+    private const int PushWalkingSearchRevision = 7;
 
     internal static string ExhaustedSurveySignature(string navigation, AutoPlayVisitGuard guard, string fingerprint)
     {
@@ -146,7 +147,7 @@ internal sealed partial class AutoPlayController
 
     internal static void RefreshWalkingSearchRevision(AutoPlayRunState state, string navigation, int revision = AutoPlayPlanner.CurrentWalkingSearchRevision)
     {
-        foreach (AutoPlayEventCoverage item in SoftWalkingBlocks(state, navigation).Where(item => (item.WalkingSearchRevision ?? 0) < revision))
+        foreach (AutoPlayEventCoverage item in SoftWalkingBlocks(state, navigation).Where(item => (item.WalkingSearchRevision ?? 0) < (item.Event.Id.Contains(":push:", StringComparison.Ordinal) ? PushWalkingSearchRevision : revision)))
         {
             ReleaseWalkingSearchBlock(item);
         }
