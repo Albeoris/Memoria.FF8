@@ -61,6 +61,12 @@
     <Error Condition="'$(MemoriaTargetRuntime)' != 'win-x64' And '$(MemoriaGraphicsBackend)' != 'Vulkan'" Text="Linux and macOS hosts support only the Vulkan backend." />
     <Error Condition="'$(MemoriaGraphicsBackend)' != 'Direct3D11' And '$(MemoriaGraphicsBackend)' != 'Vulkan' And '$(MemoriaGraphicsBackend)' != 'Direct3D12'" Text="MemoriaGraphicsBackend must be Direct3D11, Vulkan or Direct3D12. Publish hosts into separate output and intermediate directories." />
   </Target>
+  <!-- The Windows hosts ship the native libraries without their separate package symbols. -->
+  <Target Name="ExcludeWindowsGameHostNativeSymbols" AfterTargets="ComputeResolvedFilesToPublishList" Condition="'$(RuntimeIdentifier)' == 'win-x64'">
+    <ItemGroup>
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="'%(ResolvedFileToPublish.Filename)%(ResolvedFileToPublish.Extension)' == 'libSkiaSharp.pdb' Or '%(ResolvedFileToPublish.Filename)%(ResolvedFileToPublish.Extension)' == 'libHarfBuzzSharp.pdb'" />
+    </ItemGroup>
+  </Target>
   <Import Project="../../vendor/MonoGame.Native.DX12/NativeDirect3D12.targets" />
   <Import Project="../../vendor/MonoGame.Native.Vulkan/NativeVulkan.targets" />
   <Import Project="../../vendor/HighlyExperimental/PsfDecoder.targets" />

@@ -27,6 +27,12 @@ Generated directories live under `artifacts/package/<RID>`. Linux produces `Memo
 
 Use `./Build.ps1 -ArtifactsDirectory /path/to/isolated-build` to place the build graph, native graphics outputs, package staging and archives under another artifact root. Relative paths resolve from the caller's working directory; omitting the option retains the default layout.
 
+### Release size and build times
+
+Windows game hosts ship the SkiaSharp and HarfBuzz native DLLs. Their external debugging symbols, `libSkiaSharp.pdb` and `libHarfBuzzSharp.pdb`, are available in the pinned native NuGet packages for debugging. Distribution validation checks the published DX11, Vulkan and DX12 host payloads for these two symbol files. The distribution inventory records the resulting files so existing launchers can remove previously shipped copies during an update.
+
+Use the phase timings from a Release distribution build to compare native graphics preparation, managed build and publish, platform signing, archive creation, distribution validation and portable tests. Record the RID, source revision and cache state with a measurement. Publish includes ReadyToRun work where the selected host enables it. A platform's elapsed time includes its archive and updater checks. For a multi-platform release, use the slowest required runner and the final publication job to assess the critical path.
+
 macOS bundles include the application icon in `Contents/Resources/application.icns`. Linux packages include the icon and optional desktop menu installer under `Data/Desktop/`, within the updater-owned payload. After extracting a Linux package to its permanent location, run `sh Data/Desktop/install-desktop.sh` from the package directory. This registers the launcher and icon at their absolute paths in `${XDG_DATA_HOME:-$HOME/.local/share}/applications/org.memoria.ff8.desktop`, without administrator access. Run it again after moving the package; remove that desktop entry to unregister it. Automatic updates preserve the package location and keep the bundled icon current.
 
 ### macOS toolchain

@@ -45,6 +45,20 @@ function Invoke-DotNet {
     }
 }
 
+function Invoke-DistributionPhase {
+    param([string]$Name, [scriptblock]$Action)
+
+    $timer = [Diagnostics.Stopwatch]::StartNew()
+    try {
+        & $Action
+    }
+    finally {
+        $elapsed = $timer.Elapsed
+        $distributionTimings[$Name] += $elapsed.TotalSeconds
+        Write-Host ('{0}: {1:F2}s.' -f $Name, $elapsed.TotalSeconds)
+    }
+}
+
 function Invoke-PortableTests {
     $testProjects = @('Memoria.FF8.Platform.Tests', 'Memoria.FF8.Bootstrap.Tests', 'Memoria.FF8.Audio.Tests', 'Memoria.FF8.Presentation.Tests', 'Memoria.Launcher.Tests', 'Memoria.FF8.LinuxTesting.Tests')
     & (Join-Path $root 'tests/Shared/Report-TestResources.ps1') -Projects $testProjects
@@ -273,6 +287,19 @@ if ($Scope -ne 'Distribution') {
     }
     return
 }
+$distributionTimer = [Diagnostics.Stopwatch]::StartNew()
+$distributionTimings = [ordered]@{
+    'Native Vulkan' = $null
+    'Native Direct3D 12' = $null
+    'Managed build graph' = $null
+    'Managed publish / ReadyToRun' = $null
+    'Payload validation' = $null
+    'macOS signing' = $null
+    'Archive creation' = $null
+    'Frozen Windows updater validation' = $null
+    'Archive and current updater validation' = $null
+    'Portable tests' = $null
+}
 $package = Join-Path $artifacts ('package/' + $RuntimeIdentifier)
 $buildId = [Guid]::NewGuid().ToString('N')
 $staging = Join-Path $artifacts ('staging-' + $buildId)
@@ -312,14 +339,20 @@ Push-Location $root
 try {
     & (Join-Path $root 'tools/Update-Shaders.ps1') -Check
     $nativeVulkan = Join-Path $artifacts "native-vulkan/$RuntimeIdentifier"
-    & (Join-Path $root 'tools/Build-NativeVulkan.ps1') -RuntimeIdentifier $RuntimeIdentifier -OutputDirectory $nativeVulkan -Distro $env:MemoriaNativeVulkanDistro
+    Invoke-DistributionPhase 'Native Vulkan' {
+        & (Join-Path $root 'tools/Build-NativeVulkan.ps1') -RuntimeIdentifier $RuntimeIdentifier -OutputDirectory $nativeVulkan -Distro $env:MemoriaNativeVulkanDistro
+    }
     $nativeVulkanArguments = @(('-p:MemoriaNativeVulkanDirectory=' + $nativeVulkan), '-p:MemoriaNativeVulkanPrepared=true')
     $solution = if ($TestPortable) { 'Memoria.FF8.Distribution.slnx' } else { 'Memoria.FF8.Native.slnx' }
     $buildNodes = if ($TestPortable) { '-m:2' } else { '-m:1' }
-    Invoke-DotNet (@('build', $solution, '-c', $Configuration, $buildNodes) + $graphArguments + $nativeVulkanArguments)
+    Invoke-DistributionPhase 'Managed build graph' {
+        Invoke-DotNet (@('build', $solution, '-c', $Configuration, $buildNodes) + $graphArguments + $nativeVulkanArguments)
+    }
     $nativeDirect3D12 = Join-Path $artifacts 'native-dx12'
     if ($RuntimeIdentifier -eq 'win-x64') {
-        & (Join-Path $root 'tools/Build-NativeDirect3D12.ps1') -OutputDirectory $nativeDirect3D12 -BuildDirectory (Join-Path $artifacts 'native-dx12-build')
+        Invoke-DistributionPhase 'Native Direct3D 12' {
+            & (Join-Path $root 'tools/Build-NativeDirect3D12.ps1') -OutputDirectory $nativeDirect3D12 -BuildDirectory (Join-Path $artifacts 'native-dx12-build')
+        }
     }
     $publishArguments = @('-c', $Configuration, '-r', $RuntimeIdentifier, '--self-contained', 'true', '-p:DebugType=None', '-p:DebugSymbols=false', '-p:PublishTrimmed=false', ('-p:MemoriaPrecompile=' + $precompile))
     foreach ($backend in $backends) {
@@ -336,11 +369,13 @@ try {
         if ($RuntimeIdentifier -eq 'win-x64' -and $backend.Name -eq 'Direct3D12') {
             $nativePublishArguments += @(('-p:MemoriaNativeDirect3D12Directory=' + $nativeDirect3D12), '-p:MemoriaNativeDirect3D12Prepared=true')
         }
-        if ($backend.Name -eq 'Vulkan') {
-            Invoke-DotNet (@('publish', 'src/Memoria.FF8.App/Memoria.FF8.App.csproj', '-c', $Configuration, '--no-build', '-o', $hostOutput, '-p:PublishSingleFile=false') + $graphArguments + $nativePublishArguments)
-        }
-        else {
-            Invoke-DotNet (@('publish', 'src/Memoria.FF8.App/Memoria.FF8.App.csproj', '-o', $hostOutput, '--artifacts-path', $hostBuild, ('-p:MemoriaGraphicsBackend=' + $backend.Name), '-p:PublishSingleFile=false', '-m:1') + $nativePublishArguments + $publishArguments)
+        Invoke-DistributionPhase 'Managed publish / ReadyToRun' {
+            if ($backend.Name -eq 'Vulkan') {
+                Invoke-DotNet (@('publish', 'src/Memoria.FF8.App/Memoria.FF8.App.csproj', '-c', $Configuration, '--no-build', '-o', $hostOutput, '-p:PublishSingleFile=false') + $graphArguments + $nativePublishArguments)
+            }
+            else {
+                Invoke-DotNet (@('publish', 'src/Memoria.FF8.App/Memoria.FF8.App.csproj', '-o', $hostOutput, '--artifacts-path', $hostBuild, ('-p:MemoriaGraphicsBackend=' + $backend.Name), '-p:PublishSingleFile=false', '-m:1') + $nativePublishArguments + $publishArguments)
+            }
         }
         if ($backend.Name -eq 'Vulkan') {
             $nativeNotices = Join-Path $data 'licenses/MonoGame.Native.Vulkan'
@@ -365,15 +400,21 @@ try {
         if ($RuntimeIdentifier -like 'osx-*') {
             & (Join-Path $root 'tools/Get-MoltenVK.ps1') -Destination $hostOutput
         }
-        Invoke-DotNet (@('run', '--project', 'tools/Memoria.FF8.Distribution.Check', '-c', $Configuration, '--no-build') + $graphArguments + @('--', $hostOutput, $RuntimeIdentifier))
-        Invoke-DotNet (@('run', '--project', 'tools/Memoria.FF8.Distribution.Check', '-c', $Configuration, '--no-build') + $graphArguments + @('--', '--graphics-payload', $hostOutput, $backend.Name, (Join-Path $root 'tools/shader-manifest.json'), $RuntimeIdentifier))
+        Invoke-DistributionPhase 'Payload validation' {
+            Invoke-DotNet (@('run', '--project', 'tools/Memoria.FF8.Distribution.Check', '-c', $Configuration, '--no-build') + $graphArguments + @('--', $hostOutput, $RuntimeIdentifier))
+            Invoke-DotNet (@('run', '--project', 'tools/Memoria.FF8.Distribution.Check', '-c', $Configuration, '--no-build') + $graphArguments + @('--', '--graphics-payload', $hostOutput, $backend.Name, (Join-Path $root 'tools/shader-manifest.json'), $RuntimeIdentifier))
+        }
     }
-    Invoke-DotNet (@('publish', 'src/Memoria.FF8.Bootstrap/Memoria.FF8.Bootstrap.csproj', '-c', $Configuration, '--no-build', '-o', $data, '-p:PublishSingleFile=false') + $graphArguments)
-    # Released updaters still verify this executable and its inventory before starting the new launcher.
-    Invoke-DotNet (@('publish', 'src/Memoria.FF8.Music/Memoria.FF8.Music.csproj', '-c', $Configuration, '--no-build', '-o', (Join-Path $data 'audio-host'), '-p:PublishSingleFile=false') + $graphArguments)
-    $launcherSingleFile = if ($RuntimeIdentifier -eq 'win-x64') { 'true' } else { 'false' }
-    Invoke-DotNet (@('publish', 'src/Memoria.Launcher/Memoria.Launcher.csproj', '-c', $Configuration, '--no-build', '-o', $launcher, ('-p:PublishSingleFile=' + $launcherSingleFile), '-p:IncludeNativeLibrariesForSelfExtract=true', '-p:PublishDocumentationFile=false', '-p:PublishReferencesDocumentationFiles=false') + $graphArguments)
-    Invoke-DotNet (@('run', '--project', 'tools/Memoria.FF8.Distribution.Check', '-c', $Configuration, '--no-build') + $graphArguments + @('--', '--native-image', $RuntimeIdentifier, (Join-Path $data $executable)))
+    Invoke-DistributionPhase 'Managed publish / ReadyToRun' {
+        Invoke-DotNet (@('publish', 'src/Memoria.FF8.Bootstrap/Memoria.FF8.Bootstrap.csproj', '-c', $Configuration, '--no-build', '-o', $data, '-p:PublishSingleFile=false') + $graphArguments)
+        # Released updaters still verify this executable and its inventory before starting the new launcher.
+        Invoke-DotNet (@('publish', 'src/Memoria.FF8.Music/Memoria.FF8.Music.csproj', '-c', $Configuration, '--no-build', '-o', (Join-Path $data 'audio-host'), '-p:PublishSingleFile=false') + $graphArguments)
+        $launcherSingleFile = if ($RuntimeIdentifier -eq 'win-x64') { 'true' } else { 'false' }
+        Invoke-DotNet (@('publish', 'src/Memoria.Launcher/Memoria.Launcher.csproj', '-c', $Configuration, '--no-build', '-o', $launcher, ('-p:PublishSingleFile=' + $launcherSingleFile), '-p:IncludeNativeLibrariesForSelfExtract=true', '-p:PublishDocumentationFile=false', '-p:PublishReferencesDocumentationFiles=false') + $graphArguments)
+    }
+    Invoke-DistributionPhase 'Payload validation' {
+        Invoke-DotNet (@('run', '--project', 'tools/Memoria.FF8.Distribution.Check', '-c', $Configuration, '--no-build') + $graphArguments + @('--', '--native-image', $RuntimeIdentifier, (Join-Path $data $executable)))
+    }
 
     if ($Test) {
         Invoke-DotNet @('run', '--project', 'tests/Memoria.FF8.Remastered.Tests', '-c', $Configuration)
@@ -406,7 +447,9 @@ try {
     if (!(Test-Path -LiteralPath $launcherExecutable -PathType Leaf)) {
         throw "The launcher publish did not produce $launcherName."
     }
-    Invoke-DotNet (@('run', '--project', 'tools/Memoria.FF8.Distribution.Check', '-c', $Configuration, '--no-build') + $graphArguments + @('--', '--native-image', $RuntimeIdentifier, $launcherExecutable))
+    Invoke-DistributionPhase 'Payload validation' {
+        Invoke-DotNet (@('run', '--project', 'tools/Memoria.FF8.Distribution.Check', '-c', $Configuration, '--no-build') + $graphArguments + @('--', '--native-image', $RuntimeIdentifier, $launcherExecutable))
+    }
     $launcherNotices = Join-Path $launcher 'ThirdParty'
     if (Test-Path -LiteralPath $launcherNotices -PathType Container) {
         Move-Item -LiteralPath $launcherNotices -Destination (Join-Path $data 'LauncherThirdParty')
@@ -422,7 +465,9 @@ try {
     }
     if ($RuntimeIdentifier -like 'osx-*') {
         $bundleLauncher = Join-Path $staging 'Memoria.FF8.app/Contents/MacOS/Memoria.Launcher'
-        Invoke-DotNet (@('build', 'src/Memoria.Launcher/Memoria.Launcher.csproj', '--no-restore', '-c', $Configuration, '-t:CreateMacBundleLauncher', ('-p:MacBundleLauncherPath=' + $bundleLauncher)) + $graphArguments)
+        Invoke-DistributionPhase 'macOS signing' {
+            Invoke-DotNet (@('build', 'src/Memoria.Launcher/Memoria.Launcher.csproj', '--no-restore', '-c', $Configuration, '-t:CreateMacBundleLauncher', ('-p:MacBundleLauncherPath=' + $bundleLauncher)) + $graphArguments)
+        }
         if ([OperatingSystem]::IsMacOS()) {
             [IO.File]::SetUnixFileMode($bundleLauncher, [IO.UnixFileMode]493)
         }
@@ -495,21 +540,32 @@ try {
     }
     & (Join-Path $root 'tools/New-DistributionManifest.ps1') -PackageRoot $manifestRoot -RuntimeIdentifier $RuntimeIdentifier -TransientFiles $transientFiles
     if ($RuntimeIdentifier -like 'osx-*') {
-        Invoke-DotNet (@('run', '--project', 'tools/Memoria.FF8.Distribution.Check', '-c', $Configuration, '--no-build') + $graphArguments + @('--', '--sign-mac-bundle', $manifestRoot))
+        Invoke-DistributionPhase 'macOS signing' {
+            Invoke-DotNet (@('run', '--project', 'tools/Memoria.FF8.Distribution.Check', '-c', $Configuration, '--no-build') + $graphArguments + @('--', '--sign-mac-bundle', $manifestRoot))
+        }
     }
 
+    Invoke-DistributionPhase 'Archive creation' {
+        if ($RuntimeIdentifier -eq 'win-x64') {
+            Compress-Archive -LiteralPath (Join-Path $staging $launcherName), (Join-Path $staging 'Data'), (Join-Path $staging 'Mods') -DestinationPath $stagedArchive
+        }
+        else {
+            Invoke-DotNet (@('run', '--project', 'tools/Memoria.FF8.Distribution.Check', '-c', $Configuration, '--no-build') + $graphArguments + @('--', '--create-tar', $staging, $stagedArchive))
+        }
+    }
     # Validate the clean distribution before moving any local mod files into it.
     if ($RuntimeIdentifier -eq 'win-x64') {
-        Compress-Archive -LiteralPath (Join-Path $staging $launcherName), (Join-Path $staging 'Data'), (Join-Path $staging 'Mods') -DestinationPath $stagedArchive
-        # The released Windows updater remains an immutable gate on every build.
-        Invoke-DotNet (@('run', '--project', 'tools/Memoria.FF8.Updater.Compatibility', '-c', $Configuration, '--no-build') + $graphArguments + @('--', $stagedArchive))
+        Invoke-DistributionPhase 'Frozen Windows updater validation' {
+            Invoke-DotNet (@('run', '--project', 'tools/Memoria.FF8.Updater.Compatibility', '-c', $Configuration, '--no-build') + $graphArguments + @('--', $stagedArchive))
+        }
     }
-    else {
-        Invoke-DotNet (@('run', '--project', 'tools/Memoria.FF8.Distribution.Check', '-c', $Configuration, '--no-build') + $graphArguments + @('--', '--create-tar', $staging, $stagedArchive))
+    Invoke-DistributionPhase 'Archive and current updater validation' {
+        & (Join-Path $root 'tools/Test-Distribution.ps1') -ArchivePath $stagedArchive -RuntimeIdentifier $RuntimeIdentifier -Configuration $Configuration -BuildArguments $graphArguments
     }
-    & (Join-Path $root 'tools/Test-Distribution.ps1') -ArchivePath $stagedArchive -RuntimeIdentifier $RuntimeIdentifier -Configuration $Configuration -BuildArguments $graphArguments
     if ($TestPortable) {
-        Invoke-PortableTests
+        Invoke-DistributionPhase 'Portable tests' {
+            Invoke-PortableTests
+        }
     }
     Install-Distribution -StagedPackage $staging -StagedArchive $stagedArchive -Package $package -Archive $archive
     Write-Host "Distribution: $package"
@@ -518,4 +574,17 @@ try {
 finally {
     Pop-Location
     [IO.File]::Delete($stagedArchive)
+    Write-Host "Distribution timing ($Configuration, $RuntimeIdentifier):"
+    foreach ($phase in $distributionTimings.GetEnumerator()) {
+        $duration = if ($null -ne $phase.Value) { '{0:F2}s' -f $phase.Value } else { 'not run' }
+        Write-Host ('  {0}: {1}' -f $phase.Key, $duration)
+    }
+    Write-Host '  Managed build includes graph restore and the PSF codec target when executed.'
+    if ($RuntimeIdentifier -eq 'win-x64') {
+        Write-Host '  Managed publish includes the DX11 and DX12 host builds and their PSF codec targets when executed.'
+    }
+    if ($RuntimeIdentifier -like 'osx-*') {
+        Write-Host '  macOS signing includes native launcher creation.'
+    }
+    Write-Host ('  Total distribution wall time: {0:F2}s (includes staging and other untimed work)' -f $distributionTimer.Elapsed.TotalSeconds)
 }

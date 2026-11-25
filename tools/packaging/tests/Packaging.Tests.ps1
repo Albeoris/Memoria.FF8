@@ -91,6 +91,21 @@ try {
         }
         Invoke-Checker @('--validate-archive', $externalArchive, $rid, (Join-Path $temporary "rejected-external-$rid")) -ExpectFailure -ErrorPattern 'contains an external component'
     }
+    foreach ($hostPath in @('dx11', 'vulkan', 'dx12/runtimes/win-x64/native')) {
+        foreach ($symbol in @('libSkiaSharp.pdb', 'libHarfBuzzSharp.pdb')) {
+            $symbolArchive = Join-Path $temporary 'native-symbol.zip'
+            $zip = [IO.Compression.ZipFile]::Open($symbolArchive, [IO.Compression.ZipArchiveMode]::Create)
+            try {
+                $zip.CreateEntry("Data/Game/$hostPath/$symbol") | Out-Null
+            }
+            finally {
+                $zip.Dispose()
+            }
+            $rejected = Join-Path $temporary ("rejected-symbol-" + $hostPath.Replace('/', '-') + "-$symbol")
+            Invoke-Checker @('--validate-archive', $symbolArchive, 'win-x64', $rejected) -ExpectFailure -ErrorPattern 'Windows game host contains native package symbols'
+            [IO.File]::Delete($symbolArchive)
+        }
+    }
     $package = Join-Path $temporary 'package'
     foreach ($relative in @('Memoria.Launcher', 'Data/Memoria.FF8', 'Data/audio-host/Memoria.FF8.Music', 'Data/Game/vulkan/Memoria.FF8', 'Data/Game/vulkan/Memoria.PsfDecoder')) {
         $path = Join-Path $package $relative

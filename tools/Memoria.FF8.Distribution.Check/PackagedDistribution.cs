@@ -25,13 +25,21 @@ static class PackagedDistribution
                 return;
             }
             name = directory ? name.TrimEnd('/') : name;
-            if (name.Length == 0 || name.Contains('\\') || name.Split('/').Any(part => part is "" or "." or ".." || part.Contains(':')) || !names.Add(name))
+            string[] parts = name.Split('/');
+            if (name.Length == 0 || name.Contains('\\') || parts.Any(part => part is "" or "." or ".." || part.Contains(':')) || !names.Add(name))
             {
                 throw new InvalidDataException("Unsafe or colliding package entry: " + name);
             }
-            if (name.Split('/').Any(part => part.Equals("Girl Next Door", StringComparison.OrdinalIgnoreCase) || part.Equals("GirlNextDoor.png", StringComparison.OrdinalIgnoreCase)))
+            if (parts.Any(part => part.Equals("Girl Next Door", StringComparison.OrdinalIgnoreCase) || part.Equals("GirlNextDoor.png", StringComparison.OrdinalIgnoreCase)))
             {
                 throw new InvalidDataException("The engine archive contains an external component: " + name);
+            }
+            if (rid == "win-x64" && !directory && parts.Length >= 4 &&
+                parts[0].Equals("Data", StringComparison.OrdinalIgnoreCase) && parts[1].Equals("Game", StringComparison.OrdinalIgnoreCase) &&
+                (parts[2].Equals("dx11", StringComparison.OrdinalIgnoreCase) || parts[2].Equals("vulkan", StringComparison.OrdinalIgnoreCase) || parts[2].Equals("dx12", StringComparison.OrdinalIgnoreCase)) &&
+                (parts[^1].Equals("libSkiaSharp.pdb", StringComparison.OrdinalIgnoreCase) || parts[^1].Equals("libHarfBuzzSharp.pdb", StringComparison.OrdinalIgnoreCase)))
+            {
+                throw new InvalidDataException("The Windows game host contains native package symbols: " + name);
             }
             string target = Path.GetFullPath(Path.Combine(destination, name));
             if (!target.StartsWith(Path.GetFullPath(destination) + Path.DirectorySeparatorChar, StringComparison.Ordinal))
