@@ -90,7 +90,8 @@ public static class NativeBattlePain34Controller
                         }
                         else
                         {
-                            Store(address, root.WriteByte(42, unchecked((byte)(root.ReadByte(42) + 1))).WriteByte(46, unchecked((byte)(root.ReadByte(46) + 1))).WriteByte(41, unchecked((byte)(root.ReadByte(41) - 1))));
+                            int nextPosition = checked(root.ReadTraversalPosition(0x2E) + 1);
+                            Store(address, root.WriteByte(0x2A, unchecked((byte)(root.ReadByte(0x2A) + 1))).WriteTraversalPosition(0x2E, nextPosition).WriteByte(0x29, 3));
                         }
                     }
                     break;
@@ -180,9 +181,9 @@ public static class NativeBattlePain34Controller
                 case 2:
                     if (unchecked((short)task.ReadWord(36)) >= 20)
                     {
-                        BattleActionHeaderReference headerIndex = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(42)));
+                        BattleActionHeaderReference headerIndex = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
                         NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(headerIndex);
-                        BattleContactCursor contact = header.FirstContact.Advance(unchecked((sbyte)task.ReadByte(43)));
+                        BattleContactCursor contact = header.FirstContact.Advance(task.ReadTraversalPosition(0x2B));
                         BattleContactOccurrence occurrence = inputs.Packets.ReadContact(contact).Occurrence ?? throw new InvalidDataException("Pain contact has no occurrence reference.");
                         Sync();
                         Accept(inputs.Contact(frame, occurrence));

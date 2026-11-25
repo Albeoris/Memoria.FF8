@@ -175,6 +175,54 @@ public sealed class NativeBattlePain34Tests
         Assert.All(frame.Effect.Pools, pool => Assert.All(pool.Slots, task => Assert.Equal(0, task.Flags & 1)));
         Assert.Equal(1, contacts);
     }
+    [Fact]
+    public void Repeated_cast_carries_the_next_traversal_position_through_a_private_continuation()
+    {
+        NativeBattleActionPacketsState packets = OriginalPackets();
+        BattleModelOwner firstTarget = OriginalOwner(3);
+        BattleModelOwner secondTarget = OriginalOwner(4);
+        foreach (BattleModelOwner target in new[] { firstTarget, secondTarget })
+        {
+            (packets, BattleActionHeaderReference header) = packets.Prepare(new(OriginalOwner(0), 2, 45, 0, 34, 1, null));
+            (packets, _) = packets.AppendContact(new(new(target, 0, 0, 0, 26, 0, 0), null));
+            packets = packets.WritePlayerRepeatMode(header, 2);
+            (packets, _) = packets.Publish(1);
+        }
+
+        NativeBattleOriginalEffectState effect = new(34, 34, new(34, 0x865600, 0x8655E0), new(OriginalOwner(0), 1, BattleModelTargets.From([firstTarget, secondTarget]), new BattleActionHeaderReference(0), 0, 0), null) { ResourcePointers = [new(0x26BA9E0, 0x10000)] };
+        NativeBattlePain34Resources resources = new(new(0x15E7040, []), new(0x15EA2E8, []), new("declared-unused-camera", []), 0);
+        NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Pain34 = NativeBattlePain34State.FromColdProcess() };
+        NativeBattlePain34Frame frame = NativeBattlePain34Controller.Initialize865600(new(memory, effect, NativeBattleFileStaging.Unknown()), resources, packets);
+        NativeBattleModulePoolTask root = frame.Effect.Pools[0].Slots[0];
+        root.WriteByte(0x29, 4);
+
+        NativeBattlePackedMatrix32 camera = new(new byte[32].ToImmutableArray(), Enumerable.Repeat(true, 32).ToImmutableArray());
+        List<BattleContactOccurrence> contacts = [];
+        NativeBattlePain34Inputs inputs = new(packets, camera, _ => new(0), _ => throw new InvalidOperationException(), (current, _) => new(current, true), (current, contact) =>
+        {
+            contacts.Add(contact);
+            return current;
+        }, _ => { })
+        {
+            ReadForeign = _ => new(default, default, 0, new(default, default))
+        };
+
+        frame = NativeBattlePain34Controller.Advance865720(frame, resources, inputs);
+        NativeBattlePain34Frame resumed = NativeBattleStorageSnapshots.Fork(frame);
+        resumed = NativeBattlePain34Controller.Advance865720(resumed, resources, inputs);
+        NativeBattleModulePoolTask emitter = resumed.Effect.Pools[1].Slots[0];
+        Assert.Equal(1, emitter.ReadTraversalPosition(0x2E));
+        Assert.Equal(secondTarget, emitter.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner);
+        for (int callback = 0; callback < 40 && resumed.Effect.ReturnedDescriptor != 0; callback++)
+        {
+            resumed = NativeBattlePain34Controller.Advance865720(resumed, resources, inputs);
+        }
+
+        Assert.Equal(0u, resumed.Effect.ReturnedDescriptor);
+        Assert.Equal(new BattleContactOccurrence(1), Assert.Single(contacts));
+        Assert.Equal(0, frame.Effect.Pools[1].Slots[0].Flags & 1);
+    }
+
     private static (ImmutableArray<byte> Mesh, ImmutableArray<byte> Vertices) Mesh(int selectedGroup)
     {
         int faceLength = selectedGroup == 3 ? 24 : 36;
