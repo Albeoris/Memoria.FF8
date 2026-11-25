@@ -2226,7 +2226,8 @@ internal sealed partial class AutoPlayController
     {
         string visit = session.State.Scene == SceneKind.WorldMap ? "world:" + session.State.Variables.GetValueOrDefault(256) : VisitKey();
         GameWorld world = getWorld();
-        string navigation = CurrentNavigationKey(world, visit);
+        // Recording the control return can make the observed destination stateful.
+        string navigation = ObserveNavigation(world, visit);
         return planner.ReachableNavigationFrontierCount(navigation, run.ActiveVisit, run.ActiveEvent, session.State.Scene == SceneKind.Field ? candidate => NeedsVisitRefresh(world, candidate, includeUnknown: false) : null, vertex => IsNavigationResourceCurrent(world, vertex));
     }
 
