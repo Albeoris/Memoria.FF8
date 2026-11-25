@@ -150,11 +150,11 @@ public sealed class GameLanguageDistributionTests : IDisposable
             }
         }));
         long total = mediaBytes + translationBytes;
-        Assert.Contains(new(LanguageAcquisitionPhase.Downloading, media.Name, PausedResponseStream.FirstChunkSize, total), reports);
-        Assert.Contains(new(LanguageAcquisitionPhase.Verifying, media.Name, mediaBytes, total), reports);
-        Assert.Contains(new(LanguageAcquisitionPhase.Downloading, translation.Name, mediaBytes + PausedResponseStream.FirstChunkSize, total), reports);
-        Assert.Contains(new(LanguageAcquisitionPhase.Verifying, translation.Name, total, total), reports);
-        Assert.Equal(new(LanguageAcquisitionPhase.Installing, translation.Name, total, total), reports[^1]);
+        Assert.Contains(new(LanguageAcquisitionPhase.Downloading, media.Name, PausedResponseStream.FirstChunkSize, total) { OfficialMemberId = media.Id }, reports);
+        Assert.Contains(new(LanguageAcquisitionPhase.Verifying, media.Name, mediaBytes, total) { OfficialMemberId = media.Id }, reports);
+        Assert.Contains(new(LanguageAcquisitionPhase.Downloading, translation.Name, mediaBytes + PausedResponseStream.FirstChunkSize, total) { OfficialMemberId = translation.Id }, reports);
+        Assert.Contains(new(LanguageAcquisitionPhase.Verifying, translation.Name, total, total) { OfficialMemberId = translation.Id }, reports);
+        Assert.Equal(new(LanguageAcquisitionPhase.Installing, translation.Name, total, total) { OfficialMemberId = translation.Id }, reports[^1]);
     }
 
     [Fact]
@@ -314,8 +314,8 @@ public sealed class GameLanguageDistributionTests : IDisposable
         if (cacheDependency)
         {
             Assert.All(cachedReports, report => Assert.Equal(translation.Latest.Artifact.Size, report.TotalBytes));
-            Assert.Contains(new(LanguageAcquisitionPhase.Verifying, media.Name, 0, translation.Latest.Artifact.Size), cachedReports);
-            Assert.Equal(new(LanguageAcquisitionPhase.Installing, translation.Name, translation.Latest.Artifact.Size, translation.Latest.Artifact.Size), cachedReports[^1]);
+            Assert.Contains(new(LanguageAcquisitionPhase.Verifying, media.Name, 0, translation.Latest.Artifact.Size) { OfficialMemberId = media.Id }, cachedReports);
+            Assert.Equal(new(LanguageAcquisitionPhase.Installing, translation.Name, translation.Latest.Artifact.Size, translation.Latest.Artifact.Size) { OfficialMemberId = translation.Id }, cachedReports[^1]);
         }
         Assert.Equal(1, requests[offerEntry.Official!.Latest!.Artifact.Url]);
         Assert.Equal(1, requests[media.Latest.Artifact.Url]);
@@ -365,7 +365,7 @@ public sealed class GameLanguageDistributionTests : IDisposable
         List<LanguageAcquisitionProgress> updateProgress = [];
         Assert.Equal(packageId, await library.AcquireLanguageAsync(updated, installer, Token, update: true, progress: new ProgressListener(updateProgress.Add)));
         Assert.All(updateProgress, report => Assert.Equal(update.Name, report.MemberName));
-        Assert.Equal(new(LanguageAcquisitionPhase.Installing, update.Name, update.Latest.Artifact.Size, update.Latest.Artifact.Size), updateProgress[^1]);
+        Assert.Equal(new(LanguageAcquisitionPhase.Installing, update.Name, update.Latest.Artifact.Size, update.Latest.Artifact.Size) { OfficialMemberId = update.Id }, updateProgress[^1]);
         Assert.Equal(1, requests[media.Latest.Artifact.Url]);
         Assert.Equal(1, requests[update.Latest.Artifact.Url]);
     }
