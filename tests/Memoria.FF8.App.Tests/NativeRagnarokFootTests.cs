@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
 using Memoria.FF8.Runtime;
@@ -126,8 +127,11 @@ public sealed class NativeRagnarokFootTests
         Assert.Equal((short)-14336, scene.State.NativeRagnarokRuntime!.TransferCamera!.OffsetZ);
     }
 
-    [Fact]
-    public void FirstBoardingCabinDeparturePreservesFoot0AndParkedShip2AndTheirIndependentReload()
+    [Theory]
+    [InlineData(0x40)]
+    [InlineData(0x02)]
+    [InlineData(0x42)]
+    public void FirstBoardingCabinDeparturePreservesFoot0AndParkedShip2AndTheirIndependentReload(ushort firstButtons)
     {
         GameSession session = Fixture();
         using (WorldMapScene scene = new(session, GameDirectory))
@@ -162,7 +166,14 @@ public sealed class NativeRagnarokFootTests
         Assert.Equal(new NativeWorldPathPosition(parked.X, parked.Height, -parked.RawZ), reload.State.NativeRagnarokRuntime.Objects[reload.State.NativeRagnarokRuntime.Allocation.RagnarokIndex].Position);
         Assert.Equal(5216, reload.State.NativeRagnarokRuntime.TransferCamera!.CurveThreshold);
         Assert.Equal((short)-7168, reload.State.NativeFootRuntime.CameraOffsetZ);
-        Assert.Equal(24, reload.Apply(new(PlayerActionKind.Wait, Frames: 24)).FramesAdvanced);
+        ushort? previous = session.WorldProcess!.InputHistory!.PreviousButtonsAfterWorldLoad;
+        byte view = reload.State.NativeFootRuntime.AnimationVariant;
+        Assert.Equal(1, reload.Apply(new(PlayerActionKind.Wait, WorldButtons: firstButtons)).FramesAdvanced);
+        Assert.Equal(firstButtons, session.WorldProcess.InputHistory!.CurrentButtons);
+        Assert.Equal(previous, session.WorldProcess.InputHistory.PreviousButtons);
+        Assert.Equal(view, reload.State.NativeFootRuntime!.AnimationVariant);
+        Assert.Null(reload.State.NativeRagnarokRuntime!.Transfer);
+        Assert.Equal(23, reload.Apply(new(PlayerActionKind.Wait, Frames: 23)).FramesAdvanced);
         string path = Path.Combine(Path.GetTempPath(), "Memoria-FF8-ragnarok-foot-reload-" + Guid.NewGuid().ToString("N") + ".json");
         try
         {
@@ -177,6 +188,48 @@ public sealed class NativeRagnarokFootTests
         {
             File.Delete(path);
         }
+    }
+
+    [Fact]
+    public void HistoricalSnapshotWithUnknownSharedHistoryNeedsAnObservedReleaseForViewToggle()
+    {
+        GameSession session = Fixture(3600);
+        using (WorldMapScene scene = new(session, GameDirectory))
+        {
+            Land(scene);
+        }
+        byte view = session.State.World!.NativeFootRuntime!.AnimationVariant;
+        JsonObject old = JsonSerializer.SerializeToNode(session.State)!.AsObject();
+        old["WorldProcess"]!["InputHistory"] = null;
+        old["World"]!["NativeRagnarokRuntime"]!["PreviousButtons"] = 0;
+        string path = TestResources.ArtifactFile("parked-ragnarok-old-input.json");
+        File.WriteAllText(path, old.ToJsonString());
+        GameSession restored = new(GameSession.Load(path));
+        using WorldMapScene reload = new(restored, GameDirectory);
+        Assert.Null(restored.WorldProcess!.InputHistory);
+        PlayerAction viewButton = new(PlayerActionKind.Wait, WorldButtons: 2, Frames: 2);
+        Assert.Equal(2, reload.Apply(viewButton).FramesAdvanced);
+        Assert.Equal(view, reload.State.NativeFootRuntime!.AnimationVariant);
+        Assert.True(reload.Apply(new(PlayerActionKind.Wait)).Accepted);
+        Assert.Equal(2, reload.Apply(viewButton).FramesAdvanced);
+        Assert.Equal(1 - view, reload.State.NativeFootRuntime!.AnimationVariant);
+    }
+
+    [Fact]
+    public void StandaloneParkedRagnarokSnapshotContinuesWithConfirm()
+    {
+        GameSession session = new(GameSession.Load(TestResources.FixturePath("App.Tests.NativeRagnarokFootTests.1")));
+        using GameWorld world = new(session, GameDirectory, validateWorldPresentation: false);
+        world.EnsureField();
+        WorldState before = session.State.World!;
+        Assert.NotNull(before.NativeFootRuntime);
+        Assert.NotNull(before.NativeRagnarokRuntime);
+        Assert.Equal(1, world.Apply(new(PlayerActionKind.Wait, WorldButtons: 0x40)).FramesAdvanced);
+        Assert.Equal(before.Frame + 1, session.State.World!.Frame);
+        Assert.NotNull(session.State.World.NativeFootRuntime);
+        Assert.Null(session.State.World.NativeRagnarokRuntime!.Transfer);
+        Assert.Equal(24, world.Apply(new(PlayerActionKind.Wait, Frames: 24)).FramesAdvanced);
+        Assert.Equal(before.Frame + 25, session.State.World!.Frame);
     }
 
     private static void ApproachShip(WorldMapScene scene)

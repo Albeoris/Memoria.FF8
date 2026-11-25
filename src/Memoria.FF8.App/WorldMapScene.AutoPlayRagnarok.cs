@@ -12,6 +12,8 @@ internal sealed partial class WorldMapScene
         {
             return null;
         }
+        NativeWorldInputHistory? history = session.WorldProcess?.InputHistory;
+        bool waitForConfirm = releaseConfirm || (current.Frame == 0 ? history?.PreviousButtonsAfterWorldLoad : history?.CurrentButtons) is null;
         int story = WorldEntryVariables.Read(session.State).StoryWord;
         if (current.NativeFootRuntime is not null)
         {
@@ -22,7 +24,7 @@ internal sealed partial class WorldMapScene
             // NG-079: Approach the original parked body and board at broad contact.
             if (ship.BroadContact == ship.Allocation.RagnarokIndex)
             {
-                return new(releaseConfirm || ship.PreviousButtons is null ? PlayerActionKind.Wait : PlayerActionKind.Confirm);
+                return new(waitForConfirm ? PlayerActionKind.Wait : PlayerActionKind.Confirm);
             }
             NativeWorldPathPosition parked = ship.Objects[ship.Allocation.RagnarokIndex].Position;
             if (current.X < -28750 && current.Z > 69380)
@@ -59,11 +61,11 @@ internal sealed partial class WorldMapScene
         double distance = Math.Sqrt(dx * dx + dz * dz);
         if (story == 3600 && distance < 70 && ship.Motor.Speed == 0)
         {
-            return new(PlayerActionKind.WorldButtons, releaseConfirm || ship.PreviousButtons is null ? 0 : 0x40);
+            return new(PlayerActionKind.WorldButtons, waitForConfirm ? 0 : 0x40);
         }
         if (story != 3600 && pandora is null && distance < 650 && ship.Motor.Speed == 0 && PrepareRagnarokLanding(current) is not null)
         {
-            return new(releaseConfirm || ship.PreviousButtons is null ? PlayerActionKind.Wait : PlayerActionKind.Confirm);
+            return new(waitForConfirm ? PlayerActionKind.Wait : PlayerActionKind.Confirm);
         }
         int desired = WrapYaw(NativeRound(Math.Atan2(dx, -dz) / NativeAngleUnit));
         int turn = YawDelta(desired, current.BodyYaw);

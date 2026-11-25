@@ -118,8 +118,6 @@ public sealed record NativeRagnarokWorldRuntimeState([property: JsonRequired] Na
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeWorldFootCameraState? ProjectionCamera { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public uint? PreviousButtons { get; init; }
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public short? CurrentGroundHeight { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeRagnarokTransferState? Transfer { get; init; }

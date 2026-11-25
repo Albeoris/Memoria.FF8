@@ -29,12 +29,8 @@ internal sealed partial class WorldMapScene
             motor = motor with { State = motor.State with { CameraYaw = checked((ushort)yaw) } };
         }
         runtime = runtime with { ManualCameraVelocity = cameraVelocity };
-        uint? previous = runtime.PreviousButtons;
-        if (previous is null && (buttons & 0x42) != 0 && cooldown <= 0)
-        {
-            throw new NotSupportedException("Ragnarok action/view edge requires a preceding actual released/observed button callback.");
-        }
-        NativeGardenTransferAdmission admission = NativeRagnarokTransferInput.Evaluate(new(buttons, previous ?? buttons, 50, 0, scriptMode, runtime.Transfer is not null, -1, cooldown, memory.ReplacementFlags264, false));
+        NativeWorldInputHistory history = salary.InputHistory ?? throw new InvalidDataException("Ragnarok flight requires the current world input sample.");
+        NativeGardenTransferAdmission admission = NativeRagnarokTransferInput.Evaluate(new(history.CurrentButtons, history.PreviousButtons, 50, 0, scriptMode, runtime.Transfer is not null, -1, cooldown, memory.ReplacementFlags264, false));
         consumeRequest = admission.ConsumeScriptRequest;
         int targetX = (before.X + NearWrapped(before.CameraTargetX, before.X, 262144)) >> 1;
         int targetZ = (before.Z + NearWrapped(before.CameraTargetZ, before.Z, 196608)) >> 1;
@@ -54,7 +50,7 @@ internal sealed partial class WorldMapScene
             runtime = runtime with { DrawBody = drawBody, DrawGroundHeight = runtime.CurrentGroundHeight };
         }
         forest = forest with { CameraPitch = motor.State.CameraPitch };
-        runtime = runtime with { Motor = motor.State, Forest = forest, PreviousParticleNativeHeight = before.NativeHeight, PreviousButtons = buttons, ProjectionCurveThreshold = runtime.TransferCamera?.CurveThreshold ?? 6144, ProjectionCamera = new(before.X, before.Z, before.NativeHeight, targetX, targetZ, targetHeight, motor.State.CameraYaw, motor.State.CameraPitch, oldCamera.OffsetY, runtime.TransferCamera?.OffsetZ ?? oldCamera.OffsetZ) };
+        runtime = runtime with { Motor = motor.State, Forest = forest, PreviousParticleNativeHeight = before.NativeHeight, ProjectionCurveThreshold = runtime.TransferCamera?.CurveThreshold ?? 6144, ProjectionCamera = new(before.X, before.Z, before.NativeHeight, targetX, targetZ, targetHeight, motor.State.CameraYaw, motor.State.CameraPitch, oldCamera.OffsetY, runtime.TransferCamera?.OffsetZ ?? oldCamera.OffsetZ) };
         WorldState cameraState = before with { BodyYaw = motor.State.BodyYaw, CameraYaw = motor.State.CameraYaw, CameraTargetX = targetX, CameraTargetZ = targetZ, CameraTargetNativeHeight = targetHeight, NativeRagnarokRuntime = runtime };
         if (runtime.BackgroundRails is { } background)
         {

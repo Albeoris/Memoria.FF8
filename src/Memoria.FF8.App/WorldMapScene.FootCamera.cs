@@ -64,11 +64,10 @@ internal sealed partial class WorldMapScene
 
     private static WorldState PrepareFootCameraToggle(WorldState state, NativeWorldInputHistory? input)
     {
-        if (input is null || (input.CurrentButtons & 2) == 0)
+        if (input?.PreviousButtons is not ushort previous || (input.CurrentButtons & 2) == 0)
         {
             return state;
         }
-        ushort previous = input.PreviousButtons ?? throw new NotSupportedException("Camera mode requires the preceding native digital input sample.");
         if ((previous & 2) != 0 || NativeWorldEntryControl.DelayAfterCallback(state.Frame, 0) > 0 || state.NativeTrainRuntime is not null || state.NativeScriptedRuntime is not null || state.EventUi?.ScriptMode is > 0)
         {
             return state;

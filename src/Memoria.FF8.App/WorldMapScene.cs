@@ -871,11 +871,11 @@ internal sealed partial class WorldMapScene : IDisposable
         }
         if (mapOnly && before.NativeFootRuntime is not null)
         {
-            return StepFoot(before, movementSpeedPercent, horizontal, vertical, cameraHorizontal, priorGraphicsSpeed, ref salary, out fieldEntry, out salaryMovementUnits, out graphicsSpeed, mapOnly: true, mapButtons: buttons);
+            return StepFoot(before, movementSpeedPercent, horizontal, vertical, cameraHorizontal, priorGraphicsSpeed, ref salary, out fieldEntry, out salaryMovementUnits, out graphicsSpeed, mapOnly: true);
         }
         if (before.NativeRagnarokRuntime is not null)
         {
-            return StepRagnarokFoot(before, movementSpeedPercent, horizontal, vertical, cameraHorizontal, priorGraphicsSpeed, buttons, entryMemory!, ref salary, out consumeGardenRequest, out fieldEntry, out salaryMovementUnits, out graphicsSpeed);
+            return StepRagnarokFoot(before, movementSpeedPercent, horizontal, vertical, cameraHorizontal, priorGraphicsSpeed, entryMemory!, ref salary, out consumeGardenRequest, out fieldEntry, out salaryMovementUnits, out graphicsSpeed);
         }
         if (before.NativeGardenRuntime is not null && before.NativeFootRuntime is null)
         {
@@ -885,10 +885,10 @@ internal sealed partial class WorldMapScene : IDisposable
         {
             return StepGardenFoot(before, movementSpeedPercent, horizontal, vertical, cameraHorizontal, priorGraphicsSpeed, entryMemory!, ref salary, out consumeGardenRequest, out boardingTarget, out fieldEntry, out salaryMovementUnits, out graphicsSpeed);
         }
-        return StepFoot(before, movementSpeedPercent, horizontal, vertical, cameraHorizontal, priorGraphicsSpeed, ref salary, out fieldEntry, out salaryMovementUnits, out graphicsSpeed, mapOnly, mapButtons: buttons);
+        return StepFoot(before, movementSpeedPercent, horizontal, vertical, cameraHorizontal, priorGraphicsSpeed, ref salary, out fieldEntry, out salaryMovementUnits, out graphicsSpeed, mapOnly);
     }
 
-    private WorldState StepFoot(WorldState before, int movementSpeedPercent, float horizontal, float vertical, float cameraHorizontal, int priorGraphicsSpeed, ref NativeWorldSalaryState salary, out WorldFieldSelection? fieldEntry, out uint salaryMovementUnits, out int graphicsSpeed, bool mapOnly = false, uint mapButtons = 0)
+    private WorldState StepFoot(WorldState before, int movementSpeedPercent, float horizontal, float vertical, float cameraHorizontal, int priorGraphicsSpeed, ref NativeWorldSalaryState salary, out WorldFieldSelection? fieldEntry, out uint salaryMovementUnits, out int graphicsSpeed, bool mapOnly = false)
     {
         int inputX = Math.Sign(horizontal);
         //53FAC0 seeds24 on the first normal loader callback and decrements before559140.
@@ -956,7 +956,7 @@ internal sealed partial class WorldMapScene : IDisposable
             }
             WorldState mapFoot = before with { Frame = before.Frame + 1, BodyYaw = bodyYaw, CameraYaw = cameraYaw, CameraVelocity = velocity, CameraTargetX = targetX, CameraTargetZ = targetZ, CameraTargetNativeHeight = targetHeight, NativeFootRuntime = foot };
             mapFoot = CompleteFootBackgroundRails(StepFootBackgroundRails(mapFoot));
-            return CompleteMapFootMotor(mapFoot, mapButtons);
+            return CompleteMapFootMotor(mapFoot, salary.InputHistory!.CurrentButtons);
         }
         foot = foot with { Forest = forest with { CameraPitch = cameraStep.Pitch, CameraCooldown = cameraStep.Process.CameraCooldown } };
         NativeWorldFootAnimationResult animationStep = StepFootAnimationDraw(before, foot, bodyYaw, cameraYaw, targetX, targetZ, targetHeight, moving, salary.ForcedAnimationC76628);
@@ -992,7 +992,8 @@ internal sealed partial class WorldMapScene : IDisposable
         }
         if (before.NativeRagnarokRuntime is not null)
         {
-            ragnarokCameraState = PrepareRagnarokFootCallback(StepFootBackgroundRails(before with { BodyYaw = bodyYaw, CameraYaw = cameraYaw, CameraVelocity = velocity, CameraTargetX = targetX, CameraTargetZ = targetZ, CameraTargetNativeHeight = targetHeight, NativeFootRuntime = foot }));
+            NativeWorldInputHistory input = salary.InputHistory ?? throw new InvalidDataException("Parked Ragnarok movement requires the current world input sample.");
+            ragnarokCameraState = PrepareRagnarokFootCallback(StepFootBackgroundRails(before with { BodyYaw = bodyYaw, CameraYaw = cameraYaw, CameraVelocity = velocity, CameraTargetX = targetX, CameraTargetZ = targetZ, CameraTargetNativeHeight = targetHeight, NativeFootRuntime = foot }), input);
             before = before with { NativeRagnarokRuntime = ragnarokCameraState.NativeRagnarokRuntime };
             foot = ragnarokCameraState.NativeFootRuntime!;
         }

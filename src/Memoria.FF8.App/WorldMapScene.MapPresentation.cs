@@ -63,7 +63,7 @@ internal sealed partial class WorldMapScene
         {
             NativeRagnarokWorldObject previous = ragnarok.Objects[0];
             short pitch = checked((short)(previous.Pitch + Math.Clamp(-(int)previous.Pitch, -16, 16)));
-            ragnarok = ragnarok with { Forest = foot.Forest, ProjectionCamera = camera, PreviousButtons = buttons };
+            ragnarok = ragnarok with { Forest = foot.Forest, ProjectionCamera = camera };
             ragnarok = PublishRagnarokFootBody(ragnarok, new(state.X, state.NativeHeight, -state.Z), pitch, checked((short)state.BodyYaw), previous.Roll);
             state = state with { NativeRagnarokRuntime = ragnarok };
         }

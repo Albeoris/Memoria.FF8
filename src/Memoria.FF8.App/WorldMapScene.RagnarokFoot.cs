@@ -5,9 +5,8 @@ namespace Memoria.FF8;
 
 internal sealed partial class WorldMapScene
 {
-    private sealed class RagnarokFootCallback(uint buttons, NativeWorldEntryMemory memory)
+    private sealed class RagnarokFootCallback(NativeWorldEntryMemory memory)
     {
-        public uint Buttons { get; } = buttons;
         public NativeWorldEntryMemory Memory { get; } = memory;
         public bool ConsumeRequest { get; set; }
         public WorldState? CameraState { get; set; }
@@ -17,14 +16,14 @@ internal sealed partial class WorldMapScene
     private RagnarokFootCallback? ragnarokFootCallback;
     private NativeRagnarokWorldObject? ragnarokFootBoardingTarget;
 
-    private WorldState StepRagnarokFoot(WorldState before, int movementSpeedPercent, float horizontal, float vertical, float cameraHorizontal, int priorGraphicsSpeed, uint buttons, NativeWorldEntryMemory memory, ref NativeWorldSalaryState salary, out bool consumeRequest, out WorldFieldSelection? fieldEntry, out uint salaryMovementUnits, out int graphicsSpeed)
+    private WorldState StepRagnarokFoot(WorldState before, int movementSpeedPercent, float horizontal, float vertical, float cameraHorizontal, int priorGraphicsSpeed, NativeWorldEntryMemory memory, ref NativeWorldSalaryState salary, out bool consumeRequest, out WorldFieldSelection? fieldEntry, out uint salaryMovementUnits, out int graphicsSpeed)
     {
         if (ragnarokFootCallback is not null)
         {
             throw new InvalidOperationException("Ragnarok foot callbacks cannot be nested.");
         }
         ragnarokFootBoardingTarget = null;
-        ragnarokFootCallback = new(buttons, memory);
+        ragnarokFootCallback = new(memory);
         try
         {
             WorldState after = StepFoot(before, movementSpeedPercent, horizontal, vertical, cameraHorizontal, priorGraphicsSpeed, ref salary, out fieldEntry, out salaryMovementUnits, out graphicsSpeed);
@@ -50,7 +49,7 @@ internal sealed partial class WorldMapScene
         return state with { X = WrapCoordinate(placement.X, 262144), Z = WrapCoordinate(-placement.Z, 196608), NativeHeight = placement.Y, BodyYaw = WrapYaw(ship.Yaw), CameraYaw = WrapYaw(camera.Yaw), AnimationId = 0, AnimationCounter = 0, NativeFootRuntime = foot, NativeRagnarokRuntime = runtime };
     }
 
-    private WorldState PrepareRagnarokFootCallback(WorldState cameraState)
+    private WorldState PrepareRagnarokFootCallback(WorldState cameraState, NativeWorldInputHistory input)
     {
         RagnarokFootCallback callback = ragnarokFootCallback ?? throw new InvalidOperationException("Parked Ragnarok foot movement requires its current ordinary callback input.");
         NativeFootWorldRuntimeState foot = cameraState.NativeFootRuntime!;
@@ -68,14 +67,8 @@ internal sealed partial class WorldMapScene
         NativeRagnarokTransferCamera globals = runtime.TransferCamera ?? throw new NotSupportedException("Ragnarok foot camera requires the retained landing scalar/projection globals.");
         runtime = runtime with { ProjectionCurveThreshold = globals.CurveThreshold };
         _ = NativeWorldPathProjectionCertificate.CreateRagnarok(camera, globals.CurveThreshold);
-        uint? previous = runtime.PreviousButtons;
-        if (previous is null && (callback.Buttons & 0x42) != 0)
-        {
-            throw new NotSupportedException("Ragnarok foot action/view edge requires its preceding actual observed button callback.");
-        }
-        NativeGardenTransferAdmission admission = NativeRagnarokTransferInput.Evaluate(new(callback.Buttons, previous ?? callback.Buttons, foot.EntityType, 0, 0, false, -1, NativeWorldEntryControl.DelayAfterCallback(cameraState.Frame + 1, 0), callback.Memory.ReplacementFlags264, false));
+        NativeGardenTransferAdmission admission = NativeRagnarokTransferInput.Evaluate(new(input.CurrentButtons, input.PreviousButtons, foot.EntityType, cameraState.EventUi!.ScriptMode, foot.CameraTransition?.Flags ?? 0, false, -1, NativeWorldEntryControl.DelayAfterCallback(cameraState.Frame + 1, 0), callback.Memory.ReplacementFlags264, false));
         callback.ConsumeRequest = admission.ConsumeScriptRequest;
-        runtime = runtime with { PreviousButtons = callback.Buttons };
         WorldState prepared = cameraState with { NativeRagnarokRuntime = runtime };
         if (admission.Action && runtime.BroadContact == runtime.Allocation.RagnarokIndex)
         {
