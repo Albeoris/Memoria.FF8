@@ -92,6 +92,32 @@ public sealed class AutoPlayGatewayReconciliationTests
         Assert.Equal(2, coverage.Routes.Count);
     }
 
+    [Theory]
+    [InlineData(20, 6, true, NativeFieldLoadOrigin.FieldRequest, true)]
+    [InlineData(21, 6, true, NativeFieldLoadOrigin.FieldRequest, false)]
+    [InlineData(20, 5, true, NativeFieldLoadOrigin.FieldRequest, false)]
+    [InlineData(20, 6, false, NativeFieldLoadOrigin.FieldRequest, false)]
+    [InlineData(20, 6, true, NativeFieldLoadOrigin.WorldReturn, false)]
+    public void OnlyAProvedNativeArrivalToTheSameFieldCanAdvanceTheRecordedStoryRoute(int field, int story, bool controlLost, NativeFieldLoadOrigin origin, bool expected)
+    {
+        AutoPlayRunState state = CreateContext();
+        state.ActiveStory = 5;
+        state.ActiveEvent = "10:line:2";
+        state.ActiveTargetId = "10:line:2:0:0";
+        state.ActiveTravelRoute = new("20:5", "entry", false, [], state.ActiveTargetId);
+        state.ObservedControlLoss = controlLost;
+        GameState actual = new()
+        {
+            Scene = SceneKind.Field,
+            FieldId = field,
+            PreviousFieldId = 10,
+            FieldLoadContext = new(1, field, origin),
+            FieldArrival = new(field, 0, 0, 0, 0),
+            WorldEntryMemory = NativeWorldEntryMemory.CreateNewGame().WriteBytes(256, 2, story)
+        };
+        Assert.Equal(expected, AutoPlayController.HasNativeStoryArrivalContext(state, actual));
+    }
+
     private static AutoPlayRunState CreateContext()
     {
         AutoPlayNavigationReceipt receipt = new(1, 10, "program", "mesh", [], [1]);

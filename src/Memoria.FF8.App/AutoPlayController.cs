@@ -2525,7 +2525,8 @@ internal sealed partial class AutoPlayController
         string destination = session.State.Scene == SceneKind.WorldMap ? "world:" + session.State.Variables.GetValueOrDefault(256) : VisitKey();
         bool changedDestination = run.ActiveTravelRoute is { } route && route.DestinationVisitKey != destination;
         bool forwarded = run.ActiveTravelForwarded || ForwardedWorldGateway(run, session.State);
-        if (changedDestination && !forwarded && !CanCorrectNativeGatewayDestination())
+        GameWorld world = getWorld();
+        if (changedDestination && !forwarded && !CanCorrectNativeGatewayDestination() && !CanCorrectNativeStoryArrival(world))
         {
             throw new NotSupportedException("The executed native choices returned to a different destination than the recorded travel route.");
         }
@@ -2533,7 +2534,6 @@ internal sealed partial class AutoPlayController
         {
             AutoPlayTravelChoice.RequireComplete(travelRoute, run.ActiveSelections);
         }
-        GameWorld world = getWorld();
         string destinationNavigation = CurrentNavigationKey(world, destination);
         if (changedDestination)
         {
