@@ -873,6 +873,11 @@ internal sealed partial class AutoPlayController
         if (recordedLocalReturn)
         {
             RecordActiveControlReturn();
+            // A new return route can make the field require a stateful navigation key.
+            if (run.NavigationReceipts[currentNavigation].StateFingerprint is null && UsesStatefulNavigation(world.Events.FieldId))
+            {
+                currentNavigation = CurrentNavigationKey(world, visit);
+            }
         }
         IReadOnlyList<AutoPlayTarget> targets = world.DiscoverAutoPlayTargets();
         if (run.ContactInterruptions.Count != 0)
