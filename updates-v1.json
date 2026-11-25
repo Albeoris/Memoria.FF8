@@ -4,31 +4,31 @@
     "release": {
       "artifacts": {
         "win-x64": {
-          "sha256": "15bd7aec1a9cfa0c9dc0467f83d4aad3b4c58fc9744c76f29c4247d5fe7fb65f",
-          "size": 627515404,
-          "url": "https://github.com/Albeoris/Memoria.FF8/releases/download/v0.9.13/Memoria-FF8-win-x64.zip"
+          "sha256": "24d3a3ac670ea6469e9f695fdfb1ad1e4c380ecc3cf66a707a95af3eeb22575a",
+          "url": "https://github.com/Albeoris/Memoria.FF8/releases/download/v0.9.14/Memoria-FF8-win-x64.zip",
+          "size": 627516965
         },
         "linux-x64": {
-          "sha256": "d815c9a3f1f651c2c3856fba6a7cf0f826fa01b28d261087cc1c995ab6abd88c",
-          "size": 299731854,
-          "url": "https://github.com/Albeoris/Memoria.FF8/releases/download/v0.9.13/Memoria-FF8-linux-x64.tar.gz"
+          "sha256": "c404fd4edba1abe8ab13e368753caa95aa5bbdbfbd02ccf37c8221bb7f308ea9",
+          "url": "https://github.com/Albeoris/Memoria.FF8/releases/download/v0.9.14/Memoria-FF8-linux-x64.tar.gz",
+          "size": 299731625
         },
         "osx-x64": {
-          "sha256": "bce9e3366b8262564aeaec774426be0bdd8e832122623d3ea25da33083dae272",
-          "size": 297670079,
-          "url": "https://github.com/Albeoris/Memoria.FF8/releases/download/v0.9.13/Memoria-FF8-osx-x64.tar.gz"
+          "sha256": "89cb0d7ff2a57607e726f9f51647cec321ccafc1765caa24484180609bec49a2",
+          "url": "https://github.com/Albeoris/Memoria.FF8/releases/download/v0.9.14/Memoria-FF8-osx-x64.tar.gz",
+          "size": 297669419
         },
         "osx-arm64": {
-          "sha256": "783534f639b6b29994f21b3f108d6f2166bda366a5d5f0b20f48ed82a88dcd29",
-          "size": 276785369,
-          "url": "https://github.com/Albeoris/Memoria.FF8/releases/download/v0.9.13/Memoria-FF8-osx-arm64.tar.gz"
+          "sha256": "ff25331a34d6f42e44e45cf6f3d4a43f88fb93141c2db2a75fc728e938dfa4a0",
+          "url": "https://github.com/Albeoris/Memoria.FF8/releases/download/v0.9.14/Memoria-FF8-osx-arm64.tar.gz",
+          "size": 276780443
         }
       },
-      "engineCompatibilityVersion": "0.9.13",
-      "name": "v0.9.13",
-      "publishedAt": "2026-11-25T11:04:50.0000000+00:00",
-      "buildId": "a3eea34920b65e045a67d682524e3344a16ee70f",
-      "tag": "v0.9.13"
+      "tag": "v0.9.14",
+      "name": "v0.9.14",
+      "buildId": "280290edaa81591b3a08c307803e49bbe3577410",
+      "publishedAt": "2026-11-25T11:29:02.0000000+00:00",
+      "engineCompatibilityVersion": "0.9.14"
     },
     "nightly": {
       "buildId": "a3eea34920b65e045a67d682524e3344a16ee70f",
