@@ -530,7 +530,12 @@ internal sealed partial class AutoPlayController
         idleDeadline.Reset();
     }
 
-    private bool ObserveSceneProgress() => run.ObservedScenes.Add($"{session.State.Scene}:{VisitKey()}:{(session.State.Scene == SceneKind.Movie ? session.State.MovieIndex : -1)}");
+    private bool ObserveSceneProgress()
+    {
+        GameState state = session.State;
+        int movie = state.Scene == SceneKind.Movie ? state.MovieIndex : -1;
+        return run.ObservedScenes.Add($"{state.Scene}:{state.FieldId}:{ReadStoryWord(state)}:{movie}");
+    }
 
     internal void CheckIdleDeadline()
     {
@@ -968,8 +973,8 @@ internal sealed partial class AutoPlayController
                 return;
             }
         }
-        bool timberPubCleared = visit.EndsWith(":270", StringComparison.Ordinal) && world.Events.EventMemory.Read(528, 2).Values is [>= 184];
-        if ((AutoPlayTraversalPolicy.GardenExamPassage(visit, world.Events.PlayerActor?.Y) ?? AutoPlayTraversalPolicy.BalambStationPassage(visit) ?? AutoPlayTraversalPolicy.OrphanageDeparturePassage(visit) ?? AutoPlayTraversalPolicy.TimberBroadcastPassage(visit, timberPubCleared)) is string departure)
+        int timberPhase = (visit.EndsWith(":270", StringComparison.Ordinal) || visit.EndsWith(":285", StringComparison.Ordinal)) && world.Events.EventMemory.Read(528, 2).Values is [int phase] ? phase : 0;
+        if ((AutoPlayTraversalPolicy.GardenExamPassage(visit, world.Events.PlayerActor?.Y) ?? AutoPlayTraversalPolicy.BalambStationPassage(visit) ?? AutoPlayTraversalPolicy.OrphanageDeparturePassage(visit) ?? AutoPlayTraversalPolicy.TimberBroadcastPassage(visit, timberPhase)) is string departure)
         {
             AutoPlayEventCoverage? passage = run.Coverage.Visits.Single(item => item.Visit.Key == visit).Events.FirstOrDefault(item => item.Event.Id == departure && item.Available && !item.Unavailable && item.BlockedReason is null);
             if (passage is not null && next?.Event.Id != departure)
@@ -2472,7 +2477,17 @@ internal sealed partial class AutoPlayController
         return entryStory.Value != exitStory;
     }
 
-    private string VisitKey() => $"{session.State.FieldId}:{session.State.Variables.GetValueOrDefault(256)}";
+    private string VisitKey()
+    {
+        GameState state = session.State;
+        return $"{state.FieldId}:{ReadStoryWord(state)}";
+    }
+
+    private static int ReadStoryWord(GameState state)
+    {
+        int native = state.WorldEntryMemory?.StoryWord ?? 0;
+        return native != 0 ? native : state.EventMemory.KnownValues.GetValueOrDefault(256);
+    }
 
     internal static bool IsEnding(GameState state)
     {

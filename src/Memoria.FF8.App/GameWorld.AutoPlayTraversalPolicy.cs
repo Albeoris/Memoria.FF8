@@ -472,27 +472,34 @@ internal static class AutoPlayTraversalPolicy
         };
     }
 
-    internal static string? TimberBroadcastPassage(string visitKey, bool pubCleared)
+    internal static string? TimberBroadcastPassage(string visitKey, int timberPhase)
     {
         // NG-127: Enter the studio while the original soldier is inactive.
         if (visitKey == "927:280")
         {
             return "927:line:13";
         }
-        // NG-126: Follow the original pub exit and alley after the drifter moves.
-        if (!pubCleared)
+        return (visitKey, timberPhase) switch
         {
-            return null;
-        }
-        return visitKey switch
-        {
-            "918:270" => "918:gateway:2",
-            "920:270" => "920:gateway:4",
-            "921:270" => "921:gateway:2",
-            "922:270" => "922:gateway:1",
-            "912:270" => "912:gateway:0",
-            "897:270" => "897:gateway:0",
-            "898:270" => "898:gateway:0",
+            // NG-126: Follow the original pub exit and alley after the drifter moves.
+            ("918:270", >= 184) => "918:gateway:2",
+            ("920:270", >= 184) => "920:gateway:4",
+            ("921:270", >= 184) => "921:gateway:2",
+            ("922:270", >= 184) => "922:gateway:1",
+            ("912:270", >= 184) => "912:gateway:0",
+            ("897:270", >= 184) => "897:gateway:0",
+            ("898:270", >= 184) => "898:gateway:0",
+            // NG-128: Rejoin the party before departing Timber.
+            ("900:285", 204) => "900:gateway:1",
+            ("899:285", 204) => "899:gateway:1",
+            ("916:285", 204) => "916:gateway:0",
+            ("917:285", 204) => "917:gateway:0",
+            ("918:285", 204) => "918:gateway:2",
+            ("908:285", 204) => "908:gateway:2",
+            ("920:285", 204) => "920:gateway:4",
+            ("921:285", 206) => "921:gateway:1",
+            ("923:285", 206) => "923:gateway:2",
+            ("924:285", 206) => "924:line:10",
             _ => null
         };
     }
