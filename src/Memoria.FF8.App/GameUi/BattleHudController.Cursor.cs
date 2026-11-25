@@ -80,7 +80,7 @@ public sealed partial class BattleHudController
     private CursorSelection CaptureCursorSelection(BattleCombatant actor)
     {
         BattleAbility command = SelectedCommand;
-        BattleActionDefinition? action = command == BattleAbility.Attack || HasGuardianFormCommands ? null : SelectedAction;
+        BattleActionDefinition? action = command == BattleAbility.Attack && !HasGuardianFormCommands ? null : SelectedAction;
         return new(actor.Id, HasGuardianFormCommands, command, SelectedNativeCommand, action?.Ability, action?.Id, selectedTargetId);
     }
 

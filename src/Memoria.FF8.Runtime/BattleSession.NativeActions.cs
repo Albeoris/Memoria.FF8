@@ -9,7 +9,7 @@ public sealed partial class BattleSession
         return matches.Length == 1 ? matches[0] : throw new NotSupportedException($"Native command {command}/{id} does not identify one installed action for crisis {crisis}.");
     }
 
-    private BattleNativeAction FindNativeCommandAction(BattleCombatant actor, byte command, ushort id, byte? crisis = null)
+    private BattleNativeAction FindNativeCommandAction(BattleCombatant actor, byte command, ushort id, byte? crisis = null, BattleNativeCommandBinding? learnedBinding = null)
     {
         if (command == 11 && id == 0)
         {
@@ -34,14 +34,14 @@ public sealed partial class BattleSession
         }
         if (command is 1 or 12 or 28 && id == 0)
         {
-            if (GetGuardianForm(actor.Id) is { EntryCompleted: true } form)
+            if (command is 1 or 12 && GetGuardianForm(actor.Id) is { EntryCompleted: true } form)
             {
-                BattleGuardianFormActionBinding formBinding = GetGuardianFormBinding(form, BattleGuardianFormAction.Attack);
+                BattleGuardianFormActionBinding formBinding = ReadGuardianFormBinding(form, BattleGuardianFormAction.Attack);
                 BattleNativeAction physical = ResolveGuardianFormAction(form, formBinding).NativeAction!;
                 return physical with { Command = command, DispatchCommand = command, ActionId = id, Name = "Attack" };
             }
             BattleNativeAction attack = actor.NativeAttack ?? throw new NotSupportedException("Native physical command requires its character-owned equipped weapon and junction metadata.");
-            BattleNativeCommandBinding? binding = actor.NativeCommands.FirstOrDefault(binding => binding.Command == command);
+            BattleNativeCommandBinding? binding = learnedBinding ?? actor.NativeCommands.FirstOrDefault(binding => binding.Command == command);
             string? name = binding?.Name ?? (command == 28 && HasRetainedReservedCommand(actor, command) ? definition.NativeCommandNames.ElementAtOrDefault(command) : null);
             return attack with { Command = command, DispatchCommand = command, Name = name ?? attack.Name, TargetFlags = binding?.TargetFlags ?? attack.TargetFlags };
         }
@@ -94,6 +94,16 @@ public sealed partial class BattleSession
 
     private int? PrepareNativeMiniMog()
     {
+        int? failure = ReadMiniMogFailure();
+        if (failure is null && !TrySpendNativeMoogleGil(NativeMiniMogGilCost()))
+        {
+            throw new InvalidOperationException("MiniMog lost its available Gil before admission.");
+        }
+        return failure;
+    }
+
+    private int? ReadMiniMogFailure()
+    {
         NativePocketStationState pocket = definition.NativePocketStation ?? throw new NotSupportedException("MiniMog requires the saved PocketStation block.");
         pocket.Validate();
         bool availableInPocketStation = (pocket.Flags & 0x0F) == 0x0D;
@@ -102,10 +112,14 @@ public sealed partial class BattleSession
         {
             return 72;
         }
+        return ReadNativeMoogleGil() >= NativeMiniMogGilCost() ? null : 53;
+    }
+
+    private uint NativeMiniMogGilCost()
+    {
         // 48B2E0 averages the levels in the occupied physical party slots, including KO members.
         BattleCombatant[] party = allies.Where(member => member.IsActive).ToArray();
-        uint cost = checked((uint)(100 * (party.Sum(member => member.Level) / party.Length)));
-        return TrySpendNativeMoogleGil(cost) ? null : 53;
+        return checked((uint)(100 * (party.Sum(member => member.Level) / party.Length)));
     }
 
     private void ResolveInstalledNativeHitCore(BattleCombatant actor, BattleCombatant recipient, BattleActionPresentation command, BattleActionDefinition action, BattleNativeAction native)

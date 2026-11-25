@@ -171,7 +171,8 @@ public sealed partial class BattleSession
         }
         bool NeedsReservation(string actorId, BattleAbility ability, BattleNativeAction? native, bool free, BattleGuardianFormAction? formAction)
         {
-            if (free && !(formAction == BattleGuardianFormAction.Fire && ability == BattleAbility.Magic && native?.Command == 2 && GetGuardianForm(actorId) is { EntryCompleted: true } || ability == BattleAbility.Magic && native?.Command == 247 || ability == BattleAbility.EnemyAbility && native?.Command == 2 && (NativeBattleStatusBits(GetActor(actorId)) & 0x2000000) != 0))
+            bool innate = formAction is { } binding && GetGuardianForm(actorId) is { EntryCompleted: true } form && ReadGuardianFormBinding(form, binding).Cost == BattleGuardianFormActionCost.Innate;
+            if (free && !(innate && ability == BattleAbility.Magic && native?.Command == 2 || ability == BattleAbility.Magic && native?.Command == 247 || ability == BattleAbility.EnemyAbility && native?.Command == 2 && (NativeBattleStatusBits(GetActor(actorId)) & 0x2000000) != 0))
             {
                 throw new InvalidDataException("A saved free spell requires its original reflected or Angel Wing source.");
             }

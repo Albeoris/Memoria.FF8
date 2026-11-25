@@ -131,7 +131,7 @@ public sealed class BattleHudGuardianFormTests
     [InlineData(2, BattleGuardianFormAction.HellFire)]
     public void ActiveFormUsesDedicatedCommandsWithoutStockOrHeroAttack(int choice, BattleGuardianFormAction action)
     {
-        BattleSession original = Create(level: 20);
+        BattleSession original = Create(level: 1);
         BattleSession battle = BattleSession.Restore(original.Capture() with
         {
             GuardianForms = new(true, 1, [new("actor", 2, "ifrit-v1", BattleGuardianFormPhase.Active, 1, 100) { EntryCompleted = true }])
@@ -154,17 +154,17 @@ public sealed class BattleHudGuardianFormTests
     }
 
     [Fact]
-    public void LowLevelIfritCanSelectHeavyStrikeAndOtherCharactersCannotSummonWhileHeIsOut()
+    public void IfritCanSelectHeavyStrikeFromLevel15AndOtherCharactersCannotSummonWhileHeIsOut()
     {
-        BattleSession original = Create(level: 19);
+        BattleSession original = Create(level: 15);
         BattleSession battle = BattleSession.Restore(original.Capture() with
         {
             GuardianForms = new(true, 1, [new("actor", 2, "ifrit-v1", BattleGuardianFormPhase.Active, 1, 100) { EntryCompleted = true }])
         });
         List<BattleInput> inputs = [];
         BattleHudController hud = Hud(battle, inputs);
-        Assert.Equal(new[] { "Attack", "Fire", "Heavy Strike", "Hell Fire" }, hud.ChoiceLabels);
-        hud.Choose(2);
+        Assert.Equal(new[] { "Heavy Strike", "Fire", "Hell Fire" }, hud.ChoiceLabels);
+        hud.Choose(0);
         Assert.Equal("Heavy Strike", hud.TargetActionCaption);
         Assert.Equal("enemy", Assert.Single(hud.Targets).Id);
         hud.Navigate(MenuInput.Confirm);
@@ -222,21 +222,20 @@ public sealed class BattleHudGuardianFormTests
             MagicId = 0, AttackType = 1, Power = 14, HitCount = 1, TargetFlags = null, AttackFlags = 0, DamagePresentation = 0, Element = 0, ElementPercent = null, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = null, Critical = null, PowerModifier = null, LevelModifier = null, RawRecord = [], SupplementalRecord = []
         };
         BattleNativeAction heavy = physical with { ActionId = 59, KernelIndex = 59, Power = 20 };
+        BattleNativeAction fire = physical with { Command = 2, ActionId = 1, KernelSection = 1, KernelIndex = 1, MagicId = 2, AttackType = 2, TargetFlags = 0x50, Name = "Fire" };
         BattleNativeAction ifrit = physical with { Command = 254, ActionId = 66, KernelSection = 2, KernelIndex = 2, AttackType = 11, TargetFlags = 0x40, Name = "Hell Fire", RawRecord = [.. new byte[128]] };
         BattleNativeAction quezacotl = ifrit with { ActionId = 64, KernelIndex = 0, Name = "Thunder Storm" };
         BattleGuardianFormActionBinding attackBinding = new(BattleGuardianFormAction.Attack, "Attack", BattleGuardianFormActionSource.Physical, 79, 12);
         BattleGuardianFormActionBinding fireBinding = new(BattleGuardianFormAction.Fire, "Fire", BattleGuardianFormActionSource.Magic, 1, 11, BattleGuardianFormActionCost.Innate);
         BattleGuardianFormActionBinding heavyBinding = new(BattleGuardianFormAction.HeavyStrike, "Heavy Strike", BattleGuardianFormActionSource.Physical, 59, 12);
-        BattleGuardianFormActionBinding finisher = BattleGuardianFormProfiles.Find(2)!.Finisher;
-        BattleGuardianFormAbilityBands bands = new(20, 30, [[attackBinding, fireBinding, heavyBinding, finisher], [attackBinding, fireBinding, finisher], [attackBinding, fireBinding, finisher]]);
         return new(new BattleDefinition
         {
             GuardianFormsEnabled = enabled,
             NativeBattleSpeed = 0,
-            NativeActions = [physical, heavy, ifrit, quezacotl],
-            GuardianFormResources = enabled ? [new(2, physical, 12, new([0, 0]) { AnimationFrames = [] }) { AbilityBands = bands, ElementDefenses = [1000, 700, 800, 800, 800, 800, 800, 800], StatusResistances = [.. Enumerable.Repeat((byte)100, 40)] }] : [],
+            NativeActions = [physical, heavy, fire, ifrit, quezacotl],
+            GuardianFormResources = enabled ? [new(2, physical, 12, new([0, 0]) { AnimationFrames = [] }) { InnateBindings = BattleGuardianFormProfiles.BindIfritInnateActions(attackBinding, fireBinding, heavyBinding), ElementDefenses = [1000, 700, 800, 800, 800, 800, 800, 800], StatusResistances = [.. Enumerable.Repeat((byte)100, 40)] }] : [],
             GuardianForces = [new(2, 1000, 1000), new(0, 1000, 1000)],
-            ActionDefinitions = [new(BattleAbility.GuardianForce, 2, "Renamed GF", BattleActionEffect.Damage, 10, false) { NativeAction = ifrit, Level = level }, new(BattleAbility.GuardianForce, 0, "Quezacotl", BattleActionEffect.Damage, 10, false) { NativeAction = quezacotl }, new(BattleAbility.Magic, 1, "Fire", BattleActionEffect.Damage, 10, false)],
+            ActionDefinitions = [new(BattleAbility.GuardianForce, 2, "Renamed GF", BattleActionEffect.Damage, 10, false) { NativeAction = ifrit, Level = level }, new(BattleAbility.GuardianForce, 0, "Quezacotl", BattleActionEffect.Damage, 10, false) { NativeAction = quezacotl }, new(BattleAbility.Magic, 1, "Fire", BattleActionEffect.Damage, 10, false) { NativeAction = fire }],
             Combatants =
             [
                 new() { Id = "actor", Name = "Actor", IsPlayer = true, MaximumHp = 100, CurrentHp = 100, InitialAtb = BattleSession.AtbMaximum, EquipmentIds = [2], Abilities = [BattleAbility.Attack, BattleAbility.GuardianForce], GuardianForceCompatibility = new ushort[16] },

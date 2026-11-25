@@ -99,6 +99,8 @@ public sealed partial class BattleHudController
         drawSmartPreview = null;
         presentationActionChoices = null;
         presentationMagicStockChoices = null;
+        presentationGuardianFormCommands = null;
+        presentationGuardianFormTargets = null;
     }
 
     // Share live choices only within one draw. Input and subsequent frames must see current stocks and reservations.
@@ -110,11 +112,11 @@ public sealed partial class BattleHudController
         {
             return NativeLimitFamilyActions;
         }
-        BattleAbility command = SelectedCommand;
         if (HasGuardianFormCommands)
         {
-            return [];
+            return GuardianFormCommands.Select(command => command.Action).ToArray();
         }
+        BattleAbility command = SelectedCommand;
         if (command == BattleAbility.Attack || SelectedActor is not { } actor)
         {
             return [];
@@ -142,6 +144,10 @@ public sealed partial class BattleHudController
     {
         get
         {
+            if (HasGuardianFormCommands)
+            {
+                return SelectedGuardianFormCommand.Action;
+            }
             IReadOnlyList<BattleActionDefinition> actions = ActionChoices;
             return actions.ElementAtOrDefault(Math.Clamp(actionIndex, 0, Math.Max(0, actions.Count - 1)));
         }
@@ -154,10 +160,6 @@ public sealed partial class BattleHudController
         get
         {
             BattleAbility command = SelectedCommand;
-            if (HasGuardianFormCommands)
-            {
-                return GuardianFormTargets();
-            }
             if (command == BattleAbility.Draw)
             {
                 return DrawTargets();
@@ -166,7 +168,7 @@ public sealed partial class BattleHudController
             IReadOnlyList<BattleCombatant> candidates = SelectableTargets;
             if (SelectingBothSides(action))
             {
-                return BothSideTargets(action!);
+                return HasGuardianFormCommands ? candidates : BothSideTargets(action!);
             }
             bool players = candidates.FirstOrDefault(target => target.Id == selectedTargetId)?.IsPlayer ?? (action?.Allies == true);
             if (!candidates.Any(target => target.IsPlayer == players) && candidates.Count > 0)
@@ -182,7 +184,7 @@ public sealed partial class BattleHudController
         {
             if (HasGuardianFormCommands)
             {
-                return GuardianFormTargets();
+                return GuardianFormTargets;
             }
             BattleActionDefinition? action = SelectedCommand == BattleAbility.Attack ? null : SelectedAction;
             BattleCombatant? caster = SelectedActor;
@@ -192,7 +194,12 @@ public sealed partial class BattleHudController
 
     private bool SelectingBothSides(BattleActionDefinition? action)
     {
-        return action?.NativeAction?.TargetFlags is byte flags && (flags & 0x32) == 0x20;
+        return TargetFlags(action) is byte flags && (flags & 0x32) == 0x20;
+    }
+
+    private byte? TargetFlags(BattleActionDefinition? action)
+    {
+        return HasGuardianFormCommands ? SelectedGuardianFormCommand.TargetFlags : action?.NativeAction?.TargetFlags;
     }
 
     private BattleCombatant[] BothSideTargets(BattleActionDefinition action)
@@ -263,8 +270,8 @@ public sealed partial class BattleHudController
             {
                 return false;
             }
-            BattleActionDefinition? action = HasGuardianFormCommands && SelectedActor is { } actor ? session.GetGuardianFormActionDefinition(actor.Id, SelectedGuardianFormCommand) : SelectedCommand == BattleAbility.Attack ? null : SelectedAction;
-            return action?.NativeAction?.TargetFlags is byte flags ? (flags & 0x30) != 0x10 : action?.AllTargets == true;
+            BattleActionDefinition? action = SelectedAction;
+            return TargetFlags(action) is byte flags ? (flags & 0x30) != 0x10 : action?.AllTargets == true;
         }
     }
     public string TargetGroupDescription => Targets.All(actor => !actor.IsPlayer) ? SystemText("battle.ui.targetgroupdescription.all.enemies", "All enemies") : Targets.All(actor => actor.IsPlayer) ? SystemText("battle.ui.targetgroupdescription.all.allies", "All allies") : SystemText("battle.ui.targetgroupdescription.all.targets", "All targets");

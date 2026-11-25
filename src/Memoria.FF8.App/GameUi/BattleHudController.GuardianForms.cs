@@ -8,25 +8,34 @@ public sealed partial class BattleHudController
     private string? guardianFormMenuActorId;
     private string? guardianFormSelectionActorId;
     private bool guardianFormWasActive;
+    private IReadOnlyList<BattleGuardianFormCommand>? presentationGuardianFormCommands;
+    private IReadOnlyList<BattleCombatant>? presentationGuardianFormTargets;
 
     public bool SelectingGuardianFormAction { get; private set; }
     public bool HasGuardianFormCommands => SelectedActor is { } actor && session.GetGuardianForm(actor.Id) is { Phase: BattleGuardianFormPhase.Active, RemainingTicks: > 0 };
-    public string GuardianFormCommandLabel => HasGuardianFormCommands ? GuardianFormLabel(SelectedActor!, SelectedGuardianFormCommand) : string.Empty;
-    private IReadOnlyList<BattleGuardianFormAction> GuardianFormCommands => SelectedActor is { } actor ? session.GetGuardianFormActions(actor.Id) : [];
-    private IReadOnlyList<string> GuardianFormChoiceLabels => GuardianFormCommands.Select(action => GuardianFormLabel(SelectedActor!, action)).ToArray();
-    private BattleGuardianFormAction SelectedGuardianFormCommand
+    public string GuardianFormCommandLabel => HasGuardianFormCommands ? GuardianFormLabel(SelectedGuardianFormCommand) : string.Empty;
+    internal bool ShowingGuardianFormList => HasGuardianFormCommands && !SelectingTarget;
+    private IReadOnlyList<BattleGuardianFormCommand> GuardianFormCommands => drawingPresentation ? presentationGuardianFormCommands ??= session.GetGuardianFormCommands(SelectedActor!.Id) : session.GetGuardianFormCommands(SelectedActor!.Id);
+    private IReadOnlyList<BattleCombatant> GuardianFormTargets => drawingPresentation ? presentationGuardianFormTargets ??= session.GetGuardianFormCommandTargets(SelectedActor!.Id, SelectedGuardianFormCommand.Id) : session.GetGuardianFormCommandTargets(SelectedActor!.Id, SelectedGuardianFormCommand.Id);
+    private IReadOnlyList<string> GuardianFormChoiceLabels => GuardianFormCommands.Select(GuardianFormLabel).ToArray();
+    private BattleGuardianFormCommand SelectedGuardianFormCommand
     {
         get
         {
-            IReadOnlyList<BattleGuardianFormAction> commands = GuardianFormCommands;
+            IReadOnlyList<BattleGuardianFormCommand> commands = GuardianFormCommands;
             return commands[Math.Clamp(commandIndex, 0, commands.Count - 1)];
         }
     }
 
-    private string GuardianFormLabel(BattleCombatant actor, BattleGuardianFormAction action)
+    private string GuardianFormLabel(BattleGuardianFormCommand command)
     {
-        BattleActionDefinition definition = session.GetGuardianFormActionDefinition(actor.Id, action);
-        return action switch
+        BattleActionDefinition definition = command.Action;
+        if (command.LearnedAbilityId.HasValue && command.NativeCommand is byte native)
+        {
+            string name = definition.DisplayName ?? definition.Name;
+            return FormatBattleText(localizedCommandName?.Invoke(native, name) ?? name);
+        }
+        return (BattleGuardianFormAction)command.Id switch
         {
             BattleGuardianFormAction.Attack => SystemText("battle.ui.guardianformcommandlabel.attack", definition.Name),
             BattleGuardianFormAction.HeavyStrike => SystemText("battle.ui.guardianformcommandlabel.heavy.strike", definition.Name),
@@ -59,6 +68,14 @@ public sealed partial class BattleHudController
 
     private bool NavigateGuardianFormActions(MenuInput input)
     {
+        if (ShowingGuardianFormList && input is MenuInput.Up or MenuInput.Down or MenuInput.Left or MenuInput.Right)
+        {
+            BattleDrawLayout layout = BattleDrawLayout.Calculate(GuardianFormCommands.Count);
+            int direction = input is MenuInput.Up or MenuInput.Left ? -1 : 1;
+            int next = input is MenuInput.Left or MenuInput.Right ? layout.MoveHorizontal(commandIndex, direction) : layout.MoveVertical(commandIndex, direction);
+            HoverGuardianFormChoice(next);
+            return true;
+        }
         if (SelectingGuardianFormAction)
         {
             if (input is MenuInput.Cancel or MenuInput.Left)
@@ -79,6 +96,15 @@ public sealed partial class BattleHudController
         return false;
     }
 
+    internal void HoverGuardianFormChoice(int index)
+    {
+        if (index >= 0 && index < GuardianFormCommands.Count && index != commandIndex)
+        {
+            commandIndex = index;
+            SoundRequested?.Invoke(MenuSound.Move);
+        }
+    }
+
     private bool CancelGuardianFormSelection()
     {
         if (SelectingGuardianFormAction)
@@ -92,6 +118,8 @@ public sealed partial class BattleHudController
         if (HasGuardianFormCommands && SelectingTarget)
         {
             SelectingTarget = false;
+            selectedTargetId = null;
+            session.CloseNativeActionMenu();
             SetSystemMessage(() => SystemText("battle.ui.cancelguardianformselection.choose.a.form.command", "Choose a form command."));
             SoundRequested?.Invoke(MenuSound.Cancel);
             return true;
@@ -120,6 +148,12 @@ public sealed partial class BattleHudController
         }
         else
         {
+            BattleGuardianFormCommand command = SelectedGuardianFormCommand;
+            if (!command.Action.Available)
+            {
+                ShowCommandError(SystemText("battle.ui.attack.the.selected.action.is.unavailable", "The selected action is unavailable."));
+                return true;
+            }
             if (!SelectingTarget)
             {
                 SelectingTarget = true;
@@ -129,9 +163,8 @@ public sealed partial class BattleHudController
                 SoundRequested?.Invoke(MenuSound.Confirm);
                 return true;
             }
-            BattleGuardianFormAction action = SelectedGuardianFormCommand;
-            string label = GuardianFormLabel(actor, action);
-            if (SelectedTarget is not { } target || !SubmitGuardianFormInput(new(BattleInputKind.GuardianFormAction, ActorId: actor.Id, TargetId: target.Id, ActionId: (int)action)))
+            string label = GuardianFormLabel(command);
+            if (SelectedTarget is not { } target || !SubmitGuardianFormInput(new(BattleInputKind.GuardianFormAction, ActorId: actor.Id, TargetId: target.Id, ActionId: command.Id)))
             {
                 return true;
             }
@@ -161,14 +194,6 @@ public sealed partial class BattleHudController
             ShowCommandError(error.Message);
             return false;
         }
-    }
-
-    private IReadOnlyList<BattleCombatant> GuardianFormTargets()
-    {
-        BattleCombatant actor = SelectedActor!;
-        BattleActionDefinition action = session.GetGuardianFormActionDefinition(actor.Id, SelectedGuardianFormCommand);
-        bool fixedSelf = action.NativeAction?.TargetFlags is byte flags && NativeBattleLimitRules.IsFixedAllyTarget(flags);
-        return session.Combatants.Where(target => target.IsActive && !target.Untargetable && target.IsPlayer == action.Allies && (!fixedSelf || target.Id == actor.Id) && BattleSession.HasValidTargetLifeState(action, target)).ToArray();
     }
 
     private void RefreshGuardianFormSelection()

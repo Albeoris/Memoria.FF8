@@ -80,7 +80,7 @@ public sealed partial class BattleSession
         uint battleStatus = NativeBattleStatusBits(actor);
         if (GetGuardianForm(actor.Id) is { Phase: BattleGuardianFormPhase.Active, RemainingTicks: > 0 } form && RequiresNativeCompelledCommand(actor))
         {
-            BattleGuardianFormActionBinding binding = GetGuardianFormBinding(form, (battleStatus & 0x2000000) != 0 ? BattleGuardianFormAction.Fire : BattleGuardianFormAction.Attack);
+            BattleGuardianFormActionBinding binding = (battleStatus & 0x2000000) != 0 ? GetGuardianFormSpellBinding(form) : GetGuardianFormPhysicalBinding(form);
             BattleNativeAction native = ResolveGuardianFormAction(form, binding).NativeAction!;
             BattleTargetRequest formTargets = binding.Source == BattleGuardianFormActionSource.Physical ? PickAiSide((battleStatus & 0x4000) != 0 ? BattleSide.Allies : BattleSide.Enemies).Request : SelectNativeCompelledTargets(native.TargetFlags ?? throw new InvalidDataException("GF compelled spell lacks its installed targeting flags."), true);
             return new(native.Command, native.ActionId, formTargets, binding.Cost == BattleGuardianFormActionCost.Innate) { GuardianFormBinding = binding };

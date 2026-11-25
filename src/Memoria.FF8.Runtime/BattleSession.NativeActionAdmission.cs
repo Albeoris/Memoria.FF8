@@ -161,9 +161,9 @@ public sealed partial class BattleSession
     private byte ResolveNativeDispatchSequence(BattleCombatant actor, byte command, byte supplied, ushort action)
     {
         byte sequence = supplied;
-        if (actor.GuardianFormVitals is not null && command is 1 or 12 or 28 && GetGuardianForm(actor.Id) is { } form)
+        if (actor.GuardianFormVitals is not null && command is 1 or 12 && GetGuardianForm(actor.Id) is { } form)
         {
-            sequence = GetGuardianFormBinding(form, BattleGuardianFormAction.Attack).Sequence;
+            sequence = ReadGuardianFormBinding(form, BattleGuardianFormAction.Attack).Sequence;
         }
         if (actor.IsPlayer && actor.GuardianFormVitals is null)
         {
@@ -179,6 +179,6 @@ public sealed partial class BattleSession
 
     private static BattleActionPresentation NativeCommandPresentation(BattleAttackCommand command)
     {
-        return new(command.ActorId, command.TargetId, BattleActionPhase.Windup, command.TargetRequest, command.Ability, command.ActionId, command.DrawCast) { MagicReservationId = command.MagicReservationId, SmartAttack = command.SmartAttack, NativeDuel = command.NativeDuel, NativeSlots = command.NativeSlots, NativeAiCallbackStage = command.NativeAiCallbackStage, NativePlayerReaction = command.NativePlayerReaction, NativeRenzokuken = command.NativeRenzokuken, NativeDraw = command.NativeDraw, DrawCastTargetId = command.DrawCastTargetId, NativeLimitCallback = command.NativeLimitCallback, MagicCasts = command.MagicCasts, NativeMagicCastMode = command.NativeMagicCastMode, NativeGraphic = command.NativeGraphic, IndependentGuardian = command.IndependentGuardian, NativeSpecial = command.NativeSpecial, NativeQueuedCommand = command.NativeQueuedCommand, NativeAction = command.NativeAction, NativeSequence = command.NativeSequence, GuardianFormAction = command.GuardianFormAction, GuardianFormInvocation = command.GuardianFormInvocation, FreeNativeMagic = command.FreeNativeMagic, ReservedNativeItemSlot = command.ReservedNativeItemSlot };
+        return new(command.ActorId, command.TargetId, BattleActionPhase.Windup, command.TargetRequest, command.Ability, command.ActionId, command.DrawCast) { MagicReservationId = command.MagicReservationId, SmartAttack = command.SmartAttack, NativeDuel = command.NativeDuel, NativeSlots = command.NativeSlots, NativeAiCallbackStage = command.NativeAiCallbackStage, NativePlayerReaction = command.NativePlayerReaction, NativeRenzokuken = command.NativeRenzokuken, NativeDraw = command.NativeDraw, DrawCastTargetId = command.DrawCastTargetId, NativeLimitCallback = command.NativeLimitCallback, MagicCasts = command.MagicCasts, NativeMagicCastMode = command.NativeMagicCastMode, NativeGraphic = command.NativeGraphic, IndependentGuardian = command.IndependentGuardian, NativeSpecial = command.NativeSpecial, NativeQueuedCommand = command.NativeQueuedCommand, NativeAction = command.NativeAction, NativeSequence = command.NativeSequence, GuardianFormAction = command.GuardianFormAction, GuardianFormLearnedAbility = command.GuardianFormLearnedAbility, GuardianFormInvocation = command.GuardianFormInvocation, FreeNativeMagic = command.FreeNativeMagic, ReservedNativeItemSlot = command.ReservedNativeItemSlot };
     }
 }

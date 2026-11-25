@@ -38,30 +38,47 @@ public sealed partial class BattleSession
 
     private void QueueExpandedPlayerAction(BattleCombatant actor, BattleCombatant target, BattleActionDefinition action, byte sequence)
     {
+        SubmitExpandedPlayerAction(actor, action, PrepareExpandedPlayerAction(actor, target, action, sequence));
+    }
+
+    private bool IsExpandedPlayerActionTarget(BattleCombatant actor, BattleCombatant target, BattleActionDefinition action, byte? bindingTargetFlags = null)
+    {
+        BattleNativeAction native = action.NativeAction!;
+        return IsValidSelectedActionTarget(actor, action, target, bindingTargetFlags) &&
+            (!IsNativeLevelCommand(native) || CanRebindExpandedEnemyLevel(target, ProjectNativeLevel(native, target.Level))) &&
+            (!IsExpandedTargetedSpecial(native) || CanTargetExpandedSpecial(native, target));
+    }
+
+    private BattleAttackCommand PrepareExpandedPlayerAction(BattleCombatant actor, BattleCombatant target, BattleActionDefinition action, byte sequence, byte? bindingTargetFlags = null, byte? formSequence = null)
+    {
         BattleNativeAction native = action.NativeAction!;
         ValidateNativeActionContract(native);
         if (SupportsExpandedCombine(native))
         {
             target = SelectExpandedCombineTarget(action) ?? throw new InvalidOperationException("Combine requires an available recipient on its original side.");
         }
-        if (!IsValidSelectedActionTarget(actor, action, target) || IsNativeLevelCommand(native) && !CanRebindExpandedEnemyLevel(target, ProjectNativeLevel(native, target.Level)) ||
-            IsExpandedTargetedSpecial(native) && !CanTargetExpandedSpecial(native, target))
+        if (!IsExpandedPlayerActionTarget(actor, target, action, bindingTargetFlags))
         {
             throw new InvalidOperationException("The command requires a valid target for its installed targeting mode.");
         }
-        byte nativeSequence = NativeBattleActionGraphics.ResolvePlayerSequence(native.Command, sequence, native.ActionId, definition.NativeCommandSequences);
-        OnNativePlayerCommandSubmitted(actor, native.Command);
-        byte targetFlags = native.TargetFlags ?? actor.NativeCommands.Single(binding => binding.Command == native.Command).TargetFlags;
+        byte nativeSequence = formSequence ?? NativeBattleActionGraphics.ResolvePlayerSequence(native.Command, sequence, native.ActionId, definition.NativeCommandSequences);
+        byte targetFlags = bindingTargetFlags ?? native.TargetFlags ?? actor.NativeCommands.Single(binding => binding.Command == native.Command).TargetFlags;
         BattleTargetRequest request = CreatePlayerTargetRequest(actor, target, targetFlags);
-        actions.Enqueue(new(actor.Id, target.Id, request, action.Ability, action.Id)
+        return new(actor.Id, target.Id, request, action.Ability, action.Id)
         {
             NativeQueuedCommand = native.Command,
             NativeAction = native,
             NativeSequence = nativeSequence
-        });
+        };
+    }
+
+    private void SubmitExpandedPlayerAction(BattleCombatant actor, BattleActionDefinition action, BattleAttackCommand command)
+    {
+        OnNativePlayerCommandSubmitted(actor, command.NativeQueuedCommand!.Value);
+        actions.Enqueue(command);
         actor.Atb = 0;
         actor.IsBusy = true;
         nativeLimitLevels.Remove(actor.Id);
-        Log("Queued", actor.Id, target.Id, 0, $"{actor.Name}: {action.Name} queued.");
+        Log("Queued", actor.Id, command.TargetId, 0, $"{actor.Name}: {action.Name} queued.");
     }
 }

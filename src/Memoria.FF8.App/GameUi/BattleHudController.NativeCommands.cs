@@ -226,11 +226,7 @@ public sealed partial class BattleHudController
         }
         if (HasGuardianFormCommands)
         {
-            return GuardianFormCommands.Select(action =>
-            {
-                BattleActionDefinition definition = session.GetGuardianFormActionDefinition(actor.Id, action);
-                return new BattleCommandPresentation(definition.Ability, (int)action, definition.Name);
-            }).ToArray();
+            return GuardianFormCommands.Select(command => new BattleCommandPresentation(command.Action.Ability, command.Id, command.Action.Name)).ToArray();
         }
         IEnumerable<BattleCommandPresentation> choices = BattleCommandPresentation.Read(actor).Where(choice =>
             choice.Ability is BattleAbility.Attack or BattleAbility.Magic or BattleAbility.Item or BattleAbility.Draw or BattleAbility.GuardianForce ||

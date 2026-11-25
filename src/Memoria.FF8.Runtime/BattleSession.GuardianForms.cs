@@ -42,12 +42,28 @@ public sealed partial class BattleSession
     private ImmutableArray<BattleGuardianFormActionBinding> GetGuardianFormBindings(BattleGuardianFormState form)
     {
         int level = FindAction(BattleAbility.GuardianForce, form.GuardianForceId).Level;
-        return GuardianFormResources(form.GuardianForceId).AbilityBands!.AtLevel(level);
+        return BattleGuardianFormProfiles.ActionsAtLevel(level).Select(action => ReadGuardianFormBinding(form, action)).ToImmutableArray();
     }
 
     private BattleGuardianFormActionBinding GetGuardianFormBinding(BattleGuardianFormState form, BattleGuardianFormAction action)
     {
         return GetGuardianFormBindings(form).SingleOrDefault(binding => binding.Action == action) ?? throw new InvalidOperationException("This GF form action is unavailable at its current level.");
+    }
+
+    private BattleGuardianFormActionBinding GetGuardianFormPhysicalBinding(BattleGuardianFormState form)
+    {
+        return GetGuardianFormBindings(form).First(binding => binding.Source == BattleGuardianFormActionSource.Physical);
+    }
+
+    private BattleGuardianFormActionBinding GetGuardianFormSpellBinding(BattleGuardianFormState form)
+    {
+        return GetGuardianFormBindings(form).First(binding => binding.Source == BattleGuardianFormActionSource.Magic);
+    }
+
+    private BattleGuardianFormActionBinding ReadGuardianFormBinding(BattleGuardianFormState form, BattleGuardianFormAction action)
+    {
+        return GuardianFormResources(form.GuardianForceId).InnateBindings.SingleOrDefault(binding => binding.Action == action) ??
+            throw new InvalidDataException($"GF form lacks its installed {action} action binding.");
     }
 
     private BattleActionDefinition ResolveGuardianFormAction(BattleGuardianFormState form, BattleGuardianFormActionBinding binding)
@@ -105,24 +121,34 @@ public sealed partial class BattleSession
 
     public void QueueGuardianFormAction(string actorId, string targetId, BattleGuardianFormAction action)
     {
+        QueueGuardianFormAction(actorId, targetId, (int)action);
+    }
+
+    public void QueueGuardianFormAction(string actorId, string targetId, int commandId)
+    {
         RequireNoPendingSlotsDeal();
         RequireNativeEntryReady();
         BattleGuardianFormState form = GetGuardianForm(actorId) ?? throw new InvalidOperationException("The actor has no GF form.");
         BattleCombatant actor = GetActor(actorId);
-        if (form.Phase != BattleGuardianFormPhase.Active || form.RemainingTicks == 0 || !CanChoosePlayerCommand(actorId) || !CanNativeBattleActorAct(actor))
+        if (form.Phase != BattleGuardianFormPhase.Active || form.RemainingTicks == 0 || !CanChoosePlayerCommand(actorId) || !CanNativeBattleActorAct(actor) || ExpandedTimedLimitOwnsInput)
         {
             throw new InvalidOperationException("GF form action requires an active, ready form with remaining lifetime.");
         }
-        QueueGuardianFormActionCore(actor, form, GetActor(targetId), action);
+        BattleCombatant target = GetActor(targetId);
+        if (commandId >= BattleGuardianFormCommand.LearnedAbilityOffset)
+        {
+            QueueGuardianFormLearnedCommand(actor, form, target, commandId - BattleGuardianFormCommand.LearnedAbilityOffset);
+            return;
+        }
+        QueueGuardianFormActionCore(actor, form, target, GetGuardianFormBinding(form, (BattleGuardianFormAction)commandId));
     }
 
-    private void QueueGuardianFormActionCore(BattleCombatant actor, BattleGuardianFormState form, BattleCombatant target, BattleGuardianFormAction binding, bool compelled = false)
+    private void QueueGuardianFormActionCore(BattleCombatant actor, BattleGuardianFormState form, BattleCombatant target, BattleGuardianFormActionBinding policy, bool compelled = false)
     {
-        BattleGuardianFormActionBinding policy = GetGuardianFormBinding(form, binding);
         BattleActionDefinition action = ResolveGuardianFormAction(form, policy);
         BattleNativeAction native = action.NativeAction ?? throw new NotSupportedException("GF form action requires its installed action metadata.");
         ValidateNativeActionContract(native);
-        if (!target.IsActive || target.Untargetable || !HasValidTargetLifeState(action, target) || !compelled && (actor.IsPlayer == target.IsPlayer) != action.Allies || policy.Source != BattleGuardianFormActionSource.Physical && ((NativeSavedStatusBits(actor) & 0x10) != 0 || HasStatus(actor, BattleStatusKind.Silence)))
+        if (!target.IsActive || target.Untargetable || !HasValidTargetLifeState(action, target) || !compelled && (actor.IsPlayer == target.IsPlayer) != action.Allies || !CanSelectGuardianFormInnateAction(actor, policy, action))
         {
             throw new InvalidOperationException("GF form action has an unavailable actor or target.");
         }
@@ -136,7 +162,7 @@ public sealed partial class BattleSession
             NativeSequence = policy.Sequence,
             NativeQueuedCommand = finisher ? (byte)254 : native.Command,
             FreeNativeMagic = policy.Cost == BattleGuardianFormActionCost.Innate,
-            GuardianFormAction = binding,
+            GuardianFormAction = policy.Action,
             GuardianFormInvocation = finisher ? new(form.InvocationId, form.GuardianForceId, GuardianFormInvocationMode.FinisherWithoutEntry) : null
         };
         StopTurnAdvance();
@@ -157,9 +183,9 @@ public sealed partial class BattleSession
         {
             throw new NotSupportedException("GF form requires its prototype's eight elemental defenses and forty status resistances.");
         }
-        if (resources.AbilityBands is not { } bands || bands.MediumLevel > bands.HighLevel || bands.Bands.IsDefault || bands.Bands.Length != 3 || bands.Bands.Any(band => band.IsDefaultOrEmpty))
+        if (resources.InnateBindings.IsDefaultOrEmpty || resources.InnateBindings.Select(binding => binding.Action).Distinct().Count() != resources.InnateBindings.Length)
         {
-            throw new InvalidDataException("GF form requires three ordered native ability bands.");
+            throw new InvalidDataException("GF form requires distinct installed innate action bindings.");
         }
         return resources;
     }
@@ -227,6 +253,10 @@ public sealed partial class BattleSession
         foreach (BattleGuardianFormState form in guardianForms.Values.ToArray())
         {
             BattleCombatant actor = GetActor(form.ActorId);
+            if (form.Phase == BattleGuardianFormPhase.Returning && HasCommittedGuardianFormAction(actor.Id))
+            {
+                continue;
+            }
             bool terminal = !actor.IsActive || (NativeSavedStatusBits(actor) & 1) != 0 || (NativeBattleStatusBits(actor) & 0x10000) != 0;
             if (terminal || guardianForces[form.GuardianForceId].HitPoints == 0 || Outcome != BattleOutcome.Active)
             {
@@ -250,7 +280,7 @@ public sealed partial class BattleSession
                 BattleCombatant[] recipients = Roster(friendly ? BattleSide.Allies : BattleSide.Enemies).Where(IsExpandedAiTarget).ToArray();
                 if (recipients.Length != 0 && (!magic || (NativeSavedStatusBits(actor) & 0x10) == 0))
                 {
-                    QueueGuardianFormActionCore(actor, form, recipients[NextRandomByte() % recipients.Length], magic ? BattleGuardianFormAction.Fire : BattleGuardianFormAction.Attack, compelled: true);
+                    QueueGuardianFormActionCore(actor, form, recipients[NextRandomByte() % recipients.Length], magic ? GetGuardianFormSpellBinding(form) : GetGuardianFormPhysicalBinding(form), compelled: true);
                 }
                 else
                 {
@@ -268,7 +298,7 @@ public sealed partial class BattleSession
                 ReturnGuardianForm(actor, false);
                 continue;
             }
-            QueueGuardianFormActionCore(actor, form, target, BattleGuardianFormAction.HellFire);
+            QueueGuardianFormActionCore(actor, form, target, ReadGuardianFormBinding(form, BattleGuardianFormAction.HellFire));
         }
     }
 
@@ -311,7 +341,7 @@ public sealed partial class BattleSession
         RestoreGuardianFormHumanVital(actor);
         actor.Atb = 0;
         guardianForms.Remove(actor.Id);
-        if (ActiveAction is { GuardianFormAction: not null } action && action.ActorId == actor.Id)
+        if (ActiveAction is { HasGuardianFormAction: true } action && action.ActorId == actor.Id)
         {
             CompleteActionPresentation(action, "GF returned before the action was committed.");
         }
@@ -332,13 +362,13 @@ public sealed partial class BattleSession
         }
         CancelUncommittedGuardianFormCommands(actor);
         guardianForms!.Remove(actorId);
-        BattleAttackCommand[] retained = actions.Where(command => command.ActorId != actorId || command.GuardianFormAction is null && command.GuardianFormInvocation is null).ToArray();
+        BattleAttackCommand[] retained = actions.Where(command => command.ActorId != actorId || !command.HasGuardianFormAction && command.GuardianFormInvocation is null).ToArray();
         actions.Clear();
         foreach (BattleAttackCommand command in retained)
         {
             actions.Enqueue(command);
         }
-        if (ActiveAction is { } action && action.ActorId == actorId && (action.GuardianFormAction is not null || action.GuardianFormInvocation is not null))
+        if (ActiveAction is { } action && action.ActorId == actorId && (action.HasGuardianFormAction || action.GuardianFormInvocation is not null))
         {
             CompleteActionPresentation(action, "GF presentation failed after action admission.");
         }
@@ -366,12 +396,22 @@ public sealed partial class BattleSession
 
     private bool HasCommittedGuardianFormAction(string actorId)
     {
-        return expandedHostedEvent is { LogicallyComplete: false } && ActiveAction is { GuardianFormAction: not null } expanded && expanded.ActorId == actorId || resolvingNativeAction is { } resolving && resolving.ActorId == actorId && nativeActionCommitDepth != 0;
+        return expandedHostedEvent is { LogicallyComplete: false, ActivePresentation: { HasGuardianFormAction: true } expanded } && expanded.ActorId == actorId ||
+            resolvingNativeAction is { } resolving && resolving.ActorId == actorId && nativeActionCommitDepth != 0;
+    }
+
+    private bool IsRetainedGuardianFormReturn(BattleActionPresentation action)
+    {
+        return action is { HasGuardianFormAction: true, Phase: BattleActionPhase.Recovery } &&
+            GetGuardianForm(action.ActorId) is { Phase: BattleGuardianFormPhase.Returning } &&
+            expandedHostedEvent is { LogicallyComplete: false, ActivePresentation: { } committed } &&
+            committed.ActorId == action.ActorId && committed.TargetId == action.TargetId && committed.Ability == action.Ability && committed.ActionId == action.ActionId &&
+            committed.GuardianFormAction == action.GuardianFormAction && committed.GuardianFormLearnedAbility == action.GuardianFormLearnedAbility && committed.GuardianFormInvocation == action.GuardianFormInvocation;
     }
 
     private void CancelUncommittedGuardianFormCommands(BattleCombatant actor)
     {
-        BattleAttackCommand[] retained = actions.Where(command => command.ActorId != actor.Id || command.GuardianFormAction is null && command.GuardianFormInvocation is null).ToArray();
+        BattleAttackCommand[] retained = actions.Where(command => command.ActorId != actor.Id || !command.HasGuardianFormAction && command.GuardianFormInvocation is null).ToArray();
         actions.Clear();
         foreach (BattleAttackCommand command in retained)
         {
@@ -440,6 +480,11 @@ public sealed partial class BattleSession
 
     private void ValidateGuardianFormCommand(BattleAttackCommand command, bool completingEntry = false)
     {
+        if (command.GuardianFormLearnedAbility is int ability)
+        {
+            ValidateGuardianFormLearnedCommand(command, ability);
+            return;
+        }
         if (command.GuardianFormAction is null && command.GuardianFormInvocation is null)
         {
             if (GetGuardianForm(command.ActorId) is { EntryCompleted: true } && command.NativePlayerReaction is null && command.NativeAction is not { Command: 0, ActionId: 2 or 6 } && !(RequiresNativeCompelledCommand(GetActor(command.ActorId)) && command.Ability == BattleAbility.Attack && command.NativeQueuedCommand == 1 && command.NativeAction is null))
@@ -465,7 +510,8 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Saved GF action binding is unsupported.");
         }
-        BattleGuardianFormActionBinding policy = GetGuardianFormBindings(form).SingleOrDefault(candidate => candidate.Action == binding) ?? throw new InvalidDataException("Saved GF action is unavailable at its form level.");
+        // An already admitted action retains its installed row across changes to the form menu.
+        BattleGuardianFormActionBinding policy = ReadGuardianFormBinding(form, binding);
         BattleActionDefinition action = ResolveGuardianFormAction(form, policy);
         if (!form.EntryCompleted || action.Ability != command.Ability || action.Id != command.ActionId || command.FreeNativeMagic != (policy.Cost == BattleGuardianFormActionCost.Innate) || policy.Terminal != (command.GuardianFormInvocation?.Mode == GuardianFormInvocationMode.FinisherWithoutEntry))
         {
@@ -478,9 +524,12 @@ public sealed partial class BattleSession
         ValidateGuardianFormCommand(new(action.ActorId, action.TargetId, action.TargetRequest, action.Ability, action.ActionId)
         {
             GuardianFormAction = action.GuardianFormAction,
+            GuardianFormLearnedAbility = action.GuardianFormLearnedAbility,
             GuardianFormInvocation = action.GuardianFormInvocation,
             NativeAction = action.NativeAction,
             NativePlayerReaction = action.NativePlayerReaction,
+            NativeQueuedCommand = action.NativeQueuedCommand,
+            NativeSequence = action.NativeSequence,
             FreeNativeMagic = action.FreeNativeMagic
         }, completingEntry: action is { Phase: BattleActionPhase.Recovery, NativeQueuedCommand: 254, GuardianFormInvocation.Mode: GuardianFormInvocationMode.EntryOnly });
     }
@@ -489,7 +538,7 @@ public sealed partial class BattleSession
     {
         if (guardianForms is null)
         {
-            if (QueuedActions.Any(command => command.GuardianFormInvocation is not null || command.GuardianFormAction is not null) || ActiveAction?.GuardianFormInvocation is not null || ActiveAction?.GuardianFormAction is not null || guardianForceCasts.Values.Any(cast => cast.Command.GuardianFormInvocation is not null))
+            if (QueuedActions.Any(command => command.GuardianFormInvocation is not null || command.HasGuardianFormAction) || ActiveAction?.GuardianFormInvocation is not null || ActiveAction?.HasGuardianFormAction == true || guardianForceCasts.Values.Any(cast => cast.Command.GuardianFormInvocation is not null))
             {
                 throw new InvalidDataException("Saved GF form invocation lacks its feature owner.");
             }

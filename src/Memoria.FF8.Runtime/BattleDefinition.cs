@@ -272,6 +272,10 @@ public sealed record BattleAttackCommand(string ActorId, string TargetId, [prope
     [JsonIgnore]
     internal BattleRosterMutation.Operation? RosterOperation { get; init; }
     public BattleGuardianFormAction? GuardianFormAction { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? GuardianFormLearnedAbility { get; init; }
+    [JsonIgnore]
+    internal bool HasGuardianFormAction => GuardianFormAction is not null || GuardianFormLearnedAbility is not null && NativeQueuedCommand != 38;
     public BattleGuardianFormInvocation? GuardianFormInvocation { get; init; }
     public string? MagicReservationId { get; init; }
     public BattleSmartAttackPreview? SmartAttack { get; init; }
@@ -302,6 +306,10 @@ public sealed record BattleActionPresentation(string ActorId, string TargetId, B
     [JsonIgnore]
     internal BattleExpandedAiCallbackRequest? ExpandedAiCallback { get; init; }
     public BattleGuardianFormAction? GuardianFormAction { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? GuardianFormLearnedAbility { get; init; }
+    [JsonIgnore]
+    internal bool HasGuardianFormAction => GuardianFormAction is not null || GuardianFormLearnedAbility is not null && NativeQueuedCommand != 38;
     public BattleGuardianFormInvocation? GuardianFormInvocation { get; init; }
     public string? MagicReservationId { get; init; }
     public BattleSmartAttackPreview? SmartAttack { get; init; }

@@ -12,29 +12,22 @@ internal sealed partial class BattleHudElement
     private UiRect magicPreviousSectionArrow;
     private UiRect magicNextSectionArrow;
 
-    private void DrawDrawList(IUiCanvas canvas, UiTheme theme)
+    private void DrawActionList(IUiCanvas canvas, UiTheme theme)
     {
-        DrawActionList(canvas, theme, false);
-    }
-
-    private void DrawMagicList(IUiCanvas canvas, UiTheme theme)
-    {
-        DrawActionList(canvas, theme, true);
-    }
-
-    private void DrawActionList(IUiCanvas canvas, UiTheme theme, bool magic)
-    {
+        bool form = controller.ShowingGuardianFormList;
+        bool magic = controller.ShowingMagicList;
+        bool draw = !form && !magic;
         IReadOnlyList<BattleActionDefinition> actions = controller.ActionChoices;
         IReadOnlyList<string> labels = controller.ChoiceLabels;
         drawLayout = BattleDrawLayout.Calculate(actions.Count);
-        string caption = magic ? controller.MagicSectionCaption : controller.DrawCast ? "Cast" : "Draw";
+        string caption = form ? controller.SystemText("battle.hud.command", "COMMAND") : magic ? controller.MagicSectionCaption : controller.DrawCast ? "Cast" : "Draw";
         float captionSize = UiTheme.DefaultCaptionFontSize * Scale * controller.TextScale;
         float fontSize = 20 * controller.TextScale;
         float nameWidth = labels.Select(label => canvas.MeasureText(label, fontSize * Scale, 4096 * Scale).Width / Scale).DefaultIfEmpty(0).Max();
-        float valueWidth = magic ? actions.Select(action => canvas.MeasureText(controller.ChoiceValue(action), fontSize * Scale, 4096 * Scale).Width / Scale).DefaultIfEmpty(0).Max() : controller.DrawCast ? 0 : canvas.MeasureText("100", fontSize * Scale, 4096 * Scale).Width / Scale;
+        float valueWidth = magic ? actions.Select(action => canvas.MeasureText(controller.ChoiceValue(action), fontSize * Scale, 4096 * Scale).Width / Scale).DefaultIfEmpty(0).Max() : draw && !controller.DrawCast ? canvas.MeasureText("100", fontSize * Scale, 4096 * Scale).Width / Scale : 0;
         float ownerWidth = magic && actions.Any(action => controller.MagicOwnerIcon(action).HasValue) ? 30 : 0;
         float naturalColumnWidth = Math.Max(194, 38 + nameWidth + ownerWidth + (valueWidth > 0 ? valueWidth + 12 : 0));
-        if (magic)
+        if (!draw)
         {
             float captionWidth = canvas.MeasureText(caption, captionSize, 4096 * Scale).Width / Scale + 24;
             naturalColumnWidth = Math.Max(naturalColumnWidth, captionWidth / drawLayout.Columns);
@@ -55,8 +48,8 @@ internal sealed partial class BattleHudElement
         {
             DrawModelResistanceHints(canvas, theme, panel with { Y = panel.Y - captionSize, Height = panel.Height + captionSize });
         }
-        theme.Panel(canvas, panel, !magic && controller.DrawCast ? null : caption, captionSize);
-        if (!magic && controller.DrawCast)
+        theme.Panel(canvas, panel, draw && controller.DrawCast ? null : caption, captionSize);
+        if (draw && controller.DrawCast)
         {
             theme.Caption(canvas, panel, caption, captionSize, new UiColor(255, 255, 0));
         }
@@ -72,8 +65,8 @@ internal sealed partial class BattleHudElement
             {
                 theme.Pointer(canvas, Left + (x + 8) * Scale, Top + (y + 5) * Scale, 10 * Scale);
             }
-            bool unavailable = magic && (!actions[index].Available || caster is not null && !controller.Session.QuoteMagic(caster.Id, actions[index].Id).Allowed);
-            UiColor color = unavailable ? theme.Muted : !magic && controller.IsDrawGuardianForce(actions[index]) ? guardianColor : theme.Foreground;
+            bool unavailable = !draw && !actions[index].Available || magic && caster is not null && !controller.Session.QuoteMagic(caster.Id, actions[index].Id).Allowed;
+            UiColor color = unavailable ? theme.Muted : draw && controller.IsDrawGuardianForce(actions[index]) ? guardianColor : theme.Foreground;
             UiColor nameColor = caster is not null && !unavailable ? controller.MagicHintTone(caster, actions[index]).Color(theme) : color;
             float textWidth = drawColumnWidth - 38 - ownerWidth - (valueWidth > 0 ? valueWidth + 12 : 0);
             canvas.PushClip(Rect(x + 30, y, textWidth, drawRowHeight));
@@ -94,6 +87,10 @@ internal sealed partial class BattleHudElement
             {
                 canvas.AlignedText(controller.ChoiceValue(actions[index]), fontSize * Scale, Rect(x + drawColumnWidth - valueWidth - 8, y, valueWidth, drawRowHeight), color, UiAlignment.End);
             }
+        }
+        if (form)
+        {
+            return;
         }
         if (magic)
         {

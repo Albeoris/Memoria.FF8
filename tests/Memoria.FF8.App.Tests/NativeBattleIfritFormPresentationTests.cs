@@ -10,7 +10,7 @@ namespace Memoria.FF8.App.Tests;
 public sealed class NativeBattleIfritFormPresentationTests
 {
     [Fact]
-    public void InstalledLowLevelIfritHeavyStrikeUsesTheFormSequenceAndCompletesAfterFork()
+    public void InstalledIfritHeavyStrikeAtLevel15UsesTheFormSequenceAndCompletesAfterFork()
     {
         string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
         Assert.SkipUnless(directory is not null, "Select installed original resources with MEMORIA_FF8_GAME_DIR.");
@@ -21,6 +21,7 @@ public sealed class NativeBattleIfritFormPresentationTests
         {
             GuardianFormsEnabled = true,
             GuardianFormResources = [assets.ReadIfritGuardianFormResources()],
+            ActionDefinitions = [Assert.Single(basis.ActionDefinitions) with { Level = 15 }],
             Combatants = [basis.Combatants[0] with { Attack = 83, Level = 75, Speed = 80 }, basis.Combatants[1] with { NativeCombatantFlags = 8 }]
         };
         NativeBattleGraphicsDefinition graphics = assets.ReadNativeGraphicsDefinition(definition.Combatants, game.ReadNativeBattleGraphicsRules(), assets.LoadEncounter(94));

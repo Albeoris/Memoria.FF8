@@ -8,11 +8,17 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class BattleGuardianFormLifecycleTests
 {
     [Theory]
-    [InlineData(19, 70, true)]
-    [InlineData(20, 1, false)]
-    [InlineData(29, 99, false)]
-    [InlineData(30, 1, false)]
-    public void IfritCommandsUseHisOwnLevelWhileHisAttacksUseCasterStatistics(int gfLevel, int casterLevel, bool heavy)
+    [InlineData(1, 70, BattleGuardianFormAction.Attack, BattleGuardianFormAction.Fire, 1)]
+    [InlineData(14, 100, BattleGuardianFormAction.Attack, BattleGuardianFormAction.Fire, 1)]
+    [InlineData(15, 1, BattleGuardianFormAction.HeavyStrike, BattleGuardianFormAction.Fire, 1)]
+    [InlineData(29, 99, BattleGuardianFormAction.HeavyStrike, BattleGuardianFormAction.Fire, 1)]
+    [InlineData(30, 1, BattleGuardianFormAction.HeavyStrike, BattleGuardianFormAction.Fira, 2)]
+    [InlineData(69, 70, BattleGuardianFormAction.HeavyStrike, BattleGuardianFormAction.Fira, 2)]
+    [InlineData(70, 1, BattleGuardianFormAction.HeavyStrike, BattleGuardianFormAction.Firaga, 3)]
+    [InlineData(99, 30, BattleGuardianFormAction.HeavyStrike, BattleGuardianFormAction.Firaga, 3)]
+    [InlineData(100, 1, BattleGuardianFormAction.HeavyStrike, BattleGuardianFormAction.Firaga, 3)]
+    [InlineData(120, 1, BattleGuardianFormAction.HeavyStrike, BattleGuardianFormAction.Firaga, 3)]
+    public void IfritCommandsUseHisOwnLevelWhileHisAttacksUseCasterStatistics(int gfLevel, int casterLevel, BattleGuardianFormAction physical, BattleGuardianFormAction magic, int spellId)
     {
         BattleDefinition definition = SummonDefinition(gfLevel);
         definition.Combatants[0] = definition.Combatants[0] with { Level = casterLevel };
@@ -21,25 +27,19 @@ public sealed class BattleGuardianFormLifecycleTests
         Assert.Equal(casterLevel, Actor(battle).Level);
         Assert.Equal(23, Actor(battle).Attack);
         Assert.Equal(31, Actor(battle).Magic);
-        Assert.Contains(BattleGuardianFormAction.Attack, battle.GetGuardianFormActions("actor"));
-        Assert.Contains(BattleGuardianFormAction.Fire, battle.GetGuardianFormActions("actor"));
-        Assert.Contains(BattleGuardianFormAction.HellFire, battle.GetGuardianFormActions("actor"));
-        Assert.Equal(heavy, battle.GetGuardianFormActions("actor").Contains(BattleGuardianFormAction.HeavyStrike));
+        BattleGuardianFormAction[] expected = gfLevel < 100 ? [physical, magic, BattleGuardianFormAction.HellFire] : [physical, magic, BattleGuardianFormAction.Flare, BattleGuardianFormAction.HellFire];
+        Assert.Equal(expected, battle.GetGuardianFormActions("actor"));
         Actor(battle).Atb = BattleSession.AtbMaximum;
-        if (!heavy)
-        {
-            BattleSnapshot before = battle.Capture();
-            Assert.Throws<InvalidOperationException>(() => battle.QueueGuardianFormAction("actor", "enemy", BattleGuardianFormAction.HeavyStrike));
-            Assert.Equal(before.Combatants[0].Atb, Actor(battle).Atb);
-            Assert.Empty(battle.QueuedActions);
-        }
-        battle.QueueGuardianFormAction("actor", "enemy", heavy ? BattleGuardianFormAction.HeavyStrike : BattleGuardianFormAction.Fire);
+        BattleGuardianFormAction unavailable = physical == BattleGuardianFormAction.Attack ? BattleGuardianFormAction.HeavyStrike : BattleGuardianFormAction.Attack;
+        Assert.Throws<InvalidOperationException>(() => battle.QueueGuardianFormAction("actor", "enemy", unavailable));
+        Assert.Equal(BattleSession.AtbMaximum, Actor(battle).Atb);
+        Assert.Empty(battle.QueuedActions);
+        battle.QueueGuardianFormAction("actor", "enemy", magic);
         battle = RoundTrip(battle.Capture());
         BattleAttackCommand command = Assert.Single(battle.QueuedActions);
-        Assert.Equal(heavy ? 59 : 1, command.ActionId);
-        Assert.Equal(heavy ? (byte)12 : (byte)11, command.NativeSequence);
-        Assert.Equal(heavy ? 20 : 18, command.NativeAction!.Power);
-        Assert.Equal(!heavy, command.FreeNativeMagic);
+        Assert.Equal(spellId, command.ActionId);
+        Assert.Equal((byte)11, command.NativeSequence);
+        Assert.True(command.FreeNativeMagic);
         Assert.Empty(Actor(battle).MagicStocks);
     }
 
@@ -136,18 +136,33 @@ public sealed class BattleGuardianFormLifecycleTests
         Assert.Equal(0, Assert.Single(battle.GuardianForceCasts).Command.ActionId);
     }
 
-    [Fact]
-    public void OlderStandaloneFormCheckpointUsesRetainedKernelActionsForLevelBands()
+    [Theory]
+    [InlineData(14, 19, BattleGuardianFormAction.Attack, 79, true)]
+    [InlineData(19, 19, BattleGuardianFormAction.HeavyStrike, 59, false)]
+    [InlineData(29, 31, BattleGuardianFormAction.Fire, 1, false)]
+    public void OlderStandaloneFormCheckpointKeepsItsAlreadyAdmittedNativeAction(int queuedLevel, int restoredLevel, BattleGuardianFormAction action, int actionId, bool legacyBands)
     {
-        BattleSession battle = ReadySummonForm(SummonDefinition(19));
-        battle.QueueGuardianFormAction("actor", "enemy", BattleGuardianFormAction.Fire);
+        BattleSession battle = ReadySummonForm(SummonDefinition(queuedLevel));
+        battle.QueueGuardianFormAction("actor", "enemy", action);
         BattleSnapshot saved = battle.Capture();
-        saved = saved with { Definition = saved.Definition with { GuardianFormResources = [saved.Definition.GuardianFormResources[0] with { AbilityBands = null }] } };
+        BattleDefinition oldDefinition = saved.Definition with
+        {
+            GuardianFormResources = [saved.Definition.GuardianFormResources[0] with { InnateBindings = default, AbilityBands = legacyBands ? IfritBands() : null }],
+            ActionDefinitions = saved.Definition.ActionDefinitions.Select(definition => definition is { Ability: BattleAbility.GuardianForce, Id: 2 } ? definition with { Level = restoredLevel } : definition).ToArray()
+        };
+        saved = saved with { Definition = oldDefinition };
 
         BattleSession restored = RoundTrip(saved);
         Assert.Contains(BattleGuardianFormAction.HeavyStrike, restored.GetGuardianFormActions("actor"));
-        Assert.Equal(1, Assert.Single(restored.QueuedActions).ActionId);
-        Assert.NotNull(restored.Capture().Definition.GuardianFormResources[0].AbilityBands);
+        Assert.Equal(actionId, Assert.Single(restored.QueuedActions).ActionId);
+        Assert.NotEmpty(restored.Capture().Definition.GuardianFormResources[0].InnateBindings);
+        Assert.Null(restored.Capture().Definition.GuardianFormResources[0].AbilityBands);
+        RunLogicalStep(restored, "DispatchAction");
+        BattleActionPresentation windup = Assert.IsType<BattleActionPresentation>(restored.ActiveAction);
+        Assert.Equal(action, windup.GuardianFormAction);
+        BattleActionDefinition resolved = Assert.IsType<BattleActionDefinition>(RunLogicalStep(restored, "ExpandedActionDefinition", Actor(restored), windup));
+        Assert.Equal(actionId, resolved.Id);
+        Assert.Equal(windup.NativeAction, resolved.NativeAction);
     }
 
     [Fact]
@@ -623,12 +638,23 @@ public sealed class BattleGuardianFormLifecycleTests
         BattleDefinition initial = Definition();
         BattleNativeAction ifrit = Native(254, 66, 11, 20, 0x40) with { KernelSection = 2, KernelIndex = 2, PowerModifier = 10, LevelModifier = 10, RawRecord = [.. new byte[128]] };
         BattleNativeAction quezacotl = ifrit with { ActionId = 64, KernelIndex = 0 };
+        BattleNativeAction fira = Native(2, 2, 2, 24, 0x54);
+        BattleNativeAction firaga = Native(2, 3, 2, 36, 0x54);
+        BattleNativeAction flare = Native(2, 15, 2, 48, 0x54);
         return initial with
         {
             NativeBattleSpeed = 0,
             GuardianForces = [initial.GuardianForces[0], new(0, 100, 100)],
-            NativeActions = [.. initial.NativeActions, Native(8, 59, 1, 20, null), ifrit, quezacotl],
-            ActionDefinitions = [initial.ActionDefinitions[0], initial.ActionDefinitions[1] with { NativeAction = ifrit, Level = level }, new(BattleAbility.GuardianForce, 0, "Thunder Storm", BattleActionEffect.Native, 20, false) { NativeAction = quezacotl }],
+            NativeActions = [.. initial.NativeActions, Native(8, 59, 1, 20, null), ifrit, quezacotl, fira, firaga, flare],
+            ActionDefinitions =
+            [
+                initial.ActionDefinitions[0],
+                initial.ActionDefinitions[1] with { NativeAction = ifrit, Level = level },
+                new(BattleAbility.GuardianForce, 0, "Thunder Storm", BattleActionEffect.Native, 20, false) { NativeAction = quezacotl },
+                new(BattleAbility.Magic, 2, "Fira", BattleActionEffect.Native, fira.Power, false) { NativeAction = fira },
+                new(BattleAbility.Magic, 3, "Firaga", BattleActionEffect.Native, firaga.Power, false) { NativeAction = firaga },
+                new(BattleAbility.Magic, 15, "Flare", BattleActionEffect.Native, flare.Power, false) { NativeAction = flare }
+            ],
             Combatants = [initial.Combatants[0] with { InitialAtb = BattleSession.AtbMaximum }, new() { Id = "other", Name = "Other", IsPlayer = true, MaximumHp = 100, CurrentHp = 100, InitialAtb = BattleSession.AtbMaximum, Abilities = [BattleAbility.Attack, BattleAbility.GuardianForce], EquipmentIds = [0], GuardianForceCompatibility = new ushort[16] }, initial.Combatants[1]]
         };
     }
@@ -642,9 +668,9 @@ public sealed class BattleGuardianFormLifecycleTests
         });
     }
 
-    private static void RunLogicalStep(BattleSession battle, string name, params object?[] arguments)
+    private static object? RunLogicalStep(BattleSession battle, string name, params object?[] arguments)
     {
-        typeof(BattleSession).GetMethod(name, BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(battle, arguments);
+        return typeof(BattleSession).GetMethod(name, BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(battle, arguments);
     }
 
     private static BattleNativeAction Native(byte command, ushort id, byte type, byte power, byte? targets)

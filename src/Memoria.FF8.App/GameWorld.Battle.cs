@@ -67,6 +67,7 @@ internal sealed partial class GameWorld
                 };
             }
             saved = BattlePartyProjection.RestoreLegacyCommandProjection(saved, BattleResources);
+            saved = saved with { Definition = InstalledBattlePresentation.BindLegacyGuardianFormResources(saved.Definition, BattleResources) };
             if (saved.Definition.UsesOriginalEnemySlots && saved.Definition.EncounterId is not null)
             {
                 saved = saved with { Definition = BindOriginalEnemyAiResources(saved.Definition) };
@@ -425,7 +426,8 @@ internal sealed partial class GameWorld
 
     internal BattleDefinition BindExpandedEnemyLevels(BattleDefinition definition)
     {
-        if (!definition.Combatants.Any(actor => actor.IsPlayer && actor.NativeCommands.Any(binding => binding.Command is 33 or 34)))
+        if (!definition.Combatants.Any(actor => actor.IsPlayer && actor.NativeCommands.Any(binding => binding.Command is 33 or 34)) &&
+            !HasIfritCommand(definition, 33) && !HasIfritCommand(definition, 34))
         {
             return definition;
         }
@@ -442,7 +444,8 @@ internal sealed partial class GameWorld
 
     private BattleDefinition BindExpandedEnemySpecials(BattleDefinition definition)
     {
-        if (!definition.Combatants.Any(actor => actor.IsPlayer && actor.NativeCommands.Any(binding => binding.Command is 7 or 29)))
+        if (!definition.Combatants.Any(actor => actor.IsPlayer && actor.NativeCommands.Any(binding => binding.Command is 7 or 29)) &&
+            !HasIfritCommand(definition, 7) && !HasIfritCommand(definition, 29))
         {
             return definition;
         }
@@ -477,6 +480,11 @@ internal sealed partial class GameWorld
                 ? actor
                 : actor with { NativeMug = BattleResources.ReadEnemyNativeMugData(actor.ModelId) }).ToArray()
         };
+    }
+
+    private static bool HasIfritCommand(BattleDefinition definition, byte command)
+    {
+        return definition.GuardianFormsEnabled && BattleGuardianFormProfiles.HasLearnedCommand(definition.MagicVitals, 2, command);
     }
 
     public BattleCombatantDefinition[] CreateBattleParty()
@@ -681,7 +689,7 @@ internal sealed partial class GameWorld
                 active.RequestGuardianForm(input.ActorId!, input.ActionId);
                 break;
             case BattleInputKind.GuardianFormAction:
-                active.QueueGuardianFormAction(input.ActorId!, input.TargetId!, (BattleGuardianFormAction)input.ActionId);
+                active.QueueGuardianFormAction(input.ActorId!, input.TargetId!, input.ActionId);
                 break;
             case BattleInputKind.GuardianFormSkip:
                 active.SkipGuardianFormFinisher();

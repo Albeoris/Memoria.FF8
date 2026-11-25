@@ -74,6 +74,11 @@ public sealed partial class BattleSession
         {
             return 1;
         }
+        if (action is { GuardianFormLearnedAbility: not null, NativeQueuedCommand: 28 })
+        {
+            // The form uses its own melee animation, which has no weapon input window.
+            return 0;
+        }
         return GunbladeMode == BattleGunbladeMode.Automatic ? (short)25 : action.GunbladeTriggerTiming ?? 0;
     }
 }

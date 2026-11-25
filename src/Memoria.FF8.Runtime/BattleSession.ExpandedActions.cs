@@ -37,7 +37,7 @@ public sealed partial class BattleSession
     private void StartExpandedAction(BattleCombatant actor, BattleAttackCommand command)
     {
         command = RevalidateSmartAttack(actor, command);
-        if (command.GuardianFormAction is not null && GetGuardianForm(actor.Id) is null)
+        if (command.HasGuardianFormAction && GetGuardianForm(actor.Id) is null)
         {
             actor.IsBusy = false;
             return;
@@ -72,7 +72,7 @@ public sealed partial class BattleSession
             return;
         }
         BattleCombatant actor = GetActor(command.ActorId);
-        if (command.GuardianFormAction is not null && GetGuardianForm(actor.Id) is null)
+        if (command.HasGuardianFormAction && GetGuardianForm(actor.Id) is null)
         {
             CompleteActionPresentation(command, "GF returned before the action was committed.");
             return;
@@ -150,7 +150,7 @@ public sealed partial class BattleSession
         NativeBattleDeferredContactKind deferred = NativeDeferredContact(actor, command, native);
         bool hostedGunblade = deferred == NativeBattleDeferredContactKind.OrdinaryGunblade;
         bool hostedShotControl = deferred == NativeBattleDeferredContactKind.ShotControl;
-        if (!hostedGunblade && command.GuardianFormAction is null && IsGunbladeAttack(actor, command.Ability))
+        if (!hostedGunblade && !command.HasGuardianFormAction && IsGunbladeAttack(actor, command.Ability))
         {
             // 485160 recomputes the ordinary trigger contact with the installed weapon and type 10.
             native = native with { Command = command.NativeQueuedCommand == 12 ? (byte)248 : (byte)253, AttackType = 10, HitCount = 1, Critical = 0, DamagePresentation = 4 };
@@ -456,7 +456,12 @@ public sealed partial class BattleSession
     {
         if (command.GuardianFormAction is { } formAction)
         {
-            return GetGuardianFormActionDefinition(actor.Id, formAction);
+            BattleGuardianFormState form = GetGuardianForm(actor.Id) ?? throw new InvalidOperationException("The actor has no GF form.");
+            return ResolveGuardianFormAction(form, ReadGuardianFormBinding(form, formAction));
+        }
+        if (command.GuardianFormLearnedAbility is int ability)
+        {
+            return ResolveGuardianFormLearnedAction(actor, FindGuardianFormLearnedBinding(2, ability));
         }
         if (command.Ability == BattleAbility.Attack)
         {

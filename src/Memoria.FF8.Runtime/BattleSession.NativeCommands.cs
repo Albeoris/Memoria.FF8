@@ -160,12 +160,13 @@ public sealed partial class BattleSession
         };
     }
 
-    private bool SupportsExpandedOrdinaryCommand(BattleNativeAction action)
+    private bool SupportsExpandedOrdinaryCommand(BattleNativeAction action, bool guardianForm = false)
     {
         if (action is { Command: 28, DispatchCommand: 28, ActionId: 0, KernelSection: 4, CharacterId: not null, MagicId: 0, HitCount: 1, AttackFlags: 0, TargetFlags: byte weaponTargets })
         {
             // The hosted event tail applies the fixed HP cost for this weapon invocation.
-            return (weaponTargets & 0x31) == 0x10 && action.AttackType is 1 or 7 or 9 or 18 or 34 or 36 && ExpandedBattleActionRules.SupportsContacts(action);
+            bool gunblade = guardianForm && action is { AttackType: 10, PresentationOnly: false, CrisisLevel: null } && (action.Statuses1 & 0x10000) == 0;
+            return (weaponTargets & 0x31) == 0x10 && (gunblade || action.AttackType is 1 or 7 or 9 or 18 or 34 or 36 && ExpandedBattleActionRules.SupportsContacts(action));
         }
         if (IsExpandedMiniMogAction(action))
         {

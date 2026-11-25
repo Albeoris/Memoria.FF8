@@ -33,15 +33,21 @@ public sealed partial class BattleSession
 
     public static bool IsValidSelectedActionTarget(BattleCombatant actor, BattleActionDefinition action, BattleCombatant target)
     {
+        return IsValidSelectedActionTarget(actor, action, target, null);
+    }
+
+    private static bool IsValidSelectedActionTarget(BattleCombatant actor, BattleActionDefinition action, BattleCombatant target, byte? bindingTargetFlags)
+    {
         if (!target.IsActive || target.Untargetable || !HasValidTargetLifeState(action, target))
         {
             return false;
         }
-        if (action.NativeAction?.TargetFlags is byte flags && NativeBattleLimitRules.IsFixedAllyTarget(flags))
+        byte? targetFlags = bindingTargetFlags ?? action.NativeAction?.TargetFlags;
+        if (targetFlags is byte flags && NativeBattleLimitRules.IsFixedAllyTarget(flags))
         {
             return target.Id == actor.Id;
         }
-        return CanSelectEitherTargetSide(action) || (target.IsPlayer == actor.IsPlayer) == action.Allies;
+        return (targetFlags is byte nativeFlags ? NativeBattleLimitRules.CanSelectEitherSide(nativeFlags) : !action.AllTargets) || (target.IsPlayer == actor.IsPlayer) == action.Allies;
     }
 
     public static bool HasValidTargetLifeState(BattleActionDefinition action, BattleCombatant target)

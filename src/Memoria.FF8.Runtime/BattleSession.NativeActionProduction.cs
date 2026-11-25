@@ -156,7 +156,7 @@ public sealed partial class BattleSession
         byte original = command.NativeQueuedCommand ?? native.Command;
         return original switch
         {
-            1 or 12 or 28 when HasEquippedGunblade(actor) => NativeBattleDeferredContactKind.OrdinaryGunblade,
+            1 or 12 or 28 when !command.HasGuardianFormAction && HasEquippedGunblade(actor) => NativeBattleDeferredContactKind.OrdinaryGunblade,
             5 => NativeBattleDeferredContactKind.RenzokukenInitial,
             250 => NativeBattleDeferredContactKind.RenzokukenFinisher,
             11 => NativeBattleDeferredContactKind.DuelControl,

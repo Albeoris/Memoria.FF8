@@ -124,9 +124,15 @@ internal sealed partial class BattleHudElement : UiElement
         {
             DrawExpandedParty(canvas, theme, party, selectedActor, canAttack);
         }
+        if (canAttack && (controller.ShowingGuardianFormList || controller.ShowingDrawList || controller.ShowingMagicList))
+        {
+            DrawNativeParty(canvas, theme, party, compactParty, selectedActor, canAttack);
+            DrawActionList(canvas, theme);
+            return;
+        }
         IReadOnlyList<string> choices = controller.SelectingTarget ? [] : controller.ChoiceLabels;
         string caption = session.Outcome != BattleOutcome.Active ? controller.SystemText("battle.hud.result", "RESULT") : controller.SelectingTarget ? controller.SystemText("battle.hud.target", "TARGET") : controller.SelectingGuardianFormAction ? controller.SystemText("battle.hud.guardian-action", "GF ACTION") : controller.SelectingNativeSlots ? controller.SystemText("battle.hud.slots", "SLOTS") : controller.SelectingAction ? controller.CommandLabel(controller.SelectedCommand) : controller.SystemText("battle.hud.command", "COMMAND");
-        IReadOnlyList<BattleActionDefinition> actions = !controller.SelectingTarget && controller.SelectingAction && !controller.ShowingDrawList && !controller.ShowingMagicList && !controller.SelectingNativeSlots && !controller.SelectingGuardianFormAction && !controller.HasGuardianFormCommands ? controller.ActionChoices : [];
+        IReadOnlyList<BattleActionDefinition> actions = !controller.SelectingTarget && controller.SelectingAction && !controller.SelectingNativeSlots && !controller.SelectingGuardianFormAction && !controller.HasGuardianFormCommands ? controller.ActionChoices : [];
         string[] values = actions.Select(controller.ChoiceValue).ToArray();
         bool guardianHpColumn = controller.SelectedCommand == BattleAbility.GuardianForce && values.Any(value => value.Length > 0);
         bool[] rightArrows = Enumerable.Range(0, choices.Count).Select(index => actions.Count > index
@@ -196,7 +202,7 @@ internal sealed partial class BattleHudElement : UiElement
         {
             CommandContentY += 28;
         }
-        if ((canAttack && !controller.SelectingTarget && !controller.ShowingDrawList && !controller.ShowingMagicList) || session.Outcome != BattleOutcome.Active)
+        if (canAttack && !controller.SelectingTarget || session.Outcome != BattleOutcome.Active)
         {
             theme.Panel(canvas, Rect(30, CommandPanelY, CommandWidth, CommandPanelHeight), caption, captionSize);
         }
@@ -210,7 +216,7 @@ internal sealed partial class BattleHudElement : UiElement
             DrawNativeParty(canvas, theme, party, compactParty, selectedActor, canAttack);
             DrawTargets(canvas, theme);
         }
-        else if (canAttack && !controller.ShowingDrawList && !controller.ShowingMagicList)
+        else if (canAttack)
         {
             if (slotsLabel is not null)
             {
@@ -258,14 +264,6 @@ internal sealed partial class BattleHudElement : UiElement
         if (!targetsVisible)
         {
             DrawNativeParty(canvas, theme, party, compactParty, selectedActor, canAttack);
-        }
-        if (canAttack && controller.ShowingDrawList)
-        {
-            DrawDrawList(canvas, theme);
-        }
-        else if (canAttack && controller.ShowingMagicList)
-        {
-            DrawMagicList(canvas, theme);
         }
     }
 
@@ -712,6 +710,11 @@ internal sealed partial class BattleHudElement : UiElement
             HoverDrawList(x, y);
             return;
         }
+        if (!controller.CommandMenuHidden && controller.ShowingGuardianFormList)
+        {
+            controller.HoverGuardianFormChoice(DrawChoiceAt(x, y));
+            return;
+        }
         if (!controller.CommandMenuHidden && controller.ShowingMagicList)
         {
             HoverMagicList(x, y);
@@ -763,6 +766,15 @@ internal sealed partial class BattleHudElement : UiElement
         if (controller.ShowingMagicList)
         {
             ClickMagicList(x, y);
+            return;
+        }
+        if (controller.ShowingGuardianFormList && Rect(30, CommandPanelY, CommandWidth, CommandPanelHeight).Contains(x, y))
+        {
+            int index = DrawChoiceAt(x, y);
+            if (index >= 0)
+            {
+                controller.Choose(index);
+            }
             return;
         }
         if (controller.CanChangeTargetSide && TargetListIsCurrent() && TargetContains(targetList.Caption, x, y))

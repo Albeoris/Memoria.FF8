@@ -34,19 +34,26 @@ internal sealed class InstalledBattlePresentation
 
     internal static BattleSession Restore(BattleSnapshot continuation, GameAssets game, BattleAssets assets)
     {
-        BattleDefinition definition = continuation.Definition;
-        if (definition.GuardianFormsEnabled && definition.GuardianFormResources.Any(resource => resource is { GuardianForceId: 2, AbilityBands: null }))
-        {
-            BattleGuardianFormAbilityBands bands = assets.ReadIfritGuardianFormAbilityBands();
-            continuation = continuation with
-            {
-                Definition = definition with
-                {
-                    GuardianFormResources = definition.GuardianFormResources.Select(resource => resource is { GuardianForceId: 2, AbilityBands: null } ? resource with { AbilityBands = bands } : resource).ToImmutableArray()
-                }
-            };
-        }
+        continuation = continuation with { Definition = BindLegacyGuardianFormResources(continuation.Definition, assets) };
         return Bind(BattleSession.Restore(continuation), game, assets, null, continuation);
+    }
+
+    internal static BattleDefinition BindLegacyGuardianFormResources(BattleDefinition definition, BattleAssets assets)
+    {
+        if (!definition.GuardianFormsEnabled || !definition.GuardianFormResources.Any(resource => resource.GuardianForceId == 2 && (resource.InnateBindings.IsDefault || resource.CommandBindings.IsDefault)))
+        {
+            return definition;
+        }
+        BattleGuardianFormResources installed = assets.ReadIfritGuardianFormResources();
+        return definition with
+        {
+            GuardianFormResources = definition.GuardianFormResources.Select(resource => resource.GuardianForceId == 2 ? resource with
+            {
+                InnateBindings = resource.InnateBindings.IsDefault ? installed.InnateBindings : resource.InnateBindings,
+                CommandBindings = resource.CommandBindings.IsDefault ? installed.CommandBindings : resource.CommandBindings,
+                AbilityBands = null
+            } : resource).ToImmutableArray()
+        };
     }
 
     private static BattleSession Bind(BattleSession owner, GameAssets game, BattleAssets assets, BattleEncounter? encounter, BattleSnapshot? continuation)

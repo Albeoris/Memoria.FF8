@@ -124,7 +124,7 @@ public sealed partial class BattleHudController
         }
         if (HasGuardianFormCommands)
         {
-            BattleActionDefinition formAction = session.GetGuardianFormActionDefinition(actor.Id, SelectedGuardianFormCommand);
+            BattleActionDefinition formAction = SelectedGuardianFormCommand.Action;
             return new(actor, formAction.Ability, formAction, false);
         }
         return SelectedCommand switch

@@ -41,7 +41,7 @@ public sealed partial class BattleSession
         ValidateMode(mode);
         if (ownedDefinition is null)
         {
-            BattleDefinition clonedDefinition = CloneDefinition(definition);
+            BattleDefinition clonedDefinition = CloneDefinition(BattleGuardianFormProfiles.RestoreLegacyResources(definition));
             GameplayTuning tuning = (clonedDefinition.Tuning ?? throw new InvalidDataException("Battle tuning is missing.")).DiscardLegacyStatusStatTuning();
             this.definition = NativeBattleStorageSnapshots.Capture(clonedDefinition with { StatusStatModifiers = StatusStatRules.Resolve(clonedDefinition.StatusStatModifiers), Tuning = tuning });
         }
@@ -484,7 +484,7 @@ public sealed partial class BattleSession
         }
         try
         {
-            BattleDefinition snapshotDefinition = ownedDefinition is null ? BattleGuardianFormProfiles.RestoreLegacyAbilityBands(snapshot.Definition) : snapshot.Definition;
+            BattleDefinition snapshotDefinition = snapshot.Definition;
             snapshotDefinition.Tuning?.RequireCurrentBattleStatusRules();
             BattlePresentationSnapshot? presentation = snapshot.PresentationContinuation;
             BattleLogicalContinuation? continuation = snapshot.LogicalContinuation;
@@ -1352,7 +1352,7 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Queued expanded commands prepare their special action at impact.");
             }
-            ValidateSavedAction(command.ActorId, command.TargetId, busy, command.Ability, command.ActionId, !command.MagicCasts.IsDefaultOrEmpty || command.SmartAttack is not null, command.NativeAction, command.TargetRequest, command.NativeGraphic, command.NativeRenzokuken, command.NativePlayerReaction, duel: command.NativeDuel, slots: command.NativeSlots, nativeQueuedCommand: command.NativeQueuedCommand, aiCallbackStage: command.NativeAiCallbackStage, limitCallback: command.NativeLimitCallback);
+            ValidateSavedAction(command.ActorId, command.TargetId, busy, command.Ability, command.ActionId, !command.MagicCasts.IsDefaultOrEmpty || command.SmartAttack is not null, command.NativeAction, command.TargetRequest, command.NativeGraphic, command.NativeRenzokuken, command.NativePlayerReaction, duel: command.NativeDuel, slots: command.NativeSlots, nativeQueuedCommand: command.NativeQueuedCommand, aiCallbackStage: command.NativeAiCallbackStage, limitCallback: command.NativeLimitCallback, guardianFormLearnedAbility: command.GuardianFormLearnedAbility);
             ValidateNativeActionInventory(byId[command.ActorId], command.Ability, command.NativeAction, command.ReservedNativeItemSlot, command.FreeNativeMagic);
             actions.Enqueue(command);
         }
@@ -1371,7 +1371,8 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Invalid battle action admission state.");
             }
-            ValidateSavedAction(action.ActorId, action.TargetId, busy, action.Ability, action.ActionId, !action.MagicCasts.IsDefaultOrEmpty || action.Phase == BattleActionPhase.Recovery, action.NativeAction, action.TargetRequest, action.NativeGraphic, action.NativeRenzokuken, reaction: action.NativePlayerReaction, duel: action.NativeDuel, slots: action.NativeSlots, nativeQueuedCommand: action.NativeQueuedCommand, aiCallbackStage: action.NativeAiCallbackStage, limitCallback: action.NativeLimitCallback);
+            bool committedFormReturn = IsRetainedGuardianFormReturn(action);
+            ValidateSavedAction(action.ActorId, action.TargetId, busy, action.Ability, action.ActionId, !action.MagicCasts.IsDefaultOrEmpty || action.Phase == BattleActionPhase.Recovery, action.NativeAction, action.TargetRequest, action.NativeGraphic, action.NativeRenzokuken, reaction: action.NativePlayerReaction, duel: action.NativeDuel, slots: action.NativeSlots, nativeQueuedCommand: action.NativeQueuedCommand, aiCallbackStage: action.NativeAiCallbackStage, limitCallback: action.NativeLimitCallback, guardianFormLearnedAbility: action.GuardianFormLearnedAbility, committedFormReturn: committedFormReturn);
             ValidateIndependentGuardianInvocation(byId[action.ActorId], action);
             if (action.NativeSpecial is not null)
             {
@@ -1479,7 +1480,7 @@ public sealed partial class BattleSession
         ValidateOriginalMaximumHitPoints(snapshot);
     }
 
-    private void ValidateSavedAction(string actorId, string targetId, HashSet<string> busy, BattleAbility ability, int actionId, bool allowDefeatedTarget, BattleNativeAction? nativeAction, BattleTargetRequest targetRequest, BattleNativeGraphicCommand? graphic = null, BattleNativeRenzokukenInvocation? renzokuken = null, BattleNativePlayerReaction? reaction = null, BattleNativeDuelInvocation? duel = null, BattleNativeSlotsRoll? slots = null, byte? nativeQueuedCommand = null, byte? aiCallbackStage = null, NativeLimitCallback? limitCallback = null)
+    private void ValidateSavedAction(string actorId, string targetId, HashSet<string> busy, BattleAbility ability, int actionId, bool allowDefeatedTarget, BattleNativeAction? nativeAction, BattleTargetRequest targetRequest, BattleNativeGraphicCommand? graphic = null, BattleNativeRenzokukenInvocation? renzokuken = null, BattleNativePlayerReaction? reaction = null, BattleNativeDuelInvocation? duel = null, BattleNativeSlotsRoll? slots = null, byte? nativeQueuedCommand = null, byte? aiCallbackStage = null, NativeLimitCallback? limitCallback = null, int? guardianFormLearnedAbility = null, bool committedFormReturn = false)
     {
         BattleCombatant actor = GetActor(actorId);
         BattleCombatant target = GetActor(targetId);
@@ -1531,9 +1532,10 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Saved native action lacks its exact installed command/action metadata.");
         }
+        BattleNativeCommandBinding? learnedBinding = guardianFormLearnedAbility is int learned ? FindGuardianFormLearnedBinding(2, learned) : null;
         if (nativeAction is not null)
         {
-            BattleNativeAction installed = nativeAction.PresentationOnly ? ValidateEncounterSummonControl(actor, targetId, ability, actionId, targetRequest) : nativeAction is { Command: 241, ActionId: 65530 or 65532 } ? ValidateNativeDuelControl241(actor, nativeAction) : FindNativeCommandAction(actor, nativeAction.Command, nativeAction.ActionId, nativeAction.CrisisLevel);
+            BattleNativeAction installed = nativeAction.PresentationOnly ? ValidateEncounterSummonControl(actor, targetId, ability, actionId, targetRequest) : nativeAction is { Command: 241, ActionId: 65530 or 65532 } ? ValidateNativeDuelControl241(actor, nativeAction) : FindNativeCommandAction(actor, nativeAction.Command, nativeAction.ActionId, nativeAction.CrisisLevel, learnedBinding);
             if (!System.Text.Json.JsonElement.DeepEquals(System.Text.Json.JsonSerializer.SerializeToElement(installed), System.Text.Json.JsonSerializer.SerializeToElement(nativeAction)))
             {
                 throw new InvalidDataException("Queued native action differs from its installed kernel contract.");
@@ -1554,8 +1556,8 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Saved expanded Angel Wing spell lacks its installed command or logical recipient.");
         }
-        if (ability == BattleAbility.NativeCommand && (nativeAction is null || !actor.IsPlayer || !SupportsExpandedOrdinaryCommand(nativeAction) ||
-            !actor.NativeCommands.Any(binding => binding.Command == nativeAction.Command && NativeBindingActionId(binding) == nativeAction.ActionId) ||
+        if (ability == BattleAbility.NativeCommand && (nativeAction is null || !actor.IsPlayer || !SupportsExpandedOrdinaryCommand(nativeAction, guardianForm: learnedBinding is not null) ||
+            learnedBinding is null && !actor.NativeCommands.Any(binding => binding.Command == nativeAction.Command && NativeBindingActionId(binding) == nativeAction.ActionId) ||
             nativeQueuedCommand != nativeAction.Command || actionId != (nativeAction.Command << 16 | nativeAction.ActionId) ||
             IsExpandedMiniMogAction(nativeAction) && !target.IsPlayer ||
             !allowDefeatedTarget && ExpandedActionTargets(actor, targetId, ability, actionId, targetRequest, nativeAction).Length == 0))
@@ -1579,7 +1581,7 @@ public sealed partial class BattleSession
             !compelled && aiCallbackStage is <= 4 && (nativeAction is not null || graphic is not null);
         bool retainedExpandedClockGauge = definition.NativeClockRules is not null && actor.NativeAtb is not null && installedNativeAction;
         bool retainedNativeGauge = retainedExpandedAiGauge || retainedExpandedClockGauge;
-        if (aiCallbackStage == 3 && !IsExpandedEnemyDeathAction(actor, aiCallbackStage, targetRequest) || !CanRetainBattleActionActor(actor, reaction, aiCallbackStage, targetRequest) || actor.Atb != 0 && reaction is null && !retainedNativeGauge || !native && !validTargetSide || !validTarget || !unique && !native || !native && !actor.Abilities.Contains(ability) && !HasRetainedReservedCommand(actor, ability, nativeQueuedCommand))
+        if (aiCallbackStage == 3 && !IsExpandedEnemyDeathAction(actor, aiCallbackStage, targetRequest) || !committedFormReturn && !CanRetainBattleActionActor(actor, reaction, aiCallbackStage, targetRequest) || actor.Atb != 0 && reaction is null && !retainedNativeGauge || !native && !validTargetSide || !validTarget || !unique && !native || !native && !actor.Abilities.Contains(ability) && !HasRetainedReservedCommand(actor, ability, nativeQueuedCommand))
         {
             throw new InvalidDataException("Invalid queued or active battle action.");
         }

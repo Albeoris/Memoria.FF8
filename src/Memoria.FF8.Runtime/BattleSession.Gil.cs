@@ -14,7 +14,7 @@ public sealed partial class BattleSession
 {
     private NativeBattleGil? nativeGil;
 
-    private bool TrySpendNativeMoogleGil(uint cost)
+    private uint ReadNativeMoogleGil()
     {
         NativeBattleGil gil = nativeGil ?? throw new NotSupportedException("MiniMog requires the current battle Gil wallets.");
         if ((definition.NativeSavedBattleFlagsKnownMask & 1) == 0)
@@ -22,14 +22,18 @@ public sealed partial class BattleSession
             throw new NotSupportedException("MiniMog requires the saved dream flag to select its Gil wallet.");
         }
 
-        bool dream = (CurrentNativeSavedBattleFlags() & 1) != 0;
-        uint balance = dream ? gil.PastGil : gil.Gil;
+        return (CurrentNativeSavedBattleFlags() & 1) != 0 ? gil.PastGil : gil.Gil;
+    }
+
+    private bool TrySpendNativeMoogleGil(uint cost)
+    {
+        uint balance = ReadNativeMoogleGil();
         if (balance < cost)
         {
             return false;
         }
 
-        nativeGil = dream ? gil with { PastGil = balance - cost } : gil with { Gil = balance - cost };
+        nativeGil = (CurrentNativeSavedBattleFlags() & 1) != 0 ? nativeGil! with { PastGil = balance - cost } : nativeGil! with { Gil = balance - cost };
         return true;
     }
 

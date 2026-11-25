@@ -66,7 +66,7 @@ public sealed partial class BattleSession
             command.NativeQueuedCommand == native.Command && command.ActionId == (native.Command << 16 | native.ActionId) &&
             GetActor(command.ActorId).NativeLimit?.Command == native.Command &&
             (command.NativeSlots is { } slots ? CanCastSlots(native, slots) : SupportsExpandedLimit(native));
-        if (command.GuardianFormAction is not null)
+        if (command.GuardianFormAction is not null || command.GuardianFormLearnedAbility is not null)
         {
             ValidateGuardianFormPresentation(command);
             return;

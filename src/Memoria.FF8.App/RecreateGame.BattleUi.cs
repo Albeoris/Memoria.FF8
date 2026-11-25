@@ -457,7 +457,7 @@ internal sealed partial class RecreateGame
                 debugBattle.RequestGuardianForm(input.ActorId!, input.ActionId);
                 break;
             case BattleInputKind.GuardianFormAction:
-                debugBattle.QueueGuardianFormAction(input.ActorId!, input.TargetId!, (BattleGuardianFormAction)input.ActionId);
+                debugBattle.QueueGuardianFormAction(input.ActorId!, input.TargetId!, input.ActionId);
                 break;
             case BattleInputKind.GuardianFormSkip:
                 debugBattle.SkipGuardianFormFinisher();
