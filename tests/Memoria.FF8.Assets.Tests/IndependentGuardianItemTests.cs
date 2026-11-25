@@ -8,6 +8,44 @@ namespace Memoria.FF8.Assets.Tests;
 public sealed class IndependentGuardianItemTests
 {
     [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ItemAndJunctionedGuardianShareOneSummonAcrossPartyMembers(bool itemFirst)
+    {
+        using BattleAssets assets = new(TestResources.GameDirectory);
+        BattleDefinition definition = CreateExpanded(assets, 32, 0, 0).ReadDefinition();
+        BattleCombatantDefinition caller = definition.Combatants[0] with
+        {
+            InitialAtb = BattleSession.AtbMaximum,
+            Abilities = [BattleAbility.GuardianForce],
+            EquipmentIds = [0],
+            GuardianForceCompatibility = Enumerable.Repeat((ushort)1000, 16).ToArray()
+        };
+        BattleSession battle = new(definition with { NativeBattleSpeed = 0, Combatants = [caller, .. definition.Combatants.Skip(1)] }, BattleAtbMode.TurnBased);
+        Assert.True(battle.CanSelectExpandedGuardianForce(caller.Id, 0));
+        if (itemFirst)
+        {
+            battle.QueueAction("party-10", "enemy-10", BattleAbility.Item, 32);
+            Assert.True(battle.IsGuardianSummonOccupied);
+            Assert.False(battle.CanSelectExpandedGuardianForce(caller.Id, 0));
+            Assert.Throws<InvalidOperationException>(() => battle.QueueAction(caller.Id, "enemy-0", BattleAbility.GuardianForce, 0));
+            BattleSession restored = BattleSession.Restore(battle.Capture());
+            Assert.True(restored.IsGuardianSummonOccupied);
+            Assert.False(restored.CanSelectExpandedGuardianForce(caller.Id, 0));
+            Assert.Empty(restored.GuardianForceCasts);
+            Assert.Equal(1, Assert.Single(restored.Items).Count);
+        }
+        else
+        {
+            battle.QueueAction(caller.Id, "enemy-0", BattleAbility.GuardianForce, 0);
+            Assert.True(battle.IsGuardianSummonOccupied);
+            Assert.Throws<InvalidOperationException>(() => battle.QueueAction("party-10", "enemy-10", BattleAbility.Item, 32));
+            Assert.Equal(2, Assert.Single(battle.Items).Count);
+            Assert.True(battle.CanChoosePlayerCommand("party-10"));
+        }
+    }
+
+    [Theory]
     [InlineData(30, 0, 97, 11)]
     [InlineData(30, 1, 98, 11)]
     [InlineData(30, 2, 99, 11)]

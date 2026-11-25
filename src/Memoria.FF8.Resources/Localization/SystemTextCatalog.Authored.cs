@@ -97,6 +97,7 @@ public static partial class SystemTextCatalog
         defaults["battle.ui.cyclecommandactor.choose.a.command"] = "Choose a command.";
         defaults["battle.ui.guardianformcommandlabel.attack"] = "Attack";
         defaults["battle.ui.guardianformcommandlabel.fire"] = "Fire";
+        defaults["battle.ui.guardianformcommandlabel.heavy.strike"] = "Heavy Strike";
         defaults["battle.ui.guardianformcommandlabel.hell.fire"] = "Hell Fire";
         defaults["battle.ui.openguardianformactions.summon.transform.the.selected.character.into.this"] = "Summon: transform the selected character into this Guardian Force.";
         defaults["battle.ui.presentnativeshot.duel"] = "Duel";

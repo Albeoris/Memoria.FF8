@@ -7,7 +7,7 @@ public sealed partial class BattleSession
     public bool CanSelectExpandedGuardianForce(string actorId, int guardianForceId)
     {
         BattleCombatant actor = GetActor(actorId);
-        if (IsPlayerCommandSealed(actor, 3))
+        if (IsGuardianSummonOccupied || IsPlayerCommandSealed(actor, 3))
         {
             return false;
         }
@@ -15,11 +15,7 @@ public sealed partial class BattleSession
         return actor.IsPlayer && actor.EquipmentIds.Contains(guardianForceId) && action.Available &&
             SupportsExpandedAction(action) && actor.GuardianForceCompatibility is { Count: 16 } && definition.NativeBattleSpeed is not null &&
             CanNativeBattleActorAct(actor) && (actor.NativeStatus0 & 0x35) == 0 && (actor.NativeStatus1 & 0x14000) == 0 &&
-            guardianForces.GetValueOrDefault(guardianForceId) is { Acquired: true, HitPoints: > 0 } &&
-            !(guardianForms?.Values.Any(form => form.GuardianForceId == guardianForceId) ?? false) &&
-            !guardianForceCasts.Values.Any(cast => cast.Command.ActionId == guardianForceId) &&
-            !actions.Any(command => command.Ability == BattleAbility.GuardianForce && command.ActionId == guardianForceId) &&
-            !(ActiveAction is { Ability: BattleAbility.GuardianForce } active && active.ActionId == guardianForceId);
+            guardianForces.GetValueOrDefault(guardianForceId) is { Acquired: true, HitPoints: > 0 };
     }
 
     private void DispatchExpandedGuardianForceCharges()

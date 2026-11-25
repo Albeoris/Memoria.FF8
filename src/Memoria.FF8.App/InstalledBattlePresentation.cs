@@ -34,6 +34,18 @@ internal sealed class InstalledBattlePresentation
 
     internal static BattleSession Restore(BattleSnapshot continuation, GameAssets game, BattleAssets assets)
     {
+        BattleDefinition definition = continuation.Definition;
+        if (definition.GuardianFormsEnabled && definition.GuardianFormResources.Any(resource => resource is { GuardianForceId: 2, AbilityBands: null }))
+        {
+            BattleGuardianFormAbilityBands bands = assets.ReadIfritGuardianFormAbilityBands();
+            continuation = continuation with
+            {
+                Definition = definition with
+                {
+                    GuardianFormResources = definition.GuardianFormResources.Select(resource => resource is { GuardianForceId: 2, AbilityBands: null } ? resource with { AbilityBands = bands } : resource).ToImmutableArray()
+                }
+            };
+        }
         return Bind(BattleSession.Restore(continuation), game, assets, null, continuation);
     }
 

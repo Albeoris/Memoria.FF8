@@ -3,6 +3,8 @@ namespace Memoria.FF8.Runtime;
 /// <summary>Native48BBD0 level dispatch; original random bytes are consumed by its caller.</summary>
 public static class NativeBattleEnemyLevelRules
 {
+    public static int SelectBand(int level, byte mediumLevel, byte highLevel) => level < mediumLevel ? 0 : level < highLevel ? 1 : 2;
+
     public static int RandomByteCount(byte sceneLevel) => sceneLevel <= 100 || sceneLevel == 254 ? 0 : sceneLevel is 251 or 253 ? 2 : 1;
 
     public static int Resolve(byte sceneLevel, ReadOnlySpan<byte> presentPartyLevels, byte originalBattleRoll, byte? secondBattleRoll = null)

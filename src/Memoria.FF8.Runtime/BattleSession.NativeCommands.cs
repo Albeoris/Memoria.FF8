@@ -147,7 +147,7 @@ public sealed partial class BattleSession
             }
             return choices.Where(SupportsExpandedLimit).Select(action => ExpandedLimitDefinition(actor, action)).ToArray();
         }
-        return choices.Where(SupportsExpandedOrdinaryCommand).Select(action => ExpandedOrdinaryCommandDefinition(actor, action)).ToArray();
+        return choices.Where(action => SupportsExpandedOrdinaryCommand(action) && !IsGuardianCommandBlocked(action)).Select(action => ExpandedOrdinaryCommandDefinition(actor, action)).ToArray();
     }
 
     private static BattleActionDefinition CreateNativePlayerActionChoice(BattleAbility ability, BattleNativeAction action, byte targetFlags, string? name)
@@ -284,6 +284,10 @@ public sealed partial class BattleSession
                 BeginNativeShot(actor, target, native, crisis!.Value);
                 OnNativePlayerCommandSubmitted(actor, command);
                 return;
+            }
+            if (IsGuardianCommandBlocked(native))
+            {
+                throw new InvalidOperationException("Another Guardian Force is already summoned.");
             }
             if (!limit && !SupportsExpandedOrdinaryCommand(native))
             {

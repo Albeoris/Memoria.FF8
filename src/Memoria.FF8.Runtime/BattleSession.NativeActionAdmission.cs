@@ -163,7 +163,7 @@ public sealed partial class BattleSession
         byte sequence = supplied;
         if (actor.GuardianFormVitals is not null && command is 1 or 12 or 28 && GetGuardianForm(actor.Id) is { } form)
         {
-            sequence = GuardianFormResources(form.GuardianForceId).PhysicalSequence;
+            sequence = GetGuardianFormBinding(form, BattleGuardianFormAction.Attack).Sequence;
         }
         if (actor.IsPlayer && actor.GuardianFormVitals is null)
         {

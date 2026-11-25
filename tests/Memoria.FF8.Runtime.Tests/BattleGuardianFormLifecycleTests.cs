@@ -1,11 +1,172 @@
 using System.Text.Json;
 using System.Collections.Immutable;
+using System.Reflection;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class BattleGuardianFormLifecycleTests
 {
+    [Theory]
+    [InlineData(19, 70, true)]
+    [InlineData(20, 1, false)]
+    [InlineData(29, 99, false)]
+    [InlineData(30, 1, false)]
+    public void IfritCommandsUseHisOwnLevelWhileHisAttacksUseCasterStatistics(int gfLevel, int casterLevel, bool heavy)
+    {
+        BattleDefinition definition = SummonDefinition(gfLevel);
+        definition.Combatants[0] = definition.Combatants[0] with { Level = casterLevel };
+        BattleSession battle = ReadySummonForm(definition);
+        Assert.Equal(BattleGuardianFormPhase.Active, battle.GetGuardianForm("actor")!.Phase);
+        Assert.Equal(casterLevel, Actor(battle).Level);
+        Assert.Equal(23, Actor(battle).Attack);
+        Assert.Equal(31, Actor(battle).Magic);
+        Assert.Contains(BattleGuardianFormAction.Attack, battle.GetGuardianFormActions("actor"));
+        Assert.Contains(BattleGuardianFormAction.Fire, battle.GetGuardianFormActions("actor"));
+        Assert.Contains(BattleGuardianFormAction.HellFire, battle.GetGuardianFormActions("actor"));
+        Assert.Equal(heavy, battle.GetGuardianFormActions("actor").Contains(BattleGuardianFormAction.HeavyStrike));
+        Actor(battle).Atb = BattleSession.AtbMaximum;
+        if (!heavy)
+        {
+            BattleSnapshot before = battle.Capture();
+            Assert.Throws<InvalidOperationException>(() => battle.QueueGuardianFormAction("actor", "enemy", BattleGuardianFormAction.HeavyStrike));
+            Assert.Equal(before.Combatants[0].Atb, Actor(battle).Atb);
+            Assert.Empty(battle.QueuedActions);
+        }
+        battle.QueueGuardianFormAction("actor", "enemy", heavy ? BattleGuardianFormAction.HeavyStrike : BattleGuardianFormAction.Fire);
+        battle = RoundTrip(battle.Capture());
+        BattleAttackCommand command = Assert.Single(battle.QueuedActions);
+        Assert.Equal(heavy ? 59 : 1, command.ActionId);
+        Assert.Equal(heavy ? (byte)12 : (byte)11, command.NativeSequence);
+        Assert.Equal(heavy ? 20 : 18, command.NativeAction!.Power);
+        Assert.Equal(!heavy, command.FreeNativeMagic);
+        Assert.Empty(Actor(battle).MagicStocks);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void PartySummonSlotStaysOccupiedAcrossChargeAndQueuedActionRestores(bool transform)
+    {
+        BattleDefinition definition = SummonDefinition(15);
+        BattleSession battle = new(definition, BattleAtbMode.Normal);
+        int first = transform ? 2 : 0;
+        int second = transform ? 0 : 2;
+        string firstActor = transform ? "actor" : "other";
+        string secondActor = transform ? "other" : "actor";
+        if (transform)
+        {
+            battle.RequestGuardianForm(firstActor, first);
+        }
+        else
+        {
+            battle.QueueAction(firstActor, "enemy", BattleAbility.GuardianForce, first);
+        }
+        battle = RoundTrip(battle.Capture());
+        Assert.True(battle.IsGuardianSummonOccupied);
+        Assert.False(battle.CanSelectExpandedGuardianForce(secondActor, second));
+        Assert.False(battle.CanRequestGuardianForm("actor", 2));
+        Assert.Throws<InvalidOperationException>(() => battle.QueueAction(secondActor, "enemy", BattleAbility.GuardianForce, second));
+        Assert.True(battle.CanChoosePlayerCommand(secondActor));
+        Assert.Equal(BattleSession.AtbMaximum, battle.Combatants.Single(actor => actor.Id == secondActor).Atb);
+        Assert.Single(battle.GuardianForceCasts);
+        if (transform)
+        {
+            battle = ReadySummonForm(definition);
+            Assert.Equal(BattleGuardianFormPhase.Active, battle.GetGuardianForm(firstActor)!.Phase);
+            battle.QueueGuardianFormAction(firstActor, "enemy", BattleGuardianFormAction.HellFire);
+            battle = RoundTrip(battle.Capture());
+            Assert.Equal(BattleGuardianFormPhase.Finishing, battle.GetGuardianForm(firstActor)!.Phase);
+        }
+        else
+        {
+            RunLogicalStep(battle, "DispatchExpandedGuardianForceCharges");
+            Assert.Empty(battle.GuardianForceCasts);
+            battle = RoundTrip(battle.Capture());
+        }
+        Assert.Single(battle.QueuedActions);
+        Assert.True(battle.IsGuardianSummonOccupied);
+        Assert.False(battle.CanSelectExpandedGuardianForce(secondActor, second));
+    }
+
+    [Fact]
+    public void GuardianDefeatAndChargeCancellationFreeTheSlotForAnotherGuardian()
+    {
+        BattleDefinition definition = SummonDefinition(19);
+        BattleSession battle = new(definition, BattleAtbMode.Normal);
+        battle.RequestGuardianForm("actor", 2);
+        Actor(battle).CurrentHp = 0;
+        Actor(battle).NativeStatus0 |= 1;
+        RunLogicalStep(battle, "DispatchGuardianForceCasts");
+        RunLogicalStep(battle, "DispatchExpandedGuardianForceCharges");
+        Assert.False(battle.IsGuardianSummonOccupied);
+        Assert.True(battle.CanSelectExpandedGuardianForce("other", 0));
+
+        battle = ReadySummonForm(definition);
+        Actor(battle).CurrentHp = 0;
+        RunLogicalStep(battle, "DispatchGuardianFormTransitions");
+        Assert.Null(battle.GetGuardianForm("actor"));
+        Assert.Equal(37, Actor(battle).CurrentHp);
+        Assert.False(battle.IsGuardianSummonOccupied);
+        Assert.True(battle.CanSelectExpandedGuardianForce("other", 0));
+        battle.QueueAction("other", "enemy", BattleAbility.GuardianForce, 0);
+        Assert.Equal(0, Assert.Single(battle.GuardianForceCasts).Command.ActionId);
+    }
+
+    [Fact]
+    public void NormalFinisherCompletionReturnsIfritAndAllowsAnotherGuardian()
+    {
+        BattleSession battle = ReadySummonForm(SummonDefinition(20));
+        battle.QueueGuardianFormAction("actor", "enemy", BattleGuardianFormAction.HellFire);
+        BattleAttackCommand queued = Assert.Single(battle.QueuedActions);
+        BattleActionPresentation committed = new(queued.ActorId, queued.TargetId, BattleActionPhase.Recovery, queued.TargetRequest, queued.Ability, queued.ActionId)
+        {
+            GuardianFormAction = queued.GuardianFormAction,
+            GuardianFormInvocation = queued.GuardianFormInvocation,
+            NativeAction = queued.NativeAction,
+            NativeQueuedCommand = queued.NativeQueuedCommand,
+            NativeSequence = queued.NativeSequence
+        };
+        battle = RoundTrip(battle.Capture() with { QueuedActions = [], ActiveAction = committed });
+        Assert.True(battle.IsGuardianSummonOccupied);
+        RunLogicalStep(battle, "CompleteActionPresentation", committed, "Finisher completed.", true);
+        Assert.Null(battle.GetGuardianForm("actor"));
+        Assert.False(battle.IsGuardianSummonOccupied);
+        battle.QueueAction("other", "enemy", BattleAbility.GuardianForce, 0);
+        Assert.Equal(0, Assert.Single(battle.GuardianForceCasts).Command.ActionId);
+    }
+
+    [Fact]
+    public void OlderStandaloneFormCheckpointUsesRetainedKernelActionsForLevelBands()
+    {
+        BattleSession battle = ReadySummonForm(SummonDefinition(19));
+        battle.QueueGuardianFormAction("actor", "enemy", BattleGuardianFormAction.Fire);
+        BattleSnapshot saved = battle.Capture();
+        saved = saved with { Definition = saved.Definition with { GuardianFormResources = [saved.Definition.GuardianFormResources[0] with { AbilityBands = null }] } };
+
+        BattleSession restored = RoundTrip(saved);
+        Assert.Contains(BattleGuardianFormAction.HeavyStrike, restored.GetGuardianFormActions("actor"));
+        Assert.Equal(1, Assert.Single(restored.QueuedActions).ActionId);
+        Assert.NotNull(restored.Capture().Definition.GuardianFormResources[0].AbilityBands);
+    }
+
+    [Fact]
+    public void LegacyCheckpointWithActiveIfritAndAnotherChargeReportsConflictingOwners()
+    {
+        BattleDefinition definition = SummonDefinition(19);
+        BattleSession battle = ReadySummonForm(definition);
+        BattleSnapshot overlap = battle.Capture();
+
+        BattleSession classic = new(definition, BattleAtbMode.Normal);
+        classic.QueueAction("other", "enemy", BattleAbility.GuardianForce, 0);
+        BattleSnapshot charged = classic.Capture();
+        overlap.Combatants[1] = charged.Combatants[1];
+        overlap = overlap with { GuardianForceCasts = charged.GuardianForceCasts };
+
+        InvalidDataException error = Assert.Throws<InvalidDataException>(() => RoundTrip(overlap));
+        Assert.Contains("overlapping GF summons", error.Message);
+    }
+
     [Fact]
     public void ExpandedIfritChargesAndUsesHisInstalledCommandsAgainstTheLastEnemy()
     {
@@ -434,7 +595,7 @@ public sealed class BattleGuardianFormLifecycleTests
         return new()
         {
             GuardianFormsEnabled = true,
-            GuardianFormResources = [new(2, physical, 12, new([0, 0]) { AnimationFrames = [] }) { ElementDefenses = [1000, 700, 800, 800, 800, 800, 800, 800], StatusResistances = Enumerable.Range(0, 40).Select(index => index == 1 ? (byte)255 : (byte)100).ToImmutableArray() }],
+            GuardianFormResources = [new(2, physical, 12, new([0, 0]) { AnimationFrames = [] }) { AbilityBands = IfritBands(), ElementDefenses = [1000, 700, 800, 800, 800, 800, 800, 800], StatusResistances = Enumerable.Range(0, 40).Select(index => index == 1 ? (byte)255 : (byte)100).ToImmutableArray() }],
             GuardianForces = [new(2, 80, 100, true) { DeathCount = 0 }],
             NativeActions = [physical, fire],
             NativeCommandSequences = NativeBattleCommandSequenceFixture.Values,
@@ -446,6 +607,44 @@ public sealed class BattleGuardianFormLifecycleTests
                 new() { Id = "enemy", Name = "Enemy", MaximumHp = 1000, CurrentHp = 1000, Speed = 1 }
             ]
         };
+    }
+
+    private static BattleGuardianFormAbilityBands IfritBands()
+    {
+        BattleGuardianFormActionBinding attack = new(BattleGuardianFormAction.Attack, "Attack", BattleGuardianFormActionSource.Physical, 79, 12);
+        BattleGuardianFormActionBinding fire = new(BattleGuardianFormAction.Fire, "Fire", BattleGuardianFormActionSource.Magic, 1, 11, BattleGuardianFormActionCost.Innate);
+        BattleGuardianFormActionBinding heavy = new(BattleGuardianFormAction.HeavyStrike, "Heavy Strike", BattleGuardianFormActionSource.Physical, 59, 12);
+        BattleGuardianFormActionBinding finisher = BattleGuardianFormProfiles.Find(2)!.Finisher;
+        return new(20, 30, [[attack, fire, heavy, finisher], [attack, fire, finisher], [attack, fire, finisher]]);
+    }
+
+    private static BattleDefinition SummonDefinition(int level)
+    {
+        BattleDefinition initial = Definition();
+        BattleNativeAction ifrit = Native(254, 66, 11, 20, 0x40) with { KernelSection = 2, KernelIndex = 2, PowerModifier = 10, LevelModifier = 10, RawRecord = [.. new byte[128]] };
+        BattleNativeAction quezacotl = ifrit with { ActionId = 64, KernelIndex = 0 };
+        return initial with
+        {
+            NativeBattleSpeed = 0,
+            GuardianForces = [initial.GuardianForces[0], new(0, 100, 100)],
+            NativeActions = [.. initial.NativeActions, Native(8, 59, 1, 20, null), ifrit, quezacotl],
+            ActionDefinitions = [initial.ActionDefinitions[0], initial.ActionDefinitions[1] with { NativeAction = ifrit, Level = level }, new(BattleAbility.GuardianForce, 0, "Thunder Storm", BattleActionEffect.Native, 20, false) { NativeAction = quezacotl }],
+            Combatants = [initial.Combatants[0] with { InitialAtb = BattleSession.AtbMaximum }, new() { Id = "other", Name = "Other", IsPlayer = true, MaximumHp = 100, CurrentHp = 100, InitialAtb = BattleSession.AtbMaximum, Abilities = [BattleAbility.Attack, BattleAbility.GuardianForce], EquipmentIds = [0], GuardianForceCompatibility = new ushort[16] }, initial.Combatants[1]]
+        };
+    }
+
+    private static BattleSession ReadySummonForm(BattleDefinition definition)
+    {
+        BattleSession battle = new(definition, BattleAtbMode.Normal);
+        return RoundTrip(battle.Capture() with
+        {
+            GuardianForms = new(true, 1, [new("actor", 2, "ifrit-v1", BattleGuardianFormPhase.Active, 1, 73) { EntryCompleted = true }])
+        });
+    }
+
+    private static void RunLogicalStep(BattleSession battle, string name, params object?[] arguments)
+    {
+        typeof(BattleSession).GetMethod(name, BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(battle, arguments);
     }
 
     private static BattleNativeAction Native(byte command, ushort id, byte type, byte power, byte? targets)

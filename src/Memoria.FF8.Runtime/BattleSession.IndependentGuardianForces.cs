@@ -6,6 +6,25 @@ public sealed record BattleIndependentGuardianInvocation(BattleNativeAction? Act
 
 public sealed partial class BattleSession
 {
+    private bool IsIndependentGuardianSummon(BattleAbility ability, int actionId, BattleNativeAction? native)
+    {
+        if (ability == BattleAbility.Item)
+        {
+            native ??= FindAction(ability, actionId).NativeAction;
+        }
+        return IsPlayerGuardianInvocation(native) || IsExpandedAutomaticGuardianAction(native);
+    }
+
+    private static bool IsPlayerGuardianInvocation(BattleNativeAction? action)
+    {
+        return action is { Command: 4, AttackType: 14 } || IsExpandedMiniMogAction(action);
+    }
+
+    public bool IsGuardianCommandBlocked(BattleNativeAction? action)
+    {
+        return IsPlayerGuardianInvocation(action) && IsGuardianSummonOccupied;
+    }
+
     private BattleNativeAction? IndependentGuardianItem(BattleAttackCommand command)
     {
         return command.NativeAction ?? (command.Ability == BattleAbility.Item ? FindAction(BattleAbility.Item, command.ActionId).NativeAction : null);

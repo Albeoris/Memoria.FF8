@@ -23,7 +23,7 @@ public sealed partial class BattleSession
     {
         // 486450 reaches 483270 after the death callbacks, with a KO party row and a capable enemy.
         // NG-005: Original483270 excludes encounter317.
-        if (definition.EncounterId == 317 || !PhoenixRecoveryUnlocked() ||
+        if (definition.EncounterId == 317 || !PhoenixRecoveryUnlocked() || IsGuardianSummonOccupied ||
             !allies.Any(actor => actor.IsActive && actor.Slot.HasValue && (NativeSavedStatusBits(actor) & 5) == 1) ||
             !ExpandedAutomaticGuardianTargets().Any(IsNativeBattleCapable) || NextRandomByte() > 64)
         {

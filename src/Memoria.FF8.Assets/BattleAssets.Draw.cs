@@ -15,7 +15,7 @@ public sealed partial class BattleAssets
 
     private static int EnemyLevelBand(byte[] bytes, int information, int level)
     {
-        return level < bytes[information + 244] ? 0 : level < bytes[information + 245] ? 1 : 2;
+        return NativeBattleEnemyLevelRules.SelectBand(level, bytes[information + 244], bytes[information + 245]);
     }
 
     private static int EnemyDrawInformation(byte[] bytes)

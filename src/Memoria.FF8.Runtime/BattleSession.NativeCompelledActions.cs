@@ -80,9 +80,8 @@ public sealed partial class BattleSession
         uint battleStatus = NativeBattleStatusBits(actor);
         if (GetGuardianForm(actor.Id) is { Phase: BattleGuardianFormPhase.Active, RemainingTicks: > 0 } form && RequiresNativeCompelledCommand(actor))
         {
-            BattleGuardianFormDefinition profile = BattleGuardianFormProfiles.Find(form.GuardianForceId)!;
-            BattleGuardianFormActionBinding binding = (battleStatus & 0x2000000) != 0 ? profile.Actions.First(action => action.Source == BattleGuardianFormActionSource.Magic) : profile.Actions.First(action => action.Source == BattleGuardianFormActionSource.Physical);
-            BattleNativeAction native = GetGuardianFormActionDefinition(actor.Id, binding.Action).NativeAction!;
+            BattleGuardianFormActionBinding binding = GetGuardianFormBinding(form, (battleStatus & 0x2000000) != 0 ? BattleGuardianFormAction.Fire : BattleGuardianFormAction.Attack);
+            BattleNativeAction native = ResolveGuardianFormAction(form, binding).NativeAction!;
             BattleTargetRequest formTargets = binding.Source == BattleGuardianFormActionSource.Physical ? PickAiSide((battleStatus & 0x4000) != 0 ? BattleSide.Allies : BattleSide.Enemies).Request : SelectNativeCompelledTargets(native.TargetFlags ?? throw new InvalidDataException("GF compelled spell lacks its installed targeting flags."), true);
             return new(native.Command, native.ActionId, formTargets, binding.Cost == BattleGuardianFormActionCost.Innate) { GuardianFormBinding = binding };
         }
@@ -336,7 +335,7 @@ public sealed partial class BattleSession
             {
                 throw new NotSupportedException("Native Confuse item eligibility requires the original24-byte kernel record.");
             }
-            if ((action.RawRecord[21] & 1) != 0)
+            if ((action.RawRecord[21] & 1) != 0 && !IsGuardianCommandBlocked(action))
             {
                 int idIndex = stock.ItemId - 1;
                 int rank = order.IsDefaultOrEmpty ? idIndex : order[idIndex];

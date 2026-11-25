@@ -82,16 +82,16 @@ public sealed partial class BattleSession
                 }
                 break;
             case BattleAbility.Item:
+                if (IsGuardianCommandBlocked(action.NativeAction))
+                {
+                    throw new InvalidOperationException("Another Guardian Force is already summoned.");
+                }
                 reservedItemSlot = ConsumeNativeItem(actionId);
                 break;
             case BattleAbility.GuardianForce:
                 if (!CanSelectExpandedGuardianForce(actor.Id, actionId))
                 {
-                    throw new InvalidOperationException("Summoning requires an available living junctioned GF and a caster able to charge.");
-                }
-                if ((!actor.EquipmentIds.Contains(actionId) || !action.Available) || guardianForms?.Values.Any(form => form.GuardianForceId == actionId) == true)
-                {
-                    throw new InvalidOperationException("Summoning requires a living junctioned GF.");
+                    throw new InvalidOperationException("Summoning requires a living junctioned GF, a caster able to charge, and an unoccupied summon slot.");
                 }
                 break;
             default:

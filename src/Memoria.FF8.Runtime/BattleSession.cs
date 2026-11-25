@@ -484,7 +484,7 @@ public sealed partial class BattleSession
         }
         try
         {
-            BattleDefinition snapshotDefinition = snapshot.Definition;
+            BattleDefinition snapshotDefinition = ownedDefinition is null ? BattleGuardianFormProfiles.RestoreLegacyAbilityBands(snapshot.Definition) : snapshot.Definition;
             snapshotDefinition.Tuning?.RequireCurrentBattleStatusRules();
             BattlePresentationSnapshot? presentation = snapshot.PresentationContinuation;
             BattleLogicalContinuation? continuation = snapshot.LogicalContinuation;
@@ -1466,6 +1466,7 @@ public sealed partial class BattleSession
         ValidateNativeDuelControlOwners();
         RestoreNativeBattleUiRandom(snapshot.NativeBattleUiRandom);
         ValidateGuardianFormOwners();
+        ValidateGuardianSummonOwner();
         RestoreNativeScannedModels(snapshot.NativeScannedModels);
         RestoreScanKnowledge(snapshot.ScanKnowledge);
         RestoreEncounterAllocation(snapshot.EncounterAllocation, snapshot.LogicalContinuation, snapshot.PresentationContinuation);

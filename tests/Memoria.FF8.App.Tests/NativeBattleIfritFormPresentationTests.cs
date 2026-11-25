@@ -9,6 +9,62 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class NativeBattleIfritFormPresentationTests
 {
+    [Fact]
+    public void InstalledLowLevelIfritHeavyStrikeUsesTheFormSequenceAndCompletesAfterFork()
+    {
+        string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
+        Assert.SkipUnless(directory is not null, "Select installed original resources with MEMORIA_FF8_GAME_DIR.");
+        using GameAssets game = new(directory!);
+        using BattleAssets assets = new(game.GameDirectory);
+        BattleDefinition basis = NativeBattleTestDefinitions.CreateTargetGuardianDefinition(game, assets, 2, 201, out _);
+        BattleDefinition definition = basis with
+        {
+            GuardianFormsEnabled = true,
+            GuardianFormResources = [assets.ReadIfritGuardianFormResources()],
+            Combatants = [basis.Combatants[0] with { Attack = 83, Level = 75, Speed = 80 }, basis.Combatants[1] with { NativeCombatantFlags = 8 }]
+        };
+        NativeBattleGraphicsDefinition graphics = assets.ReadNativeGraphicsDefinition(definition.Combatants, game.ReadNativeBattleGraphicsRules(), assets.LoadEncounter(94));
+        BattleSession battle = NativeBattleTypedFixture.CreateBattle(definition, BattleAtbMode.TurnBased, graphics);
+        Drive(battle, () => battle.CanRequestGuardianForm("party", 2));
+        battle.RequestGuardianForm("party", 2);
+        Drive(battle, () => battle.GetGuardianForm("party") is { Phase: BattleGuardianFormPhase.Active });
+        Drive(battle, () => battle.CanChoosePlayerCommand("party"));
+        Assert.True(battle.IsGuardianSummonOccupied);
+        BattleCombatant ifrit = battle.Combatants.Single(actor => actor.Id == "party");
+        Assert.Equal(75, ifrit.Level);
+        Assert.Equal(83, ifrit.Attack);
+        battle.QueueGuardianFormAction("party", "enemy", BattleGuardianFormAction.HeavyStrike);
+        BattleAttackCommand queued = Assert.Single(battle.QueuedActions);
+        Assert.Equal(59, queued.ActionId);
+        Assert.Equal((byte)12, queued.NativeSequence);
+        Assert.Equal((byte)20, queued.NativeAction!.Power);
+
+        BattleSession restored = battle.ForkForContinuation();
+        Drive(battle, () => StrikeCompleted(battle));
+        Drive(restored, () => StrikeCompleted(restored));
+        Assert.Equal(battle.Combatants.Single(actor => actor.Id == "enemy").CurrentHp, restored.Combatants.Single(actor => actor.Id == "enemy").CurrentHp);
+        Assert.Null(restored.Presentation!.Graphics.TriggerWidget);
+        Assert.True(restored.IsGuardianSummonOccupied);
+
+        static bool StrikeCompleted(BattleSession battle)
+        {
+            return battle.ActiveAction is null && battle.Events.Any(item => item is { Kind: "Damage", ActorId: "party", TargetId: "enemy", Amount: > 0 });
+        }
+
+        static void Drive(BattleSession battle, Func<bool> ready)
+        {
+            for (int frame = 0; frame < 1000 && !ready(); frame++)
+            {
+                if (battle.ActiveAction is null)
+                {
+                    battle.AdvanceTurn();
+                }
+                battle.Tick();
+            }
+            Assert.True(ready());
+        }
+    }
+
     [Theory]
     [InlineData(false, false)]
     [InlineData(true, false)]

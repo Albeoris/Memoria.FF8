@@ -133,7 +133,7 @@ public sealed partial class BattleHudController
         }
         return session.ActionDefinitions.Where(action => command switch
         {
-            BattleAbility.Item => action.Ability == BattleAbility.Item && session.SupportsExpandedAction(action) && session.Items.Any(stock => stock.Id == action.Id && stock.Count > 0),
+            BattleAbility.Item => action.Ability == BattleAbility.Item && !session.IsGuardianCommandBlocked(action.NativeAction) && session.SupportsExpandedAction(action) && session.Items.Any(stock => stock.Id == action.Id && stock.Count > 0),
             BattleAbility.GuardianForce => action.Ability == BattleAbility.GuardianForce && session.CanSelectExpandedGuardianForce(actor.Id, action.Id),
             _ => false
         }).ToArray();
@@ -146,7 +146,7 @@ public sealed partial class BattleHudController
             return actions.ElementAtOrDefault(Math.Clamp(actionIndex, 0, Math.Max(0, actions.Count - 1)));
         }
     }
-    public IReadOnlyList<string> ChoiceLabels => SelectingNativeSlots ? [SystemText("battle.ui.choicelabels.do.over", "Do over"), SystemText("battle.ui.choicelabels.cast", "Cast")] : SelectingGuardianFormAction ? [SystemText("battle.ui.choicelabels.summon", "Summon")] : HasGuardianFormCommands ? [SystemText("battle.ui.choicelabels.attack", "Attack"), SystemText("battle.ui.choicelabels.fire", "Fire"), SystemText("battle.ui.choicelabels.hell.fire", "Hell Fire")] : NativeDuelChoiceLabels ?? (SelectingAction ? ActionChoices.Select(ChoiceLabel).ToArray() : PlayerCommandChoices.Select(CommandLabel).ToArray());
+    public IReadOnlyList<string> ChoiceLabels => SelectingNativeSlots ? [SystemText("battle.ui.choicelabels.do.over", "Do over"), SystemText("battle.ui.choicelabels.cast", "Cast")] : SelectingGuardianFormAction ? [SystemText("battle.ui.choicelabels.summon", "Summon")] : HasGuardianFormCommands ? GuardianFormChoiceLabels : NativeDuelChoiceLabels ?? (SelectingAction ? ActionChoices.Select(ChoiceLabel).ToArray() : PlayerCommandChoices.Select(CommandLabel).ToArray());
     public int ChoiceIndex => SelectingNativeSlots ? nativeSlotsChoice : SelectingGuardianFormAction ? 0 : SelectingAction ? Math.Clamp(actionIndex, 0, Math.Max(0, ActionChoices.Count - 1)) : Math.Clamp(commandIndex, 0, Math.Max(0, Commands.Count - 1));
     public int ChoiceStart => Math.Clamp(ChoiceIndex - 1, 0, Math.Max(0, ChoiceLabels.Count - 4));
     public IReadOnlyList<BattleCombatant> Targets

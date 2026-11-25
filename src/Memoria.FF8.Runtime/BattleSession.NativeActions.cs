@@ -36,7 +36,8 @@ public sealed partial class BattleSession
         {
             if (GetGuardianForm(actor.Id) is { EntryCompleted: true } form)
             {
-                BattleNativeAction physical = GuardianFormResources(form.GuardianForceId).PhysicalAction;
+                BattleGuardianFormActionBinding formBinding = GetGuardianFormBinding(form, BattleGuardianFormAction.Attack);
+                BattleNativeAction physical = ResolveGuardianFormAction(form, formBinding).NativeAction!;
                 return physical with { Command = command, DispatchCommand = command, ActionId = id, Name = "Attack" };
             }
             BattleNativeAction attack = actor.NativeAttack ?? throw new NotSupportedException("Native physical command requires its character-owned equipped weapon and junction metadata.");

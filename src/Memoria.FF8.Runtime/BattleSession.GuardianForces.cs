@@ -17,6 +17,34 @@ public sealed partial class BattleSession
     public IReadOnlyList<BattleGuardianForceVital> GuardianForces => guardianForces.Values.OrderBy(gf => gf.Id).ToArray();
     public IReadOnlyList<BattleGuardianForceCast> GuardianForceCasts => guardianForceCasts.Values.ToArray();
 
+    public bool IsGuardianSummonOccupied => CountGuardianSummonOwners() != 0;
+
+    private int CountGuardianSummonOwners()
+    {
+        // A transformation owns its invocation through charge, entry and finisher.
+        int count = guardianForms?.Count ?? 0;
+        count += guardianForceCasts.Values.Count(cast => cast.Command.GuardianFormInvocation is null);
+        count += actions.Count(command => IsSeparateSummon(command.Ability, command.ActionId, command.NativeAction, command.GuardianFormInvocation));
+        if (ActiveAction is { } active && IsSeparateSummon(active.Ability, active.ActionId, active.NativeAction, active.GuardianFormInvocation))
+        {
+            count++;
+        }
+        return count;
+    }
+
+    private bool IsSeparateSummon(BattleAbility ability, int actionId, BattleNativeAction? native, BattleGuardianFormInvocation? form)
+    {
+        return form is null && (ability == BattleAbility.GuardianForce || IsIndependentGuardianSummon(ability, actionId, native));
+    }
+
+    private void ValidateGuardianSummonOwner()
+    {
+        if (CountGuardianSummonOwners() > 1)
+        {
+            throw new InvalidDataException("This battle checkpoint contains overlapping GF summons. Resume from a checkpoint before the second summon was requested.");
+        }
+    }
+
     private void AcquireGuardianForceInBattle(int id)
     {
         BattleGuardianForceVital gf = guardianForces.GetValueOrDefault(id) ?? throw new NotSupportedException("Native GF acquisition requires its original saved HP row.");
@@ -27,9 +55,9 @@ public sealed partial class BattleSession
     private void QueueGuardianForce(BattleCombatant actor, BattleAttackCommand command)
     {
         BattleGuardianForceVital gf = guardianForces.GetValueOrDefault(command.ActionId) ?? throw new NotSupportedException("Native GF summoning requires its canonical saved HP owner.");
-        if (!gf.Acquired || gf.HitPoints == 0 || guardianForceCasts.Values.Any(cast => cast.Command.ActionId == gf.Id) || guardianForms?.Values.Any(form => form.GuardianForceId == gf.Id && form.ActorId != actor.Id) == true)
+        if (!gf.Acquired || gf.HitPoints == 0 || IsGuardianSummonOccupied)
         {
-            throw new InvalidOperationException("A defeated or already summoning GF cannot be summoned.");
+            throw new InvalidOperationException("Summoning requires a living GF and an unoccupied summon slot.");
         }
         IReadOnlyList<ushort> compatibility = actor.GuardianForceCompatibility is { Count: 16 } bank ? bank : throw new NotSupportedException("Native GF charge requires all sixteen saved character compatibility WORDs.");
         byte speed = definition.NativeBattleSpeed ?? throw new NotSupportedException("Native GF charge requires the saved battle speed BYTE.");

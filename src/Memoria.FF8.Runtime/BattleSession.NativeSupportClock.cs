@@ -19,7 +19,7 @@ public sealed partial class BattleSession
             return;
         }
         byte flags = NativeSupportFlags((byte)8);
-        if ((flags & 8) != 0 && nativeSupport.GilgameshUsed == 0 && (HasAcquiredGuardianForce) && NextRandomByte() <= 12)
+        if ((flags & 8) != 0 && nativeSupport.GilgameshUsed == 0 && HasAcquiredGuardianForce && !IsGuardianSummonOccupied && NextRandomByte() <= 12)
         {
             QueueNativeAutomaticGuardian(checked((byte)(NextRandomByte() / 64 + 7)));
             nativeSupport = nativeSupport with { GilgameshUsed = 1, Cooldown = definition.NativeSupportRules!.Cooldown };

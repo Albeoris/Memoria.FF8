@@ -64,12 +64,12 @@ public sealed partial class BattleSession
         byte flags = NativeSupportFlags(0x0A);
         bool hasGuardianLevel = HasAcquiredGuardianForce;
         //47CCB0 case3 calls482E00,4831F0,482F70 in this order.
-        if (hasGuardianLevel && (flags & 2) != 0 && NativeOdinTargetsEligible() && NextRandomByte() <= 32)
+        if (hasGuardianLevel && (flags & 2) != 0 && !IsGuardianSummonOccupied && NativeOdinTargetsEligible() && NextRandomByte() <= 32)
         {
             QueueNativeAutomaticGuardian(0);
         }
         byte gilgameshUsed = 0;
-        if (hasGuardianLevel && (flags & 8) != 0 && NextRandomByte() <= 8)
+        if (hasGuardianLevel && (flags & 8) != 0 && !IsGuardianSummonOccupied && NextRandomByte() <= 8)
         {
             QueueNativeAutomaticGuardian(checked((byte)(NextRandomByte() / 64 + 7)));
             gilgameshUsed = 1;

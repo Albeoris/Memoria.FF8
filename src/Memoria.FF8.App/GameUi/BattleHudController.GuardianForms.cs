@@ -11,12 +11,33 @@ public sealed partial class BattleHudController
 
     public bool SelectingGuardianFormAction { get; private set; }
     public bool HasGuardianFormCommands => SelectedActor is { } actor && session.GetGuardianForm(actor.Id) is { Phase: BattleGuardianFormPhase.Active, RemainingTicks: > 0 };
-    public string GuardianFormCommandLabel => commandIndex switch { 1 => SystemText("battle.ui.guardianformcommandlabel.fire", "Fire"), 2 => SystemText("battle.ui.guardianformcommandlabel.hell.fire", "Hell Fire"), _ => SystemText("battle.ui.guardianformcommandlabel.attack", "Attack") };
-    private BattleGuardianFormAction SelectedGuardianFormCommand => (BattleGuardianFormAction)Math.Clamp(commandIndex, 0, 2);
+    public string GuardianFormCommandLabel => HasGuardianFormCommands ? GuardianFormLabel(SelectedActor!, SelectedGuardianFormCommand) : string.Empty;
+    private IReadOnlyList<BattleGuardianFormAction> GuardianFormCommands => SelectedActor is { } actor ? session.GetGuardianFormActions(actor.Id) : [];
+    private IReadOnlyList<string> GuardianFormChoiceLabels => GuardianFormCommands.Select(action => GuardianFormLabel(SelectedActor!, action)).ToArray();
+    private BattleGuardianFormAction SelectedGuardianFormCommand
+    {
+        get
+        {
+            IReadOnlyList<BattleGuardianFormAction> commands = GuardianFormCommands;
+            return commands[Math.Clamp(commandIndex, 0, commands.Count - 1)];
+        }
+    }
+
+    private string GuardianFormLabel(BattleCombatant actor, BattleGuardianFormAction action)
+    {
+        BattleActionDefinition definition = session.GetGuardianFormActionDefinition(actor.Id, action);
+        return action switch
+        {
+            BattleGuardianFormAction.Attack => SystemText("battle.ui.guardianformcommandlabel.attack", definition.Name),
+            BattleGuardianFormAction.HeavyStrike => SystemText("battle.ui.guardianformcommandlabel.heavy.strike", definition.Name),
+            BattleGuardianFormAction.HellFire => ChoiceLabel(definition with { Name = definition.NativeAction?.Name ?? "Hell Fire", DisplayName = null }),
+            _ => ChoiceLabel(definition)
+        };
+    }
 
     public bool CanOpenGuardianFormActions(BattleActionDefinition action)
     {
-        return session.GuardianFormsEnabled && action.Ability == BattleAbility.GuardianForce && BattleGuardianFormProfiles.Find(action.Id) is not null && SelectedActor is { } actor && session.GetGuardianForm(actor.Id) is null;
+        return action.Ability == BattleAbility.GuardianForce && SelectedActor is { } actor && session.CanRequestGuardianForm(actor.Id, action.Id);
     }
 
     public void OpenGuardianFormActions(int index)
@@ -108,11 +129,13 @@ public sealed partial class BattleHudController
                 SoundRequested?.Invoke(MenuSound.Confirm);
                 return true;
             }
-            if (SelectedTarget is not { } target || !SubmitGuardianFormInput(new(BattleInputKind.GuardianFormAction, ActorId: actor.Id, TargetId: target.Id, ActionId: (int)SelectedGuardianFormCommand)))
+            BattleGuardianFormAction action = SelectedGuardianFormCommand;
+            string label = GuardianFormLabel(actor, action);
+            if (SelectedTarget is not { } target || !SubmitGuardianFormInput(new(BattleInputKind.GuardianFormAction, ActorId: actor.Id, TargetId: target.Id, ActionId: (int)action)))
             {
                 return true;
             }
-            SetSystemMessage(() => FormatSystemText("battle.ui.confirmguardianformcommand.", "{0}: {1} \u00E2\u2020\u2019 {2}", actor.Name, GuardianFormCommandLabel, target.Name));
+            SetSystemMessage(() => FormatSystemText("battle.ui.confirmguardianformcommand.", "{0}: {1} \u00E2\u2020\u2019 {2}", actor.Name, label, target.Name));
         }
         SelectingGuardianFormAction = false;
         guardianFormMenuActorId = null;

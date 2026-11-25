@@ -6,6 +6,20 @@ namespace Memoria.FF8.Assets.Tests;
 
 public sealed class NativeAutomaticGuardianTests
 {
+    [Fact]
+    public void OdinReservesSummonBeforeGilgameshCanRoll()
+    {
+        using GameAssets game = new(TestResources.GameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        BattleDefinition definition = ExpandedDefinition(game, assets, 0x0A, 128);
+        BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+        NativeBattleRandomState afterOdin = definition.InitialRandom!.Draw(out _);
+        Assert.Equal(afterOdin.Indexes, battle.Capture().Random!.Indexes);
+        Assert.Equal(0, Assert.Single(battle.QueuedActions).ActionId);
+        Assert.Equal(0, battle.Capture().NativeSupport!.GilgameshUsed);
+        Assert.True(BattleSession.Restore(battle.Capture()).IsGuardianSummonOccupied);
+    }
+
     [Theory]
     [InlineData(2, 1, 0, 187, 1)]
     [InlineData(8, 41, 7, 329, 2)]
