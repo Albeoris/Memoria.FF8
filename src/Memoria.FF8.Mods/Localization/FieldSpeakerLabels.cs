@@ -8,7 +8,7 @@ namespace Memoria.FF8.Mods.Localization;
 /// <summary>Identifies the standalone name line before a native field dialogue utterance.</summary>
 public static partial class FieldSpeakerLabels
 {
-    public sealed record Label(int Start, int Length, string Text, int DialogueStart, bool HasMarker, bool StartsQuoted);
+    public sealed record Label(int Start, int Length, string Text, int DialogueStart, bool HasMarker, bool StartsQuoted, bool IsStandaloneThought);
     public sealed record Page(int Start, int Length, Label? FirstLine);
     public sealed record Character(string Name, string Tag);
 
@@ -30,6 +30,12 @@ public static partial class FieldSpeakerLabels
     public static Character? LiteralCharacter(string name)
     {
         return KnownNames.GetValueOrDefault(name);
+    }
+
+    public static Character? SourceCharacter(string name)
+    {
+        // The original English field script also spells Selphie's name this way.
+        return name == "Sephie" ? KnownNames["Selphie"] : LiteralCharacter(name);
     }
 
     public static Character? TaggedCharacter(string text)
@@ -105,18 +111,64 @@ public static partial class FieldSpeakerLabels
         {
             Label? original = sourcePages[index].FirstLine;
             Label? translated = targetPages[index].FirstLine;
-            if (original is null || translated is null || !(original.StartsQuoted || original.HasMarker))
+            if (original is null || translated is null || !CanApplySpeakerContract(original, translated))
             {
                 continue;
             }
             string name = original.Text.TrimEnd(':');
-            Character? expected = LiteralCharacter(name);
+            Character? expected = SourceCharacter(name);
             if (expected is not null && TaggedCharacter(translated.Text.TrimEnd(':'))?.Tag == expected.Tag)
             {
                 source = string.Concat(source.AsSpan(0, original.Start), expected.Tag, source.AsSpan(original.Start + name.Length));
             }
         }
         return source;
+    }
+
+    public static bool CanApplySpeakerContract(Label source, Label target)
+    {
+        return source.HasMarker || source.StartsQuoted
+            || source.IsStandaloneThought && target.IsStandaloneThought
+                && (SourceCharacter(source.Text.TrimEnd(':')) ?? TaggedCharacter(source.Text.TrimEnd(':'))) is not null;
+    }
+
+    private static bool IsBalancedThought(ReadOnlySpan<char> text)
+    {
+        if (text.IsEmpty || text[0] is not ('(' or '（'))
+        {
+            return false;
+        }
+        int depth = 0;
+        Span<char> expected = text.Length <= 128 ? stackalloc char[text.Length] : new char[text.Length];
+        for (int index = 0; index < text.Length; index++)
+        {
+            char character = text[index];
+            if (character == '{')
+            {
+                int end = text[index..].IndexOf('}');
+                if (end < 0)
+                {
+                    return false;
+                }
+                index += end;
+            }
+            else if (character is '(' or '（')
+            {
+                expected[depth++] = character == '(' ? ')' : '）';
+            }
+            else if (character is ')' or '）')
+            {
+                if (character != expected[--depth])
+                {
+                    return false;
+                }
+                if (depth == 0)
+                {
+                    return ThoughtSuffix().IsMatch(text[(index + 1)..]);
+                }
+            }
+        }
+        return false;
     }
 
     private static Label? ReadLabel(string text, int start, int end)
@@ -148,7 +200,7 @@ public static partial class FieldSpeakerLabels
         {
             return null;
         }
-        return new(start + prefix.Length, length, name, dialogueStart, firstLine.Contains("{Speaker}", StringComparison.Ordinal), IsOpeningQuote(text[visibleStart]));
+        return new(start + prefix.Length, length, name, dialogueStart, firstLine.Contains("{Speaker}", StringComparison.Ordinal), IsOpeningQuote(text[visibleStart]), IsBalancedThought(text.AsSpan(visibleStart, end - visibleStart)));
     }
 
     [GeneratedRegex(@"\{(?:Next|Page)\}", RegexOptions.CultureInvariant)]
@@ -162,6 +214,9 @@ public static partial class FieldSpeakerLabels
 
     [GeneratedRegex(@"(?:[ \t]|\{(?:Speaker|Color [^{}\r\n]+|Pause [0-9]+)\})*\z", RegexOptions.CultureInvariant)]
     private static partial Regex Suffix();
+
+    [GeneratedRegex(@"\A(?:\s|\{(?:End|Line|Color [^{}\r\n]+|Pause [0-9]+)\})*\z", RegexOptions.CultureInvariant)]
+    private static partial Regex ThoughtSuffix();
 
     [GeneratedRegex(@"\A[\p{L}\p{N}][\p{L}\p{N} .'’\-]{0,47}:?\z", RegexOptions.CultureInvariant)]
     private static partial Regex LiteralLabel();

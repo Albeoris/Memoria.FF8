@@ -8,6 +8,45 @@ public sealed class TranslationReviewRulesTests
 {
     private const string FieldKey = "$en_fixture_0000";
 
+    [Theory]
+    [InlineData("Zell{Line}(Check the lock (again).){End}", "{Char Zell}{Line}(Проверь замок (ещё раз).){End}")]
+    [InlineData("{X12Y12}Zell{Line}(Check the lock.){End}", "{X12Y12}{Char Zell}{Line}（Проверь замок.）{End}")]
+    [InlineData("Sephie{Line}”Check the lock.“{End}", "{Char Selphie}{Line}«Проверь замок».{End}")]
+    public void NativeSpeakerContractsAcceptVerifiedThoughtsAndAlias(string source, string target)
+    {
+        LocalizationTextValidation.Validate(new() { Category = "Fields", Key = FieldKey, Source = source, Target = target });
+        Assert.Empty(TranslationReviewRules.Review(target, source, "Fields", FieldKey, fix: false).Diagnostics);
+    }
+
+    [Theory]
+    [InlineData("Zell{Line}(Check the lock.){End}", "{Char Selphie}{Line}(Проверь замок.){End}")]
+    [InlineData("Zell{Line}(Check the lock.){End}", "{Char Zell}{Line}Проверь замок.{End}")]
+    [InlineData("Zell{Line}(Check the lock.){End}", "{Char Zell}{Line}(Проверь замок.{End}")]
+    [InlineData("Zell{Line}(Check the lock.){End}", "{Char Zell}{Line}(Проверь замок.) Следующая строка.{End}")]
+    [InlineData("Zell{Line}(Check the lock.) Continue.{End}", "{Char Zell}{Line}(Проверь замок.){End}")]
+    [InlineData("Mechanic{Line}(Check the lock.){End}", "{Char Zell}{Line}(Проверь замок.){End}")]
+    [InlineData("Zell{Line}(Check the lock.){End}", "{Char Zell}{Line}({Char Squall}, проверь замок.){End}")]
+    [InlineData("Sephie{Line}”Check the lock.“{End}", "{Char Rinoa}{Line}«Проверь замок».{End}")]
+    [InlineData("Sephis{Line}”Check the lock.“{End}", "{Char Selphie}{Line}«Проверь замок».{End}")]
+    [InlineData("Sephie{Line}”Check the lock.“{End}", "{Char Selphie}{Line}«{Char Selphie}, проверь замок».{End}")]
+    public void NativeSpeakerContractsRejectWrongIdentityAndUnprovenInsertion(string source, string target)
+    {
+        Assert.Throws<InvalidDataException>(() => LocalizationTextValidation.Validate(new() { Category = "Fields", Key = FieldKey, Source = source, Target = target }));
+        TranslationReviewResult reviewed = TranslationReviewRules.Review(target, source, "Fields", FieldKey, fix: true);
+        Assert.DoesNotContain(reviewed.Diagnostics, diagnostic => diagnostic.Rule == "speaker-character" && diagnostic.Fixable);
+    }
+
+    [Fact]
+    public void ReviewCanonicalizesVerifiedThoughtLabel()
+    {
+        const string source = "Zell{Line}(Check the lock.){End}";
+        const string target = "Зелл{Line}(Проверь замок.){End}";
+        var names = new Dictionary<string, string> { ["Zell"] = "Зелл" };
+        TranslationReviewResult result = TranslationReviewRules.Review(target, source, "Fields", FieldKey, fix: true, characterNames: names);
+        Assert.Equal("{Char Zell}{Line}(Проверь замок.){End}", result.Target);
+        Assert.Single(result.Diagnostics, diagnostic => diagnostic.Rule == "speaker-character" && diagnostic.Fixed);
+    }
+
     [Fact]
     public void NormalizesKnownSpeakerAndNativeReversedQuotes()
     {
