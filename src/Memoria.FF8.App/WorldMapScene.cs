@@ -33,6 +33,7 @@ internal sealed partial class WorldMapScene : IDisposable
     private int encounterMovementMagnitude;
     public Func<bool>? HasPendingBattle { get; set; }
     public Func<int>? ReadBattlePartyCapacity { get; set; }
+    public Action<NativeCharacterVitals>? PublishPartySelection { get; set; }
     public WorldState? LastDeparture { get; private set; }
     private int playerMovementSpeedPercent = PlayerMovementSpeed.DefaultPercent;
 
@@ -362,7 +363,8 @@ internal sealed partial class WorldMapScene : IDisposable
             {
                 return new PlayerActionResult(false, new PlayerTrigger(PlayerTriggerKind.WorldMap, session.State.FieldId, State.Frame, null, null), 0, "The current world menu does not permit this party-member exchange.");
             }
-            session.SetCharacterVitals(NativePartySwitchInput.Apply(vitals, action, entry, capacity));
+            Action<NativeCharacterVitals> publish = PublishPartySelection ?? throw new NotSupportedException("World Switch requires its shared field-party owner.");
+            publish(NativePartySwitchInput.Apply(vitals, action, entry, capacity));
             return new PlayerActionResult(true, new PlayerTrigger(PlayerTriggerKind.WorldMap, session.State.FieldId, State.Frame, null, null), 0);
         }
         if (NativeMagicMenuInput.IsMenuAction(action.Kind))

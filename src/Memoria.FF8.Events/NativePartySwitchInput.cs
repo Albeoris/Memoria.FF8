@@ -144,6 +144,61 @@ public sealed partial class EventEngine
         }
     }
 
+    /// <summary>Publishes a world PHS exchange and reports whether the logical field roster changed.</summary>
+    public bool PublishWorldPartySelection(NativeCharacterVitals next)
+    {
+        if (services is not GameSession { State.Scene: SceneKind.WorldMap } session || session.CharacterVitals is not { } current || !HasCanonicalPartySlots(Scene))
+        {
+            throw new InvalidOperationException("World Switch requires its canonical field and combat slots.");
+        }
+
+        byte[]? field = PrepareWorldPartySelection(session.State, next);
+        bool reorder = !current.CombatParty.SequenceEqual(next.CombatParty);
+        session.SetCharacterVitals(next);
+        return field is not null && (reorder || !HasWorldPartyMembership(field)) && SetWorldPartyFieldSlots(field);
+    }
+
+    /// <summary>Restores the ordinary world PHS projection from the authoritative saved combat rows.</summary>
+    public bool RestoreWorldPartySelection()
+    {
+        if (services is not GameSession { State.Scene: SceneKind.WorldMap, HasActiveBattle: false } session || session.State.PendingBattleEncounter is not null || session.State.RandomEncounters?.Pending is not null || session.State.World?.DrawPoint is not null || session.State.OriginalSave is not null || session.CharacterVitals is not { } vitals || !HasCanonicalPartySlots(Scene))
+        {
+            return false;
+        }
+        // Native field and combat orders may legitimately differ for the same members.
+        return PrepareWorldPartySelection(session.State, vitals) is byte[] field
+            && !HasWorldPartyMembership(field)
+            && SetWorldPartyFieldSlots(field);
+    }
+
+    private byte[]? PrepareWorldPartySelection(GameState state, NativeCharacterVitals vitals)
+    {
+        if ((NewGamePlusPartyPolicy.EffectiveMenuSelection(state) & 2) == 0 || BattlePartySelectionPolicy.GetRestriction(state) != BattlePartySelectionRestriction.None || HasExtendedCombatParty(vitals) || Scene.Party.Any(identity => identity != 255 && (uint)identity >= NativeCharacterVitals.NativeRecordCount))
+        {
+            return null;
+        }
+        if (Scene.ActiveParty.Any(identity => !vitals.IsRosterMember((byte)identity)) || vitals.CombatParty.Any(row => row != 255 && !vitals.IsRosterMember(row)))
+        {
+            return null;
+        }
+        return vitals.TryPreparePartyMenuFieldSlots(Scene.Party, vitals.CombatParty);
+    }
+
+    private bool HasWorldPartyMembership(byte[] field) => Scene.Party.ToHashSet().SetEquals(field.Select(identity => (int)identity));
+
+    private bool SetWorldPartyFieldSlots(byte[] field)
+    {
+        if (Scene.Party.SequenceEqual(field.Select(identity => (int)identity)))
+        {
+            return false;
+        }
+
+        // A departed field's bodies and VM are retained as-is. The next allocation uses the new logical roster.
+        Scene.Party.Clear();
+        Scene.Party.AddRange(field.Select(identity => (int)identity));
+        return true;
+    }
+
     private bool ApplyPartySwitchMenuAction(PlayerAction action)
     {
         NativePartySwitchInput.Validate(action);

@@ -54,6 +54,7 @@ internal sealed partial class GameWorld
     {
         scene.PlayerMovementSpeedPercent = worldMovementSpeedPercent;
         scene.PrepareFieldEntry = PrepareNativeWorldFieldEntry;
+        scene.PublishPartySelection = PublishWorldPartySelection;
         scene.ReadFieldMagicStatRules = (vitals, row) => BattleResources.ReadPlayerNativeStatRules(vitals, row, session.State.BattleLoadouts?.ResolveWeaponId(vitals.Records[row].CharacterId));
         scene.ResolveNativeAutoJunction = Events.ResolveNativeAutoJunction;
         scene.PrepareSalaryEffects = Events.PrepareSalaryEffects;
@@ -64,6 +65,14 @@ internal sealed partial class GameWorld
         scene.PublishChocoboDismountMusic = Events.PublishChocoboDismountMusic;
         scene.PublishVehicleSound = frame => WorldVehicleSound?.Invoke(frame);
         ConfigureWorldRandomEncounters(scene);
+    }
+
+    private void PublishWorldPartySelection(NativeCharacterVitals next)
+    {
+        if (Events.PublishWorldPartySelection(next))
+        {
+            PublishEventProcess();
+        }
     }
 
     private Action PrepareNativeWorldFieldEntry(WorldFieldSelection selection, WorldState finalWorld, short mapLocationId, NativeWorldSalaryState salary)

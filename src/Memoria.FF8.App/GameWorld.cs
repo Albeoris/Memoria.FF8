@@ -314,6 +314,7 @@ internal sealed partial class GameWorld : IDisposable
                 {
                     // The prepared entry runs inside the field callback. Capture only after it returns,
                     // so direct graphical steps retain the completed VM and music-loader state too.
+                    Events.RestoreWorldPartySelection();
                     session.SetDepartingFieldState(Events.Capture());
                     pendingWorldDepartureCapture = false;
                 }
@@ -346,6 +347,10 @@ internal sealed partial class GameWorld : IDisposable
                 session.SetEventState(frozenDeparture);
             }
             session.SetDepartingFieldState(null);
+            if (Events.RestoreWorldPartySelection())
+            {
+                PublishEventProcess();
+            }
             session.DismissDialog();
             return true;
         }
@@ -624,6 +629,7 @@ internal sealed partial class GameWorld : IDisposable
     {
         if (Events.FieldId != session.State.FieldId || Events.NextTrigger.Kind == PlayerTriggerKind.FieldTransition || session.State.Scene == SceneKind.WorldMap)
         {
+            Events.RestoreWorldPartySelection();
             session.SetDepartingFieldState(Events.Capture());
             pendingWorldDepartureCapture = false;
             return result;

@@ -12,6 +12,11 @@ public sealed partial record NativeCharacterVitals
 
     public byte[] PreparePartyMenuFieldSlots(IReadOnlyList<int> currentFieldParty, IReadOnlyList<byte> selectedCombatParty)
     {
+        return TryPreparePartyMenuFieldSlots(currentFieldParty, selectedCombatParty) ?? throw new NotSupportedException("Native forced-field members leave no distinct slot for the selected combat party.");
+    }
+
+    public byte[]? TryPreparePartyMenuFieldSlots(IReadOnlyList<int> currentFieldParty, IReadOnlyList<byte> selectedCombatParty)
+    {
         Validate();
         if (DreamEnabled || currentFieldParty.Count != 3 || currentFieldParty.Any(value => value != 255 && (uint)value >= 8) || selectedCombatParty.Count != 3 || selectedCombatParty.Any(value => value != 255 && value >= 8) || selectedCombatParty.Where(value => value != 255).Distinct().Count() != selectedCombatParty.Count(value => value != 255))
         {
@@ -28,7 +33,7 @@ public sealed partial record NativeCharacterVitals
         }
         if (nonHeld.Count != 0 || result.Where(value => value != 255).Distinct().Count() != result.Count(value => value != 255))
         {
-            throw new NotSupportedException("Native forced-field members leave no distinct slot for the selected combat party.");
+            return null;
         }
         return result;
     }

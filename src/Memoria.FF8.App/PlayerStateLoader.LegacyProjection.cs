@@ -13,10 +13,10 @@ internal static partial class PlayerStateLoader
 
     private static GameState ProjectLegacyPlayerState(GameState saved, string directory, GameAssets? sharedAssets = null, ResourceService? resources = null, IModelOverrideSource? modelOverrides = null, Func<GameplayTuningPolicy>? readGameplayPolicy = null, Func<NativeCharacterVitals, NativeCharacterVitals>? prepareCharacterDefinitions = null)
     {
-        // The standalone world snapshot contains the live transfer and its
-        // retained allocation. A compact save cannot represent that boundary.
+        // An exact world snapshot can retain a transfer or a renderer waiting for its first
+        // world callback. Semantic capture cannot represent either boundary without advancing it.
         if (!RequiresLegacyGameplayProjection(saved) || saved.World is { } world &&
-            (world.ChocoboDismount is not null || world.NativeFootRuntime?.Rule == NativeFootWorldRuntimeState.ChocoboDismountRule))
+            (world.ChocoboDismount is not null || world.NativeFootRuntime?.Rule == NativeFootWorldRuntimeState.ChocoboDismountRule || saved.WorldEventState is not null && WorldPresentationReadiness.IsDeferred(world)))
         {
             return saved;
         }
