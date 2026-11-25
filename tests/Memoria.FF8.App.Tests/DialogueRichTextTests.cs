@@ -34,11 +34,36 @@ public sealed class DialogueRichTextTests
         }
     }
 
-    [Fact]
-    public void Button_symbols_keep_junction_marker_and_unresolved_tags_distinct()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Native_inline_icons_keep_their_width_and_reveal_order(bool originalCompatible)
     {
-        Assert.Equal("J/{Key 255}/{Key Unknown}", DialogueTextFormatter.Format("{Key 65}/{Key 255}/{Key Unknown}"));
-        Assert.Equal("J", DialogueTextFormatter.Format("{Key JunctionMarker}"));
+        const string encoded = "A{Color GreenBlink}{Key 64}{Key JunctionMarker}{Key 66}{Key 67}B";
+        DialogueDocument document = DialogueTextFormatter.Parse(encoded, buttonBindingHint: _ => throw new InvalidOperationException(), originalCompatible: originalCompatible);
+        Assert.Equal("A\uFFFC\uFFFC\uFFFC\uFFFCB", document.Text);
+        var dialogue = new Events.DialogueState(0, 0, encoded, 0, 0);
+        var pages = originalCompatible
+            ? DialogueLayout.CreateNative(document, dialogue, null, 16, text => text.Length * 4, iconWidth: _ => 7)
+            : DialogueLayout.Create(document, dialogue, null, 16, text => text.Length * 4, iconWidth: _ => 7);
+        DialogueVisualLine line = Assert.Single(Assert.Single(pages).Lines);
+        Assert.Equal([0f, 4f, 11f, 18f, 25f, 32f], line.Runs.Select(run => run.X));
+        Assert.Equal([7, 192, 6, 175], line.Runs.Skip(1).Take(4).Select(run => run.Run.Icon!.Value));
+        Assert.All(line.Runs.Skip(1).Take(4), run =>
+        {
+            Assert.Equal(Color.Lime, run.Run.Color);
+            Assert.True(run.Run.Blink);
+        });
+        Assert.Equal(6, DialoguePager.CharacterCount(pages[0]));
+        int remaining = 1;
+        Assert.Equal("{Key 64}", ButtonPrompt.VisibleText(line.Runs[1].Run, ref remaining));
+        Assert.Empty(ButtonPrompt.VisibleText(line.Runs[2].Run, ref remaining));
+    }
+
+    [Fact]
+    public void Unsupported_key_tags_remain_visible_in_legacy_text()
+    {
+        Assert.Equal("{Key 255}/{Key Unknown}", DialogueTextFormatter.Format("{Key 255}/{Key Unknown}"));
     }
 
     [Fact]

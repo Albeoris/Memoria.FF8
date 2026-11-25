@@ -10,6 +10,26 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class WorldDrawPointInteractionTests
 {
+    [Fact]
+    public void Installed_world_draw_markers_are_native_sprites()
+    {
+        string directory = TestResources.GameDirectory;
+        using var assets = new WorldAssets(directory);
+        string message = assets.ComposeWorldMessage(2, assets.ReadWorldMessage(42), "Character", assets.ReadWorldMessage(48))
+            + assets.ComposeWorldMessage(2, assets.ReadWorldMessage(42), "Character", assets.ReadWorldMessage(47));
+        Assert.Contains("{Key 64}", message);
+        Assert.Contains("{Key JunctionMarker}", message);
+        NativeMenuArtwork artwork = NativeMenuArtwork.Load(directory);
+        foreach (bool originalCompatible in new[] { true, false })
+        {
+            DialogueDocument document = DialogueTextFormatter.Parse(message, originalCompatible: originalCompatible);
+            Assert.DoesNotContain("{Key", document.Text);
+            Assert.Equal([7, 192], document.Pages.SelectMany(page => page.Lines).SelectMany(line => line.Runs).Where(run => run.Icon.HasValue).Select(run => run.Icon!.Value));
+        }
+        Assert.True(artwork.GetIcon(7).Width > 0);
+        Assert.True(artwork.GetIcon(192).Width > 0);
+    }
+
     [Theory]
     [InlineData("A", 197)]
     [InlineData("B", 239)]

@@ -1,7 +1,7 @@
 namespace Memoria.FF8.Ui;
 
 /// <summary>A noninteractive message sized by the active renderer and centered relative to its viewport.</summary>
-public sealed class UiTextPopup : UiElement
+public class UiTextPopup : UiElement
 {
     public string Text { get; set; } = string.Empty;
     public float FontSize { get; set; } = 25;
@@ -25,11 +25,11 @@ public sealed class UiTextPopup : UiElement
             return;
         }
 
-        UiSize measured = canvas.MeasureText(Text, FontSize, maximumTextWidth);
+        UiSize measured = MeasureContent(canvas, maximumTextWidth);
         float width = Math.Clamp(MathF.Ceiling(measured.Width) + Padding.Horizontal, Math.Min(MinimumWidth, maximumWidth), maximumWidth);
         float textWidth = width - Padding.Horizontal;
         // Wrapping can change after clamping the panel to its final width.
-        measured = canvas.MeasureText(Text, FontSize, textWidth);
+        measured = MeasureContent(canvas, textWidth);
         float height = Math.Min(Bounds.Height, MathF.Ceiling(measured.Height) + Padding.Vertical);
         float left = Math.Clamp(Bounds.X + Bounds.Width * CenterX - width / 2, Bounds.X, Bounds.Right - width);
         float top = Math.Clamp(Bounds.Y + Bounds.Height * CenterY - height / 2, Bounds.Y, Bounds.Bottom - height);
@@ -39,11 +39,15 @@ public sealed class UiTextPopup : UiElement
         canvas.PushClip(content);
         try
         {
-            canvas.Text(Text, FontSize, content, theme.Foreground);
+            DrawContent(canvas, theme, content);
         }
         finally
         {
             canvas.PopClip();
         }
     }
+
+    protected virtual UiSize MeasureContent(IUiCanvas canvas, float width) => canvas.MeasureText(Text, FontSize, width);
+
+    protected virtual void DrawContent(IUiCanvas canvas, UiTheme theme, UiRect content) => canvas.Text(Text, FontSize, content, theme.Foreground);
 }

@@ -215,7 +215,29 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
         return texture;
     }
 
-    private void DrawImage(UiImageSource source, UiRect bounds, bool stretch, float opacity = 1)
+    internal float DialogueIconAdvance(int icon, float lineHeight)
+    {
+        var (x, _, width, _) = artwork.GetIconBounds(icon);
+        return (x + width + 1) * lineHeight / 16;
+    }
+
+    internal void DrawDialogueIcon(int icon, Vector2 position, float lineHeight, Color color, Rectangle clip)
+    {
+        UiImageSource source = new(UiImageKind.Icon, icon);
+        var (x, y, width, height) = artwork.GetIconBounds(icon);
+        float scale = lineHeight / 16;
+        PushClip(new UiRect(clip.X, clip.Y, clip.Width, clip.Height));
+        try
+        {
+            DrawImage(source, new UiRect(position.X + x * scale, position.Y + y * scale, width * scale, height * scale), stretch: true, tint: color);
+        }
+        finally
+        {
+            PopClip();
+        }
+    }
+
+    private void DrawImage(UiImageSource source, UiRect bounds, bool stretch, float opacity = 1, Color? tint = null)
     {
         opacity *= source.Opacity / 255f;
         bool flipHorizontal = source.FlipHorizontal;
@@ -241,7 +263,7 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
         {
             Rectangle sourceBounds = new(artworkBounds.X + (flipHorizontal ? artworkBounds.Width - right : left), artworkBounds.Y + top, right - left, bottom - top);
             Vector2 position = new(destination.X + left * scale.X, destination.Y + top * scale.Y);
-            batch.Draw(texture, position, sourceBounds, Color.White * opacity, 0, Vector2.Zero, scale, flipHorizontal ? SpriteEffects.FlipHorizontally : SpriteEffects.None, 0);
+            batch.Draw(texture, position, sourceBounds, (tint ?? Color.White) * opacity, 0, Vector2.Zero, scale, flipHorizontal ? SpriteEffects.FlipHorizontally : SpriteEffects.None, 0);
         }
     }
 

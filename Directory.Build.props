@@ -6,7 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <Deterministic>true</Deterministic>
-    <EngineCompatibilityVersion>0.8.17</EngineCompatibilityVersion>
+    <EngineCompatibilityVersion>0.9.13</EngineCompatibilityVersion>
     <WarningsAsErrors>$(WarningsAsErrors);CA1416</WarningsAsErrors>
     <!-- A solution cannot take RuntimeIdentifier globally; project evaluation resolves the graph's requested RID. -->
     <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == '' And '$(MemoriaBuildRuntimeIdentifier)' != ''">$(MemoriaBuildRuntimeIdentifier)</RuntimeIdentifier>

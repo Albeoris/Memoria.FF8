@@ -42,6 +42,12 @@ internal sealed class MenuArtworkProvider(string gameDirectory, ResourceService?
         return portraits.HasControllerArtwork ? portraits.GetControllerButtonIcon(nativeIconId) : null;
     }
 
+    public (int X, int Y, int Width, int Height) GetIconBounds(int index)
+    {
+        Refresh();
+        return (portraits ??= NativeMenuArtwork.Load(gameDirectory, resources)).GetIconBounds(index);
+    }
+
     public PixelImage Read(UiImageSource source, string? fontFamily = null)
     {
         Refresh();

@@ -11,7 +11,7 @@ internal sealed record DialogueVisualPage(string? Speaker, IReadOnlyList<Dialogu
 /// <summary>Presentation pages never alter native line numbers, dialogue text or script completion.</summary>
 internal static class DialogueLayout
 {
-    internal static IReadOnlyList<DialogueVisualPage> CreateNative(DialogueDocument document, DialogueState dialogue, DialogueWindow? window, float lineHeight, Func<string, float> measure)
+    internal static IReadOnlyList<DialogueVisualPage> CreateNative(DialogueDocument document, DialogueState dialogue, DialogueWindow? window, float lineHeight, Func<string, float> measure, Func<int, float>? iconWidth = null)
     {
         List<DialogueVisualPage> result = [];
         for (int pageIndex = 0; pageIndex < document.Pages.Count; pageIndex++)
@@ -26,7 +26,7 @@ internal static class DialogueLayout
                 foreach (DialogueRun run in line.Runs)
                 {
                     runs.Add(new(run, x));
-                    x += MeasureRun(run, measure, lineHeight);
+                    x += MeasureRun(run, measure, lineHeight, iconWidth);
                 }
                 lines.Add(new(runs, x, line.SourceLineIndex, choice));
             }
@@ -43,20 +43,24 @@ internal static class DialogueLayout
 
     internal static float ChoiceIndent(float lineHeight) => lineHeight * 1.5f + ChoicePointerGap;
 
-    internal static float MeasureRun(DialogueRun run, Func<string, float> measure, float lineHeight)
+    internal static float MeasureRun(DialogueRun run, Func<string, float> measure, float lineHeight, Func<int, float>? iconWidth = null)
     {
+        if (run.Icon is int icon)
+        {
+            return iconWidth?.Invoke(icon) ?? lineHeight;
+        }
         return run.IsButton ? ButtonPrompt.Measure(run.Text, measure, lineHeight) : measure(run.Text);
     }
 
-    private static float MeasureRuns(IEnumerable<DialogueRun> runs, Func<string, float> measure, float lineHeight)
+    private static float MeasureRuns(IEnumerable<DialogueRun> runs, Func<string, float> measure, float lineHeight, Func<int, float>? iconWidth = null)
     {
         float width = 0;
         string plain = "";
         foreach (DialogueRun run in runs)
         {
-            if (run.IsButton)
+            if (run.IsInlineObject)
             {
-                width += measure(plain) + MeasureRun(run, measure, lineHeight);
+                width += measure(plain) + MeasureRun(run, measure, lineHeight, iconWidth);
                 plain = "";
             }
             else
@@ -67,7 +71,7 @@ internal static class DialogueLayout
         return width + measure(plain);
     }
 
-    public static IReadOnlyList<DialogueVisualPage> Create(DialogueDocument document, DialogueState dialogue, DialogueWindow? window, float lineHeight, Func<string, float> measure)
+    public static IReadOnlyList<DialogueVisualPage> Create(DialogueDocument document, DialogueState dialogue, DialogueWindow? window, float lineHeight, Func<string, float> measure, Func<int, float>? iconWidth = null)
     {
         const float maximumWidth = 320 - 2 * ScreenPadding - 2 * DialoguePresentation.Padding;
         float requestedWidth = Math.Clamp((window?.Width ?? 0) - 2 * DialoguePresentation.Padding, 1, maximumWidth);
@@ -88,7 +92,7 @@ internal static class DialogueLayout
         for (int sourcePageIndex = 0; sourcePageIndex < sourcePages.Length; sourcePageIndex++)
         {
             var sourcePage = sourcePages[sourcePageIndex];
-            float naturalWidth = sourcePage.Lines.Select(line => MeasureRuns((IsChoice(line) ? line : RemoveQuoteAlignmentSpace(line)).Runs, measure, lineHeight) + (line.IsQuoteStart ? 0 : measure(line.HangingIndent))).DefaultIfEmpty(0).Max();
+            float naturalWidth = sourcePage.Lines.Select(line => MeasureRuns((IsChoice(line) ? line : RemoveQuoteAlignmentSpace(line)).Runs, measure, lineHeight, iconWidth) + (line.IsQuoteStart ? 0 : measure(line.HangingIndent))).DefaultIfEmpty(0).Max();
             float width = Math.Min(maximumWidth, Math.Max(requestedWidth, naturalWidth));
             string? speaker = sourcePage.Speaker;
             float speakerWidth = speaker is null ? 0 : measure(speaker);
@@ -101,7 +105,7 @@ internal static class DialogueLayout
             foreach (var line in sourcePage.Lines.Where(line => !line.IsSpeaker))
             {
                 bool choice = IsChoice(line);
-                lines.AddRange(Wrap(line, width, measure, choice, lineHeight));
+                lines.AddRange(Wrap(line, width, measure, choice, lineHeight, iconWidth));
             }
             if (lines.Count == 0)
             {
@@ -126,7 +130,7 @@ internal static class DialogueLayout
         return result;
     }
 
-    internal static IEnumerable<DialogueVisualLine> Wrap(DialogueLine source, float maximumWidth, Func<string, float> measure, bool choice, float lineHeight)
+    internal static IEnumerable<DialogueVisualLine> Wrap(DialogueLine source, float maximumWidth, Func<string, float> measure, bool choice, float lineHeight, Func<int, float>? iconWidth = null)
     {
         if (choice)
         {
@@ -135,7 +139,7 @@ internal static class DialogueLayout
             foreach (var run in source.Runs)
             {
                 runs.Add(new DialoguePlacedRun(run, x));
-                x += MeasureRun(run, measure, lineHeight);
+                x += MeasureRun(run, measure, lineHeight, iconWidth);
             }
             yield return new DialogueVisualLine(runs, x, source.SourceLineIndex, true);
             yield break;
@@ -145,7 +149,7 @@ internal static class DialogueLayout
         List<DialogueRun> elements = [];
         foreach (var run in source.Runs)
         {
-            if (run.IsButton)
+            if (run.IsInlineObject)
             {
                 elements.Add(run);
                 continue;
@@ -169,18 +173,18 @@ internal static class DialogueLayout
             while (end < elements.Count)
             {
                 DialogueRun element = elements[end];
-                string next = element.IsButton ? "" : candidate + element.Text;
-                float nextWidth = element.IsButton ? completedWidth + measure(candidate) + MeasureRun(element, measure, lineHeight) : completedWidth + measure(next);
+                string next = element.IsInlineObject ? "" : candidate + element.Text;
+                float nextWidth = element.IsInlineObject ? completedWidth + measure(candidate) + MeasureRun(element, measure, lineHeight, iconWidth) : completedWidth + measure(next);
                 if (end > position && indent + nextWidth > maximumWidth)
                 {
                     break;
                 }
-                if (element.IsButton)
+                if (element.IsInlineObject)
                 {
                     completedWidth = nextWidth;
                 }
                 candidate = next;
-                if (!element.IsButton && string.IsNullOrWhiteSpace(element.Text))
+                if (!element.IsInlineObject && string.IsNullOrWhiteSpace(element.Text))
                 {
                     breakAt = end;
                 }
@@ -196,13 +200,13 @@ internal static class DialogueLayout
             while (cursor < end)
             {
                 var run = elements[cursor++];
-                while (!run.IsButton && cursor < end && !elements[cursor].IsButton && elements[cursor].Color == run.Color && elements[cursor].Blink == run.Blink)
+                while (!run.IsInlineObject && cursor < end && !elements[cursor].IsInlineObject && elements[cursor].Color == run.Color && elements[cursor].Blink == run.Blink)
                 {
                     string next = elements[cursor++].Text;
                     run = run with { Text = LocalizationTextTrace.Enabled ? LocalizationTextComposition.Concat(run.Text, next) : run.Text + next };
                 }
                 placed.Add(new DialoguePlacedRun(run, x));
-                x += MeasureRun(run, measure, lineHeight);
+                x += MeasureRun(run, measure, lineHeight, iconWidth);
             }
             yield return new DialogueVisualLine(placed, x, source.SourceLineIndex, false);
             position = end;

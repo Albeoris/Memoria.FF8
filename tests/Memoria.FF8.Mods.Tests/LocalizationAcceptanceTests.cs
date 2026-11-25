@@ -185,6 +185,29 @@ public sealed class LocalizationAcceptanceTests : IDisposable
         return new("Memoria/" + name, name, ModFormat.Memoria, true, true, ModEffectiveStatus.Active, path) { HasLocalization = true, LocalizationOnly = true };
     }
 
+    [Theory]
+    [InlineData("64")]
+    [InlineData("JunctionMarker")]
+    [InlineData("66")]
+    [InlineData("67")]
+    [InlineData("35")]
+    [InlineData("Confirm")]
+    public void KeyLintAcceptsSupportedNativeOperands(string parameter)
+    {
+        string token = $"{{Key {parameter}}}";
+        LocalizationTextValidation.Validate(MenuRow(token) with { Source = token });
+    }
+
+    [Fact]
+    public void KeyLintIdentifiesUnsupportedNativeOperandAndEntry()
+    {
+        const string token = "{Key 255}";
+        LocalizationRecord row = MenuRow(token) with { Source = token };
+        InvalidDataException error = Assert.Throws<InvalidDataException>(() => LocalizationTextValidation.Validate(row));
+        Assert.Contains(row.Key, error.Message);
+        Assert.Contains(token, error.Message);
+    }
+
     private static LocalizationRecord MenuRow(string target) => new() { Category = "Menus", File = "sample", Key = "$en_sample_0000", Source = "source", Target = target };
 
     private static LocalizationRecord DormantField(string fingerprint) => new()

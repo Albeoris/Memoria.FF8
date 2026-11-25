@@ -42,10 +42,10 @@ internal sealed partial class RecreateGame
             {
                 float nativeLineHeight = NativeDialogueLineHeight;
                 float MeasureNative(string value) => nativeTextFont?.Measure(value, NativeDialogueContext) ?? 0;
-                return OriginalTextLayout ? DialogueLayout.CreateNative(document, display, window, nativeLineHeight, MeasureNative) : DialogueLayout.Create(document, display, window, nativeLineHeight, MeasureNative);
+                return OriginalTextLayout ? DialogueLayout.CreateNative(document, display, window, nativeLineHeight, MeasureNative, icon => uiCanvas!.DialogueIconAdvance(icon, nativeLineHeight)) : DialogueLayout.Create(document, display, window, nativeLineHeight, MeasureNative, icon => uiCanvas!.DialogueIconAdvance(icon, nativeLineHeight));
             }
             using var measurer = SystemTextLayout.CreateMeasurer(size, font);
-            return DialogueLayout.Create(document, display, window, measurer.LineHeight, measurer.Measure);
+            return DialogueLayout.Create(document, display, window, measurer.LineHeight, measurer.Measure, icon => uiCanvas!.DialogueIconAdvance(icon, measurer.LineHeight));
         }
         (IReadOnlyList<DialogueVisualPage> Pages, DialoguePager Pager) presentation;
         if (authoringDraftPreview is not null && IsEditingAuthoringOccurrence(dialogue))
@@ -173,7 +173,7 @@ internal sealed partial class RecreateGame
         {
             IReadOnlyDictionary<int, string> textNames = session.State.Scene == SceneKind.Field ? world!.FieldDialogueNames(display.Text) : events!.Scene.Names;
             DialogueDocument nativeDocument = DialogueTextFormatter.Parse(display.Text, textNames, events!.MessageVariables, button => keyboard.NativeButtonBindingPrompt(DialogueButtonMask(dialogue, button)), world!.TextTerms, originalCompatible: true);
-            DialogueVisualPage nativePage = DialogueLayout.CreateNative(nativeDocument, display, window, NativeDialogueLineHeight, value => nativeTextFont.Measure(value, NativeDialogueContext))[0];
+            DialogueVisualPage nativePage = DialogueLayout.CreateNative(nativeDocument, display, window, NativeDialogueLineHeight, value => nativeTextFont.Measure(value, NativeDialogueContext), icon => uiCanvas!.DialogueIconAdvance(icon, NativeDialogueLineHeight))[0];
             nativeOrigin = DialoguePresentation.Bounds(display, window, viewport, nativePage.Width * scale, nativePage.Height * scale);
         }
         ObserveAuthoringDialogue(dialogue, panelBounds, viewport, nativeOrigin);
@@ -225,7 +225,14 @@ internal sealed partial class RecreateGame
                 float alpha = run.Run.Blink ? DialogueBlink.Opacity(seconds) : 1;
                 string visibleText = ButtonPrompt.VisibleText(run.Run, ref remaining);
                 Vector2 runPosition = position + new Vector2(run.X * scale, 0);
-                if (run.Run.IsButton)
+                if (run.Run.Icon is int icon)
+                {
+                    if (visibleText.Length > 0)
+                    {
+                        uiCanvas!.DrawDialogueIcon(icon, runPosition, lineHeight, run.Run.Color * alpha, textClip);
+                    }
+                }
+                else if (run.Run.IsButton)
                 {
                     ButtonPrompt.Draw(batch, pixel, text, visibleText, fontSize, runPosition, lineHeight, alpha, family, bounds, uiCanvas);
                 }

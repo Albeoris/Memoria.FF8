@@ -14,6 +14,7 @@ internal static partial class TranslationReviewRules
 {
     private const string Information = "Information and SeeD exam";
     private const string End = "{End}";
+    private const string UnsupportedKey = "tag-key-unsupported";
     private static readonly IReadOnlyDictionary<string, string> SystemSources = SystemTextCatalog.SourceEntries().ToDictionary(entry => entry.Key, entry => entry.Text, StringComparer.Ordinal);
     private static readonly Dictionary<string, string> NativeTagNames = Enum.GetNames<TextTagCode>()
         .Where(name => name != nameof(TextTagCode.Term))
@@ -66,6 +67,11 @@ internal static partial class TranslationReviewRules
                 {
                     state.Report("tag-name-affix", $"Verify the Cyrillic suffix attached to dynamic name '{tag.Raw}'.");
                 }
+                continue;
+            }
+            if (tag.Issue == UnsupportedKey)
+            {
+                state.Report(UnsupportedKey, $"Control '{tag.Raw}' at character {tag.Start + 1} has no supported button binding or native sprite.");
                 continue;
             }
             string? replacement = tag.Normalized;
@@ -155,7 +161,7 @@ internal static partial class TranslationReviewRules
             }
             return;
         }
-        if (source is null)
+        if (source is null || state.Diagnostics.Any(diagnostic => diagnostic.Rule == UnsupportedKey))
         {
             return;
         }
@@ -306,6 +312,11 @@ internal static partial class TranslationReviewRules
             if (!valid || match.Length > 64)
             {
                 yield return new(match.Index, match.Length, raw, kind, null, null, "tag-malformed");
+                continue;
+            }
+            if (identity is not null && kind == "Key" && Enum.TryParse(parameter, ignoreCase: true, out TextTagKey keyOperand) && !NativeTextKeys.IsSupported(keyOperand))
+            {
+                yield return new(match.Index, match.Length, raw, kind, null, null, UnsupportedKey);
                 continue;
             }
             if (kind == "Empty" && text != LocalizationValue.EmptyTarget)

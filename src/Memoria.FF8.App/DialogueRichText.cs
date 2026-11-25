@@ -10,11 +10,14 @@ internal enum DialoguePageBoundary
     Next
 }
 
-internal sealed record DialogueRun(string Text, Color Color, bool Blink = false, bool IsButton = false);
+internal sealed record DialogueRun(string Text, Color Color, bool Blink = false, bool IsButton = false, int? Icon = null)
+{
+    public bool IsInlineObject => IsButton || Icon.HasValue;
+}
 
 internal sealed record DialogueLine(IReadOnlyList<DialogueRun> Runs, int SourceLineIndex, string HangingIndent = "", bool IsQuoteStart = false, bool IsSpeaker = false, bool IsThought = false)
 {
-    public string Text => ButtonPromptText.PlainText(LocalizationTextComposition.Concat(Runs.Select(run => run.Text).ToArray()));
+    public string Text => ButtonPromptText.PlainText(LocalizationTextComposition.Concat(Runs.Select(run => run.Icon.HasValue ? "\uFFFC" : run.Text).ToArray()));
 }
 
 internal sealed record DialoguePage(IReadOnlyList<DialogueLine> Lines, string? Speaker = null, DialoguePageBoundary Boundary = DialoguePageBoundary.Initial);

@@ -95,6 +95,13 @@ public sealed class NativeMenuArtwork
         return image;
     }
 
+    public (int X, int Y, int Width, int Height) GetIconBounds(int index)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(index);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(index, IconCount);
+        return ReadIconBounds(ReadIconParts(iconIndex, index));
+    }
+
     public static NativeMenuArtwork Load(string gameDirectory, ResourceService? resources = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(gameDirectory);
@@ -163,22 +170,9 @@ public sealed class NativeMenuArtwork
     {
         ReadOnlySpan<byte> parts = ReadIconParts(index, id);
         int count = parts.Length / 8;
-        int left = int.MaxValue;
-        int top = int.MaxValue;
-        int right = int.MinValue;
-        int bottom = int.MinValue;
-        for (int i = 0; i < count; i++)
-        {
-            ReadOnlySpan<byte> part = parts.Slice(i * 8, 8);
-            int x = unchecked((sbyte)part[5]);
-            int y = unchecked((sbyte)part[7]);
-            left = Math.Min(left, x);
-            top = Math.Min(top, y);
-            right = Math.Max(right, x + part[4]);
-            bottom = Math.Max(bottom, y + part[6]);
-        }
+        var (left, top, logicalWidth, logicalHeight) = ReadIconBounds(parts);
         int scale = palettes.Max(atlas => NativeArtworkTexture.Scale(atlas, 256, 256));
-        PixelImage result = new((right - left) * scale, (bottom - top) * scale);
+        PixelImage result = new(logicalWidth * scale, logicalHeight * scale);
         HashSet<PixelImage> sources = new(ReferenceEqualityComparer.Instance);
         for (int i = 0; i < count; i++)
         {
@@ -212,6 +206,26 @@ public sealed class NativeMenuArtwork
             }
         }
         return resources?.RegisterTextureImageDependencies(result, sources) ?? result;
+    }
+
+    private static (int X, int Y, int Width, int Height) ReadIconBounds(ReadOnlySpan<byte> parts)
+    {
+        int count = parts.Length / 8;
+        int left = int.MaxValue;
+        int top = int.MaxValue;
+        int right = int.MinValue;
+        int bottom = int.MinValue;
+        for (int i = 0; i < count; i++)
+        {
+            ReadOnlySpan<byte> part = parts.Slice(i * 8, 8);
+            int x = unchecked((sbyte)part[5]);
+            int y = unchecked((sbyte)part[7]);
+            left = Math.Min(left, x);
+            top = Math.Min(top, y);
+            right = Math.Max(right, x + part[4]);
+            bottom = Math.Max(bottom, y + part[6]);
+        }
+        return (left, top, right - left, bottom - top);
     }
 
     private static ReadOnlySpan<byte> ReadIconParts(ReadOnlySpan<byte> index, int id)

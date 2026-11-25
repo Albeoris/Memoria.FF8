@@ -10,6 +10,75 @@ namespace Memoria.FF8.Mods.Tests;
 public sealed class TranslationReviewCommandTests
 {
     [Fact]
+    public void LintReportsUnsupportedKeysWithoutInferringAnEditionOperand()
+    {
+        DirectoryInfo directory = Directory.CreateTempSubdirectory("memoria-key-lint-");
+        try
+        {
+            const string reference = "Reference [en]";
+            string input = Path.Combine(directory.FullName, "package");
+            string report = Path.Combine(directory.FullName, "review.json");
+            CancellationToken cancellation = TestContext.Current.CancellationToken;
+            LocalizationRecord Row(string category, string file, string target, string? english) => new()
+            {
+                Category = category,
+                File = file,
+                Key = $"$en_{file}_0000",
+                SourcePresent = false,
+                References = new Dictionary<string, string?> { [reference] = english },
+                Target = target
+            };
+            LocalizationRecord[] entries =
+            [
+                Row("World", "world_markers", "{Key 64}{Key 65}", "{Key 64}{Key JunctionMarker}"),
+                Row("World", "world_unknown", "{Key 255}", "{Key 255}"),
+                Row("Tutorials", "tutorial_reserved", "{Key 41}", null),
+                Row("Menus", "menu_fixed_reserved", "{Key 58}", null),
+                Row("Fields", "field_unknown", "Press {Key 254}.", "Press {Key 254}."),
+                Row("Menus", "menu_valid", "{Key 66}{Key 67}{Key 35}", null)
+            ];
+            LocalizationProject project = new()
+            {
+                Manifest = new()
+                {
+                    SourceLanguage = "en",
+                    TargetLanguage = "ru",
+                    ReferenceLanguages = new Dictionary<string, string> { [reference] = "en" }
+                },
+                Entries = entries.Select(entry => entry.File is "world_markers" or "menu_valid" ? entry : entry with { Target = entry.Target!.Replace("{Key ", "[Key ").Replace('}', ']') }).ToArray()
+            };
+            LocalizationProjectIO.WriteNew(project, input, "json", "single", cancellation);
+            foreach (string payload in Directory.EnumerateFiles(Path.Combine(input, "Localization"), "*.json", SearchOption.AllDirectories))
+            {
+                string text = File.ReadAllText(payload);
+                foreach (string parameter in new[] { "255", "41", "58", "254" })
+                {
+                    text = text.Replace($"[Key {parameter}]", $"{{Key {parameter}}}", StringComparison.Ordinal);
+                }
+                File.WriteAllText(payload, text);
+            }
+
+            Assert.Equal(1, TranslationReviewCommands.Run("lint", input, "en", report, cancellation));
+            using JsonDocument document = JsonDocument.Parse(File.ReadAllBytes(report));
+            JsonElement[] keyIssues = document.RootElement.GetProperty("findings").EnumerateArray()
+                .Where(finding => finding.GetProperty("rule").GetString()!.StartsWith("tag-", StringComparison.Ordinal)).ToArray();
+            Assert.Equal(4, keyIssues.Length);
+            foreach (LocalizationRecord entry in entries.Where(row => row.File is "world_unknown" or "tutorial_reserved" or "menu_fixed_reserved" or "field_unknown"))
+            {
+                JsonElement issue = Assert.Single(keyIssues, finding => finding.GetProperty("key").GetString() == entry.Key);
+                Assert.Equal("tag-key-unsupported", issue.GetProperty("rule").GetString());
+                string target = Assert.IsType<string>(entry.Target);
+                Assert.Contains(target[target.IndexOf('{')..(target.IndexOf('}') + 1)], issue.GetProperty("message").GetString());
+                Assert.False(issue.GetProperty("fixable").GetBoolean());
+            }
+        }
+        finally
+        {
+            directory.Delete(true);
+        }
+    }
+
+    [Fact]
     public void ApprovedGlossaryUsesAnExactSpeakerLineAndDefersLocalConflicts()
     {
         DirectoryInfo directory = Directory.CreateTempSubdirectory("memoria-speaker-glossary-");

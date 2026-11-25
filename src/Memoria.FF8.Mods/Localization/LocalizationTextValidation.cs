@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using Albeoris.Games.FF8.TextEncoding.Tags;
 using Albeoris.Games.FF8.TextEncoding;
 using Memoria.FF8.Resources.Localization;
+using Memoria.FF8.Assets;
 
 namespace Memoria.FF8.Mods.Localization;
 
@@ -31,7 +32,7 @@ public static class LocalizationTextValidation
             LocalizationCompositeFormatValidation.Validate(composite!, target, row.Key);
             return;
         }
-        Dictionary<string, int> translated = Placeholders(target, row.Key, out _);
+        Dictionary<string, int> translated = Placeholders(target, row.Key, out _, validateKeyPresentation: true);
         if (source is not null)
         {
             if (row.Category == "Fields" && (target.Contains("{Char ", StringComparison.Ordinal) || target.Contains("{Name ", StringComparison.Ordinal)))
@@ -50,7 +51,7 @@ public static class LocalizationTextValidation
         }
     }
 
-    private static Dictionary<string, int> Placeholders(string text, string key, out bool containsNativeControls)
+    private static Dictionary<string, int> Placeholders(string text, string key, out bool containsNativeControls, bool validateKeyPresentation = false)
     {
         containsNativeControls = false;
         Dictionary<string, int> placeholders = new(StringComparer.Ordinal);
@@ -89,6 +90,10 @@ public static class LocalizationTextValidation
                     break;
                 case "Key":
                     valid = Parse<TextTagKey>(parameter, out number) && hasSpace;
+                    if (valid && validateKeyPresentation && !NativeTextKeys.IsSupported((TextTagKey)number))
+                    {
+                        throw new InvalidDataException($"{key}: key tag {{{code} {parameter}}} has no supported button binding or native sprite.");
+                    }
                     break;
                 case "Color":
                     valid = Parse<TextTagColor>(parameter, out number) && hasSpace;

@@ -32,7 +32,7 @@ internal sealed partial class MonoGameUiCanvas
         if (!battleMessageLayouts.TryGetValue(key, out BattleMessageLayout? layout))
         {
             using SystemTextMeasurer measure = new(size, text.FontFamily);
-            layout = new(document.Pages.SelectMany(page => page.Lines).SelectMany(line => DialogueLayout.Wrap(line, bounds.Width, measure.Measure, false, measure.LineHeight)).ToArray(), measure.LineHeight);
+            layout = new(document.Pages.SelectMany(page => page.Lines).SelectMany(line => DialogueLayout.Wrap(line, bounds.Width, measure.Measure, false, measure.LineHeight, icon => DialogueIconAdvance(icon, measure.LineHeight))).ToArray(), measure.LineHeight);
             if (battleMessageLayouts.Count >= 32)
             {
                 battleMessageLayouts.Clear();
@@ -51,7 +51,11 @@ internal sealed partial class MonoGameUiCanvas
             {
                 Color color = placed.Run.Color * (placed.Run.Blink ? DialogueBlink.Opacity(seconds) : 1);
                 float x = Math.Max(0, (bounds.Width - line.Width) / 2) + placed.X;
-                if (placed.Run.IsButton)
+                if (placed.Run.Icon is int icon)
+                {
+                    DrawDialogueIcon(icon, new Vector2(bounds.X + x, y), layout.LineHeight, color, clip);
+                }
+                else if (placed.Run.IsButton)
                 {
                     ButtonPrompt.Draw(batch, pixel, text, placed.Run.Text, size, new Vector2(bounds.X + x, y), layout.LineHeight, color.A / 255f, text.FontFamily, clip, this);
                 }
@@ -67,7 +71,7 @@ internal sealed partial class MonoGameUiCanvas
     private void DrawNativeBattleMessage(DialogueDocument document, float size, UiRect bounds, double seconds)
     {
         float lineHeight = MeasureNativeText("M", size, bounds.Width, NativeBattleTextContext).Height;
-        DialogueVisualLine[] lines = (document.Pages.FirstOrDefault()?.Lines ?? []).SelectMany(line => DialogueLayout.Wrap(line, bounds.Width, value => NativeTextAdvance(value, size, NativeBattleTextContext), false, lineHeight)).ToArray();
+        DialogueVisualLine[] lines = (document.Pages.FirstOrDefault()?.Lines ?? []).SelectMany(line => DialogueLayout.Wrap(line, bounds.Width, value => NativeTextAdvance(value, size, NativeBattleTextContext), false, lineHeight, icon => DialogueIconAdvance(icon, lineHeight))).ToArray();
         float y = bounds.Y + Math.Max(0, (bounds.Height - lines.Length * lineHeight) / 2);
         foreach (DialogueVisualLine line in lines)
         {
@@ -82,7 +86,11 @@ internal sealed partial class MonoGameUiCanvas
                 float x = lineX + placed.X;
                 Color color = run.Color * (run.Blink ? DialogueBlink.Opacity(seconds) : 1);
                 UiRect runBounds = new(x, y, Math.Max(1, bounds.Right - x), Math.Max(1, bounds.Bottom - y));
-                if (run.IsButton)
+                if (run.Icon is int icon)
+                {
+                    DrawDialogueIcon(icon, new Vector2(x, y), lineHeight, color, RectangleFor(bounds));
+                }
+                else if (run.IsButton)
                 {
                     ButtonPrompt.Draw(batch, pixel, text, run.Text, size, new Vector2(x, y), lineHeight, color.A / 255f, text.FontFamily, Rectangle.Intersect(RectangleFor(bounds), CurrentClip), this);
                 }

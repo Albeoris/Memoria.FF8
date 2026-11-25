@@ -12,7 +12,10 @@ namespace Memoria.FF8.App.Tests;
 public sealed class NativeTutorialTextRenderTests
 {
     [Theory]
+    [InlineData((TextTagKey)64, 7)]
     [InlineData(TextTagKey.JunctionMarker, 192)]
+    [InlineData((TextTagKey)66, 6)]
+    [InlineData((TextTagKey)67, 175)]
     [InlineData(TextTagKey.JunctionAbility, 216)]
     [InlineData(TextTagKey.CommandAbility, 217)]
     [InlineData(TextTagKey.ActionAbility, 218)]
@@ -59,6 +62,21 @@ public sealed class NativeTutorialTextRenderTests
             Assert.Equal(new[] { "Before ", "After" }, canvas.Texts.Select(text => text.Value));
             Assert.All(canvas.Texts, text => Assert.DoesNotContain("{Key", text.Value));
         }
+    }
+
+    [Fact]
+    public void InteractiveTutorialPopupDrawsLimitAndAbsorptionIcons()
+    {
+        MenuController menu = new();
+        menu.ShowTutorialMessage(menu.FormatNativeTutorialText("Limit {Key 66}{Line}Absorption {Key 67}"), 192, 128);
+        UiTextPopup popup = Assert.Single(Descendants(menu.BuildView().Root).OfType<UiTextPopup>(), item => item.Id == "native-tutorial-message");
+        popup.Arrange(new UiRect(0, 0, 640, 480));
+        RecordingCanvas canvas = new();
+
+        popup.Draw(canvas, new UiTheme());
+
+        Assert.Equal([6, 175], canvas.Images.Select(image => image.Source.Id));
+        Assert.All(canvas.Texts, text => Assert.DoesNotContain("{Key", text.Value));
     }
 
     [Theory]
@@ -176,6 +194,8 @@ public sealed class NativeTutorialTextRenderTests
     {
         public List<(string Value, UiRect Bounds)> Texts { get; } = [];
         public List<(UiImageSource Source, UiRect Bounds)> Images { get; } = [];
+
+        public UiSize MeasureText(string text, float fontSize, float maximumWidth) => new(Math.Min(maximumWidth, text.Length * fontSize / 2), fontSize);
 
         public void Text(string text, float fontSize, UiRect bounds, UiColor color)
         {

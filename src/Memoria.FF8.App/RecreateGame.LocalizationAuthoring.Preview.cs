@@ -111,12 +111,12 @@ internal sealed partial class RecreateGame
                 {
                     float lineHeight = nativeTextFont?.LineHeightFor(AuthoringPreviewContext) ?? 16;
                     float Measure(string value) => nativeTextFont?.Measure(value, AuthoringPreviewContext) ?? 0;
-                    detachedAuthoringPages = OriginalTextLayout ? DialogueLayout.CreateNative(document, source, editingAuthoringHit.Window, lineHeight, Measure) : DialogueLayout.Create(document, source, editingAuthoringHit.Window, lineHeight, Measure);
+                    detachedAuthoringPages = OriginalTextLayout ? DialogueLayout.CreateNative(document, source, editingAuthoringHit.Window, lineHeight, Measure, icon => uiCanvas.DialogueIconAdvance(icon, lineHeight)) : DialogueLayout.Create(document, source, editingAuthoringHit.Window, lineHeight, Measure, icon => uiCanvas.DialogueIconAdvance(icon, lineHeight));
                 }
                 else
                 {
                     using SystemTextMeasurer measure = new(uiPreferences.DialogueFontSize, uiPreferences.DialogueFontFamily);
-                    detachedAuthoringPages = DialogueLayout.Create(document, source, editingAuthoringHit.Window, measure.LineHeight, measure.Measure);
+                    detachedAuthoringPages = DialogueLayout.Create(document, source, editingAuthoringHit.Window, measure.LineHeight, measure.Measure, icon => uiCanvas.DialogueIconAdvance(icon, measure.LineHeight));
                 }
                 localizationWorkbench.SetPreviewPages(detachedAuthoringPages.Count);
             }
@@ -153,7 +153,11 @@ internal sealed partial class RecreateGame
             foreach (DialoguePlacedRun run in row.Runs)
             {
                 Vector2 position = new(panel.X + (DialoguePresentation.Padding + run.X) * scale, y);
-                if (run.Run.IsButton)
+                if (run.Run.Icon is int icon)
+                {
+                    uiCanvas.DrawDialogueIcon(icon, position, line * scale, run.Run.Color, clip);
+                }
+                else if (run.Run.IsButton)
                 {
                     ButtonPrompt.Draw(batch, pixel, text, run.Run.Text, uiPreferences.DialogueFontSize * scale, position, line * scale, 1, uiPreferences.DialogueFontFamily, clip, uiCanvas);
                 }

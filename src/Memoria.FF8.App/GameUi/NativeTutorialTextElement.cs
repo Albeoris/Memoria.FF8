@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using Albeoris.Games.FF8.TextEncoding.Tags;
 using Memoria.FF8.Ui;
+using Memoria.FF8.Assets;
 using Memoria.FF8.Resources.Localization;
 
 namespace Memoria.FF8.GameUi;
@@ -58,19 +59,7 @@ internal sealed partial class NativeTutorialTextElement(string text, float nativ
         }
     }
 
-    internal static int? Icon(TextTagKey key)
-    {
-        // Original text tag 5 selects these ICON.SP1 entries through its key table.
-        return key switch
-        {
-            TextTagKey.DefaultKey => 136,
-            TextTagKey.JunctionMarker => 192,
-            >= TextTagKey.JunctionAbility and <= TextTagKey.MenuAbility => 216 + (int)key - (int)TextTagKey.JunctionAbility,
-            >= TextTagKey.FireElement and <= TextTagKey.HolyElement => 288 + (int)key - (int)TextTagKey.FireElement,
-            >= TextTagKey.DeathStatus and <= TextTagKey.DrainStatus => 272 + (int)key - (int)TextTagKey.DeathStatus,
-            _ => null
-        };
-    }
+    internal static int? Icon(TextTagKey key) => NativeTextKeys.Icon(key);
 
     [GeneratedRegex(@"\{Key ([^{}]+)\}")]
     private static partial Regex KeyTag();

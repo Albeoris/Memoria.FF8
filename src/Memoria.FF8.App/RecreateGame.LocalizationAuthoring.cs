@@ -580,7 +580,7 @@ internal sealed partial class RecreateGame
                 {
                     string body = authoringSyntax.Parse(value).Body;
                     bool missingArguments = original.Category == "System" && System.Text.CompositeFormat.Parse(value).MinimumArgumentCount > (editingAuthoringBinding?.Arguments.Count ?? 0);
-                    IEnumerable<string> runs = missingArguments ? [] : ParseAuthoringPreview(value, OriginalTextLayout).Pages.SelectMany(page => page.Lines).SelectMany(line => line.Runs).Where(run => !run.IsButton).Select(run => run.Text);
+                    IEnumerable<string> runs = missingArguments ? [] : ParseAuthoringPreview(value, OriginalTextLayout).Pages.SelectMany(page => page.Lines).SelectMany(line => line.Runs).Where(run => !run.IsInlineObject).Select(run => run.Text);
                     return AuthoringCompatibilityReport.Evaluate(NativeGameFonts, OriginalTextLayout, profile, context, role, dataset, body, runs);
                 }
                 catch (Exception exception) when (exception is InvalidDataException or ArgumentException or FormatException or InvalidOperationException or NotSupportedException)

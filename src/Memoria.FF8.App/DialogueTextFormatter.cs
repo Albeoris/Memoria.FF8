@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using Albeoris.Games.FF8.TextEncoding.Tags;
+using Memoria.FF8.Assets;
 using Memoria.FF8.Assets.Localization;
 using Memoria.FF8.Runtime;
 using Memoria.FF8.Resources;
@@ -177,16 +178,16 @@ internal static partial class DialogueTextFormatter
                     }
                     Append(ExpandSourceToken(sourceToken, terms.Resolve(unchecked((byte)(term - 32)))));
                     break;
-                case "Key" when Enum.TryParse(parameter, out TextTagKey key) && key == TextTagKey.JunctionMarker:
-                    // Native common message4 uses key65 for the junctioned-magic J marker.
-                    Append(ExpandSourceToken(sourceToken, "J"));
-                    break;
                 case "Key":
                     ushort buttons = ResolveButton(parameter);
                     if (buttons != 0)
                     {
                         string binding = ExpandSourceToken(sourceToken, (buttonBindingHint ?? DefaultButtonBindingHint)(buttons));
                         runs.AddRange(ButtonPromptText.BindingRuns(binding, color, blink));
+                    }
+                    else if (Enum.TryParse(parameter, out TextTagKey key) && NativeTextKeys.Icon(key) is int icon)
+                    {
+                        runs.Add(new DialogueRun(sourceToken, color, blink, Icon: icon));
                     }
                     else
                     {
@@ -247,15 +248,7 @@ internal static partial class DialogueTextFormatter
 
     private static ushort ResolveButton(string parameter)
     {
-        if (!Enum.TryParse(parameter, out TextTagKey key))
-        {
-            return 0;
-        }
-        // Native logical20..2F and fixed30..3F use button indices, not the enum's action names.
-        // The admitted native mapping is identity; host bindings supply the current device labels.
-        byte code = (byte)key;
-        ushort buttons = code is >= 0x20 and <= 0x3F ? (ushort)(1 << (code & 0x0F)) : (ushort)0;
-        return (buttons & 0x0600) == 0 ? buttons : (ushort)0;
+        return Enum.TryParse(parameter, out TextTagKey key) ? NativeTextKeys.HostButtonMask(key) : (ushort)0;
     }
 
     private static string CharacterName(TextTagCharacter character, IReadOnlyDictionary<int, string>? names)
@@ -371,7 +364,7 @@ internal static partial class DialogueTextFormatter
                     List<DialogueRun> thoughtRuns = [];
                     foreach (DialogueRun run in line.Runs)
                     {
-                        if (run.IsButton)
+                        if (run.IsInlineObject)
                         {
                             thoughtRuns.Add(run);
                             continue;
@@ -490,7 +483,7 @@ internal static partial class DialogueTextFormatter
         {
             return;
         }
-        if (runs.Count > 0 && !runs[^1].IsButton && runs[^1].Color == color && runs[^1].Blink == blink)
+        if (runs.Count > 0 && !runs[^1].IsInlineObject && runs[^1].Color == color && runs[^1].Blink == blink)
         {
             runs[^1] = runs[^1] with { Text = LocalizationTextTrace.Enabled ? LocalizationTextComposition.Concat(runs[^1].Text, text) : runs[^1].Text + text };
         }

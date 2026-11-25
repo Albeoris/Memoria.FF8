@@ -70,6 +70,8 @@ System messages can be templates containing numbered arguments such as `{0}` and
 
 Preserve required dynamic placeholders such as `{Var 2}`, `{Char Squall}` or key/name tokens, including their occurrence counts. Their contents come from runtime owners, including player-assigned names. Unicode translation text does not need to fit the original game's byte encoding.
 
+Named input tags such as `{Key Confirm}` and their equivalent decimal operands use the current input bindings. Static icon tags carry a native sprite operand. For example, `{Key 64}` and `{Key JunctionMarker}` are World Draw markers, and `{Key 67}` is the elemental absorption icon. Preserve the original operand and occurrence count for the selected edition, including numeric tags. Validation identifies unsupported or reserved operands by tag and entry key so they can be checked against the native resource.
+
 Use `{Empty}` as the entire target to suppress a string in the game. A blank target inherits the next available translation or the original text. Explicit suppression must still satisfy the original string's argument and choice contracts.
 
 Use `{Invalid}` for internal strings that were never intended for players. The game displays a visible diagnostic in place of the marker. Keep any required native control tokens around the marker when the source consumer expects them.

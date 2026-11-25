@@ -20,7 +20,7 @@ internal static class ButtonPrompt
 
     internal static string VisibleText(DialogueRun run, ref int remaining)
     {
-        if (!run.IsButton)
+        if (!run.IsInlineObject)
         {
             return DialoguePager.VisiblePrefix(run.Text, ref remaining);
         }
