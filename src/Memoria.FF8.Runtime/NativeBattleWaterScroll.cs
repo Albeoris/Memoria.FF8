@@ -11,7 +11,11 @@ public static class NativeBattleWaterScroll
 {
     public static NativeBattleWaterScrollStep DrawA9C140(INativeBattleScriptedTextureProfile profile, ImmutableArray<NativeBattleEffectHeapAllocation> currentFiles, NativeBattleWaterScrollPayload payload, short scroll96, byte counter43, Action<NativeBattleWaterRectangleWrite> submit)
     {
-        NativeBattleWater222UploadPlan source = NativeBattleWater222TexturePair.Resolve(profile, currentFiles, payload.TextureId, false);
+        return DrawA9C140(NativeBattleWater222TexturePair.Resolve(profile, currentFiles, payload.TextureId, false), payload, scroll96, counter43, submit);
+    }
+
+    internal static NativeBattleWaterScrollStep DrawA9C140(NativeBattleWater222UploadPlan source, NativeBattleWaterScrollPayload payload, short scroll96, byte counter43, Action<NativeBattleWaterRectangleWrite> submit)
+    {
         int row = NativeBattleCinematicScroll.ComputeRow(source.Rectangle, scroll96);
         ImmutableArray<NativeBattleWaterRectangleWrite>.Builder writes = ImmutableArray.CreateBuilder<NativeBattleWaterRectangleWrite>();
         NativeBattleCinematicScroll.EmitGeometry(source.Rectangle, payload, checked((uint)source.Offset), row, (rectangle, address) => Emit(rectangle, checked((int)address)));

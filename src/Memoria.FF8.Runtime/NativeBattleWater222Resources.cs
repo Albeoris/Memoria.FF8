@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json.Serialization;
+using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
 
 namespace Memoria.FF8.Runtime;
 
@@ -147,7 +148,19 @@ public static class NativeBattleWater222TexturePair
         return Resolve(profile, currentFiles, textureIndex, clut, null);
     }
 
-    internal static NativeBattleWater222UploadPlan Resolve(INativeBattleScriptedTextureProfile profile, ImmutableArray<NativeBattleEffectHeapAllocation> files, int textureIndex, bool clut, Func<int, int, uint>? readCurrentDword)
+    internal static NativeBattleWater222UploadPlan ResolveCurrent(NativeBattleWaterExecutionFrame frame, NativeBattleWater222Resources resources, int textureIndex, bool clut)
+    {
+        return Resolve(resources.Profile, resources.Files, textureIndex, clut, ReadCurrentDword);
+
+        uint ReadCurrentDword(int sourceIndex, int offset)
+        {
+            uint file = CoreDword(frame, 0x2798A68 + (uint)(sourceIndex * 4));
+            int fileOffset = ArenaOffset(file, resources.Files[sourceIndex].Data.Length);
+            return frame.Arena.ReadUInt32(fileOffset + offset);
+        }
+    }
+
+    private static NativeBattleWater222UploadPlan Resolve(INativeBattleScriptedTextureProfile profile, ImmutableArray<NativeBattleEffectHeapAllocation> files, int textureIndex, bool clut, Func<int, int, uint>? readCurrentDword)
     {
         NativeBattleEffectTextureRectangle rectangle = profile.Rectangle(textureIndex, clut);
         int source = profile.Source(textureIndex, clut);

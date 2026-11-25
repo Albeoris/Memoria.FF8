@@ -12,7 +12,6 @@ public sealed record NativeBattleWaterDrawServices(
     Func<NativeBattleWaterExecutionFrame, NativeBattleEffectArena> ReadDepthOwner,
     Func<NativeBattleWaterExecutionFrame, NativeBattleEffectArena, NativeBattleWaterExecutionFrame> PublishDepthOwner,
     Func<NativeBattleWaterExecutionFrame, uint, NativeBattleGfGeometryBatch, NativeBattleWaterExecutionFrame> SubmitPackets,
-    Func<NativeBattleWaterExecutionFrame, ImmutableArray<NativeBattleEffectHeapAllocation>> ReadCurrentFiles,
     Func<NativeBattleWaterExecutionFrame, NativeBattleWaterRectangleWrite, NativeBattleWaterExecutionFrame> EnqueueScroll,
     Func<NativeBattleWaterExecutionFrame, BattleActorModels> ReadModels,
     Func<NativeBattleWaterExecutionFrame, BattleModelOwner, NativeBattleGraphicsModel, NativeBattleWaterExecutionFrame> PublishActor,
@@ -62,7 +61,8 @@ public static class NativeBattleWaterDrawDispatcher
                 uint header = CoreDword(frame, 0x279744C);
                 byte counter = frame.Core.Read(header + 0x43, 1)[0];
                 short scroll = unchecked((short)SlotWord(frame, 0x96));
-                NativeBattleWaterScroll.DrawA9C140(input.Resources.Profile, services.ReadCurrentFiles(frame), payload, scroll, counter, write =>
+                NativeBattleWater222UploadPlan source = NativeBattleWater222TexturePair.ResolveCurrent(frame, input.Resources, payload.TextureId, false);
+                NativeBattleWaterScroll.DrawA9C140(source, payload, scroll, counter, write =>
                 {
                     frame = frame with { Core = frame.Core.Write(CoreDword(frame, 0x279744C) + 0x43, new byte[] { write.NextCounter }) };
                     frame = frame with { Core = frame.Core.Write(0x27974D4 + (uint)(write.RingIndex * 8), write.RectangleBytes.AsSpan()) };

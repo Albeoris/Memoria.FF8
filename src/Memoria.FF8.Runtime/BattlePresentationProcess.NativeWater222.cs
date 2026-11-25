@@ -107,7 +107,7 @@ public sealed partial class BattlePresentationProcess
         {
             NativeEffectMemory = RequireWaterMemory() with { ScriptedGraphics = RequireRegisters() with { Depths = depths } };
             return current;
-        }, SubmitPackets, CurrentFiles, (current, write) =>
+        }, SubmitPackets, (current, write) =>
         {
             int file = ArenaOffset(CoreDword(current, write.Upload.SourceIndex == 0 ? 0x2798A68u : 0x2798A6Cu), 0);
             NativeEffectMemory = RequireWaterMemory() with { Textures = RequireTextures().EnqueueArenaRectangle505DF0(write.Upload.Rectangle, current.Arena, checked(file + write.Upload.Offset)) };
@@ -209,10 +209,6 @@ public sealed partial class BattlePresentationProcess
                 }
             }
             throw new NotSupportedException("Native Water current shape leaves its selected mesh resources.");
-        }
-        ImmutableArray<NativeBattleEffectHeapAllocation> CurrentFiles(NativeBattleWaterExecutionFrame current)
-        {
-            return resources.Files.Select((file, index) => file with { Data = current.Arena.Read(ArenaOffset(CoreDword(current, index == 0 ? 0x2798A68u : 0x2798A6Cu), file.Data.Length), file.Data.Length).ToImmutableArray() }).ToImmutableArray();
         }
         byte[] ReadMetadata(NativeBattleWaterExecutionFrame current, uint address, int length)
         {

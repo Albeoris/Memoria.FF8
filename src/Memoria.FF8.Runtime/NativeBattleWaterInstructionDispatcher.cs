@@ -272,16 +272,9 @@ public static class NativeBattleWaterInstructionDispatcher
         short texture = BinaryPrimitives.ReadInt16LittleEndian(ReadProgram(frame, program, unchecked(pc + 2), 2));
         uint manager = CoreDword(frame, 0x27973EC);
         byte count = frame.Core.Read(checked(manager + 0xD2), 1)[0];
-        NativeBattleWater222TextureStep step = NativeBattleWater222TexturePair.Transfer27(count, pc, SlotWord(frame, 0xC8), clut => NativeBattleWater222TexturePair.Resolve(resources.Profile, resources.Files, texture, clut, ReadCurrentDword), Submit);
+        NativeBattleWater222TextureStep step = NativeBattleWater222TexturePair.Transfer27(count, pc, SlotWord(frame, 0xC8), clut => NativeBattleWater222TexturePair.ResolveCurrent(frame, resources, texture, clut), Submit);
         frame = WriteCoreDword(frame, 0x2797450, step.InstructionPointer);
         return ApplyWait(frame, step.Wait);
-
-        uint ReadCurrentDword(int sourceIndex, int offset)
-        {
-            uint file = CoreDword(frame, 0x2798A68 + (uint)(sourceIndex * 4));
-            int fileOffset = ArenaOffset(file, resources.Files[sourceIndex].Data.Length);
-            return frame.Arena.ReadUInt32(fileOffset + offset);
-        }
 
         void Submit(NativeBattleWater222UploadPlan plan)
         {
