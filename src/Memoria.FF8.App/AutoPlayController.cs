@@ -1200,7 +1200,19 @@ internal sealed partial class AutoPlayController
                 {
                     ActivateTarget(variant, checkpoint, source);
                 }
-                if (walk.Interrupted && !contacted)
+                bool interruptedApproach = walk.Interrupted && !contacted;
+                if (variant.RequiresConfirm && !interruptedApproach)
+                {
+                    int? talkOwner = world.Events.SelectInteractionTarget();
+                    PlayerActionResult confirmation = Apply(new(PlayerActionKind.Confirm));
+                    contacted = confirmation.Accepted && world.Events.HasPendingAutoPlayInteraction(variant.ObjectId);
+                    if (!contacted && confirmation.Accepted && talkOwner is int owner && owner != variant.ObjectId && world.Events.HasPendingAutoPlayInteraction(owner))
+                    {
+                        walk = new(false, true, InterruptingObjectId: owner);
+                        interruptedApproach = true;
+                    }
+                }
+                if (interruptedApproach)
                 {
                     BeginWalkInterruption(attempt, walk);
                     RecordWalkApproachInterruption(world, source, walk);
@@ -1230,11 +1242,6 @@ internal sealed partial class AutoPlayController
                         Apply(new(PlayerActionKind.Wait));
                     }
                     return;
-                }
-                if (variant.RequiresConfirm)
-                {
-                    PlayerActionResult confirmation = Apply(new(PlayerActionKind.Confirm));
-                    contacted = confirmation.Accepted && world.Events.HasPendingAutoPlayInteraction(variant.ObjectId);
                 }
                 if (contacted)
                 {
