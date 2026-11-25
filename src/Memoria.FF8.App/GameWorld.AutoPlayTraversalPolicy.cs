@@ -543,6 +543,32 @@ internal static class AutoPlayTraversalPolicy
         };
     }
 
+    internal static string? CarawayTourPassage(string visitKey)
+    {
+        // NG-131: Finish Caraway's demonstration, then return to the mansion.
+        return visitKey switch
+        {
+            "717:362" => "717:gateway:0",
+            "736:362" => "736:gateway:0",
+            "737:362" => "737:gateway:0",
+            "741:362" => "741:gateway:1",
+            "742:362" => "742:gateway:3",
+            "743:362" => "743:gateway:0",
+            "728:362" => "728:gateway:0",
+            "729:362" => "729:talk:6",
+            "731:362" => "731:gateway:0",
+            "751:362" => "751:gateway:1",
+            "761:362" => "761:gateway:0",
+            "729:364" => "729:gateway:2",
+            "728:364" => "728:gateway:1",
+            "751:364" => "751:gateway:0",
+            "761:364" => "761:gateway:1",
+            "726:364" => "726:line:9",
+            "723:364" => "723:line:8",
+            _ => null
+        };
+    }
+
     internal static int? CastleRouteOrder(string eventId, bool sphinxDefeated)
     {
         // NG-083: Use the original side corridor and clock-tower exits.

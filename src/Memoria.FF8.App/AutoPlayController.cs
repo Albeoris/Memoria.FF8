@@ -974,7 +974,7 @@ internal sealed partial class AutoPlayController
             }
         }
         int timberPhase = (visit.EndsWith(":270", StringComparison.Ordinal) || visit.EndsWith(":285", StringComparison.Ordinal)) && world.Events.EventMemory.Read(528, 2).Values is [int phase] ? phase : 0;
-        string? departure = AutoPlayTraversalPolicy.GardenExamPassage(visit, world.Events.PlayerActor?.Y) ?? AutoPlayTraversalPolicy.BalambStationPassage(visit) ?? AutoPlayTraversalPolicy.OrphanageDeparturePassage(visit) ?? AutoPlayTraversalPolicy.TimberBroadcastPassage(visit, timberPhase) ?? AutoPlayTraversalPolicy.GalbadiaGardenPassage(visit, session.State.Economy is { Gil: >= 3000 });
+        string? departure = AutoPlayTraversalPolicy.GardenExamPassage(visit, world.Events.PlayerActor?.Y) ?? AutoPlayTraversalPolicy.BalambStationPassage(visit) ?? AutoPlayTraversalPolicy.OrphanageDeparturePassage(visit) ?? AutoPlayTraversalPolicy.TimberBroadcastPassage(visit, timberPhase) ?? AutoPlayTraversalPolicy.GalbadiaGardenPassage(visit, session.State.Economy is { Gil: >= 3000 }) ?? AutoPlayTraversalPolicy.CarawayTourPassage(visit);
         if (AvailableProgressionPassage(visit, departure) is { } progressionPassage && next?.Event.Id != progressionPassage.Event.Id)
         {
             next = progressionPassage;
