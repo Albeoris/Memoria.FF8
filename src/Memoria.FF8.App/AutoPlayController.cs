@@ -727,7 +727,7 @@ internal sealed partial class AutoPlayController
             Apply(new(PlayerActionKind.EnterName));
             return;
         }
-        if (session.State.Scene == SceneKind.Movie && (!PlayMovies || world.CurrentDialogue is not { CanConfirm: true } movieDialogue || !world.Events.CanReceiveDialogueInput(movieDialogue)))
+        if (session.State.Scene == SceneKind.Movie && ((!PlayMovies && !InteractiveFieldMovies.RequiresPlayerInput(session.State)) || world.CurrentDialogue is not { CanConfirm: true } movieDialogue || !world.Events.CanReceiveDialogueInput(movieDialogue)))
         {
             run.SettleFrames = 0;
             if (TryDriveCurrentLadderInput(world))
