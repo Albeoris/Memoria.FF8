@@ -13,8 +13,8 @@ internal sealed record AutoPlayWalkAttempt(AutoPlayContactSource Source, FieldFi
 
 internal sealed partial class AutoPlayController
 {
-    private sealed record InterruptedGatewayWalk(AutoPlayPlanStep Plan, AutoPlayContactSource Source, FieldFixedPosition Position, int Resumes);
-    private InterruptedGatewayWalk? interruptedGatewayWalk;
+    private sealed record InterruptedWalk(AutoPlayPlanStep Plan, AutoPlayContactSource Source, FieldFixedPosition Position, int Resumes);
+    private InterruptedWalk? interruptedWalk;
     private sealed record WalkApproach(string Navigation, AutoPlayTarget Target, string Conditions, FieldTeleportPosition? Position);
     private readonly HashSet<(WalkApproach Approach, FieldFixedPosition InterruptedAt, int? Owner)> interruptedWalkAttempts = [];
     private readonly HashSet<WalkApproach> repeatedWalkApproaches = [];
@@ -68,10 +68,10 @@ internal sealed partial class AutoPlayController
         return targets.Where(target => !repeatedWalkApproaches.Contains(new(navigation, target, world.ReadAutoPlayConditions(target.CoverageId, target.ObjectId).Fingerprint, target.Kind == AutoPlayTargetKind.Gateway ? null : position))).ToArray();
     }
 
-    private (InterruptedGatewayWalk? Walk, string? SkippedVariant) ResumeInterruptedGatewayWalk(GameWorld world, string navigation, IReadOnlyList<AutoPlayTarget> targets)
+    private (InterruptedWalk? Walk, string? SkippedVariant) ResumeInterruptedWalk(GameWorld world, string navigation, IReadOnlyList<AutoPlayTarget> targets)
     {
-        InterruptedGatewayWalk? walk = interruptedGatewayWalk;
-        interruptedGatewayWalk = null;
+        InterruptedWalk? walk = interruptedWalk;
+        interruptedWalk = null;
         if (walk is null || walk.Source.NavigationKey != navigation || world.Events.Scene.NativePlayerPosition is not FieldFixedPosition position ||
             world.ReadAutoPlayConditions(walk.Source.Target.CoverageId, walk.Source.Target.ObjectId).Fingerprint != walk.Source.ConditionSignature)
         {
@@ -83,6 +83,10 @@ internal sealed partial class AutoPlayController
             return (null, null);
         }
         bool advances = !WalkReturnedWithoutAdvance(walk.Source.Target, walk.Position, position);
+        if (!advances && walk.Source.Target.Kind != AutoPlayTargetKind.Gateway)
+        {
+            return (null, null);
+        }
         string? skippedVariant = advances ? null : walk.Source.Target.Id;
         bool available = targets.Any(target => target.CoverageId == item.Event.Id && target.Id != skippedVariant && !item.UnavailableVariants.Contains(target.Id) && !item.PolicyDeferredVariants.Contains(target.Id));
         return available ? (walk, skippedVariant) : (null, null);

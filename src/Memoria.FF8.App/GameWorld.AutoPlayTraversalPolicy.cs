@@ -583,6 +583,29 @@ internal static class AutoPlayTraversalPolicy
         };
     }
 
+    internal static string? DelingSewerPassage(string visitKey, int route, Func<string, bool> canApproach)
+    {
+        // NG-133: Follow the authored opposite-side route through the sewers.
+        string[] contacts = (visitKey, route) switch
+        {
+            ("763:388", 16) => ["763:line:7"],
+            ("764:388", 3) => ["764:line:12"],
+            ("762:388", 4) => ["762:line:8"],
+            ("765:388", 5) => ["765:line:9"],
+            ("763:388", 8 or 13) => ["763:line:8"],
+            ("766:388", 6) => ["766:line:9", "766:line:7", "766:line:6"],
+            ("766:388", 7) => ["766:line:9", "766:line:7"],
+            ("765:388", 2) => ["765:line:8", "765:line:11", "765:line:7"],
+            ("762:388", 1) => ["762:line:9"],
+            ("764:388", 0) => ["764:line:11"],
+            ("764:388", 9) => ["764:line:10", "764:line:9"],
+            ("762:388", 10) => ["762:line:7"],
+            ("733:388", 10) => ["733:line:7"],
+            _ => []
+        };
+        return contacts.FirstOrDefault(canApproach);
+    }
+
     internal static int? CastleRouteOrder(string eventId, bool sphinxDefeated)
     {
         // NG-083: Use the original side corridor and clock-tower exits.

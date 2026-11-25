@@ -948,13 +948,17 @@ internal sealed partial class AutoPlayController
             run.ActiveAvailabilityFingerprint = null;
         }
         SaveLocationEntry();
+        if (visit == "735:388" && TryWalkNativePositionGate(world))
+        {
+            return;
+        }
         if (world.CaptureAutoPlayVisitGuard(targets) is { } guard)
         {
             navigationGuardsChanged |= !run.VisitGuards.TryGetValue(navigation, out AutoPlayVisitGuard? previousGuard) || guard.Fingerprint != previousGuard.Fingerprint || !guard.Reads.SequenceEqual(previousGuard.Reads);
             run.VisitGuards[navigation] = guard;
             SeedExhaustedSurveyInspection(run, navigation, guard);
         }
-        var (resumedWalk, skippedWalkVariant) = ResumeInterruptedGatewayWalk(world, navigation, targets);
+        var (resumedWalk, skippedWalkVariant) = ResumeInterruptedWalk(world, navigation, targets);
         Func<AutoPlayPlanStep, bool>? canTravel = TravelAdmission(navigation);
         AutoPlayPlanStep? next = resumedWalk?.Plan;
         if (RagnarokGoal(world) is > 0 and int ragnarokGoal)
@@ -974,7 +978,9 @@ internal sealed partial class AutoPlayController
             }
         }
         int timberPhase = (visit.EndsWith(":270", StringComparison.Ordinal) || visit.EndsWith(":285", StringComparison.Ordinal)) && world.Events.EventMemory.Read(528, 2).Values is [int phase] ? phase : 0;
-        string? departure = AutoPlayTraversalPolicy.GardenExamPassage(visit, world.Events.PlayerActor?.Y) ?? AutoPlayTraversalPolicy.BalambStationPassage(visit) ?? AutoPlayTraversalPolicy.OrphanageDeparturePassage(visit) ?? AutoPlayTraversalPolicy.TimberBroadcastPassage(visit, timberPhase) ?? AutoPlayTraversalPolicy.GalbadiaGardenPassage(visit, session.State.Economy is { Gil: >= 3000 }) ?? AutoPlayTraversalPolicy.CarawayTourPassage(visit) ?? AutoPlayTraversalPolicy.DelingRescuePassage(visit);
+        int sewerRoute = visit.EndsWith(":388", StringComparison.Ordinal) && world.Events.EventMemory.Read(340, 1).Values is [int nativeSewerRoute] ? nativeSewerRoute : -1;
+        string? sewerPassage = sewerRoute < 0 ? null : AutoPlayTraversalPolicy.DelingSewerPassage(visit, sewerRoute, eventId => AvailableProgressionPassage(visit, eventId) is not null && targets.Any(target => target.CoverageId == eventId && run.NavigationReceipts[navigation].ReachableTriangles.Contains(target.ApproachTriangle ?? target.Triangle)));
+        string? departure = AutoPlayTraversalPolicy.GardenExamPassage(visit, world.Events.PlayerActor?.Y) ?? AutoPlayTraversalPolicy.BalambStationPassage(visit) ?? AutoPlayTraversalPolicy.OrphanageDeparturePassage(visit) ?? AutoPlayTraversalPolicy.TimberBroadcastPassage(visit, timberPhase) ?? AutoPlayTraversalPolicy.GalbadiaGardenPassage(visit, session.State.Economy is { Gil: >= 3000 }) ?? AutoPlayTraversalPolicy.CarawayTourPassage(visit) ?? AutoPlayTraversalPolicy.DelingRescuePassage(visit) ?? sewerPassage;
         if (AvailableProgressionPassage(visit, departure) is { } progressionPassage && next?.Event.Id != progressionPassage.Event.Id)
         {
             next = progressionPassage;
@@ -1219,12 +1225,12 @@ internal sealed partial class AutoPlayController
                 {
                     BeginWalkInterruption(attempt, walk);
                     RecordWalkApproachInterruption(world, source, walk);
-                    // Settle the native callback, then reconsider this gateway
-                    // from the resulting position before reversing course.
+                    // Settle the native callback, then reconsider the original
+                    // approach from the resulting position before reversing course.
                     int resumes = resumedWalk?.Resumes ?? 0;
-                    if (variant.Kind == AutoPlayTargetKind.Gateway && walk.GatewayIndex is null && walk.InterruptingObjectId is not null && resumes < 8)
+                    if (variant.Kind is AutoPlayTargetKind.Gateway or AutoPlayTargetKind.Contact && walk.GatewayIndex is null && walk.InterruptingObjectId is not null && resumes < 8)
                     {
-                        interruptedGatewayWalk = new(next, source, attempt.Position, resumes + 1);
+                        interruptedWalk = new(next, source, attempt.Position, resumes + 1);
                     }
                     run.ActiveVisit = null;
                     run.ActiveNavigationKey = null;
@@ -1256,7 +1262,7 @@ internal sealed partial class AutoPlayController
             {
                 if (!skippedInterruptedVariant)
                 {
-                    planner.Block(visit, target.CoverageId, "No native walking approach activated the intended contact callback.", AutoPlayBlockKind.Walking, target.CoverageId.Contains(":push:", StringComparison.Ordinal) ? PushWalkingSearchRevision : AutoPlayPlanner.CurrentWalkingSearchRevision);
+                    planner.Block(visit, target.CoverageId, "No native walking approach activated the intended contact callback.", AutoPlayBlockKind.Walking, WalkingSearchRevision(target.CoverageId));
                 }
                 run.ActiveVisit = null;
                 run.ActiveNavigationKey = null;
@@ -1309,6 +1315,16 @@ internal sealed partial class AutoPlayController
         }
     }
 
+    private bool TryWalkNativePositionGate(GameWorld world)
+    {
+        if (world.Events.DiscoverAutoPlayPositionGate() is not { } gate || !world.WalkToAutoPlayPositionGate(gate, ResetIdleDeadline, idleDeadline))
+        {
+            return false;
+        }
+        RecordRecentAction($"Walk into native position gate for actor {gate.OwnerObjectId}");
+        return true;
+    }
+
     private void WaitForNativeFrontier()
     {
         GameWorld world = getWorld();
@@ -1318,9 +1334,8 @@ internal sealed partial class AutoPlayController
             ResetIdleDeadline();
             return;
         }
-        if (world.Events.DiscoverAutoPlayPositionGate() is { } gate && world.WalkToAutoPlayPositionGate(gate, ResetIdleDeadline, idleDeadline))
+        if (TryWalkNativePositionGate(world))
         {
-            RecordRecentAction($"Walk into native position gate for actor {gate.OwnerObjectId}");
             return;
         }
         int field = session.State.FieldId;
