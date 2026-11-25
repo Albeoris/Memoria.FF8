@@ -23,7 +23,7 @@ public sealed class Ff7TitleConfigTests
         Assert.Null(scene.Session);
         MenuController menu = Assert.IsType<MenuController>(scene.ActivePlayerMenu);
         Assert.Equal("config", menu.ScreenId);
-        Assert.Equal(new[] { "config-graphics", "config-audio", "config-controls", "config-interface", "config-speed" }, menu.CurrentScreen.Entries(menu).Select(entry => entry.Id));
+        Assert.Equal(new[] { "config-graphics", "config-audio", "config-controls", "config-interface", "config-speed", "config-exploration" }, menu.CurrentScreen.Entries(menu).Select(entry => entry.Id));
         Press(scene, Keys.K);
         Assert.False(scene.IsPlayerMenuOpen);
         Press(scene, Keys.J);
