@@ -7,6 +7,31 @@ public sealed class GameSessionFieldMemoryTests
     private const uint Address = 0x1D999C0;
 
     [Fact]
+    public void Field_eye_publication_notifies_once_with_the_current_seed_and_live_owner()
+    {
+        GameSession session = GameSession.CreateColdProcess();
+        NativeBattleRetainedMemory working = session.ActivateNativeFieldMemory();
+        GameState before = session.State;
+        NativeCrtRandomState next = before.CrtRandom!.Draw(out _);
+        int notifications = 0;
+        session.StateChanged += state =>
+        {
+            notifications++;
+            Assert.Same(state, session.State);
+            Assert.Equal(next, state.CrtRandom);
+            Assert.Equal(before.Playtime, state.Playtime);
+            Assert.Same(working, session.CurrentNativeBattleMemory);
+            Assert.Same(before.NativeBattleMemory, state.NativeBattleMemory);
+        };
+
+        session.SetNativeFieldEyeOwners(working, before.CrtRandom);
+        session.SetNativeFieldEyeOwners(working, next);
+        session.SetNativeFieldEyeOwners(working, next);
+
+        Assert.Equal(1, notifications);
+    }
+
+    [Fact]
     public void Cold_field_activation_owns_once_and_keeps_GameState_detached_during_updates()
     {
         GameSession session = GameSession.CreateColdProcess();

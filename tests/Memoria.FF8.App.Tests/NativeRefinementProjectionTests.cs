@@ -232,6 +232,47 @@ public sealed class NativeRefinementProjectionTests
         }
     }
 
+    [Theory]
+    [InlineData("MEMORIA_FF8_GAME_DIR")]
+    [InlineData("MEMORIA_FF8_REMASTERED_DIR")]
+    public void DuplicateMagicSlotsUseTheFirstStockInMenusAndRefinement(string installationVariable)
+    {
+        string? directory = Environment.GetEnvironmentVariable(installationVariable);
+        Assert.SkipUnless(Directory.Exists(directory), $"Set {installationVariable} to an installed game directory.");
+        using GameAssets assets = new(directory!);
+        GameState state = EmptyState(assets);
+        NativeRefinementDefinitions definitions = assets.ReadNativeRefinementDefinitions();
+        (int abilityId, int recipeIndex, NativeRefinementRecipe recipe) = FirstRecipe(definitions, 2);
+        NativeCharacterVitals vitals = state.CharacterVitals!;
+        byte input = recipe.IngredientCount;
+        NativeMagicStock[] inventory = vitals.Records[0].MagicInventory;
+        inventory[5] = new(recipe.Ingredient, input);
+        inventory[8] = new(recipe.Ingredient, 30);
+        inventory[13] = new(recipe.Output, 4);
+        inventory[17] = new(recipe.Output, 100);
+        vitals.Records[0].Junction.MagicJunctions[0] = recipe.Ingredient;
+        vitals.Records[4].MagicInventory[5] = new(recipe.Output, 4);
+        vitals.Records[4].MagicInventory[17] = new(recipe.Output, 100);
+        string before = JsonSerializer.Serialize(state);
+
+        MenuRecipe projected = Assert.Single(Project(assets, state, definitions).Recipes, entry => entry.NativeAbility == abilityId && entry.NativeRecipeIndex == recipeIndex);
+        Assert.Equal(input, projected.IngredientStock);
+        Assert.Equal(4, projected.ResultStockByCharacter["character-0"]);
+        Assert.Equal(1, projected.MaximumBatches[0]);
+        Assert.Equal(before, JsonSerializer.Serialize(state));
+
+        NativeRefinementResult result = definitions.Refine(vitals, state.Economy!, state.CardInventory, abilityId, recipeIndex, 0, 1);
+        NativeCharacterVital refined = result.Vitals.Records[0];
+        Assert.Equal(new NativeMagicStock(0, 0), refined.MagicInventory[5]);
+        Assert.Equal(inventory[8], refined.MagicInventory[8]);
+        Assert.Equal(new NativeMagicStock(recipe.Output, (byte)(4 + recipe.OutputCount)), refined.MagicInventory[13]);
+        Assert.Equal(inventory[17], refined.MagicInventory[17]);
+        Assert.Equal(30, result.Vitals.GetMagicCount(0, recipe.Ingredient));
+        Assert.Equal(0, refined.Junction.MagicJunctions[0]);
+        Assert.Equal(vitals.Records[4].MagicInventory, result.Vitals.Records[4].MagicInventory);
+        Assert.Equal(before, JsonSerializer.Serialize(state));
+    }
+
     private static GameState EmptyState(GameAssets assets)
     {
         NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals().DeepCopy();

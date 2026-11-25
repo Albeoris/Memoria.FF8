@@ -20,7 +20,7 @@ public sealed partial class GameSession
         ValidateEventMemoryOwners(state, memory, eventMemorySceneOwners?.Invoke() ?? NativeEventSceneMemoryOwners.None, capturedEventSceneProjections);
     }
 
-    private static NativeEventSceneMemoryOwners SavedEventMemorySceneOwners(GameState state, CapturedEventSceneProjectionCache? cache = null)
+    private static NativeEventSceneMemoryOwners SavedEventMemorySceneOwners(GameState state, IReadOnlyList<NativeEventMemoryRegion> rootRegions, CapturedEventSceneProjectionCache? cache)
     {
         cache?.ReleaseAbsentSnapshots(state);
         NativeEventSceneMemoryOwners owners = NativeEventSceneMemoryOwners.None;
@@ -30,7 +30,7 @@ public sealed partial class GameSession
             {
                 throw new InvalidDataException("World event process requires its version, field identity and unallocated Scene.");
             }
-            NativeEventSceneMemoryOwners worldOwners = CapturedEventMemorySceneOwners(state, world, cache, 0);
+            NativeEventSceneMemoryOwners worldOwners = CapturedEventMemorySceneOwners(world, rootRegions, cache, 0);
             if (state.EventState is null && state.DepartingFieldState is null)
             {
                 owners |= worldOwners;
@@ -38,17 +38,23 @@ public sealed partial class GameSession
         }
         if (state.EventState is JsonElement current)
         {
-            owners |= CapturedEventMemorySceneOwners(state, current, cache, 1);
+            owners |= CapturedEventMemorySceneOwners(current, rootRegions, cache, 1);
         }
         if (state.DepartingFieldState is JsonElement departing)
         {
-            owners |= CapturedEventMemorySceneOwners(state, departing, cache, 2);
+            owners |= CapturedEventMemorySceneOwners(departing, rootRegions, cache, 2);
         }
         return owners;
     }
 
-    private static NativeEventSceneMemoryOwners CapturedEventMemorySceneOwners(GameState state, JsonElement snapshot, CapturedEventSceneProjectionCache? cache, int slot)
+    private static NativeEventSceneMemoryOwners CapturedEventMemorySceneOwners(JsonElement snapshot, IReadOnlyList<NativeEventMemoryRegion> rootRegions, CapturedEventSceneProjectionCache? cache, int slot)
     {
+        CapturedEventSceneProjection? projection = cache?.Entries[slot];
+        // JsonElement equality identifies the same immutable element. The root owner layout can still change.
+        if (projection is not null && projection.Snapshot.Equals(snapshot) && projection.RootRegions.SequenceEqual(rootRegions))
+        {
+            return projection.Owners;
+        }
         if (snapshot.ValueKind != JsonValueKind.Object)
         {
             throw new InvalidDataException("Captured event memory requires its canonical Scene owner registrations.");
@@ -62,28 +68,22 @@ public sealed partial class GameSession
             }
             return NativeEventSceneMemoryOwners.None;
         }
-        CapturedEventSceneProjection? projection = cache?.Entries[slot];
-        if (projection is null || !projection.Snapshot.Equals(snapshot))
+        NativeEventSceneMemoryOwners owners = NativeEventMemoryOwnership.SceneOwners(scene);
+        if (!snapshot.TryGetProperty("EventMemory", out JsonElement memoryJson) || memoryJson.ValueKind == JsonValueKind.Null)
         {
-            NativeEventSceneMemoryOwners parsedOwners = NativeEventMemoryOwnership.SceneOwners(scene);
-            if (!snapshot.TryGetProperty("EventMemory", out JsonElement memoryJson) || memoryJson.ValueKind == JsonValueKind.Null)
-            {
-                throw new InvalidDataException("Captured executable Scene requires its explicit typed event memory.");
-            }
-            NativeEventMemory parsedMemory = memoryJson.Deserialize<NativeEventMemory>(JsonOptions) ?? throw new InvalidDataException("Captured executable Scene has empty event memory.");
-            projection = new(snapshot, parsedOwners, parsedMemory);
+            throw new InvalidDataException("Captured executable Scene requires its explicit typed event memory.");
         }
-        // JsonElement equality identifies the same immutable document element; never reuse a validation result against a different root or live owner set.
-        List<NativeEventMemoryRegion> regions = [.. NativeEventMemoryOwnership.RootRegions(state), .. NativeEventMemoryOwnership.SceneRegions(projection.Owners)];
-        NativeEventMemoryOwnership.Validate(projection.Memory, regions);
+        NativeEventMemory memory = memoryJson.Deserialize<NativeEventMemory>(JsonOptions) ?? throw new InvalidDataException("Captured executable Scene has empty event memory.");
+        List<NativeEventMemoryRegion> regions = [.. rootRegions, .. NativeEventMemoryOwnership.SceneRegions(owners)];
+        NativeEventMemoryOwnership.Validate(memory, regions);
         if (cache is not null)
         {
-            cache.Entries[slot] = projection;
+            cache.Entries[slot] = new(snapshot, owners, rootRegions);
         }
-        return projection.Owners;
+        return owners;
     }
 
-    private sealed record CapturedEventSceneProjection(JsonElement Snapshot, NativeEventSceneMemoryOwners Owners, NativeEventMemory Memory);
+    private sealed record CapturedEventSceneProjection(JsonElement Snapshot, NativeEventSceneMemoryOwners Owners, IReadOnlyList<NativeEventMemoryRegion> RootRegions);
 
     private sealed class CapturedEventSceneProjectionCache
     {

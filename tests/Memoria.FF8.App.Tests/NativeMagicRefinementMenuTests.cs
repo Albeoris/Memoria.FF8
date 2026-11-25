@@ -26,7 +26,7 @@ public sealed class NativeMagicRefinementMenuTests
         Assert.Throws<InvalidOperationException>(() => NativeMagicMenuInput.Apply(hidden, new PlayerAction(PlayerActionKind.TransferMagic, 1, "0:8:7")));
         NativeCharacterVital[] guestRecords = hidden.Records.ToArray();
         guestRecords[7] = guestRecords[7] with { CharacterId = 9 };
-        NativeCharacterVitals guest = hidden with { Records = guestRecords };
+        NativeCharacterVitals guest = hidden with { Records = guestRecords, DreamEnabled = true };
         Assert.False(guest.IsMenuCharacterAvailable(7, NativeWorldControlState.CreateNewGame()));
         Assert.True(guest.IsMenuCharacterAvailable(7, NativeWorldControlState.CreateNewGame().WithGuestMember(9, true)));
         List<PlayerAction> inputs = [];

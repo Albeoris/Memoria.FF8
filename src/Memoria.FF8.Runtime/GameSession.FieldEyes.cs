@@ -80,7 +80,10 @@ public sealed partial class GameSession
         {
             return;
         }
+        // The live memory was validated above. The seed is a DWORD and does not change any checkpoint ownership.
+        GameState candidate = AdvanceNativePlaytime(State with { CrtRandom = crtRandom });
         liveFieldMemory = owned;
-        Change(State with { CrtRandom = crtRandom });
+        State = candidate;
+        StateChanged?.Invoke(candidate);
     }
 }

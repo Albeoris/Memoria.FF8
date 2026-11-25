@@ -10,8 +10,9 @@ public sealed partial class GameSession
     private static void ValidateEventMemoryOwners(GameState state, NativeEventMemory memory, NativeEventSceneMemoryOwners liveOwners, CapturedEventSceneProjectionCache? cache = null)
     {
         ArgumentNullException.ThrowIfNull(memory);
-        NativeEventSceneMemoryOwners sceneOwners = SavedEventMemorySceneOwners(state, cache) | liveOwners;
-        List<NativeEventMemoryRegion> regions = [.. NativeEventMemoryOwnership.RootRegions(state), .. NativeEventMemoryOwnership.SceneRegions(sceneOwners)];
+        IReadOnlyList<NativeEventMemoryRegion> rootRegions = NativeEventMemoryOwnership.RootRegions(state);
+        NativeEventSceneMemoryOwners sceneOwners = SavedEventMemorySceneOwners(state, rootRegions, cache) | liveOwners;
+        List<NativeEventMemoryRegion> regions = [.. rootRegions, .. NativeEventMemoryOwnership.SceneRegions(sceneOwners)];
         NativeEventMemoryOwnership.Validate(memory, regions);
     }
 }

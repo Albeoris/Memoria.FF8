@@ -100,9 +100,9 @@ public sealed record NativeRefinementDefinitions(string ExecutableHash, string K
         {
             return 0;
         }
-        if (vitals.Records.Any(record => record.MagicInventory.Any(stock => stock.SpellId != 0 && stock.Count > 100) || record.MagicInventory.Where(stock => stock.SpellId != 0 && stock.Count > 0).GroupBy(stock => stock.SpellId).Any(group => group.Count() > 1)) || economy.Items.Any(stock => stock.ItemId != 0 && stock.Count > 100) || economy.Items.Where(stock => stock.ItemId != 0).GroupBy(stock => stock.ItemId).Any(group => group.Count() > 1))
+        if (vitals.Records.Any(record => record.MagicInventory.Any(stock => stock.SpellId != 0 && stock.Count > 100)) || economy.Items.Any(stock => stock.ItemId != 0 && stock.Count > 100) || economy.Items.Where(stock => stock.ItemId != 0).GroupBy(stock => stock.ItemId).Any(group => group.Count() > 1))
         {
-            throw new InvalidDataException("Refinement requires unambiguous native stock IDs with counts at most100.");
+            throw new InvalidDataException("Refinement requires unique item IDs and stock counts of at most 100.");
         }
         bool magicOutput = kind is 0 or 2;
         if (magicOutput && vitals.GetMagicCapacity(row, recipe.Output) != 0)
@@ -141,10 +141,23 @@ public sealed record NativeRefinementDefinitions(string ExecutableHash, string K
             nextVitals = nextVitals.ChangeMagicStock(row, recipe.Output, produced, MagicOperationReason.RefinementOutput, out _);
             if (kind == 2)
             {
+                int ingredientCount = nextVitals.GetMagicCount(row, recipe.Ingredient);
                 nextVitals = nextVitals.ChangeMagicStock(row, recipe.Ingredient, -consumed, MagicOperationReason.RefinementInput, out MagicStockMutation ingredient);
                 if (ingredient.Accepted != consumed)
                 {
                     throw new InvalidOperationException("The refinement ingredient changed before the transaction could commit.");
+                }
+                // 4C2D50 clears the stat junction when the first matching slot is exhausted.
+                if (!nextVitals.MagicSystem.SharedMagicStock && consumed == ingredientCount && nextVitals.GetMagicCount(row, recipe.Ingredient) > 0)
+                {
+                    byte[] junctions = nextVitals.Records[row].Junction.MagicJunctions;
+                    for (int slot = 0; slot < 19; slot++)
+                    {
+                        if (junctions[slot] == recipe.Ingredient)
+                        {
+                            junctions[slot] = 0;
+                        }
+                    }
                 }
             }
             nextVitals = nextVitals.RebuildMagicMenuRow(row);
