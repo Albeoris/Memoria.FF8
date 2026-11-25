@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Memoria.FF8.Events;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.App.Tests;
@@ -103,6 +104,28 @@ public sealed class AutoPlayControllerTests
         Assert.Throws<TimeoutException>(controller.CheckIdleDeadline);
         controller.ResetIdleDeadline();
         controller.CheckIdleDeadline();
+    }
+
+    [Fact]
+    public void NativeCutsceneConfirmationExtendsTheDeadlineForOneReplay()
+    {
+        using TestRun run = new();
+        ManualClock clock = new();
+        AutoPlayController controller = new(run.Session, () => throw new InvalidOperationException(), run.Session.Restore, run.Directory, deadlineTime: clock);
+        DialogueState opened = new(0, 14, "Dialogue", 160, 8, ObjectId: 0, ScriptId: 8, Operation: 171);
+        DialogueOutcome closed = new(801, 0, 8, 171, 795, 14, null, null, 1);
+        clock.Advance(TimeSpan.FromSeconds(9));
+        controller.ObserveCutsceneConfirmation("801:395", opened, closed with { Operation = 172 });
+        clock.Advance(TimeSpan.FromSeconds(1));
+        Assert.Throws<TimeoutException>(controller.CheckIdleDeadline);
+        controller.ObserveCutsceneConfirmation("801:395", opened, closed);
+        clock.Advance(TimeSpan.FromSeconds(9));
+        controller.ObserveCutsceneConfirmation("801:395", opened, closed with { Frame = 950, ActionIndex = 2 });
+        clock.Advance(TimeSpan.FromSeconds(9));
+        controller.CheckIdleDeadline();
+        controller.ObserveCutsceneConfirmation("801:395", opened, closed with { Frame = 1020, ActionIndex = 3 });
+        clock.Advance(TimeSpan.FromSeconds(1));
+        Assert.Throws<TimeoutException>(controller.CheckIdleDeadline);
     }
 
     [Fact]

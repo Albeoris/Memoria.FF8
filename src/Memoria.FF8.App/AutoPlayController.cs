@@ -62,6 +62,7 @@ internal sealed partial class AutoPlayRunState
     public int LastProgressScore { get; set; }
     public HashSet<string> ObservedScenes { get; set; } = new(StringComparer.Ordinal);
     public HashSet<string> ObservedMessages { get; set; } = new(StringComparer.Ordinal);
+    public Dictionary<string, int> ConfirmedCutsceneMessages { get; set; } = new(StringComparer.Ordinal);
     public Dictionary<string, NativePlayerAbsenceReceipt> UnavailabilityGuards { get; set; } = new(StringComparer.Ordinal);
     public Dictionary<string, AutoPlayWorldAbsenceReceipt> WorldUnavailabilityGuards { get; set; } = new(StringComparer.Ordinal);
     public Dictionary<string, AutoPlayVisitGuard> VisitGuards { get; set; } = new(StringComparer.Ordinal);
@@ -395,7 +396,7 @@ internal sealed partial class AutoPlayController
         run.FullBattlePlaythroughOverride = saved.FullBattlePlaythroughOverride;
         GameState restoredState = ReadCheckpoint(Path.Combine(directory, saved.Snapshot));
         run = saved;
-        restoredState = RecoverDiscContinuation(restoredState);
+        restoredState = RecoverAdvancedContinuation(restoredState);
         RequireDurableAutoPlayState(restoredState, checkCurrentBattle: false);
         restore(restoredState);
         stopAfterCurrentBattle = false;
@@ -980,8 +981,13 @@ internal sealed partial class AutoPlayController
         }
         int timberPhase = (visit.EndsWith(":270", StringComparison.Ordinal) || visit.EndsWith(":285", StringComparison.Ordinal)) && world.Events.EventMemory.Read(528, 2).Values is [int phase] ? phase : 0;
         int sewerRoute = visit.EndsWith(":388", StringComparison.Ordinal) && world.Events.EventMemory.Read(340, 1).Values is [int nativeSewerRoute] ? nativeSewerRoute : -1;
-        string? sewerPassage = sewerRoute < 0 ? null : AutoPlayTraversalPolicy.DelingSewerPassage(visit, sewerRoute, eventId => AvailableProgressionPassage(visit, eventId) is not null && targets.Any(target => target.CoverageId == eventId && run.NavigationReceipts[navigation].ReachableTriangles.Contains(target.ApproachTriangle ?? target.Triangle)));
-        string? departure = AutoPlayTraversalPolicy.GardenExamPassage(visit, world.Events.PlayerActor?.Y) ?? AutoPlayTraversalPolicy.BalambStationPassage(visit) ?? AutoPlayTraversalPolicy.OrphanageDeparturePassage(visit) ?? AutoPlayTraversalPolicy.TimberBroadcastPassage(visit, timberPhase) ?? AutoPlayTraversalPolicy.GalbadiaGardenPassage(visit, session.State.Economy is { Gil: >= 3000 }) ?? AutoPlayTraversalPolicy.CarawayTourPassage(visit) ?? AutoPlayTraversalPolicy.DelingRescuePassage(visit) ?? sewerPassage;
+        bool CanApproach(string eventId)
+        {
+            return AvailableProgressionPassage(visit, eventId) is not null && targets.Any(target => target.CoverageId == eventId && run.NavigationReceipts[navigation].ReachableTriangles.Contains(target.ApproachTriangle ?? target.Triangle));
+        }
+        string? sewerPassage = sewerRoute < 0 ? null : AutoPlayTraversalPolicy.DelingSewerPassage(visit, sewerRoute, CanApproach);
+        string? prisonPassage = AutoPlayTraversalPolicy.PrisonReunionPassage(visit, CanApproach);
+        string? departure = AutoPlayTraversalPolicy.GardenExamPassage(visit, world.Events.PlayerActor?.Y) ?? AutoPlayTraversalPolicy.BalambStationPassage(visit) ?? AutoPlayTraversalPolicy.OrphanageDeparturePassage(visit) ?? AutoPlayTraversalPolicy.TimberBroadcastPassage(visit, timberPhase) ?? AutoPlayTraversalPolicy.GalbadiaGardenPassage(visit, session.State.Economy is { Gil: >= 3000 }) ?? AutoPlayTraversalPolicy.CarawayTourPassage(visit) ?? AutoPlayTraversalPolicy.DelingRescuePassage(visit) ?? sewerPassage ?? prisonPassage;
         if (AvailableProgressionPassage(visit, departure) is { } progressionPassage && next?.Event.Id != progressionPassage.Event.Id)
         {
             next = progressionPassage;
@@ -1995,7 +2001,15 @@ internal sealed partial class AutoPlayController
         }
         if (dialogue.FirstChoice is not int first || dialogue.LastChoice is not int last)
         {
+            EventEngine events = getWorld().Events;
+            bool cutscene = session.State.Scene == SceneKind.Field && !events.IsUserControlEnabled && dialogue.ObjectId >= 0;
+            string? source = cutscene ? VisitKey() : null;
+            int previousReceipts = events.DialogueOutcomes.Count;
             Apply(new(PlayerActionKind.Confirm));
+            if (source is not null && events.DialogueOutcomes.Count > previousReceipts)
+            {
+                ObserveCutsceneConfirmation(source, dialogue, events.DialogueOutcomes[^1]);
+            }
             return;
         }
         string key = $"{VisitKey()}:{dialogue.ObjectId}:{dialogue.ScriptId}:{dialogue.Operation}:{dialogue.MessageId}:{first}:{last}";
@@ -2065,6 +2079,22 @@ internal sealed partial class AutoPlayController
     internal static int SelectRecordedTravelChoice(AutoPlayEventRoute route, IReadOnlyList<AutoPlayChoiceSelection>? executed, string key, int first, int last)
     {
         return AutoPlayTravelChoice.SelectRecordedSelection(route, executed, key, first, last);
+    }
+
+    internal void ObserveCutsceneConfirmation(string visit, DialogueState opened, DialogueOutcome closed)
+    {
+        if ((closed.ObjectId, closed.ScriptId, closed.Operation, closed.MessageId) != (opened.ObjectId, opened.ScriptId, opened.Operation, opened.MessageId))
+        {
+            return;
+        }
+        string receipt = $"{visit}:{closed.ObjectId}:{closed.ScriptId}:{closed.Operation}:{closed.MessageId}";
+        int occurrences = run.ConfirmedCutsceneMessages.GetValueOrDefault(receipt);
+        // One branch replay can legitimately revisit the same native scene.
+        if (occurrences < 2)
+        {
+            run.ConfirmedCutsceneMessages[receipt] = occurrences + 1;
+            ResetIdleDeadline();
+        }
     }
 
     private bool TrySelectTravelChoice(string key, int first, int last, out int selection)
@@ -2145,9 +2175,9 @@ internal sealed partial class AutoPlayController
             if (next.Kind == AutoPlayChoiceStepKind.Replay && next.Checkpoint is not null && next.Selection is int selection)
             {
                 GameState choiceCheckpoint = ReadCheckpoint(Path.Combine(runDirectory!, next.Checkpoint));
-                if (EnteredLaterDisc(choiceCheckpoint, session.State))
+                if (EarlierProgressReason(choiceCheckpoint, session.State) is string reason)
                 {
-                    DeferDiscChoiceReplay(choice);
+                    DeferChoiceReplay(choice, reason);
                     continue;
                 }
                 restore(choiceCheckpoint);
@@ -2193,23 +2223,29 @@ internal sealed partial class AutoPlayController
         return true;
     }
 
-    private GameState RecoverDiscContinuation(GameState saved)
+    private GameState RecoverAdvancedContinuation(GameState saved)
     {
         if (run.PrimaryContinuation is not string checkpoint)
         {
             return saved;
         }
         GameState primary = ReadCheckpoint(Path.Combine(runDirectory!, checkpoint));
-        if (!EnteredLaterDisc(saved, primary))
+        if (EarlierProgressReason(saved, primary) is null && ReadStoryWord(primary) <= ReadStoryWord(saved))
         {
             return saved;
         }
+        bool deferredReplay = false;
         foreach (AutoPlayChoiceCoverage choice in run.Coverage.Choices.Where(item => !item.Finished && item.ReplayDeferredReason is null && item.BeforeCheckpoint is not null))
         {
-            if (EnteredLaterDisc(ReadCheckpoint(Path.Combine(runDirectory!, choice.BeforeCheckpoint!)), primary))
+            if (EarlierProgressReason(ReadCheckpoint(Path.Combine(runDirectory!, choice.BeforeCheckpoint!)), primary) is string reason)
             {
-                DeferDiscChoiceReplay(choice);
+                DeferChoiceReplay(choice, reason);
+                deferredReplay = true;
             }
+        }
+        if (!deferredReplay)
+        {
+            return saved;
         }
         if (run.InputSearch is { Closed: false } search)
         {
@@ -2219,14 +2255,21 @@ internal sealed partial class AutoPlayController
         return primary;
     }
 
-    private static bool EnteredLaterDisc(GameState before, GameState continuation)
+    private static string? EarlierProgressReason(GameState before, GameState continuation)
     {
-        return before.DiscProcess is { } source && continuation.DiscProcess is { } destination && source.Rule == destination.Rule && destination.CurrentDiscIndex > source.CurrentDiscIndex;
+        if (before.DiscProcess is { } source && continuation.DiscProcess is { } destination && source.Rule == destination.Rule && destination.CurrentDiscIndex > source.CurrentDiscIndex)
+        {
+            return "Choice replay would restore an earlier native disc.";
+        }
+        int story = ReadStoryWord(before);
+        return before.FieldId != continuation.FieldId && story > 0 && ReadStoryWord(continuation) > story
+            ? "Choice replay would restore an earlier story phase in another field."
+            : null;
     }
 
-    private static void DeferDiscChoiceReplay(AutoPlayChoiceCoverage choice)
+    private static void DeferChoiceReplay(AutoPlayChoiceCoverage choice, string reason)
     {
-        choice.ReplayDeferredReason = "Choice replay would restore an earlier native disc.";
+        choice.ReplayDeferredReason = reason;
         choice.ActiveOption = null;
         choice.BeforeCheckpoint = null;
         choice.ContinuationCheckpoint = null;

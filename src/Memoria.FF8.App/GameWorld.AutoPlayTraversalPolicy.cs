@@ -606,6 +606,19 @@ internal static class AutoPlayTraversalPolicy
         return contacts.FirstOrDefault(canApproach);
     }
 
+    internal static string? PrisonReunionPassage(string visitKey, Func<string, bool> canApproach)
+    {
+        // NG-134: Use the original ascending stair while the party is looking for Squall.
+        string[] contacts = visitKey switch
+        {
+            "795:430" => ["795:line:16"],
+            "797:430" => ["797:gateway:0", "797:gateway:1"],
+            "965:430" => ["965:line:9"],
+            _ => []
+        };
+        return contacts.FirstOrDefault(canApproach);
+    }
+
     internal static int? CastleRouteOrder(string eventId, bool sphinxDefeated)
     {
         // NG-083: Use the original side corridor and clock-tower exits.
