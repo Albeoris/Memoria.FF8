@@ -120,8 +120,9 @@ internal static class HeadlessPlayer
         }
         Directory.CreateDirectory(outputDirectory);
         var session = new GameSession(options.InitialState);
-        using var resourceHost = new GameResourceHost(options.GameDirectory, modsDirectory: options.ModsDirectory, resourceLanguage: options.ResourceLanguage, modelSourceDirectory: options.ModelSourceDirectory, modLocations: options.ModLocations);
-        using var world = new GameWorld(session, options.GameDirectory, resources: resourceHost.Resources, resolveGameFile: resourceHost.ResolveGameFile, readSceneMods: () => resourceHost.SceneMods, modelOverrides: resourceHost, readGameplayPolicy: () => resourceHost.GameplayPolicy);
+        using var resourceHost = new GameResourceHost(options.GameDirectory, modsDirectory: options.ModsDirectory, resourceLanguage: options.ResourceLanguage, modelSourceDirectory: options.ModelSourceDirectory, modLocations: options.ModLocations, connectEncounterMods: true);
+        resourceHost.PrepareStartupGameplayDifficulty(session.State.GameplayPreferences.Difficulty);
+        using var world = new GameWorld(session, options.GameDirectory, resources: resourceHost.Resources, resolveGameFile: resourceHost.ResolveGameFile, readSceneMods: () => resourceHost.SceneMods, modelOverrides: resourceHost, readGameplayPolicy: () => resourceHost.GameplayPolicy, applyEncounterMods: resourceHost.ApplyEncounterMods);
         world.EnsureField();
         world.SetRenderSize(options.Width, options.Height);
         List<PlayerActionResult> results = [];

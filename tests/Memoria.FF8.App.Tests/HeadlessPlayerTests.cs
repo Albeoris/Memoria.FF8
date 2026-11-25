@@ -47,6 +47,32 @@ public sealed class HeadlessPlayerTests
     }
 
     [Fact]
+    public void SavedHardcoreWorldPreparesItsModProfileBeforePlaying()
+    {
+        string source = TestResources.FixturePath("App.Tests.HeadlessPlayerTests.2");
+        byte[] original = File.ReadAllBytes(source);
+        GameState initial = GameSession.Load(source);
+        Assert.Equal(BattleDifficulty.Hardcore, initial.GameplayPreferences.Difficulty);
+        Assert.NotNull(initial.World);
+
+        string actions = TestResources.ArtifactFile("hardcore-world-wait.json");
+        string output = TestResources.ArtifactFile("hardcore-world-output");
+        File.WriteAllText(actions, """[{"Kind":"Wait","Frames":1}]""");
+        Assert.Equal(0, HeadlessPlayer.Run(["--state", source, "--game-dir", TestResources.GameDirectory, "--actions", actions, "--output", output, "--resolution", "320x240"]));
+
+        GameState saved = GameSession.Load(Path.Combine(output, "checkpoint.json"));
+        Assert.Equal(BattleDifficulty.Hardcore, saved.GameplayPreferences.Difficulty);
+        Assert.Equal(SceneKind.WorldMap, saved.Scene);
+        Assert.Equal(initial.FieldId, saved.FieldId);
+        using JsonDocument report = JsonDocument.Parse(File.ReadAllText(Path.Combine(output, "report.json")));
+        JsonElement action = Assert.Single(report.RootElement.GetProperty("Results").EnumerateArray());
+        Assert.True(action.GetProperty("Accepted").GetBoolean());
+        Assert.Equal(1, action.GetProperty("FramesAdvanced").GetInt32());
+        Assert.Equal(JsonValueKind.Null, report.RootElement.GetProperty("Failure").ValueKind);
+        Assert.Equal(original, File.ReadAllBytes(source));
+    }
+
+    [Fact]
     public void NaturalFieldTransitionKeepsTheDepartingVmSeparateFromDestinationRestore()
     {
         string gameDirectory = TestResources.GameDirectory;
