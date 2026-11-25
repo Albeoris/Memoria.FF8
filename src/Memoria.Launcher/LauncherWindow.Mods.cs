@@ -507,7 +507,9 @@ internal sealed partial class LauncherWindow
             return [];
         }
         ModServiceView grouped = launcherMods.View;
-        return ModServiceView.Create(launcherMods.Catalog, launcherMods.InstalledPackages, grouped.AutoEnableNewMods, grouped.IsReloadPending, grouped.Diagnostics, grouped.Outcome).Packages;
+        IReadOnlyList<RemoteModEntry> languageEntries = launcherModLibrary?.View.LanguageEntries ?? [];
+        return ModServiceView.Create(launcherMods.Catalog, launcherMods.InstalledPackages, grouped.AutoEnableNewMods, grouped.IsReloadPending, grouped.Diagnostics, grouped.Outcome).Packages
+            .Where(view => !LanguagePackages.IsLanguage(view.Package, languageEntries)).ToArray();
     }
 
     private void RenderLauncherMods()
@@ -534,6 +536,7 @@ internal sealed partial class LauncherWindow
         bool downloads = launcherModTabs.SelectedIndex == 2;
         launcherModRefresh.IsEnabled = !busy && !snapshot.Catalog.IsRefreshing;
         IReadOnlyList<ModPackageView> packages = LauncherInstalledModViews();
+        ModLibraryJob[] jobs = snapshot.Jobs.Where(job => !IsLauncherLanguageEntry(job.Entry, snapshot)).ToArray();
         string[] target = snapshot.TargetProfile.Split('/');
         RemoteModEntry[] entries = LauncherKnownModEntries(snapshot).Where(entry => entry.Official is null || OfficialModCatalog.TargetMatches(entry.Official.Target, target[0], target[1])).ToArray();
         LauncherModRow[] rows = launcherModTabs.SelectedIndex switch
@@ -543,7 +546,7 @@ internal sealed partial class LauncherWindow
                 RemoteModEntry? entry = entries.FirstOrDefault(entry => FindLauncherPackage(entry, [package]) is not null);
                 return new LauncherModRow("installed:" + package.Package.Id, package.Package.Name, entry?.Description ?? package.Package.Descriptor?.DescriptionForLanguage(SelectedResourceLanguage) ?? "", entry?.Category ?? package.Package.Format.ToString(), package, entry) { Job = LauncherEntryJob(entry, snapshot) };
             }).ToArray(),
-            2 => snapshot.Jobs.OrderBy(LauncherJobGroup).ThenBy(job => job.Entry.Name, StringComparer.OrdinalIgnoreCase).ThenBy(job => job.Id).Select(job =>
+            2 => jobs.OrderBy(LauncherJobGroup).ThenBy(job => job.Entry.Name, StringComparer.OrdinalIgnoreCase).ThenBy(job => job.Id).Select(job =>
                 new LauncherModRow("job:" + job.Id, job.Entry.Name, job.Entry.Description, job.Entry.Category, FindLauncherPackage(job.Entry, packages), job.Entry) { Job = job }).ToArray(),
             _ => entries.OrderBy(entry => entry.Name, StringComparer.OrdinalIgnoreCase).ThenBy(entry => entry.Id).Select(entry =>
                 new LauncherModRow(entry.SourceId + ":" + entry.Id, entry.Name, entry.Description, entry.Category, FindLauncherPackage(entry, packages), entry) { Job = LauncherEntryJob(entry, snapshot) }).ToArray()
@@ -562,7 +565,7 @@ internal sealed partial class LauncherWindow
         bool expanded = launcherMemoriaExpanded;
         launcherModVisible = downloads ? filtered : GroupLauncherModRows(filtered, expanded);
 
-        int activeDownloads = snapshot.Jobs.Count(job => job.Phase is not ("Installed" or "Cancelled"));
+        int activeDownloads = jobs.Count(job => job.Phase is not ("Installed" or "Cancelled"));
         launcherModSummary.Foreground = snapshot.Error is null && snapshot.Catalog.Error is null ? LauncherMuted : LauncherProblem;
         launcherModSummary.Text = snapshot.Catalog.IsRefreshing ? "Refreshing catalog…" : downloads ? $"{filtered.Length} matching downloads" : $"{filtered.Length} matching mods · {activeDownloads} pending downloads";
         launcherModMissing = entries.Where(entry => IsLauncherDownloadComponent(entry) && FindLauncherPackage(entry, packages) is null).ToArray();
@@ -721,7 +724,12 @@ internal sealed partial class LauncherWindow
     internal static IEnumerable<RemoteModEntry> LauncherKnownModEntries(ModLibrarySnapshot snapshot)
     {
         IEnumerable<RemoteModEntry> retained = snapshot.Jobs.Where(job => job.CanDeleteDownload || job.CanPause || job.CanResume || job.CanInstall || snapshot.Installations.Any(installed => installed.SourceId == job.Entry.SourceId && installed.Id == job.Entry.Id && installed.Available)).Select(job => job.Entry with { IsStale = true });
-        return snapshot.Catalog.Entries.Concat(retained).DistinctBy(entry => (entry.SourceId, entry.Id));
+        return snapshot.Catalog.Entries.Concat(retained).Where(entry => !IsLauncherLanguageEntry(entry, snapshot)).DistinctBy(entry => (entry.SourceId, entry.Id));
+    }
+
+    private static bool IsLauncherLanguageEntry(RemoteModEntry entry, ModLibrarySnapshot snapshot)
+    {
+        return LanguagePackages.IsLanguage(entry) || snapshot.LanguageEntries.Any(language => language.Id == entry.Id && language.SourceId == entry.SourceId);
     }
 
     internal static LauncherModCategory[] CreateLauncherModCategories(IEnumerable<string> categories)
@@ -869,11 +877,15 @@ internal sealed partial class LauncherWindow
 
     internal static bool IsLauncherDownloadComponent(RemoteModEntry entry)
     {
-        return entry.Official?.Delivery == "download";
+        return entry.Official?.Delivery == "download" && !LanguagePackages.IsLanguage(entry);
     }
 
     internal static string? LauncherModDownloadBlocker(RemoteModEntry entry, ModLibrarySnapshot snapshot)
     {
+        if (IsLauncherLanguageEntry(entry, snapshot))
+        {
+            return "Manage this package in Language.";
+        }
         if (entry.IsStale)
         {
             return "Refresh the catalog before downloading stale entries.";

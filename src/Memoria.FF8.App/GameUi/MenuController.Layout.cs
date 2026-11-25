@@ -292,6 +292,7 @@ public sealed partial class MenuController
 
     private UiList Commands(float rowHeight, float fontSize)
     {
+        IReadOnlyList<MenuEntry> entries = Entries;
         UiList list = new()
         {
             TextFlow = UiTextFlow.SingleLine,
@@ -299,10 +300,11 @@ public sealed partial class MenuController
             Paginated = true,
             Focusable = Entries.Count > 0,
             Enabled = !IsSelectingCharacter,
-            Items = Entries.Select(entry => entry.Label).ToList(),
-            Images = Entries.Select(EntryImage).ToList(),
-            TrailingImages = Entries.Select(EntryMarker).ToList(),
-            EnabledItems = Entries.Select(entry => entry.Enabled).ToList(),
+            Items = entries.Select(entry => entry.Label).ToList(),
+            Images = entries.Select(EntryImage).ToList(),
+            TrailingImages = entries.Select(EntryMarker).ToList(),
+            EnabledItems = entries.Select(entry => entry.Enabled).ToList(),
+            TreeRow = ScreenId == "language" ? index => LanguageTreeRow(entries[index]) : null,
             HighlightSelection = !IsOriginalMenuPage,
             PointerSize = IsOriginalMenuPage ? 20 * TextScale : 10,
             TextInset = IsOriginalMenuPage ? 35 * TextScale : 23,

@@ -19,7 +19,9 @@ Declare a complete movie component in `movies/components.json` when its video, c
 }
 ```
 
-The declared video must be at `movies/discDD_IIh.avi` or `movies/discDD_IIh.mp4`. The same package must supply `movies/discDD_II.cam` and `movies/discDD_II.subtitles.json`. The selected component owns all three resources for that movie. Loose replacements and subtitle tracks from any other package are ignored at that address, including Junction videos and cameras. Other movie addresses continue to use their own resolution rules.
+The declared video must be at `movies/discDD_IIh.avi` or `movies/discDD_IIh.mp4`. By default, the same package supplies the video, `movies/discDD_II.cam` and `movies/discDD_II.subtitles.json`. The selected component owns all three resources for that movie. Loose replacements and subtitle tracks from any other package are ignored at that address, including Junction videos and cameras. Other movie addresses continue to use their own resolution rules.
+
+A localization can keep its subtitle track and reference a companion package for the video and camera. Set `mediaDependency` on the movie component to the companion's stable package ID. List that ID in the localization descriptor's `dependencies`. The companion must be active and supply both video and camera at the declared address. The localization still supplies its own subtitles, so an updated translation can reuse the installed companion.
 
 When enabled packages declare components for the same movie, the greatest signed 32-bit `priority` wins. Priority defaults to zero. Equal values follow normal native catalog order. Each package may declare a movie once, with up to 256 components per document. A missing component member, malformed declaration or malformed subtitle track rejects the candidate mod generation and retains the last accepted one. Disabling a package removes its component from the next publication. Playback already started retains its selected video, camera and subtitles.
 

@@ -13,7 +13,7 @@ namespace Memoria.FF8;
 
 internal sealed partial class RecreateGame : GamePresentationHost
 {
-    private readonly LaunchOptions options;
+    private LaunchOptions options;
     private GameResourceHost? resourceHost;
     private GameSession session;
     private KeyboardInput keyboard = new();
@@ -244,8 +244,15 @@ internal sealed partial class RecreateGame : GamePresentationHost
         try
         {
             SynchronizeGuardianModProfile();
-            resourceHost?.SetGameplayDifficulty(session.State.Scene == SceneKind.Title ? uiPreferences.Difficulty : session.State.GameplayPreferences.Difficulty);
-            resourceHost?.Pump();
+            if (languageChange is null)
+            {
+                resourceHost?.SetGameplayDifficulty(session.State.Scene == SceneKind.Title ? uiPreferences.Difficulty : session.State.GameplayPreferences.Difficulty);
+                resourceHost?.Pump();
+            }
+            else
+            {
+                UpdateLanguageChange();
+            }
             bool extendedRosterEnabled = session.State.CharacterVitals?.ExtendedRosterEnabled == true;
             world?.SynchronizeGameplayTuning();
             if ((session.State.CharacterVitals?.ExtendedRosterEnabled == true) != extendedRosterEnabled)
@@ -253,8 +260,15 @@ internal sealed partial class RecreateGame : GamePresentationHost
                 SynchronizeExtendedRosterCrossover();
                 gameMenus?.InvalidateLiveData();
             }
-            RefreshLocalizationPresentation();
+            if (languageChange is null)
+            {
+                RefreshLocalizationPresentation();
+            }
             gameMenus?.RefreshModView();
+            if (gameMenus is { IsOpen: true, IsLanguageScreen: true } && !languageInventoryHasProfiles && discoveredLanguages?.IsCompletedSuccessfully == true)
+            {
+                gameMenus.InvalidateLiveData();
+            }
             SynchronizeFieldAudioPause();
             UpdateModLibraryNotifications();
             UpdateDisplayFrame(gameTime);
@@ -442,7 +456,7 @@ internal sealed partial class RecreateGame : GamePresentationHost
         if (session.State.NativeGameOver is not null)
         {
             UpdateAchievements(force: true);
-            ReplacePlayerSession(GameWorld.CreateColdProcess(options.GameDirectory));
+            ReplacePlayerSession(resourceHost?.CreateColdSession() ?? GameWorld.CreateColdProcess(options));
             titleSelection = 0;
             drainUiButtons = true;
             fieldAudio?.PlayTitleMusic();
@@ -453,6 +467,7 @@ internal sealed partial class RecreateGame : GamePresentationHost
         if (session.State.Scene == SceneKind.Title)
         {
             fieldAudio?.PlayTitleMusic();
+            OfferDisplayLanguageIfNeeded();
         }
         UpdateAutoSaveRequest(gameTime.ElapsedGameTime);
         UpdateNativeFontPresentation();
@@ -537,6 +552,10 @@ internal sealed partial class RecreateGame : GamePresentationHost
                 else if (titleActions[titleSelection].Action == TitleAction.Continue)
                 {
                     OpenPlayerSaveMenu(PlayerSaveMenuMode.Load);
+                }
+                else if (titleActions[titleSelection].Action == TitleAction.Language)
+                {
+                    gameMenus!.Open("language");
                 }
                 else
                 {
@@ -1320,7 +1339,7 @@ internal sealed partial class RecreateGame : GamePresentationHost
             gameMenus?.Open("mods", true);
             return;
         }
-        GameSession fresh = GameWorld.CreateColdProcess(options.GameDirectory);
+        GameSession fresh = resourceHost?.CreateColdSession() ?? GameWorld.CreateColdProcess(options);
         fresh.StartNewGame(fresh.State.NativeBattleMemory);
         fresh.SetGameplayPreferences(newGameMagicPreferences with { BattleAllyCount = uiPreferences.BattleAllyCount, AdditionalEnemies = uiPreferences.AdditionalEnemies, ChocoboWorldMode = newGameMagicPreferences.ChocoboWorldMode ?? DefaultChocoboWorldMode, WeaponMagazineRequired = uiPreferences.WeaponMagazineRequired, WeaponUpgradeOrder = uiPreferences.WeaponUpgradeOrder, CardModOnce = uiPreferences.CardModOnce, LimitOncePerTurn = uiPreferences.LimitOncePerTurn, SelphieCardSlots = uiPreferences.SelphieCardSlots, DrawOncePerSpell = uiPreferences.DrawOncePerSpell, Difficulty = uiPreferences.Difficulty, AtbMode = uiPreferences.AtbMode, GunbladeMode = uiPreferences.GunbladeMode, TripleTriad = uiPreferences.TripleTriad, GuardianFormsEnabled = uiPreferences.GuardianFormsEnabled });
         StopAutoPlayForPlayerSession();
@@ -1989,6 +2008,7 @@ internal sealed partial class RecreateGame : GamePresentationHost
                 }
             }
             nativeTextFont?.Dispose();
+            DisposeLanguageChange();
             resourceHost?.Dispose();
             DisposeBattlePresentation();
             DisposeFrameRate();

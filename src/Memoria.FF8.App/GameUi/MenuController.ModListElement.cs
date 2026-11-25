@@ -93,7 +93,7 @@ public sealed partial class MenuController
             Button("mod-prev", menus.SystemText("mods.list.previous", "← Previous"), () => menus.MoveModSelection(-1, true));
             Button("mod-next", menus.SystemText("mods.list.next", "Next →"), () => menus.MoveModSelection(1, true));
             Button("mod-auto", (snapshot.AutoEnableNewMods ? "☑ " : "☐ ") + menus.SystemText("mods.list.automatically.enable.new.mods", "Automatically enable new mods"), () => menus.Execute(new("mod-auto")));
-            if (menus.modLibrarySnapshot?.Jobs.FirstOrDefault(job => job.Phase is not ("Installed" or "Cancelled")) is { } active)
+            if (menus.OrdinaryJobs.FirstOrDefault(job => job.Phase is not ("Installed" or "Cancelled")) is { } active)
             {
                 hasLibraryActivity = true;
                 Button("mod-library-activity", "Downloads · " + active.Entry.Name + " · " + active.Phase, () => menus.Push("mods-downloads"));

@@ -33,7 +33,8 @@ internal static class LocalizationNativeEdition
         }
         string profile = descriptor.Edition + ":" + descriptor.Language;
         bool alternate = RequiresProjection(project, descriptor);
-        if (!alternate)
+        bool playerExport = project.Manifest.PlayerExport;
+        if (!alternate && !playerExport)
         {
             if (!project.Entries.Any(row => EditionTarget(row, profile, out _)))
             {
@@ -70,15 +71,23 @@ internal static class LocalizationNativeEdition
             }
             if (!native.TryGetValue(row.Key, out LocalizationSourceEntry? entry) || entry.Category != row.Category || entry.File != row.File)
             {
+                if (playerExport && !alternate)
+                {
+                    throw new InvalidDataException($"{row.Key}: player localization has no matching native resource identity.");
+                }
                 continue;
             }
             bool field = row.Category == "Fields";
             string baseKey = row.Key.Split("_ctx_", 2, StringSplitOptions.None)[0];
-            if (field && (!FieldCorrespondenceCatalog.TryGetEnglishEditionKey(baseKey, origin, Metadata(row, "Source MSD SHA256") ?? "", descriptor.Edition, entry.Metadata.GetValueOrDefault("Source MSD SHA256") ?? "", out string? nativeKey) || nativeKey != baseKey))
+            if (field && alternate && (!FieldCorrespondenceCatalog.TryGetEnglishEditionKey(baseKey, origin, Metadata(row, "Source MSD SHA256") ?? "", descriptor.Edition, entry.Metadata.GetValueOrDefault("Source MSD SHA256") ?? "", out string? nativeKey) || nativeKey != baseKey))
             {
                 continue;
             }
-            if (!explicitTarget && !CanReuse(row, entry, baseKey, origin, descriptor.Edition))
+            if (playerExport && !alternate && !MatchesOrigin(row, entry))
+            {
+                throw new InvalidDataException($"{row.Key}: native text or field binding differs from the player localization's source edition.");
+            }
+            if (alternate && !explicitTarget && !CanReuse(row, entry, baseKey, origin, descriptor.Edition, playerExport))
             {
                 continue;
             }
@@ -90,7 +99,7 @@ internal static class LocalizationNativeEdition
                 TargetPresent = true,
                 ExtensionData = new Dictionary<string, JsonElement>(row.ExtensionData, StringComparer.Ordinal) { ["sourceContext"] = JsonSerializer.SerializeToElement(entry.Metadata) }
             };
-            if (field && !explicitTarget && target != LocalizationValue.EmptyTarget)
+            if (alternate && field && !explicitTarget && target != LocalizationValue.EmptyTarget)
             {
                 string nativeTarget = Prefix(entry.Text) + Body(target);
                 bool sameScript = Metadata(row, "JSM SHA256") == entry.Metadata.GetValueOrDefault("JSM SHA256");
@@ -115,17 +124,36 @@ internal static class LocalizationNativeEdition
         return false;
     }
 
-    private static bool CanReuse(LocalizationRecord row, LocalizationSourceEntry entry, string baseKey, GameDataEdition origin, GameDataEdition edition)
+    private static bool CanReuse(LocalizationRecord row, LocalizationSourceEntry entry, string baseKey, GameDataEdition origin, GameDataEdition edition, bool playerExport)
     {
         string old = row.Source ?? "";
         if (row.Category == "Fields")
         {
-            return WithoutEnd(Body(old)) == WithoutEnd(Body(entry.Text)) || FieldCorrespondenceCatalog.IsReviewedEditionTextEquivalent(baseKey);
+            return SourceMatches(row, old, entry.Text, playerExport) || FieldCorrespondenceCatalog.IsReviewedEditionTextEquivalent(baseKey);
         }
         string sourceFingerprint = Metadata(row, "Native Source Fingerprint") ?? Metadata(row, "Source SHA256") ?? "";
         string activeFingerprint = entry.Metadata.GetValueOrDefault("Native Source Fingerprint") ?? entry.Metadata.GetValueOrDefault("Source SHA256") ?? "";
-        return old == entry.Text || FieldCorrespondenceCatalog.IsReviewedEditionTextEquivalent(baseKey, origin, sourceFingerprint, edition, activeFingerprint);
+        return SourceMatches(row, old, entry.Text, playerExport) || FieldCorrespondenceCatalog.IsReviewedEditionTextEquivalent(baseKey, origin, sourceFingerprint, edition, activeFingerprint);
     }
+
+    private static bool SourceMatches(LocalizationRecord row, string old, string native, bool playerExport)
+    {
+        if (playerExport)
+        {
+            return LocalizationProjectIO.PlayerSourceFingerprint(row) == LocalizationProjectIO.FingerprintPlayerSource(row, native);
+        }
+        return row.Category == "Fields" ? FieldComparisonText(old) == FieldComparisonText(native) : old == native;
+    }
+
+    private static bool MatchesOrigin(LocalizationRecord row, LocalizationSourceEntry native)
+    {
+        string nativeText = native.Metadata.GetValueOrDefault("Source Present") == "false" ? "" : native.Text;
+        return SourceMatches(row, "", nativeText, true) && (row.Category != "Fields" ||
+            Metadata(row, "Source MSD SHA256") == native.Metadata.GetValueOrDefault("Source MSD SHA256") &&
+            (Metadata(row, "JSM SHA256") ?? "") == (native.Metadata.GetValueOrDefault("JSM SHA256") ?? ""));
+    }
+
+    internal static string FieldComparisonText(string text) => WithoutEnd(Body(text));
 
     private static string? Metadata(LocalizationRecord row, string name) => row.ExtensionData.TryGetValue("sourceContext", out JsonElement context) && context.TryGetProperty(name, out JsonElement value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
 

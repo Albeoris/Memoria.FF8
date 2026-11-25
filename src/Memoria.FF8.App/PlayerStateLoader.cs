@@ -1,4 +1,5 @@
 using Memoria.FF8.Assets;
+using Memoria.FF8.Platform;
 using Memoria.FF8.Resources;
 using Memoria.FF8.Runtime;
 
@@ -9,7 +10,25 @@ internal static partial class PlayerStateLoader
 {
     internal static LaunchOptions Parse(string[] args)
     {
-        return LaunchOptions.Parse(args, loadConfiguredState: LoadConfigured);
+        bool hasLanguageOverride = args.Contains("--resource-language", StringComparer.Ordinal);
+        return ResolveLanguage(LaunchOptions.Parse(args, loadConfiguredState: (path, options) => LoadConfigured(path, ResolveLanguage(options, hasLanguageOverride))), hasLanguageOverride);
+    }
+
+    internal static string LanguageSettingsPath(LaunchOptions options)
+    {
+        return options.SettingsDirectory is { } directory ? (ApplicationPaths.Current with { Configuration = directory }).LauncherSettings : LauncherSettings.DefaultPath;
+    }
+
+    private static LaunchOptions ResolveLanguage(LaunchOptions options, bool hasLanguageOverride)
+    {
+        if (hasLanguageOverride || options.ResourceLanguage is not null || options.ControlExclusive || options.IsDiagnosticGraphicalHost || !File.Exists(Path.Combine(options.GameDirectory, "main.zzz")))
+        {
+            return options;
+        }
+        LauncherSettings settings = LauncherSettings.Load(LanguageSettingsPath(options));
+        GameLanguageChoice? choice = settings.LanguageChoiceFor(options.GameDirectory);
+        string? language = choice is { Profile.Edition: "Remastered" } ? choice.Profile.ResourceLanguage : settings.LegacyResourceLanguageFor(options.GameDirectory);
+        return options with { ResourceLanguage = GameResourceLanguages.Normalize(language) };
     }
 
     internal static GameState Load(string path, string? gameDirectory = null, GameAssets? sharedAssets = null, ResourceService? resources = null, IModelOverrideSource? modelOverrides = null, Func<GameplayTuningPolicy>? readGameplayPolicy = null, Func<NativeCharacterVitals, NativeCharacterVitals>? prepareCharacterDefinitions = null)

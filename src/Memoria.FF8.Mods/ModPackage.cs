@@ -24,9 +24,11 @@ public sealed record ModPackage(string Id, string Name, ModFormat Format, bool? 
 {
     public bool IsBundled { get; init; }
     public OfficialModComponent? Official { get; init; }
+    public bool OfficialAvailable { get; init; }
     public NativeModDescriptor? Descriptor { get; init; }
     public bool IsSettingsGroup { get; init; }
     public bool HasLocalization { get; init; }
+    public bool IsLanguageProvider { get; init; }
     public bool HasLighting { get; init; }
     public bool HasFieldScene3D { get; init; }
     public bool FieldScenePresentationOnly { get; init; }

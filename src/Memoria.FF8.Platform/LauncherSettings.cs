@@ -7,6 +7,23 @@ public sealed record LauncherSettings(string? LastGameDirectory = null, bool Ach
     public ModInstallationLocation ModLocation { get; init; }
     public string? CustomModsDirectory { get; init; }
     public string[]? PreviousCustomModsDirectories { get; init; }
+    public GameLanguageChoice? LanguageChoice { get; init; }
+    public bool LanguageOfferDeclined { get; init; }
+
+    public GameLanguageChoice? LanguageChoiceFor(string installationDirectory)
+    {
+        return LanguageChoice is { } choice && ApplicationInstallation.ModPathComparer.Equals(choice.InstallationDirectory ?? LastGameDirectory, installationDirectory) ? choice : null;
+    }
+
+    public string? LegacyResourceLanguageFor(string installationDirectory)
+    {
+        return LanguageChoice is null && ApplicationInstallation.ModPathComparer.Equals(LastGameDirectory, installationDirectory) ? ResourceLanguage : null;
+    }
+
+    public LauncherSettings WithLanguageChoice(GameLanguageChoice choice, string? installationDirectory = null)
+    {
+        return this with { LanguageChoice = choice with { InstallationDirectory = installationDirectory ?? LastGameDirectory }, ResourceLanguage = choice.Profile.ResourceLanguage };
+    }
 
     public static string DefaultPath => ApplicationPaths.Current.LauncherSettings;
 

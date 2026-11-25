@@ -39,7 +39,7 @@ internal sealed partial class RecreateGame
             gameMenus?.InvalidateLiveData();
         }
         uiCanvas.NativeFont = nativeTextFont;
-        uiCanvas.UseNativeFonts = NativeGameFonts;
+        uiCanvas.UseNativeFonts = NativeGameFonts && gameMenus is not { IsOpen: true, IsLanguageScreen: true };
         uiCanvas.UseNativeLayout = OriginalTextLayout;
     }
 

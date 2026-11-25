@@ -53,6 +53,14 @@ public sealed partial class ModRuntime
                 ValidateJunctionVersion(root, metadataPath, metadataStamp);
                 name = imported.Name;
                 manifestMetadata = imported.Manifest;
+                if (explicitEnabled is null && LanguagePackages.IsLanguage(new ModPackage(id, name, ModFormat.Junction, null, requested, status, root) { JunctionMetadata = manifestMetadata }))
+                {
+                    requested = false;
+                    if (status == ModEffectiveStatus.Active)
+                    {
+                        status = ModEffectiveStatus.Disabled;
+                    }
+                }
                 identities.Add(System.Text.Json.JsonSerializer.Serialize(manifestMetadata));
                 identities.Add($"{metadataPath}\0{metadataStamp.Length}\0{metadataStamp.LastWriteTicks}\0{name}");
                 foreach (string diagnostic in imported.Diagnostics)

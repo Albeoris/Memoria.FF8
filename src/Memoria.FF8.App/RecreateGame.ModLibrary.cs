@@ -19,7 +19,7 @@ internal sealed partial class RecreateGame
         {
             bool first = modNotificationRevision < 0;
             modNotificationRevision = snapshot.Revision;
-            foreach (ModLibraryJob job in snapshot.Jobs)
+            foreach (ModLibraryJob job in snapshot.Jobs.Where(job => !LanguagePackages.IsLanguage(job.Entry)))
             {
                 bool changed = !modNotificationPhases.TryGetValue(job.Id, out string? phase) || phase != job.Phase;
                 modNotificationPhases[job.Id] = job.Phase;

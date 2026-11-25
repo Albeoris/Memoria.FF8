@@ -26,7 +26,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
     {
     }
 
-    private GameResourceHost(string gameDirectory, CancellationToken startupCancellationToken, string? applicationBaseDirectory = null, bool watch = true, string? modsDirectory = null, string? resourceLanguage = null, string? modelSourceDirectory = null, ModDirectories? modLocations = null, bool connectEncounterMods = false)
+    private GameResourceHost(string gameDirectory, CancellationToken startupCancellationToken, string? applicationBaseDirectory = null, bool watch = true, string? modsDirectory = null, string? resourceLanguage = null, string? modelSourceDirectory = null, ModDirectories? modLocations = null, bool connectEncounterMods = false, bool deferStartupPreparation = false)
     {
         if (connectEncounterMods)
         {
@@ -37,7 +37,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         this.resourceLanguage = Memoria.FF8.Platform.GameResourceLanguages.Normalize(resourceLanguage);
         source = GameDataSourceFactory.Open(gameDirectory, modelSourceDirectory, this.resourceLanguage);
         Resources = new ResourceService(source, this.resourceLanguage);
-        Mods = new ModRuntime(applicationBaseDirectory ?? ApplicationInstallation.DataDirectory, format => ModCompatibility.IsCompatible(source.Descriptor.Edition, format), Prepare, watch, additionalBaseDirectories: [gameDirectory], modsDirectory: modsDirectory, junctionPackageAllowed: CanReadJunctionPackage, nativeRootUnavailable: NativeRootUnavailable, edition: source.Descriptor.Edition.ToString(), language: this.resourceLanguage ?? source.Descriptor.Language, obsoleteBundledPackage: path => Path.GetFileName(path) == OfficialModCatalog.LegacyGirlNextDoorSettingsKey && GirlNextDoorMigration.IsComplete(Mods!.LegacyModsDirectory), modLocations: modLocations);
+        Mods = new ModRuntime(applicationBaseDirectory ?? ApplicationInstallation.DataDirectory, format => ModCompatibility.IsCompatible(source.Descriptor.Edition, format), Prepare, watch, additionalBaseDirectories: modLocations is null ? [gameDirectory] : null, modsDirectory: modsDirectory, junctionPackageAllowed: CanReadJunctionPackage, nativeRootUnavailable: NativeRootUnavailable, edition: source.Descriptor.Edition.ToString(), language: this.resourceLanguage ?? source.Descriptor.Language, obsoleteBundledPackage: path => Path.GetFileName(path) == OfficialModCatalog.LegacyGirlNextDoorSettingsKey && GirlNextDoorMigration.IsComplete(Mods!.LegacyModsDirectory), modLocations: modLocations);
         Resources.ReplacementFailed += (key, exception) =>
         {
             ModTextureLoadException? rejected = exception as ModTextureLoadException;
@@ -54,8 +54,11 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         try
         {
             RecoverModLibrary(applicationBaseDirectory ?? Memoria.FF8.Platform.ApplicationInstallation.DataDirectory);
-            CompleteStartupPreparation(startupCancellationToken);
-            ValidateModLibraryStartup(startupCancellationToken);
+            if (!deferStartupPreparation)
+            {
+                CompleteStartupPreparation(startupCancellationToken);
+                ValidateModLibraryStartup(startupCancellationToken);
+            }
         }
         catch
         {

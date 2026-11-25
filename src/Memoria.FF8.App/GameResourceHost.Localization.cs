@@ -83,8 +83,8 @@ internal sealed partial class GameResourceHost
         }
         var before = Mods.Catalog.Files.Where(file => !file.RelativePath.StartsWith("Localization/", StringComparison.OrdinalIgnoreCase)).Select(file => (file.PackageId, file.RelativePath, file.Revision));
         var after = candidate.Files.Where(file => !file.RelativePath.StartsWith("Localization/", StringComparison.OrdinalIgnoreCase)).Select(file => (file.PackageId, file.RelativePath, file.Revision));
-        var beforePackages = Mods.Catalog.Packages.Select(package => (package.Id, package.Status, Metadata: System.Text.Json.JsonSerializer.Serialize(package.JunctionMetadata)));
-        var afterPackages = candidate.Packages.Select(package => (package.Id, package.Status, Metadata: System.Text.Json.JsonSerializer.Serialize(package.JunctionMetadata)));
+        var beforePackages = Mods.Catalog.Packages.Select(package => (package.Id, package.Status, Metadata: System.Text.Json.JsonSerializer.Serialize(package.JunctionMetadata), Dependencies: string.Join(' ', package.Descriptor?.Dependencies ?? [])));
+        var afterPackages = candidate.Packages.Select(package => (package.Id, package.Status, Metadata: System.Text.Json.JsonSerializer.Serialize(package.JunctionMetadata), Dependencies: string.Join(' ', package.Descriptor?.Dependencies ?? [])));
         return before.SequenceEqual(after) && beforePackages.SequenceEqual(afterPackages);
     }
 

@@ -23,9 +23,11 @@ internal sealed partial class GameResourceHost
         {
             selected.Add(address);
             tracks.Add(address, component.Track);
+            packageIds.Add(component.OwnerPackageId);
             packageIds.Add(component.Video.PackageId);
         }
-        foreach (ModFile file in catalog.Files.Where(file => file.Format == ModFormat.Memoria && MoviePackagePaths.IsSubtitleDocument(file.RelativePath)))
+        IReadOnlySet<string> hiddenPackages = HiddenMoviePackages(catalog);
+        foreach (ModFile file in catalog.Files.Where(file => file.Format == ModFormat.Memoria && !hiddenPackages.Contains(file.PackageId) && MoviePackagePaths.IsSubtitleDocument(file.RelativePath)))
         {
             try
             {
@@ -59,6 +61,7 @@ internal sealed partial class GameResourceHost
         }
         bool moviePath = IsMovieDirectoryPath(relative);
         bool camera = moviePath && relative.EndsWith(".cam", StringComparison.OrdinalIgnoreCase);
+        IReadOnlySet<string> hiddenPackages = HiddenMoviePackages(catalog);
         if (camera)
         {
             ModFile? video = FindFileReplacement(catalog, Path.ChangeExtension(relative, null) + "h.avi");
@@ -67,14 +70,14 @@ internal sealed partial class GameResourceHost
                 // A lower-priority video's CAM may have a different frame cadence.
                 return FindMoviePath(catalog.Files.Where(file => file.Format == video.Format && file.PackageId.Equals(video.PackageId, StringComparison.OrdinalIgnoreCase)), relative);
             }
-            return FindMoviePath(catalog.Files.Where(file => file.Format == ModFormat.Junction || file.Format == ModFormat.Memoria && MoviePackagePaths.IsNativeMovieCamera(file.RelativePath)), relative);
+            return FindMoviePath(catalog.Files.Where(file => file.Format == ModFormat.Junction || file.Format == ModFormat.Memoria && !hiddenPackages.Contains(file.PackageId) && MoviePackagePaths.IsNativeMovieCamera(file.RelativePath)), relative);
         }
         if (!moviePath || !relative.EndsWith(".avi", StringComparison.OrdinalIgnoreCase))
         {
             return catalog.FindAll(ModFormat.Junction, relative).FirstOrDefault();
         }
         Dictionary<string, ModPackage> packages = catalog.Packages.ToDictionary(package => package.Id, StringComparer.OrdinalIgnoreCase);
-        IEnumerable<ModFile> videoFiles = catalog.Files.Where(file => file.Format == ModFormat.Memoria && MoviePackagePaths.IsNativeMovieVideo(file.RelativePath))
+        IEnumerable<ModFile> videoFiles = catalog.Files.Where(file => file.Format == ModFormat.Memoria && !hiddenPackages.Contains(file.PackageId) && MoviePackagePaths.IsNativeMovieVideo(file.RelativePath))
             .Concat(catalog.Files.Where(file => file.Format == ModFormat.Junction));
         foreach (IGrouping<string, ModFile> files in videoFiles.GroupBy(file => file.PackageId, StringComparer.OrdinalIgnoreCase))
         {
@@ -88,6 +91,11 @@ internal sealed partial class GameResourceHost
             }
         }
         return null;
+    }
+
+    private static IReadOnlySet<string> HiddenMoviePackages(ModCatalogSnapshot catalog)
+    {
+        return catalog.Packages.Where(package => package.Descriptor?.IsLanguageDependency == true).Select(package => package.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
     }
 
     private static bool IsMovieDirectoryPath(string path)

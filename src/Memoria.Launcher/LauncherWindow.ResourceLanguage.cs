@@ -1,3 +1,4 @@
+using Memoria.FF8.Platform;
 using Memoria.FF8.Resources;
 
 namespace Memoria.Launcher;
@@ -7,13 +8,12 @@ internal sealed partial class LauncherWindow
     private readonly Dictionary<string, Task<InstalledResourceLanguages>> installedResourceLanguages = new(LauncherCapabilities.PathComparer);
     private InstalledResourceLanguages selectedResourceLanguages = new(GameDataEdition.Classic, null, []);
     private string? resourceLanguageInstallationDirectory;
+    private GameLanguageChoice? selectedLanguageChoice;
     private string? configuredResourceLanguage;
-    private bool loadingResourceLanguages;
+    private bool selectedInstallationPlayable;
     private int pendingResourceLanguageDiscoveries;
     private bool ResourceLanguageDiscoveryPending => pendingResourceLanguageDiscoveries > 0;
-    private string? EffectiveResourceLanguage => !ResourceLanguageDiscoveryPending && installations.SelectedItem is GameInstallation selected && LauncherCapabilities.PathComparer.Equals(resourceLanguageInstallationDirectory, selected.Directory) ? selectedResourceLanguages.Resolve((resourceLanguage.SelectedItem as ResourceLanguageChoice)?.Code) : null;
-    private string? SelectedResourceLanguageOverride => selectedResourceLanguages.NormalizeOverride((resourceLanguage.SelectedItem as ResourceLanguageChoice)?.Code);
-    private bool CanSelectResourceLanguage => selectedResourceLanguages.CanSelectLanguage;
+    private string? EffectiveResourceLanguage => !ResourceLanguageDiscoveryPending && installations.SelectedItem is GameInstallation selected && LauncherCapabilities.PathComparer.Equals(resourceLanguageInstallationDirectory, selected.Directory) ? configuredResourceLanguage : null;
 
     private async Task RefreshResourceLanguagesAsync()
     {
@@ -55,44 +55,17 @@ internal sealed partial class LauncherWindow
         {
             return;
         }
-        loadingResourceLanguages = true;
-        try
-        {
-            selectedResourceLanguages = available;
-            resourceLanguageInstallationDirectory = selected?.Directory;
-            string? preferred = available.NormalizeOverride(configuredResourceLanguage);
-            List<ResourceLanguageChoice> choices = [];
-            if (available.Edition == GameDataEdition.Remastered && available.DetectedLanguage is string detected)
-            {
-                choices.Add(new(null, "Auto (" + ResourceLanguageLabel(detected) + ")"));
-                choices.AddRange(available.AvailableLanguages.Select(language => new ResourceLanguageChoice(language, ResourceLanguageLabel(language))));
-            }
-            resourceLanguage.ItemsSource = choices;
-            resourceLanguage.SelectedItem = choices.FirstOrDefault(choice => choice.Code == preferred);
-            resourceLanguage.IsEnabled = !busy && available.CanSelectLanguage;
-            if (resourceLanguageCard is not null)
-            {
-                resourceLanguageCard.IsVisible = available.CanSelectLanguage;
-            }
-            configuredResourceLanguage = SelectedResourceLanguageOverride;
-        }
-        finally
-        {
-            loadingResourceLanguages = false;
-            SetBusy(busy);
-        }
+        selectedResourceLanguages = available;
+        resourceLanguageInstallationDirectory = selected?.Directory;
+        selectedInstallationPlayable = selected is not null && GameInstallationSelection.ValidateForEngine(selected.Directory) is null && available.DetectedLanguage is not null;
+        ReadSelectedLanguage();
+        SetBusy(busy);
     }
 
-    private static string ResourceLanguageLabel(string language)
+    private void ReadSelectedLanguage()
     {
-        return language switch
-        {
-            "en" => "English",
-            "fr" => "French",
-            "de" => "German",
-            "es" => "Spanish",
-            "it" => "Italian",
-            _ => language
-        };
+        LauncherSettings settings = LauncherSettings.Load(LauncherSettings.DefaultPath);
+        selectedLanguageChoice = resourceLanguageInstallationDirectory is { } directory ? settings.LanguageChoiceFor(directory) : null;
+        configuredResourceLanguage = resourceLanguageInstallationDirectory is { } path ? selectedResourceLanguages.Resolve(settings, path) : null;
     }
 }

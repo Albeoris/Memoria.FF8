@@ -22,6 +22,7 @@ public enum JunctionGameplaySetting
 }
 
 public sealed record JunctionGameplayOverride(JunctionGameplaySetting Setting, decimal Value);
+public sealed record JunctionOptionValue(string Setting, string Name, int Value);
 
 public sealed record JunctionManifestMetadata
 {
@@ -38,6 +39,8 @@ public sealed record JunctionManifestMetadata
     public string? PsfBiosPath { get; init; }
     public IReadOnlyDictionary<string, string> PresentationHints { get; init; } = new Dictionary<string, string>();
     public IReadOnlyDictionary<string, int> Options { get; init; } = new Dictionary<string, int>();
+    public IReadOnlyList<JunctionOptionValue> OptionValues { get; init; } = [];
+    public IReadOnlyList<string> GameLanguages { get; init; } = [];
     public IReadOnlyList<JunctionGameplayOverride> GameplayOverrides { get; init; } = Array.Empty<JunctionGameplayOverride>();
     public IReadOnlyList<JunctionBehavior> Behaviors { get; init; } = Array.Empty<JunctionBehavior>();
     public IReadOnlyList<JunctionSettingConstraint> SettingConstraints { get; init; } = Array.Empty<JunctionSettingConstraint>();

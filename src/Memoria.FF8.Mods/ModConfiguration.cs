@@ -97,6 +97,16 @@ internal static class ModConfiguration
 
     public static void WriteBoolean(string path, string key, bool value)
     {
+        WriteSetting(path, key, value ? "1" : "0");
+    }
+
+    public static void WriteJunctionOption(string path, string key, int value)
+    {
+        WriteSetting(path, "option." + key, value.ToString(CultureInfo.InvariantCulture));
+    }
+
+    private static void WriteSetting(string path, string key, string value)
+    {
         string original = File.Exists(path) ? File.ReadAllText(path) : string.Empty;
         string newline = original.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : Environment.NewLine;
         List<string> lines = original.Length == 0 ? [] : original.Replace("\r\n", "\n").Split('\n').ToList();
@@ -111,7 +121,7 @@ internal static class ModConfiguration
             }
             int comment = text.IndexOfAny([';', '#'], equals + 1);
             string suffix = comment >= 0 ? " " + text[comment..] : string.Empty;
-            lines[index] = $"{key} = {(value ? 1 : 0)}{suffix}";
+            lines[index] = $"{key} = {value}{suffix}";
             replaced = true;
         }
         if (!replaced)
@@ -120,7 +130,7 @@ internal static class ModConfiguration
             {
                 lines.RemoveAt(lines.Count - 1);
             }
-            lines.Add($"{key} = {(value ? 1 : 0)}");
+            lines.Add($"{key} = {value}");
             lines.Add(string.Empty);
         }
         WriteAtomic(path, Encoding.UTF8.GetBytes(string.Join(newline, lines)));

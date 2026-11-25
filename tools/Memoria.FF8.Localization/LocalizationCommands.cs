@@ -29,6 +29,7 @@ internal static class LocalizationCommands
             string[] allowed = command switch
             {
                 "export" => ["game-dir", "source", "source-reference", "script-base", "target", "references", "name", "format", "layout", "output"],
+                "export-player" => ["input", "output"],
                 "convert" => ["input", "output", "format", "layout"],
                 "patch" => ["input", "output", "name", "format", "layout"],
                 "validate" => ["input"],
@@ -51,6 +52,12 @@ internal static class LocalizationCommands
             {
                 LocalizationProject project = LocalizationProjectIO.Read(Required("input"));
                 Console.WriteLine($"Valid localization {project.Manifest.ProjectId}: {project.Entries.Count} records, Target [{project.Manifest.TargetLanguage}].");
+                return 0;
+            }
+            if (command == "export-player")
+            {
+                LocalizationProjectIO.ExportPlayer(Required("input"), Required("output"), cancellation.Token);
+                Console.WriteLine("Exported player localization content: " + Required("output"));
                 return 0;
             }
             if (command == "convert")

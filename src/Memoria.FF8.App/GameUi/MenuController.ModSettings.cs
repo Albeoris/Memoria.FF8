@@ -20,7 +20,19 @@ public sealed partial class MenuController
         return package.IsSettingsGroup || IsBundledMemoriaMod(package) && package.Id.Equals(ModRuntime.MemoriaPackageId, StringComparison.OrdinalIgnoreCase);
     }
 
-    private bool HasSelectedModSettings => selectedModId is not null && (modService?.ReadBehaviorSettings(selectedModId).Count > 0 || selectedModId == ModRuntime.MemoriaPackageId && OfficialEntries.Any());
+    private bool HasSelectedModSettings => selectedModId is not null && (ReadOrdinaryModSettings(selectedModId).Length > 0 || selectedModId == ModRuntime.MemoriaPackageId && OfficialEntries.Any());
+
+    private BehaviorModSetting[] ReadOrdinaryModSettings(string packageId)
+    {
+        if (modService is null || IsLanguagePackageId(packageId))
+        {
+            return [];
+        }
+        var hiddenComponents = modService.InstalledPackages.Where(package => IsInstalledLanguage(package) && package.Descriptor is not null)
+            .SelectMany(package => new[] { package.Descriptor!.Name, package.Descriptor.Id, package.Official?.SettingsKey ?? "" }).Where(name => name.Length > 0).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return modService.ReadBehaviorSettings(packageId).Where(setting => setting.Descriptor is null || !hiddenComponents.Contains(setting.Descriptor.Id))
+            .Where(setting => !hiddenComponents.Contains(setting.Parameter) && (setting.ParentComponent is null || !hiddenComponents.Contains(setting.ParentComponent))).ToArray();
+    }
 
     private string? ModSettingLockReason(BehaviorModSetting setting)
     {
@@ -29,8 +41,8 @@ public sealed partial class MenuController
 
     private void RegisterModSettingsScreen()
     {
-        string? packageName = modService?.View.Packages.FirstOrDefault(view => view.Package.Id.Equals(modSettingsPackageId, StringComparison.OrdinalIgnoreCase))?.Package.Name
-            ?? modService?.InstalledPackages.FirstOrDefault(package => package.Id.Equals(modSettingsPackageId, StringComparison.OrdinalIgnoreCase))?.Name;
+        string? packageName = OrdinaryModViews.FirstOrDefault(view => view.Package.Id.Equals(modSettingsPackageId, StringComparison.OrdinalIgnoreCase))?.Package.Name
+            ?? OrdinaryInstalledMods.FirstOrDefault(package => package.Id.Equals(modSettingsPackageId, StringComparison.OrdinalIgnoreCase))?.Name;
         Register(new MenuScreenDefinition
         {
             Id = "mod-settings",
@@ -266,7 +278,7 @@ public sealed partial class MenuController
             return;
         }
         string? selectedId = focusedModSettingsId ?? _view?.FocusedElement?.Id ?? SelectedEntry?.Id;
-        modSettings = modService.ReadBehaviorSettings(modSettingsPackageId).ToArray();
+        modSettings = ReadOrdinaryModSettings(modSettingsPackageId);
         modSettingsCategories = Enumerable.Range(0, modSettings.Length).GroupBy(index => modSettings[index].Category, StringComparer.Ordinal).ToArray();
         int selected = ModSettingsRows().ToList().FindIndex(row => row.Entry.Id == selectedId);
         _selections[ScreenId] = Math.Max(0, selected);
@@ -304,7 +316,7 @@ public sealed partial class MenuController
             string? packageId = action.SubjectId.Length > 0 ? action.SubjectId : selectedModId;
             if (packageId is not null)
             {
-                modSettings = modService?.ReadBehaviorSettings(packageId).ToArray() ?? [];
+                modSettings = ReadOrdinaryModSettings(packageId);
                 if (modSettings.Length > 0 || packageId == ModRuntime.MemoriaPackageId && OfficialEntries.Any())
                 {
                     modSettingsPackageId = packageId;

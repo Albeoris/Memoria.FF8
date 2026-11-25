@@ -3,7 +3,7 @@ using System.Collections.Concurrent;
 namespace Memoria.FF8.Mods;
 
 /// <summary>Serializes library commands on a worker; the owner thread reads immutable presentation state.</summary>
-public sealed class ModLibraryService : IModLibraryService, IDisposable
+public sealed partial class ModLibraryService : IModLibraryService, IDisposable, IAsyncDisposable
 {
     private sealed class Inspection
     {
@@ -127,6 +127,10 @@ public sealed class ModLibraryService : IModLibraryService, IDisposable
 
     private void QueueCore(RemoteModEntry entry, bool enable)
     {
+        if (LanguagePackages.IsLanguage(entry))
+        {
+            throw new InvalidOperationException("Choose this edition in the language picker.");
+        }
         bool native = entry.SourceId == OfficialModCatalog.SourceId;
         ModDownloadCoordinator queue = native && officialDownloads is not null ? officialDownloads : downloads;
         if (native && officialDownloads is not null ? !officialDownloadsAvailable : !downloadsAvailable)
@@ -258,6 +262,15 @@ public sealed class ModLibraryService : IModLibraryService, IDisposable
 
     public void Uninstall(RemoteModEntry entry) => Post(() =>
     {
+        if (LanguagePackages.IsDependency(entry))
+        {
+            throw new InvalidOperationException("This package is managed by its language providers.");
+        }
+        if (LanguagePackages.IsLanguage(entry) && mods.InstalledPackages.Any(package => package.Status == ModEffectiveStatus.Active
+            && (package.JunctionMetadata?.Id == entry.Id || package.Descriptor?.Id is string id && id == entry.Official?.Id)))
+        {
+            throw new InvalidOperationException("Choose a different language edition before removing the active provider.");
+        }
         if (Jobs.Where(job => job.Entry.SourceId == entry.SourceId && job.Entry.Id == entry.Id).Any(job => inspections.TryGetValue(job.JobId, out Inspection? inspection) && inspection.Installation is not null))
         {
             throw new InvalidOperationException("Installation is finishing. Wait before uninstalling this mod.");
@@ -348,9 +361,15 @@ public sealed class ModLibraryService : IModLibraryService, IDisposable
         Task junction = includeJunction ? catalog.RefreshAsync(lifetime.Token) : Task.CompletedTask;
         if (officialCacheDirectory is not null)
         {
-            SetOfficial(await OfficialModCatalog.RefreshAsync(officialCacheDirectory, client, force, lifetime.Token).ConfigureAwait(false));
+            await Task.WhenAll(RefreshOfficialAsync(force), RefreshLanguageIndexAsync(force), junction).ConfigureAwait(false);
+            return;
         }
         await junction.ConfigureAwait(false);
+    }
+
+    private async Task RefreshOfficialAsync(bool force)
+    {
+        SetOfficial(await OfficialModCatalog.RefreshAsync(officialCacheDirectory!, client, force, lifetime.Token).ConfigureAwait(false));
     }
 
     private void SetOfficial(OfficialCatalogSnapshot next)
@@ -365,21 +384,24 @@ public sealed class ModLibraryService : IModLibraryService, IDisposable
     {
         RemoteCatalogSnapshot junction = catalog.Snapshot;
         OfficialCatalogSnapshot? nextOfficial = Volatile.Read(ref official);
+        OfficialCatalogSnapshot? nextLanguages = Volatile.Read(ref languageIndex);
         if (nextOfficial is null)
         {
             return junction;
         }
         IReadOnlyList<ModPackage> localPackages = mods.InstalledPackages;
-        if (ReferenceEquals(lastJunctionCatalog, junction) && ReferenceEquals(mergedOfficial, nextOfficial) && ReferenceEquals(mergedPackages, localPackages))
+        if (ReferenceEquals(lastJunctionCatalog, junction) && ReferenceEquals(mergedOfficial, nextOfficial) && ReferenceEquals(mergedPackages, localPackages) && ReferenceEquals(mergedLanguageIndex, nextLanguages))
         {
             return mergedCatalog!;
         }
         lastJunctionCatalog = junction;
         mergedOfficial = nextOfficial;
+        mergedLanguageIndex = nextLanguages;
         mergedPackages = localPackages;
-        IEnumerable<OfficialModComponent> known = nextOfficial.Components.Concat(localPackages.Select(package => package.Official).OfType<OfficialModComponent>().Select(component => component with { Latest = null }))
-            .DistinctBy(component => component.Id);
-        RemoteModEntry[] native = known.Select(component => component.ToEntry()).Select(entry => entry with { CompatibilityError = installer.CompatibilityError(entry) }).ToArray();
+        IEnumerable<RemoteModEntry> known = nextOfficial.Components.Select(component => component.ToEntry()).Concat(nextLanguages?.LanguageEntries() ?? [])
+            .Concat(localPackages.Select(package => package.Official).OfType<OfficialModComponent>().Select(component => (component with { Latest = null }).ToEntry()))
+            .DistinctBy(entry => entry.Id);
+        RemoteModEntry[] native = known.Select(entry => entry with { CompatibilityError = installer.CompatibilityError(entry) }).ToArray();
         mergedCatalog = junction with
         {
             Entries = Array.AsReadOnly(junction.Entries.Concat(native).ToArray()),
@@ -432,6 +454,7 @@ public sealed class ModLibraryService : IModLibraryService, IDisposable
             if (officialCacheDirectory is not null)
             {
                 SetOfficial(OfficialModCatalog.ReadCached(officialCacheDirectory));
+                Volatile.Write(ref languageIndex, OfficialModCatalog.ReadCached(officialCacheDirectory, languageIndex: true));
             }
             if (refreshCatalogOnStartup || officialCacheDirectory is not null)
             {
@@ -551,7 +574,7 @@ public sealed class ModLibraryService : IModLibraryService, IDisposable
                 }
                 IReadOnlyList<DownloadJobSnapshot> jobs = Jobs;
                 await RefreshPrunedArtifacts(jobs).ConfigureAwait(false);
-                foreach (DownloadJobSnapshot job in jobs.Where(job => job.Phase == ModDownloadPhase.ReadyToInstall))
+                foreach (DownloadJobSnapshot job in jobs.Where(job => job.Phase == ModDownloadPhase.ReadyToInstall && !IsLanguageJob(job.Entry, currentCatalog)))
                 {
                     if (!inspections.TryGetValue(job.JobId, out Inspection? state))
                     {
@@ -616,7 +639,10 @@ public sealed class ModLibraryService : IModLibraryService, IDisposable
                         state.Installation = null;
                     }
                 }
-                if (applyPendingChanges is not null && DateTimeOffset.UtcNow >= nextApplyAttempt && (installations.Any(item => item.NeedsFileApplication) || inspections.Values.Any(state => state.Result is { RestartRequired: true, Installed: false })))
+                if (applyPendingChanges is not null && DateTimeOffset.UtcNow >= nextApplyAttempt && (installations.Any(item => item.NeedsFileApplication
+                    && (item.PendingRemoval || !currentCatalog.Entries.Any(entry => entry.SourceId == item.SourceId && entry.Id == item.Id && LanguagePackages.IsLanguage(entry))
+                    && !jobs.Any(job => job.Entry.SourceId == item.SourceId && job.Entry.Id == item.Id && IsLanguageJob(job.Entry, currentCatalog))))
+                    || inspections.Values.Any(state => state.Result is { RestartRequired: true, Installed: false })))
                 {
                     nextApplyAttempt = DateTimeOffset.UtcNow.AddSeconds(1);
                     try
@@ -678,13 +704,35 @@ public sealed class ModLibraryService : IModLibraryService, IDisposable
 
     private void Publish(IReadOnlyList<DownloadJobSnapshot> jobs)
     {
-        ModLibraryJob[] projected = jobs.Select(Project).ToArray();
         RemoteCatalogSnapshot current = CurrentCatalog();
+        if (!ReferenceEquals(current, lastPublishedFullCatalog))
+        {
+            lastPublishedFullCatalog = current;
+            publishedLanguageEntries = Array.AsReadOnly(current.Entries.Where(entry => LanguagePackages.IsLanguage(entry) && !LanguagePackages.IsDependency(entry)).ToArray());
+            publishedOrdinaryCatalog = current with { Entries = Array.AsReadOnly(current.Entries.Where(entry => !LanguagePackages.IsLanguage(entry)).ToArray()) };
+        }
+        ModLibraryJob[] languageJobs = jobs.Where(job => IsLanguageJob(job.Entry, current) && !LanguagePackages.IsDependency(job.Entry)).Select(Project).ToArray();
+        ModLibraryJob[] projected = jobs.Where(job => !IsLanguageJob(job.Entry, current)).Select(Project).ToArray();
+        bool LanguageInstallation(ModLibraryInstallation item) => publishedLanguageEntries.Any(entry => entry.Id == item.Id && entry.SourceId == item.SourceId)
+            || mods.InstalledPackages.Any(package => package.Id == item.PackageId && LanguagePackages.IsLanguage(package));
+        ModLibraryInstallation[] ordinaryInstallations = installations.Where(item => !LanguageInstallation(item)).ToArray();
+        ModLibraryInstallation[] languageInstallations = installations.Where(item => LanguageInstallation(item)
+            && !current.Entries.Any(entry => entry.SourceId == item.SourceId && entry.Id == item.Id && LanguagePackages.IsDependency(entry))
+            && !jobs.Any(job => job.Entry.SourceId == item.SourceId && job.Entry.Id == item.Id && LanguagePackages.IsDependency(job.Entry))).ToArray();
         ModLibrarySnapshot previous = View;
         string? message = error ?? applyError ?? (!initialized ? "Preparing saved downloads…" : null);
-        if (!ReferenceEquals(previous.Catalog, current) || !previous.Jobs.SequenceEqual(projected) || !previous.Installations.SequenceEqual(installations) || previous.Error != message)
+        if (!ReferenceEquals(previous.Catalog, publishedOrdinaryCatalog) || !previous.Jobs.SequenceEqual(projected) || !previous.LanguageJobs.SequenceEqual(languageJobs)
+            || !previous.Installations.SequenceEqual(ordinaryInstallations) || !previous.LanguageInstallations.SequenceEqual(languageInstallations) || previous.Error != message)
         {
-            Volatile.Write(ref view, new(previous.Revision + 1, current, Array.AsReadOnly(projected), targetProfile, supported, message) { Installations = installations, TargetLabel = targetLabel, OfficialSupported = officialSupported && (officialDownloads is null || officialDownloadsAvailable) });
+            Volatile.Write(ref view, new(previous.Revision + 1, publishedOrdinaryCatalog!, Array.AsReadOnly(projected), targetProfile, supported, message)
+            {
+                Installations = Array.AsReadOnly(ordinaryInstallations),
+                LanguageEntries = publishedLanguageEntries,
+                LanguageInstallations = Array.AsReadOnly(languageInstallations),
+                LanguageJobs = Array.AsReadOnly(languageJobs),
+                TargetLabel = targetLabel,
+                OfficialSupported = officialSupported && (officialDownloads is null || officialDownloadsAvailable)
+            });
         }
     }
 
@@ -787,5 +835,11 @@ public sealed class ModLibraryService : IModLibraryService, IDisposable
             lifetime.Cancel();
             Observe(worker);
         }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        Dispose();
+        await worker.ConfigureAwait(false);
     }
 }

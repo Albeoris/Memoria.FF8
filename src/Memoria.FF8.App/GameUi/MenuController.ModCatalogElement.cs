@@ -39,7 +39,7 @@ public sealed partial class MenuController
             snapshot = menus.modLibrarySnapshot!;
             downloads = menus.IsDownloads;
             entries = menus.CatalogRows();
-            jobs = snapshot.Jobs.OrderBy(job => JobGroup(job)).ThenBy(job => job.Entry.Name, StringComparer.OrdinalIgnoreCase).ThenBy(job => job.Id).ToArray();
+            jobs = menus.OrdinaryJobs.OrderBy(job => JobGroup(job)).ThenBy(job => job.Entry.Name, StringComparer.OrdinalIgnoreCase).ThenBy(job => job.Id).ToArray();
             selected = downloads ? Array.FindIndex(jobs, job => job.Id == menus.selectedDownloadId) : Array.FindIndex(entries, row => row.Id == menus.selectedCatalogId);
             if (selected < 0 && (downloads || menus.selectedCatalogId is null))
             {
@@ -135,7 +135,7 @@ public sealed partial class MenuController
         private static string JobGroupLabel(ModLibraryJob job) => JobGroup(job) switch { 0 => "Needs attention", 1 => "Active", 2 => "Queued", _ => "Recent" };
         private string ActivityLabel()
         {
-            ModLibraryJob? active = snapshot.Jobs.FirstOrDefault(job => job.Phase is not "Installed" and not "Cancelled");
+            ModLibraryJob? active = menus.OrdinaryJobs.FirstOrDefault(job => job.Phase is not "Installed" and not "Cancelled");
             return active is null ? "No pending downloads" : active.Entry.Name + " · " + active.Phase;
         }
 
@@ -525,7 +525,7 @@ public sealed partial class MenuController
                     }
                     if (owner.Count == 0)
                     {
-                        string empty = owner.downloads ? "No downloads. Browse Catalog to download and check a package." : owner.snapshot.Catalog.Entries.Count > 0 ? "No matching mods · Clear filters" : "Catalog unavailable · Refresh to retry. Installed mods remain available.";
+                        string empty = owner.downloads ? "No downloads. Browse Catalog to download and check a package." : owner.menus.OrdinaryCatalogEntries.Any() ? "No matching mods · Clear filters" : "Catalog unavailable · Refresh to retry. Installed mods remain available.";
                         canvas.Text(empty, 17 * owner.scale, Bounds.Inset(8), theme.Muted, UiAlignment.Start, UiTextFlow.Wrap);
                     }
                 }

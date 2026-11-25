@@ -134,9 +134,25 @@ public sealed partial class ModPackageInstaller
         return false;
     }
 
-    private IReadOnlyList<ModPackageInstallResult> RecoverAndApply(bool additionsOnly)
+    internal ModPackageInstallResult? ApplyLanguageInstallation(RemoteModEntry entry)
     {
-        IReadOnlyList<ModPackageInstallResult> removals = additionsOnly ? [] : RecoverRemovals();
+        ModPackageInstallResult? status = GetStatus(entry);
+        if (status is not { RestartRequired: true })
+        {
+            return status;
+        }
+        bool update = Directory.Exists(Destination(entry.SourceId, Path.GetFileName(status.PackageId))) || File.Exists(Destination(entry.SourceId, Path.GetFileName(status.PackageId)));
+        using ModDirectoryResourceLease lease = ModDirectoryResourceLease.Acquire(modsRoot, requestWriter: update, retainStartupForReader: true);
+        if (update && !lease.IsWriter)
+        {
+            return status;
+        }
+        return RecoverAndApply(additionsOnly: !lease.IsWriter, package: entry).SingleOrDefault() ?? GetStatus(entry);
+    }
+
+    private IReadOnlyList<ModPackageInstallResult> RecoverAndApply(bool additionsOnly, RemoteModEntry? package = null)
+    {
+        IReadOnlyList<ModPackageInstallResult> removals = additionsOnly || package is not null ? [] : RecoverRemovals();
         if (!Directory.Exists(StatePath("journals", "")))
         {
             return removals;
@@ -151,7 +167,8 @@ public sealed partial class ModPackageInstaller
             {
                 return results.AsReadOnly();
             }
-            foreach (string path in Directory.GetFiles(journals, "*.json"))
+            IEnumerable<string> paths = package is null ? Directory.GetFiles(journals, "*.json") : new[] { JournalPath(ManagedName(package)) }.Where(File.Exists);
+            foreach (string path in paths)
             {
                 Journal? journal = null;
                 try

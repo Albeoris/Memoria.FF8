@@ -77,7 +77,7 @@ internal sealed record OfficialModNotifications(string? Error, string ProfileSta
     {
         IEnumerable<OfficialModComponent> localOnly = installed.Values.Select(installation => installation.Official).OfType<OfficialModComponent>().Select(component => component with { Latest = null });
         var installations = installed.Values.ToLookup(installation => installation.Official?.CatalogId);
-        OfficialModNotice[] notices = catalog.Components.Concat(localOnly).DistinctBy(component => component.CatalogId).Select(component =>
+        OfficialModNotice[] notices = catalog.Components.Concat(localOnly).Where(component => !component.IsLanguageDependency && component.LanguageOffers?.Count is not > 0).DistinctBy(component => component.CatalogId).Select(component =>
         {
             ModPackageInstallResult? installation = installations[component.CatalogId].FirstOrDefault();
             string? compatibility = OfficialModCatalog.CompatibilityError(component, engineVersion, edition, language);

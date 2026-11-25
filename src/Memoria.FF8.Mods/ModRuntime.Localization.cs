@@ -4,16 +4,23 @@ namespace Memoria.FF8.Mods;
 
 public sealed partial class ModRuntime
 {
-    private sealed record LocalizationPreferences(string[] Order, string? PrimaryTarget);
+    private sealed record LocalizationPreferences(string[]? Order, string? PrimaryTarget, string? LanguagePackageId = null, string? LanguagePrimaryTarget = null);
     private string[]? localizationOrder;
-    public string? LocalizationPrimaryTarget { get; private set; }
+    private string? authoredPrimaryTarget;
+    private string? languagePackageId;
+    private string? languagePrimaryTarget;
+    public string? LocalizationPrimaryTarget => languagePrimaryTarget ?? authoredPrimaryTarget;
     public IReadOnlyList<string>? LocalizationOrder
     {
         get
         {
             lock (gate)
             {
-                return localizationOrder?.ToArray();
+                if (languagePackageId is null || localizationOrder is null)
+                {
+                    return localizationOrder?.ToArray();
+                }
+                return localizationOrder.Contains(languagePackageId, StringComparer.OrdinalIgnoreCase) ? localizationOrder.ToArray() : localizationOrder.Append(languagePackageId).ToArray();
             }
         }
     }
@@ -24,6 +31,10 @@ public sealed partial class ModRuntime
     {
         if (!File.Exists(LocalizationPreferencesPath))
         {
+            localizationOrder = null;
+            authoredPrimaryTarget = null;
+            languagePackageId = null;
+            languagePrimaryTarget = null;
             return;
         }
         byte[] bytes = File.ReadAllBytes(LocalizationPreferencesPath);
@@ -35,18 +46,19 @@ public sealed partial class ModRuntime
         if (document.RootElement.ValueKind == JsonValueKind.Array)
         {
             localizationOrder = document.RootElement.Deserialize<string[]>();
+            authoredPrimaryTarget = null;
+            languagePackageId = null;
+            languagePrimaryTarget = null;
         }
         else
         {
             LocalizationPreferences preferences = document.RootElement.Deserialize<LocalizationPreferences>() ?? throw new InvalidDataException("Invalid localization stack preferences.");
             localizationOrder = preferences.Order;
-            LocalizationPrimaryTarget = preferences.PrimaryTarget;
+            authoredPrimaryTarget = preferences.PrimaryTarget;
+            languagePackageId = preferences.LanguagePackageId;
+            languagePrimaryTarget = preferences.LanguagePrimaryTarget;
         }
-        if (localizationOrder is null)
-        {
-            throw new InvalidDataException("Invalid localization stack preferences.");
-        }
-        if (localizationOrder.Any(string.IsNullOrWhiteSpace) || localizationOrder.Distinct(StringComparer.OrdinalIgnoreCase).Count() != localizationOrder.Length)
+        if (localizationOrder is not null && (localizationOrder.Any(string.IsNullOrWhiteSpace) || localizationOrder.Distinct(StringComparer.OrdinalIgnoreCase).Count() != localizationOrder.Length))
         {
             throw new InvalidDataException("Localization stack preferences contain duplicate or empty package identities.");
         }
@@ -67,12 +79,14 @@ public sealed partial class ModRuntime
                 return new(false, "Primary language must be a nonempty identifier without control characters.");
             }
             string[]? previousOrder = localizationOrder;
-            string? previousPrimary = LocalizationPrimaryTarget;
+            string? previousPrimary = authoredPrimaryTarget;
             IReadOnlyList<ModPackage> previousPackages = installedPackages;
             List<(string Path, byte[]? Bytes)> originals = [];
             FileStream? settingsLock = null;
+            FileStream? stackLock = null;
             try
             {
+                stackLock = ModConfiguration.LockMemoriaSettings(LocalizationPreferencesPath);
                 MemoriaSettings? componentSettings = null;
                 foreach (ModPackage package in installedPackages.Where(package => package.HasLocalization))
                 {
@@ -96,11 +110,9 @@ public sealed partial class ModRuntime
                 }
                 originals.Add((LocalizationPreferencesPath, File.Exists(LocalizationPreferencesPath) ? File.ReadAllBytes(LocalizationPreferencesPath) : null));
                 Directory.CreateDirectory(preferenceRoot);
-                string temporary = LocalizationPreferencesPath + ".tmp";
-                File.WriteAllText(temporary, JsonSerializer.Serialize(new LocalizationPreferences(lowToHigh.ToArray(), primaryTarget)));
-                File.Move(temporary, LocalizationPreferencesPath, true);
+                ModConfiguration.WriteAtomic(LocalizationPreferencesPath, JsonSerializer.SerializeToUtf8Bytes(new LocalizationPreferences(lowToHigh.ToArray(), primaryTarget, languagePackageId, languagePrimaryTarget)));
                 localizationOrder = lowToHigh.ToArray();
-                LocalizationPrimaryTarget = primaryTarget;
+                authoredPrimaryTarget = primaryTarget;
                 ReconcilePreferences();
                 RequestRefreshCore(DateTime.MinValue);
                 return ModOperationResult.Completed;
@@ -108,7 +120,7 @@ public sealed partial class ModRuntime
             catch (Exception exception) when (IsFileError(exception))
             {
                 localizationOrder = previousOrder;
-                LocalizationPrimaryTarget = previousPrimary;
+                authoredPrimaryTarget = previousPrimary;
                 installedPackages = previousPackages;
                 List<string> restoreErrors = [];
                 foreach ((string path, byte[]? bytes) in originals.AsEnumerable().Reverse())
@@ -134,6 +146,7 @@ public sealed partial class ModRuntime
             finally
             {
                 settingsLock?.Dispose();
+                stackLock?.Dispose();
             }
         }
     }

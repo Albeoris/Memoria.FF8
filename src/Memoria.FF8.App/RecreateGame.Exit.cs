@@ -22,7 +22,7 @@ internal sealed partial class RecreateGame
     private void ReturnToTitleScreen()
     {
         UpdateAchievements(force: true);
-        ReplacePlayerSession(GameWorld.CreateColdProcess(options.GameDirectory));
+        ReplacePlayerSession(resourceHost?.CreateColdSession() ?? GameWorld.CreateColdProcess(options));
         RestoreCrossover(null);
         titleSelection = 0;
         drainUiButtons = true;

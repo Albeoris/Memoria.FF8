@@ -106,7 +106,7 @@ internal static partial class Program
             {
                 options = options with { StatePath = crossoverPath, InitialState = PlayerStateLoader.LoadConfigured(crossoverPath, options) };
             }
-            GameSession session = options.StatePath is null && options.InitialState.Scene == SceneKind.Title ? GameWorld.CreateColdProcess(options.GameDirectory) : new GameSession(options.InitialState);
+            GameSession session = options.StatePath is null && options.InitialState.Scene == SceneKind.Title ? GameWorld.CreateColdProcess(options) : new GameSession(options.InitialState);
             if (options.ValidateOnly)
             {
                 Console.WriteLine($"Memoria - Final Fantasy VIII | {session.State.Scene} | {session.State.FieldId}:{session.State.FieldName} | cwd={Environment.CurrentDirectory}");

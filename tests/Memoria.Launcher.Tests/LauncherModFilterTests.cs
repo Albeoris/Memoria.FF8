@@ -95,4 +95,17 @@ public sealed class LauncherModFilterTests
         RemoteModEntry current = retained with { Version = "2" };
         Assert.Equal("2", LauncherWindow.LauncherKnownModEntries(snapshot with { Catalog = new([current], null, false, false, null) }).First().Version);
     }
+
+    [Fact]
+    public void OfflineLanguageJobsAndPreviouslyKnownJunctionReceiptsStayOutOfOrdinaryMods()
+    {
+        RemoteModEntry ilp = new(RemoteModCatalogAdapter.SourceId, Guid.Parse("3d7436a1-2cd7-4503-821a-910b0f7aa7e3"), "ILP", "1.8");
+        RemoteModEntry succession = new(RemoteModCatalogAdapter.SourceId, Guid.Parse("bdd7d71d-8ffd-4aa5-93c1-bf5ae182ad66"), "Succession", "1.10");
+        RemoteModEntry ordinary = new(RemoteModCatalogAdapter.SourceId, Guid.NewGuid(), "Ordinary package", "1.0");
+        ModLibraryJob Job(RemoteModEntry entry) => new(Guid.NewGuid(), entry, "Paused", 0, null, 0, null, null, false, true, false, false, false);
+        ModLibrarySnapshot snapshot = new(1, new([], null, false, true, "Offline"), [Job(ilp), Job(succession), Job(ordinary)], "Classic/en/test", true);
+
+        Assert.Equal(ordinary.Id, Assert.Single(LauncherWindow.LauncherKnownModEntries(snapshot)).Id);
+        Assert.Equal("Manage this package in Language.", LauncherWindow.LauncherModDownloadBlocker(ilp, snapshot));
+    }
 }

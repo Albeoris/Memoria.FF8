@@ -31,7 +31,6 @@ internal sealed partial class LauncherWindow
     private readonly List<(Border Frame, Grid Layout, TextBlock Heading, Image? Crest)> gameHeroes = [];
     private Control? ff8Home;
     private Control? ff7Home;
-    private Border? resourceLanguageCard;
     private readonly TextBlock installationProblem = new() { Foreground = LauncherProblem, TextWrapping = TextWrapping.Wrap, IsVisible = false };
 
     internal static Border IncidentCard(Control content)
@@ -251,10 +250,7 @@ internal sealed partial class LauncherWindow
         graphics.Children.Add(tryAuto);
         page.Children.Add(LauncherCard("Graphics backend", "Choose the renderer for the shared engine.", graphics));
 
-        resourceLanguage.HorizontalAlignment = HorizontalAlignment.Stretch;
-        resourceLanguageCard = LauncherCard("Resource language", "Choose among the languages available in the selected Remastered installation.", resourceLanguage);
-        resourceLanguageCard.IsVisible = false;
-        page.Children.Add(resourceLanguageCard);
+        page.Children.Add(LauncherCard("Language", "Choose an original edition or a translation for the selected installation.", gameLanguage));
 
 
         achievementsLocalOnly.Margin = new Thickness(0);

@@ -93,17 +93,19 @@ public sealed partial class MenuController
 
     private bool IsLibraryScreen => ScreenId is "mods-catalog" or "mods-downloads";
     private bool IsDownloads => ScreenId == "mods-downloads";
-    private ModLibraryJob? SelectedDownload => modLibrarySnapshot?.Jobs.FirstOrDefault(job => job.Id == selectedDownloadId);
+    private IEnumerable<ModLibraryJob> OrdinaryJobs => (modLibrarySnapshot?.Jobs ?? []).Where(job => !LanguagePackages.IsLanguage(job.Entry));
+    private IEnumerable<RemoteModEntry> OrdinaryCatalogEntries => (modLibrarySnapshot?.Catalog.Entries ?? []).Where(entry => !LanguagePackages.IsLanguage(entry));
+    private ModLibraryJob? SelectedDownload => OrdinaryJobs.FirstOrDefault(job => job.Id == selectedDownloadId);
     private const string CatalogMemoriaId = "package:Memoria";
     private sealed record CatalogRow(string Id, string Name, string Status, RemoteModEntry? Entry = null);
     private bool IsCatalogMemoriaSelected => selectedCatalogId == CatalogMemoriaId;
-    private RemoteModEntry? SelectedCatalog => modLibrarySnapshot?.Catalog.Entries.FirstOrDefault(entry => CatalogIdentity(entry) == selectedCatalogId) ?? (IsCatalogMemoriaSelected ? null : retainedCatalogEntry);
-    private ModPackageView? AssociatedMod(RemoteModEntry entry) => modService?.View.Packages.FirstOrDefault(package => package.Package.JunctionMetadata?.Id == entry.Id);
+    private RemoteModEntry? SelectedCatalog => OrdinaryCatalogEntries.FirstOrDefault(entry => CatalogIdentity(entry) == selectedCatalogId) ?? (IsCatalogMemoriaSelected || retainedCatalogEntry is null || LanguagePackages.IsLanguage(retainedCatalogEntry) ? null : retainedCatalogEntry);
+    private ModPackageView? AssociatedMod(RemoteModEntry entry) => OrdinaryModViews.FirstOrDefault(package => package.Package.JunctionMetadata?.Id == entry.Id);
     private ModLibraryInstallation? ManagedMod(RemoteModEntry entry) => modLibrarySnapshot?.Installations.FirstOrDefault(receipt => receipt.SourceId == entry.SourceId && receipt.Id == entry.Id);
     private bool ManagedRepairNeeded(RemoteModEntry entry) => ManagedMod(entry) is { Pending: false, Available: false };
     private bool CatalogUpdateAvailable(RemoteModEntry entry) => ManagedMod(entry) is { Pending: false } receipt && entry.CompareVersion(receipt.Version) is > 0;
-    private bool CatalogEntryListed(RemoteModEntry entry) => modLibrarySnapshot?.Catalog.Entries.Any(item => CatalogIdentity(item) == CatalogIdentity(entry)) == true;
-    private ModLibraryJob? EntryJob(RemoteModEntry entry) => modLibrarySnapshot?.Jobs.LastOrDefault(job => CatalogIdentity(job.Entry) == CatalogIdentity(entry) && (job.Entry.Version == entry.Version || entry.CompareVersion(job.Entry.Version) == 0) && job.Phase is not ("Cancelled" or "Installed"));
+    private bool CatalogEntryListed(RemoteModEntry entry) => OrdinaryCatalogEntries.Any(item => CatalogIdentity(item) == CatalogIdentity(entry));
+    private ModLibraryJob? EntryJob(RemoteModEntry entry) => OrdinaryJobs.LastOrDefault(job => CatalogIdentity(job.Entry) == CatalogIdentity(entry) && (job.Entry.Version == entry.Version || entry.CompareVersion(job.Entry.Version) == 0) && job.Phase is not ("Cancelled" or "Installed"));
     private bool CanDownload(RemoteModEntry entry) => entry.Official is null ? modLibrarySnapshot?.TargetSupported == true : modLibrarySnapshot?.OfficialSupported == true && entry.CompatibilityError is null && entry.Links.Count > 0;
 
     private string CatalogStatus(RemoteModEntry entry)
@@ -137,8 +139,8 @@ public sealed partial class MenuController
     }
 
     private string LegacyCatalogStatus(RemoteModEntry entry) => ManagedRepairNeeded(entry) && EntryJob(entry) is null or { Phase: "Installed" } ? "Managed installation missing · Repair required" : EntryJob(entry)?.Phase ?? (!CatalogEntryListed(entry) ? "No longer listed" : ManagedMod(entry) is { } receipt ? receipt.Pending ? "Waiting to apply" : CatalogUpdateAvailable(entry) ? "Update available" : "Installed" : AssociatedMod(entry) is not null ? "Installed manually" : modLibrarySnapshot?.TargetSupported == true ? "Check required" : "Unavailable for this edition");
-    private string[] CatalogCategories => ["All categories", .. (modLibrarySnapshot?.Catalog.Entries ?? []).Select(entry => entry.Category).Where(category => category.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(category => category, StringComparer.OrdinalIgnoreCase)];
-    private RemoteModEntry[] FilteredCatalog() => (modLibrarySnapshot?.Catalog.Entries ?? []).Select(PresentCatalogEntry).Where(entry =>
+    private string[] CatalogCategories => ["All categories", .. OrdinaryCatalogEntries.Select(entry => entry.Category).Where(category => category.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(category => category, StringComparer.OrdinalIgnoreCase)];
+    private RemoteModEntry[] FilteredCatalog() => OrdinaryCatalogEntries.Select(PresentCatalogEntry).Where(entry =>
         (catalogSearch.Length == 0 || (entry.Name + " " + entry.Author + " " + entry.Category + " " + entry.Description).Contains(catalogSearch, StringComparison.OrdinalIgnoreCase)) &&
         (catalogCategory == "All categories" || entry.Category.Equals(catalogCategory, StringComparison.OrdinalIgnoreCase)) &&
         (catalogFilter switch { 1 => CanDownload(entry) && EntryJob(entry) is null && AssociatedMod(entry) is null && ManagedMod(entry) is null, 2 => AssociatedMod(entry) is not null || ManagedMod(entry) is not null, 3 => EntryJob(entry) is not null, 4 => EntryJob(entry)?.Error is not null, 5 => entry.Official is not null, _ => true }))
@@ -157,7 +159,7 @@ public sealed partial class MenuController
     }
 
     private IReadOnlyList<MenuEntry> LibraryEntries() => IsDownloads
-        ? (modLibrarySnapshot?.Jobs ?? []).Select(job => new MenuEntry(job.Id.ToString(), job.Entry.Name, job.Phase)).ToArray()
+        ? OrdinaryJobs.Select(job => new MenuEntry(job.Id.ToString(), job.Entry.Name, job.Phase)).ToArray()
         : CatalogRows().Select(row => new MenuEntry(row.Id, row.Name, row.Status)).ToArray();
 
     private IReadOnlyList<string> LibraryDetails()
@@ -312,7 +314,7 @@ public sealed partial class MenuController
         {
             RefreshModSettingsRows();
         }
-        if (IsLibraryScreen || ScreenId is "mods" or "mods-library-details")
+        if (IsLanguageScreen || IsLibraryScreen || ScreenId is "mods" or "mods-library-details")
         {
             _view = null;
         }

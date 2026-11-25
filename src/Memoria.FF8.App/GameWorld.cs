@@ -34,6 +34,13 @@ internal sealed partial class GameWorld : IDisposable
         return CreateColdProcess(gameDirectory, NativeExecutionStackSelection.ConfiguredPath);
     }
 
+    internal static GameSession CreateColdProcess(LaunchOptions options)
+    {
+        using IResourceSource source = GameDataSourceFactory.Open(options.GameDirectory, options.ModelSourceDirectory, options.ResourceLanguage);
+        using GameAssets assets = new(options.GameDirectory, resources: new ResourceService(source, options.ResourceLanguage));
+        return CreateColdProcess(assets);
+    }
+
     internal static GameSession CreateColdProcess(string gameDirectory, string? selectedExecutionStackPath)
     {
         using GameAssets assets = new(gameDirectory);

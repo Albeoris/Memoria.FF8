@@ -10,7 +10,8 @@ internal enum TitleAction
     NewGamePlus,
     NewGame,
     Continue,
-    Config
+    Config,
+    Language
 }
 internal sealed record TitleChoice(TitleAction Action, string TextId);
 
@@ -40,7 +41,7 @@ internal sealed partial class RecreateGame
         return false;
     }
 
-    private static readonly TitleChoice[] standardTitleActions = [new(TitleAction.NewGame, "title.new-game"), new(TitleAction.Continue, "title.continue"), new(TitleAction.Config, "title.config")];
+    private static readonly TitleChoice[] standardTitleActions = [new(TitleAction.NewGame, "title.new-game"), new(TitleAction.Continue, "title.continue"), new(TitleAction.Config, "title.config"), new(TitleAction.Language, "title.language")];
     private static readonly TitleChoice[] completedTitleActions = [new(TitleAction.NewGamePlus, "ngplus.title"), .. standardTitleActions];
     private TitleChoice[] titleActions = standardTitleActions;
     private DateTime nextCompletedDiscovery;

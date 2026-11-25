@@ -31,6 +31,10 @@ public sealed class LocalizationProjectStore(string packageDirectory) : ILocaliz
             LocalizationAuthoringTransaction.Recover(root);
             LocalizationProject project = LocalizationProjectIO.ReadForAuthoring(root);
             LocalizationRowSnapshot current = Snapshot(project, expected.Identity);
+            if (project.Manifest.PlayerExport)
+            {
+                return new(LocalizationCommitStatus.Invalid, current, "Edit the original authoring project to preserve its runtime bindings.");
+            }
             if (current.Revision != expected.Revision || current.ProjectId != expected.ProjectId)
             {
                 return new LocalizationCommitResult(LocalizationCommitStatus.Conflict, current, "Project evidence changed before the Source Reference update.");
@@ -117,6 +121,10 @@ public sealed class LocalizationProjectStore(string packageDirectory) : ILocaliz
             LocalizationAuthoringTransaction.Recover(root);
             LocalizationProject project = LocalizationProjectIO.ReadForAuthoring(root);
             LocalizationRowSnapshot current = CurrentSnapshot(project, expected);
+            if (project.Manifest.PlayerExport)
+            {
+                return new(LocalizationCommitStatus.Invalid, current, "Edit the original authoring project to preserve its runtime bindings.");
+            }
             if (current.ProjectId != expected.ProjectId || current.Revision != expected.Revision || current.Missing != expected.Missing)
             {
                 return new(LocalizationCommitStatus.Conflict, current, "The canonical row or its project evidence changed. Review Base/Ours/Theirs before applying.");

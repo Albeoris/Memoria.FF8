@@ -53,7 +53,7 @@ public sealed partial class MenuController
     private ModPackage? PreviewInstalledPackage(RemoteModEntry entry)
     {
         return entry.Official is { } official
-            ? modService?.View.Packages.FirstOrDefault(view => view.Package.Id.Equals(official.RuntimePackageId, StringComparison.OrdinalIgnoreCase))?.Package
+            ? OrdinaryModViews.FirstOrDefault(view => view.Package.Id.Equals(official.RuntimePackageId, StringComparison.OrdinalIgnoreCase))?.Package
             : AssociatedMod(entry)?.Package;
     }
 

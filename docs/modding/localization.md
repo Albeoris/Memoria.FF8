@@ -104,6 +104,14 @@ dotnet run --project tools/Memoria.FF8.Localization -c Release -- patch --input 
 
 Formats are `json` and `xlsx`; layouts are `single` and `split`. Export accepts ordered comma-separated `--references jp,en,fr`; `--script-base` selects the base game language and `--source-reference jp` independently designates the translation source. The legacy `--source jp` remains an alias; contradictory source options are rejected. Missing source/base reference columns are appended without moving selected columns. Without an explicit source option, the script base is the CLI's Source Reference. Older projects recover the source role from primary or legacy metadata without reordering references; conversion preserves their row and project identities. Probe actual availability first: requesting a dataset does not install it. Validate and convert are offline operations. Ctrl+C cancels export/conversion, and completed new packages remain disabled. Existing output directories are rejected.
 
+For distribution from a standalone project with a declared original edition, export the player files into a new directory.
+
+```powershell
+dotnet run --project tools/Memoria.FF8.Localization -c Release -- export-player --input "$env:MEMORIA_FF8_LOCALIZATION_INPUT" --output "$env:MEMORIA_FF8_LOCALIZATION_OUTPUT"
+```
+
+The player export writes UTF-8 JSON split by category and logical file. It retains Targets, edition overrides, native identities, binding fingerprints and authored choice maps. The engine reconstructs native bindings from the installed resources. Add a package descriptor, attribution and any separately cleared distribution assets before publishing. Original and reference text, artwork, movie files and local settings stay in the authoring project. Make translation edits in that project and regenerate the player files.
+
 The export summary reports **Resource/coverage diagnostics** from the manifest's `sourceGaps` array across selected datasets. These can describe unsupported sections, unavailable banks, failed decoders or missing correspondence; they are not a missing-translation count. Review their category/resource/reason entries when a reference is blank.
 
 Some original European field resources contain untranslated archival Japanese bytes. Japanese character escapes in these resources are reported as unsupported source encoding; the original key and source identity remain, with an empty reading and a decode diagnostic. The exporter does not infer a Japanese codepage from the resource suffix or substitute text from another language. Archival Japanese codepages can also differ from the supported Japanese release table, and strings without distinctive escapes can remain ambiguous. A successful byte decode alone does not establish that archival text is linguistically correct.

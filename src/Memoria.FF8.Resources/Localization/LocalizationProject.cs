@@ -38,6 +38,8 @@ public sealed record LocalizationManifest
     public string? ExtensionsPath { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? SourceEdition { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool PlayerExport { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public IReadOnlyDictionary<string, string>? EditionBindingPaths { get; init; }
     [JsonExtensionData]

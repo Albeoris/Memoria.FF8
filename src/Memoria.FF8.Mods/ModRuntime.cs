@@ -268,6 +268,10 @@ public sealed partial class ModRuntime : IModService, IDisposable
             {
                 return new(false, $"Unknown mod package: {packageId}.");
             }
+            if (LanguagePackages.IsDependency(package))
+            {
+                return new(false, "This package is managed by its selected language provider.");
+            }
             if (GetPackageLockReason(packageId) is string lockReason)
             {
                 return new(false, lockReason);
@@ -708,6 +712,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
 
     private ModCatalogSnapshot Discover(out bool nextAutoEnable, out string identity)
     {
+        ReadLocalizationPreferences();
         memoriaSettingsViews.Clear();
         nextAutoEnable = ModConfiguration.ReadBoolean(Path.Combine(preferenceRoot, "mods.ini"), "auto_enable_new_mods") ?? true;
         MemoriaSettings memoriaSettings = ImportStatusPreferences();
@@ -720,7 +725,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
         {
             notices.Add(new("watcher-error", error));
         }
-        List<string> identities = [nextAutoEnable.ToString(), hardcore.ToString(), forceFf7EnemyIntegration.ToString(), string.Join(";", localizationOrder ?? []), LocalizationPrimaryTarget ?? ""];
+        List<string> identities = [nextAutoEnable.ToString(), hardcore.ToString(), forceFf7EnemyIntegration.ToString(), string.Join(";", LocalizationOrder ?? []), LocalizationPrimaryTarget ?? ""];
         identities.AddRange(memoriaSettings.StatusSettings.OrderBy(setting => setting.Key, StringComparer.Ordinal).Select(setting => $"status-setting\0{setting.Key}\0{setting.Value}"));
         HashSet<string> visitedFiles = new(StringComparer.Ordinal);
         Dictionary<string, IReadOnlyDictionary<string, ModPackageInstallResult>> managed = new(ApplicationInstallation.ModPathComparer);
@@ -735,6 +740,8 @@ public sealed partial class ModRuntime : IModService, IDisposable
             string[] roots = ModsDirectories.Select(directory => Path.Combine(directory, format.ToString())).Where(Directory.Exists).SelectMany(directory => Directory.GetDirectories(directory).OrderBy(path => Path.GetFileName(path), PathOrder)).OrderBy(path => Path.GetFileName(path), StringComparer.OrdinalIgnoreCase).ToArray();
             Dictionary<string, string> bundledPackages = new(StringComparer.OrdinalIgnoreCase);
             HashSet<string> bundledDescriptors = new(StringComparer.Ordinal);
+            HashSet<string> requiredLanguageDependencies = new(StringComparer.OrdinalIgnoreCase);
+            Dictionary<string, string> unavailableLanguageRoots = new(ApplicationInstallation.ModPathComparer);
             if (format == ModFormat.Memoria)
             {
                 // Live installs publish the receipt before the package directory becomes visible.
@@ -766,6 +773,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 }
                 // Installed descriptors own their stable IDs before the bundled fallback is considered.
                 roots = roots.OrderBy(bundledDescriptors.Contains).ToArray();
+                (requiredLanguageDependencies, unavailableLanguageRoots) = InspectLanguageDependencies(roots, managed, memoriaSettings);
             }
             foreach (string root in roots)
             {
@@ -847,7 +855,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 }
                 if (descriptor is not null)
                 {
-                    identities.Add($"descriptor\0{id}\0{descriptor.Name}\0{descriptor.Group}\0{System.Text.Json.JsonSerializer.Serialize(descriptor.Descriptions.OrderBy(entry => entry.Key, StringComparer.Ordinal))}");
+                    identities.Add($"descriptor\0{id}\0{descriptor.Name}\0{descriptor.Group}\0{System.Text.Json.JsonSerializer.Serialize(descriptor.Descriptions.OrderBy(entry => entry.Key, StringComparer.Ordinal))}\0{System.Text.Json.JsonSerializer.Serialize(descriptor.LanguageOffers)}\0{System.Text.Json.JsonSerializer.Serialize(descriptor.Dependencies)}");
                 }
                 bool? explicitEnabled = null;
                 bool rejected = false;
@@ -885,12 +893,27 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 {
                     explicitEnabled = true;
                 }
-                bool requested = RequiredPackageReason(id) is not null || (explicitEnabled ?? nextAutoEnable);
                 bool hasLocalization = format == ModFormat.Memoria && File.Exists(Path.Combine(root, "Localization", "localization.manifest.json"));
+                bool optInLanguage = descriptor?.LanguageOffers.Count > 0 || descriptor?.Group == "Localization" && hasLocalization || native?.Official?.LanguageOffers is { Count: > 0 };
+                bool requested = RequiredPackageReason(id) is not null || (explicitEnabled ?? (!optInLanguage && nextAutoEnable));
+                if (descriptor?.IsLanguageDependency == true || native?.Official?.IsLanguageDependency == true)
+                {
+                    requested = requiredLanguageDependencies.Contains(id);
+                }
                 bool hasLighting = format == ModFormat.Memoria && (File.Exists(Path.Combine(root, FieldLightingSceneIO.ComponentPath)) || bundledRoot is not null && File.Exists(Path.Combine(bundledRoot, FieldLightingSceneIO.ComponentPath)));
                 bool hasFieldScene3D = format == ModFormat.Memoria && (File.Exists(Path.Combine(root, FieldSceneDocuments.ComponentPath)) || bundledRoot is not null && File.Exists(Path.Combine(bundledRoot, FieldSceneDocuments.ComponentPath)));
                 bool localizationOnly = hasLocalization && Directory.EnumerateFileSystemEntries(root).All(path => Path.GetFileName(path).Equals("mod.ini", StringComparison.OrdinalIgnoreCase) || Path.GetFileName(path).Equals("Localization", StringComparison.OrdinalIgnoreCase) || Path.GetFileName(path).Equals(NativeModDescriptor.FileName, StringComparison.OrdinalIgnoreCase));
                 string? nativeError = native?.Error;
+                if (unavailableLanguageRoots.TryGetValue(root, out string? dependencyError))
+                {
+                    nativeError ??= dependencyError;
+                }
+                GameLanguageProfile activeProfile = new(edition, language);
+                if (descriptor?.LanguageOffers is { Count: > 0 } offers && !offers.Any(offer => offer.NativeVariants.Any(variant => variant.Matches(activeProfile)))
+                    || descriptor?.IsLanguageDependency == true && !descriptor.NativeVariants.Any(variant => variant.Matches(activeProfile)))
+                {
+                    nativeError ??= "This language package is unavailable for the selected game-data base.";
+                }
                 if (native?.Official is { } nativeComponent)
                 {
                     if (OfficialModCatalog.HasLegacyGirlNextDoorIdentity(nativeComponent))
@@ -992,7 +1015,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 {
                     status = ModEffectiveStatus.NoUsableEntries;
                 }
-                packages.Add(new(id, descriptor?.Name ?? native?.Official?.Name ?? name, format, explicitEnabled, requested, status, root) { IsBundled = format == ModFormat.Memoria && (bundledRoot is not null || modRoot == bundledModsRoot), Official = native?.Official, Descriptor = descriptor, Priority = priority, HasLocalization = hasLocalization, HasLighting = hasLighting, HasFieldScene3D = hasFieldScene3D, FieldScenePresentationOnly = fieldScenePresentationOnly, FieldSpringPresentationOnly = fieldSpringPresentationOnly, LocalizationOnly = localizationOnly, TextureContentOnly = textureContentOnly, MoviePresentationOnly = moviePresentationOnly });
+                packages.Add(new(id, descriptor?.Name ?? native?.Official?.Name ?? name, format, explicitEnabled, requested, status, root) { IsBundled = format == ModFormat.Memoria && (bundledRoot is not null || modRoot == bundledModsRoot), Official = native?.Official, OfficialAvailable = native?.Installed == true, Descriptor = descriptor, Priority = priority, HasLocalization = hasLocalization, HasLighting = hasLighting, HasFieldScene3D = hasFieldScene3D, FieldScenePresentationOnly = fieldScenePresentationOnly, FieldSpringPresentationOnly = fieldSpringPresentationOnly, LocalizationOnly = localizationOnly, TextureContentOnly = textureContentOnly, MoviePresentationOnly = moviePresentationOnly });
 
                 void TrackPackageFiles(PackageTextureLayouts textureLayouts)
                 {
@@ -1253,7 +1276,11 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 {
                     enabled = MemoriaComponentPreference(memoriaSettings, package.Id, package.Official, package.Descriptor) ?? enabled;
                 }
-                return package with { ExplicitEnabled = enabled, RequestedEnabled = RequiredPackageReason(package.Id) is not null || (enabled ?? autoEnable) };
+                return package with
+                {
+                    ExplicitEnabled = enabled,
+                    RequestedEnabled = LanguagePackages.IsDependency(package) ? package.RequestedEnabled : RequiredPackageReason(package.Id) is not null || (enabled ?? (!IsOptInLanguage(package) && autoEnable))
+                };
             }).ToArray());
         }
         catch (Exception exception) when (IsFileError(exception))

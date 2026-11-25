@@ -243,12 +243,12 @@ public sealed partial class ModRuntime
 
     private static ModServiceView GroupMemoriaComponents(ModServiceView view)
     {
-        var groups = view.Packages.Where(item => IsMemoriaComponent(item.Package)).GroupBy(item => ComponentGroup(item.Package), StringComparer.OrdinalIgnoreCase).OrderBy(group => group.Key != MemoriaPackageId).ThenBy(group => group.Key, StringComparer.OrdinalIgnoreCase).ToArray();
+        var groups = view.Packages.Where(item => IsMemoriaComponent(item.Package) && !LanguagePackages.IsLanguage(item.Package)).GroupBy(item => ComponentGroup(item.Package), StringComparer.OrdinalIgnoreCase).OrderBy(group => group.Key != MemoriaPackageId).ThenBy(group => group.Key, StringComparer.OrdinalIgnoreCase).ToArray();
         if (groups.Length == 0)
         {
             return view;
         }
-        return view with { Packages = Array.AsReadOnly(groups.Select(group => CreateMemoriaGroup(group.Key, group.ToArray())).Concat(view.Packages.Where(item => !IsMemoriaComponent(item.Package))).ToArray()) };
+        return view with { Packages = Array.AsReadOnly(groups.Select(group => CreateMemoriaGroup(group.Key, group.ToArray())).Concat(view.Packages.Where(item => !IsMemoriaComponent(item.Package) || LanguagePackages.IsLanguage(item.Package))).ToArray()) };
     }
 
     private static ModPackageView CreateMemoriaGroup(string name, ModPackageView[] components)

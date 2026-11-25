@@ -124,9 +124,14 @@ public static partial class JunctionModImporter
             }
         }
         ApplyOptionOverrides(root, options, optionOverrides);
-        metadata = metadata with { Options = new System.Collections.ObjectModel.ReadOnlyDictionary<string, int>(new Dictionary<string, int>(options, StringComparer.OrdinalIgnoreCase)) };
-        metadata = ReadResourceSettings(root, options, metadata, diagnostics);
         string[] supportedLanguages = root.Elements("GameLanguage").SelectMany(element => ParseLanguages(element.Value)).ToArray();
+        metadata = metadata with
+        {
+            Options = new System.Collections.ObjectModel.ReadOnlyDictionary<string, int>(new Dictionary<string, int>(options, StringComparer.OrdinalIgnoreCase)),
+            OptionValues = Array.AsReadOnly(root.Elements("ConfigOption").SelectMany(option => option.Elements("Option").Select(value => new JunctionOptionValue(option.Element("ID")!.Value.Trim(), value.Attribute("Name")?.Value.Trim() ?? value.Value.Trim(), int.Parse(RequiredAttribute(value, "Value"), CultureInfo.InvariantCulture)))).ToArray()),
+            GameLanguages = Array.AsReadOnly(supportedLanguages)
+        };
+        metadata = ReadResourceSettings(root, options, metadata, diagnostics);
         if (supportedLanguages.Length > 0 && !supportedLanguages.Any(language => language.Equals("EN", StringComparison.OrdinalIgnoreCase) || language.Equals("ANY", StringComparison.OrdinalIgnoreCase)))
         {
             throw new NotSupportedException("Junction package does not support the current English game language.");

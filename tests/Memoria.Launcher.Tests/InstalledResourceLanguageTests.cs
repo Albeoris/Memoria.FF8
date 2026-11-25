@@ -9,27 +9,28 @@ public sealed class InstalledResourceLanguageTests : IDisposable
     private readonly string directory = Path.Combine(Path.GetTempPath(), "Memoria.Language.Tests", Guid.NewGuid().ToString("N"));
 
     [Fact]
-    public void ClassicUsesItsInstalledProviderLanguageAndClearsAnOlderOverride()
+    public void ClassicUsesItsInstalledBaseWithAnOlderRemasteredOverridePresent()
     {
-        Directory.CreateDirectory(Path.Combine(directory, "Data", "lang-en"));
+        WriteClassicArchives("en");
         File.WriteAllBytes(Path.Combine(directory, "FF8_EN.exe"), []);
-        foreach (string family in new[] { "main", "menu", "field", "battle", "world", "magic" })
-        {
-            foreach (string extension in new[] { ".fl", ".fi", ".fs" })
-            {
-                File.WriteAllBytes(Path.Combine(directory, "Data", "lang-en", family + extension), []);
-            }
-        }
         string settingsPath = Path.Combine(directory, "launcher.json");
         new LauncherSettings(directory, ResourceLanguage: "fr").Save(settingsPath);
         LauncherSettings settings = LauncherSettings.Load(settingsPath);
         InstalledResourceLanguages languages = GameInstallationResourceLanguages.Discover(directory, TestContext.Current.CancellationToken);
         Assert.Equal(GameDataEdition.Classic, languages.Edition);
         Assert.Equal(["en"], languages.AvailableLanguages);
-        Assert.False(languages.CanSelectLanguage);
-        Assert.Equal("en", languages.Resolve(settings.ResourceLanguage));
-        (settings with { ResourceLanguage = languages.NormalizeOverride(settings.ResourceLanguage) }).Save(settingsPath);
-        Assert.Null(LauncherSettings.Load(settingsPath).ResourceLanguage);
+        Assert.Equal("en", languages.Resolve(settings, directory));
+    }
+
+    [Fact]
+    public void UnsupportedClassicExecutableStillExposesItsActualGermanArchivesToTheLanguagePicker()
+    {
+        WriteClassicArchives("de");
+        File.WriteAllBytes(Path.Combine(directory, "FF8_DE.exe"), []);
+        Assert.NotNull(GameInstallationSelection.ValidateForEngine(directory));
+        InstalledResourceLanguages languages = GameInstallationResourceLanguages.Discover(directory, TestContext.Current.CancellationToken);
+        Assert.Equal(new GameLanguageProfile("Classic", "de"), Assert.Single(languages.NativeProfiles));
+        Assert.Equal("de", languages.Resolve(null));
     }
 
     [Fact]
@@ -49,8 +50,7 @@ public sealed class InstalledResourceLanguageTests : IDisposable
             new("fr", true, null),
             new("de", false, "Missing bank"),
             new("jp", true, null)]);
-        Assert.Equal(["en", "fr"], languages.AvailableLanguages);
-        Assert.True(languages.CanSelectLanguage);
+        Assert.Equal(["en", "fr", "ja"], languages.AvailableLanguages);
         Assert.Equal("fr", languages.NormalizeOverride(" FR "));
         Assert.Equal("en", languages.Resolve(null));
         Assert.Equal("en", languages.Resolve("de"));
@@ -58,11 +58,11 @@ public sealed class InstalledResourceLanguageTests : IDisposable
     }
 
     [Fact]
-    public void RemasteredSingleBankUsesThatLanguageWithoutAnOverrideSelector()
+    public void RemasteredSingleBankUsesItsInstalledBase()
     {
         InstalledResourceLanguages languages = GameInstallationResourceLanguages.FromRemasteredAvailability([new("fr", true, null), new("en", false, "Missing bank")]);
         Assert.Equal("fr", languages.Resolve("en"));
-        Assert.False(languages.CanSelectLanguage);
+        Assert.Equal(new GameLanguageProfile("Remastered", "fr"), Assert.Single(languages.NativeProfiles));
         Assert.Null(languages.NormalizeOverride("en"));
     }
 
@@ -72,7 +72,33 @@ public sealed class InstalledResourceLanguageTests : IDisposable
         InstalledResourceLanguages languages = GameInstallationResourceLanguages.FromRemasteredAvailability([new("en", false, "Missing bank")]);
         Assert.Empty(languages.AvailableLanguages);
         Assert.Null(languages.Resolve(null));
-        Assert.False(languages.CanSelectLanguage);
+        Assert.Empty(languages.NativeProfiles);
+    }
+
+    [Fact]
+    public void LaunchReadsTheSavedProviderBaseForItsOwnInstallation()
+    {
+        InstalledResourceLanguages languages = GameInstallationResourceLanguages.FromRemasteredAvailability([new("en", true, null), new("fr", true, null)]);
+        LauncherSettings settings = new LauncherSettings(directory, ResourceLanguage: "en").WithLanguageChoice(new("ru", "memoria/russian-ffrtt", "ru", new("Remastered", "fr"), "Memoria/Translation"));
+        LauncherSettings staleLegacyOverride = settings with { ResourceLanguage = "en" };
+        string selected = Assert.IsType<string>(languages.Resolve(staleLegacyOverride, directory));
+        var start = GameInstallationSelection.CreateStartInfo(directory, directory, resourceLanguage: selected);
+        int argument = start.ArgumentList.IndexOf("--resource-language");
+        Assert.True(argument >= 0);
+        Assert.Equal("fr", start.ArgumentList[argument + 1]);
+        Assert.Equal("en", languages.Resolve(settings, Path.Combine(directory, "other")));
+    }
+
+    private void WriteClassicArchives(string language)
+    {
+        string archives = Directory.CreateDirectory(Path.Combine(directory, "Data", "lang-" + language)).FullName;
+        foreach (string family in new[] { "main", "menu", "field", "battle", "world", "magic" })
+        {
+            foreach (string extension in new[] { ".fl", ".fi", ".fs" })
+            {
+                File.WriteAllBytes(Path.Combine(archives, family + extension), []);
+            }
+        }
     }
 
     public void Dispose()

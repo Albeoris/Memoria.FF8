@@ -32,7 +32,11 @@ The launcher remembers the selected folder after a successful start and offers i
 
 **Mods** provides Installed and Catalog views with search, category filters, component enablement, details and download controls. Missing official components can be queued together. Use the in-game manager for advanced options and load order; see [Downloading mods](mod-library.md).
 
-**Settings** saves renderer, achievement connection and close-after-launch preferences. Classic uses its installed text resources. Remastered offers a language selector only when multiple supported text banks are actually present. Appearance follows the system or uses Dark/Light immediately. Model resource overrides, FFmpeg setup and the Encoding Editor are under Advanced resources & tools.
+**Settings** saves renderer, language, achievement connection and close-after-launch preferences. Appearance follows the system or uses Dark/Light immediately. Model resource overrides, FFmpeg setup and the Encoding Editor are under Advanced resources & tools.
+
+Open **Language** under launcher **Settings** or on the game title screen. Expand a language to see the original edition and translations. Each translation shows its source and availability. Review the native game data and any required downloads before confirming. The launcher and game remember the same choice. Selecting **Original** switches back to the installed game text for that language. Manage language packages from **Language**.
+
+Classic uses the installed native text resources. Some translations require a specific base, such as Classic English. Remastered lists the native languages found in the selected installation. You can browse saved listings and select available local editions offline.
 
 **Updates** has one download action. It uses GitHub's Latest release by default. Enable **Choose another release** to select another published tag, including prereleases and nightly. Tags appear newest first by update time, with their timestamp and time-zone offset. Packages are verified before installation; installing an older tag can downgrade the engine.
 

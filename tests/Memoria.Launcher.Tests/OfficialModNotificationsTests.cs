@@ -56,6 +56,19 @@ public sealed class OfficialModNotificationsTests : IDisposable
         Assert.Contains("Latest 1.0.4", notice.Describe());
     }
 
+    [Fact]
+    public void LanguageProviderAndMediaReceiptsAreNeverOrdinaryUpdateNotices()
+    {
+        LanguageNativeVariant target = new("Classic", "en");
+        OfficialModComponent provider = Component("russian-ffrtt", "3.20") with { LanguageOffers = [new("ru", "FFRTT", "ru", [target])] };
+        OfficialModComponent media = Component("russian-ffrtt-media", "3.20") with { NativeVariants = [target] };
+        OfficialModComponent ordinary = Component("ordinary", "2.0.0");
+        OfficialModNotifications result = Build(root, Inventory(Installed(provider, "3.19"), Installed(media, "3.19")), [ordinary, provider]);
+
+        Assert.Same(ordinary, Assert.Single(result.Notices).Component);
+        Assert.Equal("1 new official mod available", result.Summary);
+    }
+
     private static OfficialModNotifications Build(string profile, IReadOnlyDictionary<string, ModPackageInstallResult> installed, IReadOnlyList<OfficialModComponent> components, long revision = 1, string? error = null)
     {
         return OfficialModNotifications.Create(new(revision, components, DateTimeOffset.UtcNow, error), profile, "1.0.0", "Classic", "en", installed);

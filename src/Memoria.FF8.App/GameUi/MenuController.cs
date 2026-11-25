@@ -547,6 +547,10 @@ public sealed partial class MenuController
 
     public void Back()
     {
+        if (BackFromLanguage())
+        {
+            return;
+        }
         if (BackFromBattleLoadoutEditor())
         {
             return;
@@ -894,7 +898,7 @@ public sealed partial class MenuController
     public void Execute(MenuAction action)
     {
         _view = null;
-        if (ExecuteNewGamePlus(action))
+        if (ExecuteLanguageAction(action) || ExecuteNewGamePlus(action))
         {
             return;
         }

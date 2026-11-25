@@ -15,9 +15,15 @@ public sealed record OfficialModRelease(string Version, string EngineVersionRang
     public IReadOnlyList<string>? RequiredCapabilities { get; init; }
 }
 public sealed record OfficialModFile(string Path, long Size, string Sha256, bool Mutable);
+public sealed record LanguageDependencyPin(string Id, string Version);
 public sealed record OfficialModComponent(string Id, string GroupId, string RuntimePackageId, string SettingsKey, string Name, string Description, string Category, string Format, string Delivery, bool DefaultEnabled, OfficialModTarget Target, OfficialModRelease? Latest)
 {
     public IReadOnlyList<string>? RequiredCapabilities { get; init; }
+    public IReadOnlyList<LanguageOfferMetadata>? LanguageOffers { get; init; }
+    public IReadOnlyList<LanguageNativeVariant>? NativeVariants { get; init; }
+    public IReadOnlyList<LanguageDependencyPin>? Dependencies { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool IsLanguageDependency => NativeVariants is { Count: > 0 } && LanguageOffers is null;
 
     [System.Text.Json.Serialization.JsonIgnore]
     public Guid CatalogId => OfficialModCatalog.CatalogId(Id);
@@ -36,11 +42,19 @@ public sealed record OfficialModComponent(string Id, string GroupId, string Runt
     };
 }
 
-public sealed record OfficialCatalogSnapshot(long Revision, IReadOnlyList<OfficialModComponent> Components, DateTimeOffset? ValidatedAt, string? Error = null);
+public sealed record OfficialCatalogSnapshot(long Revision, IReadOnlyList<OfficialModComponent> Components, DateTimeOffset? ValidatedAt, string? Error = null)
+{
+    public IReadOnlyList<OfficialModComponent> Dependencies { get; init; } = [];
+
+    internal IEnumerable<RemoteModEntry> LanguageEntries()
+    {
+        return Components.Select(component => component.ToEntry() with { RequiredLanguagePackages = OfficialModCatalog.DependencyClosure(component, Dependencies) });
+    }
+}
 
 public static class OfficialModCatalog
 {
-    private sealed record Document(int SchemaVersion, string SourceId, long Revision, DateTimeOffset PublishedAt, IReadOnlyList<OfficialModComponent> Components, IReadOnlyList<string>? RequiredCapabilities = null);
+    private sealed record Document(int SchemaVersion, string SourceId, long Revision, DateTimeOffset PublishedAt, IReadOnlyList<OfficialModComponent> Components, IReadOnlyList<string>? RequiredCapabilities = null, IReadOnlyList<OfficialModComponent>? Dependencies = null);
     private const int MaximumBytes = 2 * 1024 * 1024;
     public const string SourceId = "memoria-official";
     private const string GirlNextDoorId = "memoria-girl-next-door";
@@ -48,6 +62,7 @@ public static class OfficialModCatalog
     public const string LegacyGirlNextDoorRuntimePackageId = "Memoria/Girl Next Door";
     public const string LegacyGirlNextDoorSettingsKey = "Girl Next Door";
     public static Uri Feed { get; } = new("https://raw.githubusercontent.com/Albeoris/Memoria.Mods/catalog/catalog-v1.json");
+    public static Uri LanguageFeed { get; } = new(Feed, "languages-v1.json");
     public static string DefaultCacheDirectory => Path.Combine(ApplicationPaths.Current.Cache, "mod-library", "official-catalog");
     internal static JsonSerializerOptions Json { get; } = new(JsonSerializerDefaults.Web);
     internal static IReadOnlyList<OfficialModComponent> SeedComponents { get; } = ReadSeed();
@@ -98,7 +113,10 @@ public static class OfficialModCatalog
 
     private static OfficialModComponent FreezeComponent(OfficialModComponent component) => component with
     {
-        Target = component.Target with { Editions = Array.AsReadOnly(component.Target.Editions.ToArray()), Languages = Array.AsReadOnly(component.Target.Languages.ToArray()) }
+        Target = component.Target with { Editions = Array.AsReadOnly(component.Target.Editions.ToArray()), Languages = Array.AsReadOnly(component.Target.Languages.ToArray()) },
+        LanguageOffers = component.LanguageOffers is null ? null : Array.AsReadOnly(component.LanguageOffers.Select(offer => offer with { NativeVariants = Array.AsReadOnly(offer.NativeVariants.ToArray()) }).ToArray()),
+        NativeVariants = component.NativeVariants is null ? null : Array.AsReadOnly(component.NativeVariants.ToArray()),
+        Dependencies = component.Dependencies is null ? null : Array.AsReadOnly(component.Dependencies.ToArray())
     };
 
     public static Guid CatalogId(string componentId)
@@ -160,14 +178,15 @@ public static class OfficialModCatalog
         }
     }
 
-    public static OfficialCatalogSnapshot Parse(byte[] data, DateTimeOffset? validatedAt = null)
+    public static OfficialCatalogSnapshot Parse(byte[] data, DateTimeOffset? validatedAt = null, bool languageIndex = false)
     {
         if (data.Length > MaximumBytes)
         {
             throw new InvalidDataException("Official catalog exceeds its size limit.");
         }
         Document? document = JsonSerializer.Deserialize<Document>(data, Json);
-        if (document is null || document.SchemaVersion != 1 || document.SourceId != SourceId || document.Revision < 1 || document.PublishedAt == default || document.Components is null || document.RequiredCapabilities is { Count: > 0 })
+        if (document is null || document.SchemaVersion != 1 || document.SourceId != SourceId || document.Revision < 1 || document.PublishedAt == default || document.Components is null || document.RequiredCapabilities is { Count: > 0 }
+            || (!languageIndex && document.Dependencies is not null) || document.Dependencies is { Count: > 128 })
         {
             throw new InvalidDataException("The official catalog requires a supported schema and revision.");
         }
@@ -176,10 +195,12 @@ public static class OfficialModCatalog
         HashSet<string> runtimeIds = new(StringComparer.OrdinalIgnoreCase);
         HashSet<string> settingsKeys = new(StringComparer.OrdinalIgnoreCase);
         List<OfficialModComponent> entries = [];
-        foreach (OfficialModComponent component in document.Components)
+        List<OfficialModComponent> dependencies = [];
+        foreach ((OfficialModComponent component, bool dependency) in document.Components.Select(component => (component, false)).Concat((document.Dependencies ?? []).Select(component => (component, true))))
         {
             if (component is null || !NativeModDescriptor.IsId(component.Id) || !ids.Add(component.Id) || !componentIds.Add(component.CatalogId)
-                || !IsRuntimeId(component.RuntimePackageId) || !runtimeIds.Add(component.RuntimePackageId) || component.GroupId != "Memoria" || component.Format != "memoria-native" || component.Delivery != "download" || !component.DefaultEnabled
+                || !IsRuntimeId(component.RuntimePackageId) || !runtimeIds.Add(component.RuntimePackageId) || component.GroupId != "Memoria" || component.Format != "memoria-native" || component.Delivery != "download"
+                || (languageIndex ? component.DefaultEnabled : !component.DefaultEnabled || component.LanguageOffers is not null || component.NativeVariants is not null || component.Dependencies is not null)
                 || string.IsNullOrWhiteSpace(component.Name) || string.IsNullOrWhiteSpace(component.Description) || string.IsNullOrWhiteSpace(component.Category) || string.IsNullOrWhiteSpace(component.SettingsKey) || !settingsKeys.Add(component.SettingsKey))
             {
                 throw new InvalidDataException("Invalid or duplicate official component identity or descriptor.");
@@ -189,6 +210,36 @@ public static class OfficialModCatalog
                 throw new InvalidDataException("An official component requires a newer catalog reader.");
             }
             ValidateTarget(component.Target);
+            if (languageIndex)
+            {
+                IReadOnlyList<LanguageNativeVariant> variants;
+                if (dependency)
+                {
+                    if (component.LanguageOffers is not null || !LanguagePackages.ValidVariants(component.NativeVariants))
+                    {
+                        throw new InvalidDataException("A hidden language dependency requires native variants and cannot advertise language choices.");
+                    }
+                    variants = component.NativeVariants!;
+                }
+                else
+                {
+                    LanguagePackages.ValidateOffers(component.LanguageOffers);
+                    if (component.NativeVariants is not null)
+                    {
+                        throw new InvalidDataException("A language component must declare its native variants on its language offers.");
+                    }
+                    variants = component.LanguageOffers!.SelectMany(offer => offer.NativeVariants).ToArray();
+                }
+                if (variants.Any(variant => !TargetMatches(component.Target, variant.Edition, variant.Language)))
+                {
+                    throw new InvalidDataException("An official language offer references a native base outside its component target.");
+                }
+                if (component.Dependencies is { } pins && (pins.Count > 32 || pins.Any(pin => pin is null || !NativeModDescriptor.IsId(pin.Id) || !NuGetVersion.TryParse(pin.Version, out _))
+                    || pins.Select(pin => pin.Id).Distinct(StringComparer.Ordinal).Count() != pins.Count))
+                {
+                    throw new InvalidDataException("A language package has invalid or duplicate dependency pins.");
+                }
+            }
             OfficialModRelease? release = component.Latest;
             if (release is null || !NuGetVersion.TryParse(release.Version, out NuGetVersion? version) || release.ReleaseTag != component.Id + "-v" + release.Version
                 || release.Artifact is not { Size: > 0 and < 2147483648, UnpackedSize: > 0 } artifact || !IsDigest(artifact.Sha256)
@@ -202,20 +253,57 @@ public static class OfficialModCatalog
                 throw new InvalidDataException("Invalid official component runtime or settings identity.");
             }
             ParseRange(release.EngineVersionRange);
-            entries.Add(FreezeComponent(component));
+            (dependency ? dependencies : entries).Add(FreezeComponent(component));
         }
-        if (!componentIds.Contains(GirlNextDoor.CatalogId))
+        if (!languageIndex && !componentIds.Contains(GirlNextDoor.CatalogId))
         {
             entries.Add(GirlNextDoor);
         }
-        return new(document.Revision, entries.AsReadOnly(), validatedAt);
+        foreach (OfficialModComponent component in entries.Concat(dependencies))
+        {
+            foreach (OfficialModComponent member in DependencyClosure(component, dependencies))
+            {
+                IEnumerable<LanguageNativeVariant> variants = component.NativeVariants ?? component.LanguageOffers!.SelectMany(offer => offer.NativeVariants);
+                if (variants.Any(variant => !member.NativeVariants!.Contains(variant)))
+                {
+                    throw new InvalidDataException($"Language dependency '{member.Id}' does not support all native profiles declared by '{component.Id}'.");
+                }
+            }
+        }
+        return new(document.Revision, entries.AsReadOnly(), validatedAt) { Dependencies = dependencies.AsReadOnly() };
     }
 
-    public static OfficialCatalogSnapshot ReadCached(string cacheRoot)
+    internal static IReadOnlyList<OfficialModComponent> DependencyClosure(OfficialModComponent root, IReadOnlyList<OfficialModComponent> available)
+    {
+        List<OfficialModComponent> ordered = [];
+        HashSet<string> visiting = new(StringComparer.Ordinal);
+        void Visit(OfficialModComponent component)
+        {
+            if (!visiting.Add(component.Id))
+            {
+                throw new InvalidDataException($"Cyclic language dependency at '{component.Id}'.");
+            }
+            foreach (LanguageDependencyPin pin in component.Dependencies ?? [])
+            {
+                OfficialModComponent dependency = available.SingleOrDefault(candidate => candidate.Id == pin.Id && candidate.Latest?.Version == pin.Version)
+                    ?? throw new InvalidDataException($"Missing language dependency '{pin.Id}' at version {pin.Version}.");
+                if (!ordered.Contains(dependency))
+                {
+                    Visit(dependency);
+                    ordered.Add(dependency);
+                }
+            }
+            visiting.Remove(component.Id);
+        }
+        Visit(root);
+        return ordered.AsReadOnly();
+    }
+
+    public static OfficialCatalogSnapshot ReadCached(string cacheRoot, bool languageIndex = false)
     {
         try
         {
-            string path = Path.Combine(cacheRoot, "catalog-v1.json");
+            string path = Path.Combine(cacheRoot, languageIndex ? "languages-v1.json" : "catalog-v1.json");
             using FileStream file = new(path, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete);
             if (file.Length > MaximumBytes)
             {
@@ -223,17 +311,17 @@ public static class OfficialModCatalog
             }
             byte[] raw = new byte[file.Length];
             file.ReadExactly(raw);
-            return Parse(raw, File.GetLastWriteTimeUtc(path));
+            return Parse(raw, File.GetLastWriteTimeUtc(path), languageIndex);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException or InvalidDataException)
         {
-            return new(0, Array.AsReadOnly(new[] { GirlNextDoor }), null, exception is FileNotFoundException or DirectoryNotFoundException ? null : exception.Message);
+            return new(0, languageIndex ? [] : Array.AsReadOnly(new[] { GirlNextDoor }), null, exception is FileNotFoundException or DirectoryNotFoundException ? null : exception.Message);
         }
     }
 
-    public static async Task<OfficialCatalogSnapshot> RefreshAsync(string cacheRoot, HttpClient? client = null, bool force = false, CancellationToken cancellationToken = default, bool bypassDebounce = false)
+    public static async Task<OfficialCatalogSnapshot> RefreshAsync(string cacheRoot, HttpClient? client = null, bool force = false, CancellationToken cancellationToken = default, bool bypassDebounce = false, bool languageIndex = false)
     {
-        OfficialCatalogSnapshot saved = ReadCached(cacheRoot);
+        OfficialCatalogSnapshot saved = ReadCached(cacheRoot, languageIndex);
         if (!bypassDebounce && DateTimeOffset.UtcNow - saved.ValidatedAt < (force ? TimeSpan.FromSeconds(20) : TimeSpan.FromHours(6)))
         {
             return saved;
@@ -241,13 +329,13 @@ public static class OfficialModCatalog
         try
         {
             Directory.CreateDirectory(cacheRoot);
-            string lockPath = Path.Combine(cacheRoot, "catalog.lock");
+            string lockPath = Path.Combine(cacheRoot, languageIndex ? "languages.lock" : "catalog.lock");
             using FileStream? cacheLock = await AcquireCacheLock(lockPath, cancellationToken).ConfigureAwait(false);
             if (cacheLock is null)
             {
-                return ReadCached(cacheRoot) with { Error = "Another process is checking official mods." };
+                return ReadCached(cacheRoot, languageIndex) with { Error = "Another process is checking official mods." };
             }
-            saved = ReadCached(cacheRoot);
+            saved = ReadCached(cacheRoot, languageIndex);
             if (!bypassDebounce && DateTimeOffset.UtcNow - saved.ValidatedAt < (force ? TimeSpan.FromSeconds(20) : TimeSpan.FromHours(6)))
             {
                 return saved;
@@ -255,7 +343,7 @@ public static class OfficialModCatalog
             using HttpClient? ownedClient = client is null ? ModDownloadTransport.CreateClient() : null;
             using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeout.CancelAfter(TimeSpan.FromSeconds(25));
-            using HttpResponseMessage response = await (client ?? ownedClient!).GetAsync(Feed, HttpCompletionOption.ResponseHeadersRead, timeout.Token).ConfigureAwait(false);
+            using HttpResponseMessage response = await (client ?? ownedClient!).GetAsync(languageIndex ? LanguageFeed : Feed, HttpCompletionOption.ResponseHeadersRead, timeout.Token).ConfigureAwait(false);
             response.EnsureSuccessStatusCode();
             using Stream input = await response.Content.ReadAsStreamAsync(timeout.Token).ConfigureAwait(false);
             using MemoryStream buffer = new();
@@ -270,15 +358,15 @@ public static class OfficialModCatalog
                 buffer.Write(chunk, 0, length);
             }
             byte[] raw = buffer.ToArray();
-            OfficialCatalogSnapshot next = Parse(raw, DateTimeOffset.UtcNow);
-            string path = Path.Combine(cacheRoot, "catalog-v1.json");
+            OfficialCatalogSnapshot next = Parse(raw, DateTimeOffset.UtcNow, languageIndex);
+            string path = Path.Combine(cacheRoot, languageIndex ? "languages-v1.json" : "catalog-v1.json");
             if (next.Revision < saved.Revision || next.Revision == saved.Revision && !raw.AsSpan().SequenceEqual(File.ReadAllBytes(path)))
             {
                 throw new InvalidDataException("The official catalog revision conflicts with saved information.");
             }
-            foreach (OfficialModComponent component in next.Components.Where(component => component.Latest is not null))
+            foreach (OfficialModComponent component in next.Components.Concat(next.Dependencies).Where(component => component.Latest is not null))
             {
-                OfficialModComponent? prior = saved.Components.FirstOrDefault(existing => existing.CatalogId == component.CatalogId);
+                OfficialModComponent? prior = saved.Components.Concat(saved.Dependencies).FirstOrDefault(existing => existing.CatalogId == component.CatalogId);
                 if (prior is not null && (prior.RuntimePackageId != component.RuntimePackageId || prior.SettingsKey != component.SettingsKey)
                     && !(prior.Latest is null && SameComponent(prior.Id, component.Id))
                     && !CanUpgradeIdentity(prior, component))

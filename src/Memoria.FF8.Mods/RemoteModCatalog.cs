@@ -26,6 +26,12 @@ public sealed record RemoteModEntry(string SourceId, Guid Id, string Name, strin
     public string PreviewUrl { get; init; } = "";
     public string Requirements { get; init; } = "";
     public string UnsupportedMetadata { get; init; } = "";
+    public IReadOnlyList<string> Tags { get; init; } = Array.Empty<string>();
+    public IReadOnlyList<string> GameLanguages { get; init; } = Array.Empty<string>();
+    [System.Text.Json.Serialization.JsonIgnore]
+    public IReadOnlyList<LanguageOfferMetadata> LanguageOffers => Official?.LanguageOffers ?? [];
+    [System.Text.Json.Serialization.JsonIgnore]
+    public IReadOnlyList<OfficialModComponent> RequiredLanguagePackages { get; init; } = [];
 
     public int? CompareVersion(string other) => SourceId == OfficialModCatalog.SourceId
         ? NuGet.Versioning.NuGetVersion.TryParse(Version, out var current) && NuGet.Versioning.NuGetVersion.TryParse(other, out var previous) ? current.CompareTo(previous) : null
@@ -127,6 +133,8 @@ public static class RemoteModCatalogAdapter
             {
                 Author = Limit(Read("Author"), 256), MetaVersion = Limit(Read("MetaVersion"), 64), Category = Limit(Read("Category"), 128), Description = PlainText(Read("Description")), Links = Array.AsReadOnly(links),
                 Edition = ReleaseRead("CompatibleGameVersions") is { Length: > 0 } edition ? Limit(edition, 128) : "All", Language = ReleaseRead("Language") is { Length: > 0 } language ? Limit(language, 128) : "English (catalog default)",
+                Tags = Array.AsReadOnly((mod.Element("Tags")?.Elements("string") ?? []).Select(tag => Limit(tag.Value.Trim(), 64)).Where(tag => tag.Length > 0).Distinct(StringComparer.Ordinal).Take(128).ToArray()),
+                GameLanguages = Array.AsReadOnly(ReleaseRead("GameLanguage").Split([',', ';', ' '], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)),
                 ReleaseNotes = PlainText(release?.Element("ReleaseNotes")?.Value ?? ""), PublishedSize = Limit(release?.Element("DownloadSize")?.Value ?? "", 128), PreviewUrl = ReleaseRead("PreviewImage") is { Length: <= 4096 } preview ? preview : "", Requirements = Limit(mod.Element("Requirements")?.ToString(SaveOptions.DisableFormatting) ?? "", 32768),
                 UnsupportedMetadata = Limit(string.Join(", ", mod.Descendants().Where(element => element.Name.LocalName is "Patch" or "Patches" or "ExtractInto" or "ExtractFiles" or "ApplyPatch" or "InstallCode" or "InstallScript" or "Execute" || element.Attributes().Any(attribute => attribute.Name.LocalName.Equals("critical", StringComparison.OrdinalIgnoreCase) && attribute.Value.Equals("true", StringComparison.OrdinalIgnoreCase))).Select(element => element.Name.LocalName).Distinct()), 4096)
             });

@@ -50,7 +50,12 @@ public sealed partial class MenuController
     {
         if (ScreenId == "config")
         {
-            return ConfigCategories.Select(category => new MenuEntry("config-" + category.Id, SystemText("config." + category.Id, category.Label), SystemText("config." + category.Id + ".help", category.Help), category.Id == "mods" ? "mods" : "config-" + category.Id, Enabled: category.Id != "mods" || _screens.ContainsKey("mods"))).ToArray();
+            List<MenuEntry> categories = ConfigCategories.Select(category => new MenuEntry("config-" + category.Id, SystemText("config." + category.Id, category.Label), SystemText("config." + category.Id + ".help", category.Help), category.Id == "mods" ? "mods" : "config-" + category.Id, Enabled: category.Id != "mods" || _screens.ContainsKey("mods"))).ToList();
+            if (readLanguages is not null)
+            {
+                categories.Add(new("config-language", LanguageText("title", "Language"), LanguageText("help", "Expand a language to see its available editions."), Destination: "language"));
+            }
+            return categories;
         }
         bool newGame = ScreenId == "new-game-options";
         string[] ids = newGame ? NewGameSettings.Ids : SettingsPlacement.Pages[ScreenId].Items;

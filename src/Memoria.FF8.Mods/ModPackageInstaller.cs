@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Memoria.FF8.Platform;
 using SharpCompress.Archives;
 
 namespace Memoria.FF8.Mods;
@@ -49,6 +50,12 @@ public sealed record ModPackageInstallResult(Guid InstallationId, string Package
 public sealed partial class ModPackageInstaller
 {
     public string ModsRoot => modsRoot;
+    internal string TargetProfile => targetProfile;
+
+    internal bool IsProfile(GameLanguageProfile profile)
+    {
+        return edition == profile.Edition && language == profile.ResourceLanguage;
+    }
 
     private readonly string stateRoot;
     private readonly string modsRoot;

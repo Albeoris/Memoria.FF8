@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using Memoria.FF8.Platform;
 
 namespace Memoria.FF8.Mods;
@@ -203,8 +204,12 @@ public sealed partial class ModPackageInstaller
             throw new InvalidDataException("The native payload must contain a root mod.json.");
         }
         NativeModDescriptor descriptor = NativeModDescriptor.Read(Path.Combine(payload, NativeModDescriptor.FileName));
+        bool language = component.LanguageOffers is { Count: > 0 } || component.IsLanguageDependency;
+        bool languageOffersMatch = JsonSerializer.Serialize(component.LanguageOffers ?? [], OfficialModCatalog.Json) == JsonSerializer.Serialize(descriptor.LanguageOffers, OfficialModCatalog.Json)
+            && (component.NativeVariants ?? []).SequenceEqual(descriptor.NativeVariants)
+            && (component.Dependencies ?? []).Select(pin => pin.Id).ToHashSet(StringComparer.Ordinal).SetEquals(descriptor.Dependencies);
         if (descriptor.Id != component.Id || descriptor.RuntimePackageId != component.RuntimePackageId || descriptor.Id != component.SettingsKey
-            || descriptor.Group != component.GroupId || descriptor.Name != component.Name || descriptor.DescriptionForLanguage("en") != component.Description)
+            || descriptor.Group != (language ? "Localization" : component.GroupId) || descriptor.Name != component.Name || descriptor.DescriptionForLanguage("en") != component.Description || !languageOffersMatch)
         {
             throw new InvalidDataException("The native descriptor does not match the pinned catalog metadata.");
         }

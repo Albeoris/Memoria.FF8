@@ -329,6 +329,10 @@ public sealed class OfficialModDistributionTests : IDisposable
             {
                 return new(HttpStatusCode.OK) { Content = new ByteArrayContent(catalog) };
             }
+            if (request.RequestUri == OfficialModCatalog.LanguageFeed)
+            {
+                return new(HttpStatusCode.NotFound);
+            }
             Interlocked.Increment(ref artifactRequests);
             return new(HttpStatusCode.OK) { Content = new ByteArrayContent(archive) };
         }));
@@ -350,6 +354,7 @@ public sealed class OfficialModDistributionTests : IDisposable
             await WaitFor(() => second.View.Jobs.Any(job => job.CanInstall));
             Assert.Equal(id, Assert.Single(second.View.Jobs).Id);
             Assert.Equal(1, artifactRequests);
+            Assert.Empty(second.View.LanguageEntries);
         }
         await WaitFor(() => QueueReleased(queueLock));
     }

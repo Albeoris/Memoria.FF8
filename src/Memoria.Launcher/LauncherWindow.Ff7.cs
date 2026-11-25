@@ -110,7 +110,7 @@ internal sealed partial class LauncherWindow
         ff7Installations.IsEnabled = !busy;
         selectFf7.IsEnabled = !busy;
         clearFf7.IsEnabled = !busy && selectedFf7GameDirectory is not null;
-        startFf7.IsEnabled = !busy && !ResourceLanguageDiscoveryPending && SelectedResourceLanguage is not null && ff7ResourcesAvailable && LauncherCapabilities.CanLaunchGame;
+        startFf7.IsEnabled = !busy && selectedInstallationPlayable && !ResourceLanguageDiscoveryPending && SelectedResourceLanguage is not null && ff7ResourcesAvailable && LauncherCapabilities.CanLaunchGame;
     }
 
     private void SaveFf7Selection()

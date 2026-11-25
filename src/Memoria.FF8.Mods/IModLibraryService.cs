@@ -8,6 +8,7 @@ public interface IModLibraryService
     Task<ModPreviewDocument> OpenPreviewAsync(RemoteModEntry? entry, ModPackage? installed, CancellationToken cancellationToken = default) => Task.FromException<ModPreviewDocument>(new NotSupportedException("Package preview is unavailable."));
     void Queue(RemoteModEntry entry);
     void DownloadAndEnable(RemoteModEntry entry) => Queue(entry);
+    Task<string?> AcquireLanguageAsync(GameLanguageOffer offer, ModPackageInstaller destination, CancellationToken cancellationToken = default, bool update = false) => Task.FromException<string?>(new NotSupportedException("Language packages are unavailable."));
     void CancelPendingEnable(RemoteModEntry entry) { }
     void Pause(Guid id);
     void Resume(Guid id);
@@ -25,6 +26,9 @@ public interface IModLibraryService
 public sealed record ModLibrarySnapshot(long Revision, RemoteCatalogSnapshot Catalog, IReadOnlyList<ModLibraryJob> Jobs, string TargetProfile, bool TargetSupported, string? Error = null)
 {
     public IReadOnlyList<ModLibraryInstallation> Installations { get; init; } = Array.Empty<ModLibraryInstallation>();
+    public IReadOnlyList<RemoteModEntry> LanguageEntries { get; init; } = Array.Empty<RemoteModEntry>();
+    public IReadOnlyList<ModLibraryInstallation> LanguageInstallations { get; init; } = Array.Empty<ModLibraryInstallation>();
+    public IReadOnlyList<ModLibraryJob> LanguageJobs { get; init; } = Array.Empty<ModLibraryJob>();
     public bool OfficialSupported { get; init; }
     public string TargetLabel { get; init; } = TargetProfile;
 }

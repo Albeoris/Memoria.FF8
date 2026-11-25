@@ -10,12 +10,15 @@ public sealed class NativeModDescriptor
     public const string FileName = "mod.json";
     private const int MaximumBytes = 64 * 1024;
 
-    private NativeModDescriptor(string id, string name, string group, IReadOnlyDictionary<string, string> descriptions)
+    private NativeModDescriptor(string id, string name, string group, IReadOnlyDictionary<string, string> descriptions, IReadOnlyList<LanguageOfferMetadata> languageOffers, IReadOnlyList<LanguageNativeVariant> nativeVariants, IReadOnlyList<string> dependencies)
     {
         Id = id;
         Name = name;
         Group = group;
         Descriptions = descriptions;
+        LanguageOffers = languageOffers;
+        NativeVariants = nativeVariants;
+        Dependencies = dependencies;
     }
 
     public string Id { get; }
@@ -23,6 +26,10 @@ public sealed class NativeModDescriptor
     public string Name { get; }
     public string Group { get; }
     public IReadOnlyDictionary<string, string> Descriptions { get; }
+    public IReadOnlyList<LanguageOfferMetadata> LanguageOffers { get; }
+    public IReadOnlyList<LanguageNativeVariant> NativeVariants { get; }
+    public IReadOnlyList<string> Dependencies { get; }
+    public bool IsLanguageDependency => NativeVariants.Count > 0;
 
     public string DescriptionForLanguage(string? language)
     {
@@ -72,7 +79,7 @@ public sealed class NativeModDescriptor
         Dictionary<string, JsonElement> properties = new(StringComparer.Ordinal);
         foreach (JsonProperty property in root.EnumerateObject())
         {
-            if (property.Name is not ("id" or "name" or "package" or "description") || !properties.TryAdd(property.Name, property.Value))
+            if (property.Name is not ("id" or "name" or "package" or "description" or "kind" or "languageOffers" or "nativeVariants" or "dependencies") || !properties.TryAdd(property.Name, property.Value))
             {
                 throw new InvalidDataException($"Unknown or duplicate native mod descriptor property '{property.Name}'.");
             }
@@ -84,7 +91,40 @@ public sealed class NativeModDescriptor
         }
         string name = ReadText(properties.GetValueOrDefault("name"), "name");
         string group = ReadText(properties.GetValueOrDefault("package"), "package");
-        return new(id, name, group, ReadTranslations(properties.GetValueOrDefault("description"), "description", multiline: true));
+        IReadOnlyList<LanguageOfferMetadata> languageOffers = [];
+        IReadOnlyList<LanguageNativeVariant> nativeVariants = [];
+        string[] dependencies = [];
+        if (properties.ContainsKey("kind") || properties.ContainsKey("languageOffers") || properties.ContainsKey("nativeVariants") || properties.ContainsKey("dependencies"))
+        {
+            string kind = ReadText(properties.GetValueOrDefault("kind"), "kind");
+            if (kind == "language" && properties.TryGetValue("languageOffers", out JsonElement declarations) && !properties.ContainsKey("nativeVariants"))
+            {
+                languageOffers = declarations.Deserialize<LanguageOfferMetadata[]>(OfficialModCatalog.Json) ?? [];
+                LanguagePackages.ValidateOffers(languageOffers);
+            }
+            else if (kind == "dependency" && properties.TryGetValue("nativeVariants", out JsonElement variants) && !properties.ContainsKey("languageOffers"))
+            {
+                nativeVariants = variants.Deserialize<LanguageNativeVariant[]>(OfficialModCatalog.Json) ?? [];
+                if (!LanguagePackages.ValidVariants(nativeVariants))
+                {
+                    throw new InvalidDataException("A language dependency requires valid native variants.");
+                }
+            }
+            else
+            {
+                throw new InvalidDataException("The descriptor's language or dependency kind does not match its metadata.");
+            }
+            if (properties.TryGetValue("dependencies", out JsonElement requirements))
+            {
+                dependencies = requirements.Deserialize<string[]>() ?? throw new InvalidDataException("Language dependencies cannot be null.");
+                if (dependencies.Length > 32 || dependencies.Any(dependency => !IsId(dependency) || dependency == id)
+                    || dependencies.Distinct(StringComparer.Ordinal).Count() != dependencies.Length)
+                {
+                    throw new InvalidDataException("A native descriptor contains invalid or duplicate language dependencies.");
+                }
+            }
+        }
+        return new(id, name, group, ReadTranslations(properties.GetValueOrDefault("description"), "description", multiline: true), languageOffers, nativeVariants, Array.AsReadOnly(dependencies));
     }
 
     internal static string TextForLanguage(IReadOnlyDictionary<string, string> translations, string? language)

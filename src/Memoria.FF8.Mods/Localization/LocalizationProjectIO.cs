@@ -89,7 +89,7 @@ public static partial class LocalizationProjectIO
         LocalizationManifest manifest = document.RootElement.Deserialize<LocalizationManifest>(JsonOptions) ?? throw new InvalidDataException("The localization manifest is empty.");
         ValidateManifest(manifest);
         LocalizationSourceRoles.Resolve(manifest);
-        if (manifest.SchemaVersion >= 2 && manifest.ExtensionsPath is null)
+        if (manifest.SchemaVersion >= 2 && manifest.ExtensionsPath is null && !manifest.PlayerExport)
         {
             throw new InvalidDataException("Reference-layout projects require their native binding metadata sidecar.");
         }
@@ -190,6 +190,13 @@ public static partial class LocalizationProjectIO
         }
         LocalizationProject result = new() { Manifest = manifest, Entries = rows, Artwork = artwork, EncodingFiles = ReadEncodingFiles(root, ReadBytes), EditionBindings = editionBindings };
         Validate(result, cache);
+        if (manifest.PlayerExport)
+        {
+            foreach (LocalizationRecord row in result.Entries)
+            {
+                ValidatePlayerRecord(row);
+            }
+        }
         foreach (var (path, stamp) in stamps)
         {
             if (Stamp(path) != stamp)
@@ -229,6 +236,10 @@ public static partial class LocalizationProjectIO
 
     public static void WriteNew(LocalizationProject project, string directory, string format, string layout, CancellationToken cancellation = default)
     {
+        if (project.Manifest.PlayerExport)
+        {
+            throw new InvalidOperationException("Convert the original authoring project to preserve its runtime bindings.");
+        }
         format = format.TrimStart('.').ToLowerInvariant();
         layout = layout.ToLowerInvariant();
         LocalizationManifest manifest = project.Manifest with { Format = format, Layout = layout, Payloads = [], ExtensionsPath = null };
@@ -422,6 +433,10 @@ public static partial class LocalizationProjectIO
         {
             throw new InvalidDataException("Ambiguous localization role columns.");
         }
+        if (manifest.PlayerExport && (manifest.SchemaVersion != 2 || manifest.SourceEdition is null || manifest.BaseProjectId is not null || manifest.ReferenceLanguages.Count != 0 || manifest.ExtensionsPath is not null || manifest.Artwork.Count != 0 || manifest.Format != "json"))
+        {
+            throw new InvalidDataException("Player localization requires a standalone JSON project without reference, artwork or authoring data.");
+        }
         if (manifest.Format is not ("json" or "xlsx") || manifest.Layout is not ("single" or "split"))
         {
             throw new InvalidDataException("Localization format must be json/xlsx and layout single/split.");
@@ -614,9 +629,11 @@ public static partial class LocalizationProjectIO
         }
     }
 
-    internal static byte[] JsonBytes<T>(T value)
+    private static readonly JsonSerializerOptions PlayerJsonOptions = new(JsonOptions) { NewLine = "\n" };
+
+    internal static byte[] JsonBytes<T>(T value, bool playerExport = false)
     {
-        string json = JsonSerializer.Serialize(value, JsonOptions);
+        string json = JsonSerializer.Serialize(value, playerExport ? PlayerJsonOptions : JsonOptions);
         StringBuilder output = new(json.Length);
         for (int i = 0; i < json.Length; i++)
         {

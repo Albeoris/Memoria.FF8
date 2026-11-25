@@ -1,0 +1,24 @@
+[
+  {
+    "sourceId": "junction-viii",
+    "id": "3d7436a1-2cd7-4503-821a-910b0f7aa7e3",
+    "version": "1.8",
+    "downloadBytes": 556654899,
+    "offers": [
+      { "locale": "en", "label": "ILP retranslation", "setting": "Language", "value": 1, "nativeVariants": [{ "edition": "Classic", "language": "en" }] },
+      { "locale": "fr", "label": "ILP", "setting": "Language", "value": 2, "nativeVariants": [{ "edition": "Classic", "language": "en" }] },
+      { "locale": "es", "label": "ILP", "setting": "Language", "value": 3, "nativeVariants": [{ "edition": "Classic", "language": "en" }] },
+      { "locale": "de", "label": "ILP", "setting": "Language", "value": 4, "nativeVariants": [{ "edition": "Classic", "language": "en" }] },
+      { "locale": "it", "label": "ILP", "setting": "Language", "value": 5, "nativeVariants": [{ "edition": "Classic", "language": "en" }] }
+    ]
+  },
+  {
+    "sourceId": "junction-viii",
+    "id": "bdd7d71d-8ffd-4aa5-93c1-bf5ae182ad66",
+    "version": "1.10",
+    "downloadBytes": 1223836,
+    "offers": [
+      { "locale": "en", "label": "Succession (story rewrite)", "nativeVariants": [{ "edition": "Classic", "language": "en" }] }
+    ]
+  }
+]

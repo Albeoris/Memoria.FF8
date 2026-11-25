@@ -20,6 +20,11 @@ public sealed partial class MenuController
     private int modWheelDelta;
     private static readonly string[] ModFilters = ["All mods", "Enabled in settings", "Disabled in settings", "Needs attention"];
     private static readonly string[] ModFormats = ["All formats", "Tonberry", "Demaster", "Junction", "Memoria"];
+    private IEnumerable<ModPackageView> OrdinaryModViews => (modService?.View.Packages ?? []).Where(view => !IsInstalledLanguage(view.Package));
+    private IEnumerable<ModPackage> OrdinaryInstalledMods => (modService?.InstalledPackages ?? []).Where(package => !IsInstalledLanguage(package));
+    private bool IsInstalledLanguage(ModPackage package) => LanguagePackages.IsLanguage(package, modLibrarySnapshot?.LanguageEntries ?? []);
+    private bool IsLanguagePackageId(string? id) => id is not null && modService?.InstalledPackages.Any(package => package.Id.Equals(id, StringComparison.OrdinalIgnoreCase) && IsInstalledLanguage(package)) == true;
+    private IEnumerable<ModDiagnostic> OrdinaryModDiagnostics => (modService?.View.Diagnostics ?? []).Where(diagnostic => !IsLanguagePackageId(diagnostic.PackageId));
 
     internal void DisconnectMods()
     {
@@ -159,7 +164,7 @@ public sealed partial class MenuController
 
     private ModPackageView[] FilteredModViews()
     {
-        IEnumerable<ModPackageView> packages = modService!.View.Packages;
+        IEnumerable<ModPackageView> packages = OrdinaryModViews;
         if (!packages.Any(view => view.Package.Id == ModRuntime.MemoriaPackageId) && OfficialEntries.Any())
         {
             ModPackage group = new(ModRuntime.MemoriaPackageId, ModRuntime.MemoriaPackageId, ModFormat.Memoria, null, false, ModEffectiveStatus.Disabled, "");
@@ -321,7 +326,7 @@ public sealed partial class MenuController
     private IReadOnlyList<MenuEntry> ModDiagnosticGroups()
     {
         List<MenuEntry> entries = [new("retry", SystemText("ui.moddiagnosticgroups.entry.label.retry.refresh", "Retry / Refresh"), SystemText("ui.moddiagnosticgroups.entry.help.rescan.and.validate.through.the.mod.service", "Rescan and validate through the mod service."), Action: new("mod-refresh"))];
-        foreach (var group in modService!.View.Diagnostics.GroupBy(diagnostic => diagnostic.PackageId, StringComparer.OrdinalIgnoreCase))
+        foreach (var group in OrdinaryModDiagnostics.GroupBy(diagnostic => diagnostic.PackageId, StringComparer.OrdinalIgnoreCase))
         {
             string name = group.Key ?? "Global transaction";
             entries.Add(new("diagnostic-mod-" + group.Key, name + " · " + group.Count(), FormatSystemText("ui.moddiagnosticgroups.entry.help.view.diagnostics.template", "View diagnostics: {0}", name), Action: new("mod-diagnostics-open", group.Key ?? ""), Destination: "mods-package-diagnostics"));
@@ -335,7 +340,7 @@ public sealed partial class MenuController
 
     private ModDiagnostic[] CurrentModDiagnostics()
     {
-        return modService!.View.Diagnostics.Where(diagnostic => string.Equals(diagnostic.PackageId, diagnosticModId, StringComparison.OrdinalIgnoreCase)).ToArray();
+        return OrdinaryModDiagnostics.Where(diagnostic => string.Equals(diagnostic.PackageId, diagnosticModId, StringComparison.OrdinalIgnoreCase)).ToArray();
     }
 
     private IReadOnlyList<MenuEntry> ModDiagnosticEntries()
@@ -349,7 +354,7 @@ public sealed partial class MenuController
         if (SelectedEntry?.Action is { Kind: "mod-diagnostics-open" } action)
         {
             string? packageId = action.SubjectId.Length == 0 ? null : action.SubjectId;
-            int count = modService!.View.Diagnostics.Count(diagnostic => string.Equals(diagnostic.PackageId, packageId, StringComparison.OrdinalIgnoreCase));
+            int count = OrdinaryModDiagnostics.Count(diagnostic => string.Equals(diagnostic.PackageId, packageId, StringComparison.OrdinalIgnoreCase));
             return [packageId ?? SystemText("ui.moddiagnosticgroupdetails.details.global.transaction", "Global transaction"), FormatSystemText("ui.moddiagnosticgroupdetails.details.diagnostics.template", "Diagnostics: {0}", count), SystemText("ui.moddiagnosticgroupdetails.details.confirm.to.view.this.group.s.messages", "Confirm to view this group's messages.")];
         }
         return [SystemText("ui.moddiagnosticgroupdetails.details.diagnostics.grouped.by.mod", "Diagnostics grouped by mod."), SystemText("ui.moddiagnosticgroupdetails.details.select.a.mod.to.view.its.messages", "Select a mod to view its messages.")];
@@ -461,7 +466,7 @@ public sealed partial class MenuController
                 break;
             case "mod-toggle":
                 selectedModId = action.SubjectId;
-                ModPackageView? view = service.View.Packages.FirstOrDefault(view => view.Package.Id.Equals(action.SubjectId, StringComparison.OrdinalIgnoreCase));
+                ModPackageView? view = OrdinaryModViews.FirstOrDefault(view => view.Package.Id.Equals(action.SubjectId, StringComparison.OrdinalIgnoreCase));
                 if (view is null || !view.CanToggle || service.GetPackageLockReason(view.Package.Id) is not null)
                 {
                     SetSystemMessage(() => (view is null ? null : service.GetPackageLockReason(view.Package.Id) ?? ModProblemText(view)) ?? SystemText("ui.executemodaction.message.this.package.is.unavailable.or.incompatible.with.the", "This package is unavailable or incompatible with the current edition."));

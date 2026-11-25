@@ -106,6 +106,7 @@ internal sealed partial class RecreateGame
         resourceHost!.SetGameplayDifficulty(session.State.Scene == SceneKind.Title ? uiPreferences.Difficulty : session.State.GameplayPreferences.Difficulty);
         gameMenus.ConnectMods(resourceHost.Mods);
         gameMenus.ConnectModLibrary(resourceHost.ModLibrary);
+        ConnectLanguagePicker();
         gameMenus.ConnectCatalogClipboard(authoringClipboard.Paste, authoringClipboard.Copy);
         ModPreviewResourcesProfile previewProfile = CatalogPreviewPresentation.CreateProfile(options.GameDirectory, options.ModelSourceDirectory, resourceHost.Resources.ResourceLanguage) with
         {
@@ -1042,6 +1043,7 @@ internal sealed partial class RecreateGame
         {
             batch.Draw(pixel, bounds, Color.Black);
             UiView view = gameMenus.BuildView();
+            uiCanvas.UseNativeFonts = NativeGameFonts && !gameMenus.IsLanguageScreen;
             view.Resize(bounds.Width, bounds.Height);
             view.Draw(uiCanvas, gameMenus.CreateTheme());
         }

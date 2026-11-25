@@ -117,14 +117,14 @@ internal static class LocalizationProjectJson
             }
             foreach ((string key, JsonElement value) in row.ExtensionData.OrderBy(pair => pair.Key, StringComparer.Ordinal))
             {
-                if (manifest.SchemaVersion == 1 || key is "Field Name" or LocalizationNativeEdition.TargetsMember)
+                if (manifest.PlayerExport || manifest.SchemaVersion == 1 || key is "Field Name" or LocalizationNativeEdition.TargetsMember)
                 {
                     values.Add(key, value);
                 }
             }
             entries.Add(row.Key, values);
         }
-        return LocalizationProjectIO.JsonBytes(categories);
+        return LocalizationProjectIO.JsonBytes(categories, manifest.PlayerExport);
     }
 
     private static string? Text(JsonElement value, string key, string label)

@@ -15,12 +15,7 @@ namespace Memoria.Launcher;
 internal sealed partial class LauncherWindow : Window
 {
     private readonly ComboBox installations = new() { MinHeight = 32, IsEditable = false };
-    private readonly ComboBox resourceLanguage = new() { MinHeight = 32, MinWidth = 180 };
     private string? SelectedResourceLanguage => EffectiveResourceLanguage;
-    private sealed record ResourceLanguageChoice(string? Code, string Label)
-    {
-        public override string ToString() => Label;
-    }
 
     private readonly ComboBox graphicsBackend = new() { MinHeight = 32, MinWidth = 180 };
     private readonly TextBlock graphicsStatus = new() { TextWrapping = TextWrapping.Wrap, Foreground = LauncherMuted, Margin = new Thickness(0, 6, 0, 0) };
@@ -82,16 +77,7 @@ internal sealed partial class LauncherWindow : Window
             await Task.WhenAll(ValidateSelectionAsync(), RecheckOfficialModSelectionAsync());
         };
         achievementsLocalOnly.IsCheckedChanged += (_, _) => SaveSelection();
-        resourceLanguage.SelectionChanged += async (_, _) =>
-        {
-            if (loadingResourceLanguages)
-            {
-                return;
-            }
-            configuredResourceLanguage = SelectedResourceLanguageOverride;
-            SaveSelection();
-            await RecheckOfficialModSelectionAsync();
-        };
+        gameLanguage.Click += async (_, _) => await OpenGameLanguagesAsync();
         graphicsBackend.ItemsSource = GraphicsBackendSelection.Available(HostPlatforms.Current);
         graphicsBackend.SelectionChanged += async (_, _) => await SaveGraphicsBackendAsync();
         tryAuto.Click += async (_, _) => await TryAutoAsync();
@@ -130,7 +116,6 @@ internal sealed partial class LauncherWindow : Window
             PopulateFf7Installations(settings.Ff7GameDirectory, []);
             SetModelSourceDirectory(settings.ModelSourceDirectory);
             achievementsLocalOnly.IsChecked = settings.AchievementsLocalOnly;
-            configuredResourceLanguage = settings.ResourceLanguage;
             IReadOnlyList<GameInstallation> found = await Task.Run(() => GameInstallationDiscovery.Find(warnings.Add, discoveryLifetime.Token), discoveryLifetime.Token);
             updatingInstallationSelection = true;
             try
@@ -350,11 +335,15 @@ internal sealed partial class LauncherWindow : Window
         };
         if (directory is not null)
         {
+            bool sameInstallation = ApplicationInstallation.ModPathComparer.Equals(settings.LastGameDirectory, directory);
             settings = settings with
             {
                 LastGameDirectory = directory,
                 AchievementsLocalOnly = achievementsLocalOnly.IsChecked == true,
-                ResourceLanguage = SelectedResourceLanguageOverride,
+                LanguageChoice = settings.LanguageChoice is { InstallationDirectory: null } legacyChoice
+                    ? legacyChoice with { InstallationDirectory = settings.LastGameDirectory }
+                    : settings.LanguageChoice,
+                ResourceLanguage = settings.LanguageChoice is not null || sameInstallation ? settings.ResourceLanguage : null,
                 ModelSourceDirectory = selectedModelSourceDirectory
             };
         }
@@ -587,9 +576,15 @@ internal sealed partial class LauncherWindow : Window
                 return;
             }
             bool localOnly = resume?.AchievementsLocalOnly ?? achievementsLocalOnly.IsChecked == true;
+            string? launchLanguage = selectedResourceLanguages.Resolve(LauncherSettings.Load(LauncherSettings.DefaultPath), selected.Directory);
+            if (!LauncherCapabilities.PathComparer.Equals(resourceLanguageInstallationDirectory, selected.Directory))
+            {
+                InstalledResourceLanguages resources = await Task.Run(() => GameInstallationResourceLanguages.Discover(selected.Directory));
+                launchLanguage = resources.Resolve(LauncherSettings.Load(LauncherSettings.DefaultPath), selected.Directory);
+            }
             achievementsLocalOnly.IsChecked = localOnly;
             runningAchievementsLocalOnly = localOnly;
-            ProcessStartInfo start = GameInstallationSelection.CreateStartInfo(AppContext.BaseDirectory, selected.Directory, localOnly, graphicsBackend: requestedGraphicsBackend, resourceLanguage: SelectedResourceLanguage, modelSourceDirectory: selectedModelSourceDirectory, ff7GameDirectory: selectedFf7GameDirectory, ff7Debug: ff7Debug);
+            ProcessStartInfo start = GameInstallationSelection.CreateStartInfo(AppContext.BaseDirectory, selected.Directory, localOnly, graphicsBackend: requestedGraphicsBackend, resourceLanguage: launchLanguage, modelSourceDirectory: selectedModelSourceDirectory, ff7GameDirectory: selectedFf7GameDirectory, ff7Debug: ff7Debug);
             if (!File.Exists(start.FileName))
             {
                 throw new FileNotFoundException("The engine is missing. Extract the complete Memoria package, keeping its Data folder beside the launcher executable.", start.FileName);
@@ -599,7 +594,7 @@ internal sealed partial class LauncherWindow : Window
                 return;
             }
             bool detached = closeAfterLaunch.IsChecked == true && resume is null && graphicsRecovery is null;
-            start = GameInstallationSelection.CreateStartInfo(AppContext.BaseDirectory, selected.Directory, localOnly, mediaDirectory, requestedGraphicsBackend, resourceLanguage: SelectedResourceLanguage, modelSourceDirectory: selectedModelSourceDirectory, redirectOutput: !detached, ff7GameDirectory: selectedFf7GameDirectory, ff7Debug: ff7Debug, openModManager: openModManager);
+            start = GameInstallationSelection.CreateStartInfo(AppContext.BaseDirectory, selected.Directory, localOnly, mediaDirectory, requestedGraphicsBackend, resourceLanguage: launchLanguage, modelSourceDirectory: selectedModelSourceDirectory, redirectOutput: !detached, ff7GameDirectory: selectedFf7GameDirectory, ff7Debug: ff7Debug, openModManager: openModManager);
             if (openModManager && await Task.Run(IsAnotherGameRunning))
             {
                 await ShowRunningGameModInstructionsAsync();
@@ -720,6 +715,7 @@ internal sealed partial class LauncherWindow : Window
             runningGame = null;
             runningGameDirectory = null;
             gameUpdateSession = null;
+            ReadSelectedLanguage();
             SetBusy(false);
             if (closeLauncher)
             {
@@ -794,13 +790,13 @@ internal sealed partial class LauncherWindow : Window
         browse.IsEnabled = !busy;
         achievementsLocalOnly.IsEnabled = !busy;
         closeAfterLaunch.IsEnabled = !busy;
-        resourceLanguage.IsEnabled = !busy && CanSelectResourceLanguage;
+        UpdateGameLanguageControl();
         browseModelSource.IsEnabled = !busy;
         resetModelSource.IsEnabled = !busy;
         graphicsBackend.IsEnabled = !savingGraphicsBackend && !updating && !loadingGraphicsBackend && (!busy || runningGame is not null) && HostPlatforms.Current == HostPlatform.Windows;
         tryAuto.IsEnabled = !busy;
         mediaSetup.IsEnabled = !busy;
-        play.IsEnabled = !busy && !ResourceLanguageDiscoveryPending && SelectedResourceLanguage is not null && LauncherCapabilities.CanLaunchGame;
+        play.IsEnabled = !busy && selectedInstallationPlayable && !ResourceLanguageDiscoveryPending && SelectedResourceLanguage is not null && LauncherCapabilities.CanLaunchGame;
         UpdateFf7Controls();
         releaseUpdate.IsEnabled = (!busy || runningGame is not null) && !updating && !checkingUpdates && LauncherCapabilities.CanUpdate;
         selectOtherRelease.IsEnabled = !busy && !checkingUpdates && LauncherCapabilities.CanUpdate;

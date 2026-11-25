@@ -4,7 +4,7 @@ namespace Memoria.FF8.GameUi;
 
 public sealed partial class MenuController
 {
-    private IEnumerable<RemoteModEntry> OfficialEntries => (modLibrarySnapshot?.Catalog.Entries ?? []).Where(entry => entry.Official is not null);
+    private IEnumerable<RemoteModEntry> OfficialEntries => OrdinaryCatalogEntries.Where(entry => entry.Official is not null);
 
     private bool ApplicableOfficialComponent(RemoteModEntry entry)
     {
@@ -20,7 +20,7 @@ public sealed partial class MenuController
 
     private NativeModDescriptor? InstalledOfficialDescriptor(OfficialModComponent component)
     {
-        return modService?.InstalledPackages.FirstOrDefault(package => MatchesOfficialComponent(package, component))?.Descriptor;
+        return OrdinaryInstalledMods.FirstOrDefault(package => MatchesOfficialComponent(package, component))?.Descriptor;
     }
 
     private RemoteModEntry PresentCatalogEntry(RemoteModEntry entry)
@@ -37,10 +37,10 @@ public sealed partial class MenuController
         {
             return status;
         }
-        int local = modService?.InstalledPackages.Count(package => package is { Format: ModFormat.Memoria } && (package.Descriptor is { } descriptor ? descriptor.Group.Equals(ModRuntime.MemoriaPackageId, StringComparison.OrdinalIgnoreCase) : package.IsBundled)
-            && package.Status != ModEffectiveStatus.IncompatibleEdition && !applicable.Any(entry => MatchesOfficialComponent(package, entry.Official!))) ?? 0;
+        int local = OrdinaryInstalledMods.Count(package => package is { Format: ModFormat.Memoria } && (package.Descriptor is { } descriptor ? descriptor.Group.Equals(ModRuntime.MemoriaPackageId, StringComparison.OrdinalIgnoreCase) : package.IsBundled)
+            && package.Status != ModEffectiveStatus.IncompatibleEdition && !applicable.Any(entry => MatchesOfficialComponent(package, entry.Official!)));
         int installed = local + applicable.Count(entry => ManagedMod(entry) is { Available: true, Pending: false }
-            || modService?.InstalledPackages.Any(package => MatchesOfficialComponent(package, entry.Official!) && package.Status != ModEffectiveStatus.IncompatibleEdition) == true);
+            || OrdinaryInstalledMods.Any(package => MatchesOfficialComponent(package, entry.Official!) && package.Status != ModEffectiveStatus.IncompatibleEdition));
         int cached = applicable.Count(entry => ManagedMod(entry) is not { Available: true, Pending: false } && (EntryJob(entry) is { CanInstall: true } || ManagedMod(entry) is { Pending: true }));
         int total = local + applicable.Length;
         int available = installed + cached;
@@ -140,7 +140,7 @@ public sealed partial class MenuController
 
     private RemoteModEntry[] OfficialBatch(bool updates) => OfficialEntries.Where(entry => CanDownload(entry) && EntryJob(entry) is null
         && (updates ? ManagedMod(entry) is { Available: true, Pending: false } && CatalogUpdateAvailable(entry)
-            : ManagedMod(entry) is null && modService?.InstalledPackages.Any(package => MatchesOfficialComponent(package, entry.Official!)) != true))
+            : ManagedMod(entry) is null && !OrdinaryInstalledMods.Any(package => MatchesOfficialComponent(package, entry.Official!))))
         .OrderBy(entry => entry.Name, StringComparer.CurrentCultureIgnoreCase).ToArray();
 
     private void AddBatchRow(List<ModSettingsRow> rows, bool updates)
