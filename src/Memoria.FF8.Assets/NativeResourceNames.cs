@@ -2,9 +2,16 @@ using Memoria.FF8.Resources;
 
 namespace Memoria.FF8.Assets;
 
-/// <summary>Canonical native archive names for an explicitly selected resource language.</summary>
+/// <summary>Canonical native archive and artwork addresses.</summary>
 public static class NativeResourceNames
 {
+    public static string? RemasteredPortraitTextureStem(string owner)
+    {
+        return owner is "menu/face_b00.tex" or "menu/face_b01.tex" or "menu/gf_big00.tex" or "menu/gf_big01.tex"
+            ? "textures/hires/" + owner[5..]
+            : null;
+    }
+
     public static ResourceKey WorldSettings(string language)
     {
         ArgumentNullException.ThrowIfNull(language);

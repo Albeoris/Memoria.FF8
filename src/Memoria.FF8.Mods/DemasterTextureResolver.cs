@@ -1,6 +1,7 @@
 using System.Collections.Frozen;
 using System.Globalization;
 using Albeoris.Games.FF8.Imaging;
+using Memoria.FF8.Assets;
 using Memoria.FF8.Resources;
 
 namespace Memoria.FF8.Mods;
@@ -10,6 +11,7 @@ public sealed record DemasterInspection(IReadOnlySet<string> UsablePackageIds, I
 /// <summary>Resolves source-published semantic addresses and native upload identities.</summary>
 public sealed partial class DemasterTextureResolver : ITextureReplacementResolver
 {
+    private const string PortraitArtworkLayout = "demaster-portrait-artwork";
     private readonly ModCatalogSnapshot catalog;
     private readonly bool hasExplicitTextureLayouts;
 
@@ -54,6 +56,7 @@ public sealed partial class DemasterTextureResolver : ITextureReplacementResolve
             string stem = path[..^extension.Length];
             bool supported = DescribeWorldTerrainTarget(stem) is not null && HasLayout(source, "classic-world-texl");
             supported |= HasLayout(source, "demaster-card-artwork") && IsCardArtworkTarget(stem);
+            supported |= HasLayout(source, PortraitArtworkLayout) && DescribePortraitArtworkTarget(stem) is not null;
             if (TryWorldTarget(stem, "textures/world/dat/wmset/wmset_", out int page))
             {
                 supported |= page == 29 && HasLayout(source, "classic-world-road-region");
@@ -118,9 +121,9 @@ public sealed partial class DemasterTextureResolver : ITextureReplacementResolve
         {
             return ResolveBattlePage(context);
         }
-        if (context.Layout == "native-artwork" && HasLayout(context.Source, "demaster-card-artwork"))
+        if (context.Layout == "native-artwork" && HasLayout(context.Source, "demaster-card-artwork") && ResolveCardArtwork(context) is { } card)
         {
-            return ResolveCardArtwork(context);
+            return card;
         }
         foreach (string path in CandidatePaths(context))
         {
@@ -148,6 +151,10 @@ public sealed partial class DemasterTextureResolver : ITextureReplacementResolve
 
     public static IReadOnlyList<string> CandidatePaths(TextureBuildContext context)
     {
+        if (context.Layout == "native-artwork" && context.Key.Subresource == "atlas" && context.Key.Palette == 0 && HasLayout(context.Source, PortraitArtworkLayout) && NativeResourceNames.RemasteredPortraitTextureStem(context.Key.Owner.Path) is { } portraitStem)
+        {
+            return WithExtensions(portraitStem);
+        }
         if (context.Layout == GfAtlasLayout)
         {
             return CandidateGfAtlasPaths(context);
@@ -201,6 +208,17 @@ public sealed partial class DemasterTextureResolver : ITextureReplacementResolve
             return Array.Empty<string>();
         }
         return paletteFallback ? PaletteCandidates(stem, context.Key.Palette) : WithExtensions(stem);
+    }
+
+    internal static string? DescribePortraitArtworkTarget(string stem)
+    {
+        const string prefix = "textures/hires/";
+        if (!stem.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+        string owner = "menu/" + stem[prefix.Length..].ToLowerInvariant();
+        return NativeResourceNames.RemasteredPortraitTextureStem(owner) is not null ? owner : null;
     }
 
     public static IReadOnlyList<string> FieldBackgroundCandidates(string map, int nativePage, int palette)

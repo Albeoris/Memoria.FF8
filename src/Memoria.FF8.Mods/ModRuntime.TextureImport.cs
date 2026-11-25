@@ -106,7 +106,6 @@ public sealed partial class ModRuntime
                 }
                 candidatePackage = candidatePackage with { TextureContentOnly = textureContentOnly, MoviePresentationOnly = moviePresentationOnly };
                 List<ModPackage> packages = catalog.Packages.Where(package => !package.Id.Equals(candidatePackage.Id, StringComparison.OrdinalIgnoreCase)).Append(candidatePackage with { Status = ModEffectiveStatus.Active }).ToList();
-                Dictionary<string, ModPackage> byId = packages.ToDictionary(package => package.Id, StringComparer.OrdinalIgnoreCase);
                 List<ModFile> files = catalog.Files.Where(file => !file.PackageId.Equals(candidatePackage.Id, StringComparison.OrdinalIgnoreCase) || !replaced.Contains(file.RelativePath)).ToList();
                 foreach (TextureModOutput output in transaction.FrozenFiles)
                 {
@@ -116,7 +115,7 @@ public sealed partial class ModRuntime
                         files.Add(new(candidatePackage.Id, ModFormat.Memoria, output.RelativePath, ++fileRevision, () => frozen));
                     }
                 }
-                ModCatalogSnapshot initialCandidate = new(catalog.Generation + 1, packages, files.OrderBy(file => file.Format).ThenByDescending(file => byId[file.PackageId].Priority).ThenBy(file => byId[file.PackageId].Descriptor?.Id ?? string.Empty, StringComparer.Ordinal), catalog.Diagnostics)
+                ModCatalogSnapshot initialCandidate = new(catalog.Generation + 1, packages, OrderFiles(files, packages), catalog.Diagnostics)
                 {
                     Hardcore = catalog.Hardcore,
                     StatusPreferences = catalog.StatusPreferences,

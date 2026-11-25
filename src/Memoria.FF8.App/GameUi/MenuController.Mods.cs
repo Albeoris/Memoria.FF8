@@ -147,7 +147,7 @@ public sealed partial class MenuController
             new("mod-filter", ModFilters[modFilter], SystemText("ui.modentries.entry.help.filter.the.latest.saved.requested.setting", "Filter the latest saved requested setting."), Action: new("mod-filter")),
             new("mod-format", ModFormats[modFormat], SystemText("ui.modentries.entry.help.filter.package.format", "Filter package format."), Action: new("mod-format")),
             new("mod-auto", SystemText("ui.modentries.entry.label.automatically.enable.new.mods", "Automatically enable new mods"), SystemText("ui.modentries.entry.help.explicit.choices.are.kept.turning.off.preserves.existing", "Explicit choices are kept; turning off preserves existing packages."), Action: new("mod-auto")),
-            new("mod-refresh", SystemText("ui.modentries.entry.label.refresh", "Refresh"), SystemText("ui.modentries.entry.help.rescan.packages.in.both.game.and.application.mods", "Rescan packages in both game and application Mods directories and retry rejected changes."), Action: new("mod-refresh"))
+            new("mod-refresh", SystemText("ui.modentries.entry.label.refresh", "Refresh"), SystemText("ui.modentries.entry.help.rescan.packages.and.retry.rejected.changes", "Rescan installed mods and retry rejected changes."), Action: new("mod-refresh"))
         ];
         if (modLibrary is not null)
         {

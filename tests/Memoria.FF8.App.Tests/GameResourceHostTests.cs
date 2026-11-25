@@ -128,6 +128,53 @@ public sealed class GameResourceHostTests : IDisposable
     }
 
     [Fact]
+    public void InstalledDemasterPublishesRemasteredPortraitsAndRemembersTheToggle()
+    {
+        const string path = "textures/hires/face_b00.tex.png";
+        const string id = ModRuntime.InstalledDemasterPackageId;
+        string game = Path.Combine(root, "game");
+        string export = Path.Combine(game, "DEMASTER_EXP");
+        string mods = Path.Combine(root, "Mods");
+        WriteImageFile(Path.Combine(export, path), MagickColors.Red);
+        WriteImageFile(Path.Combine(mods, "Demaster/pack", path), MagickColors.Blue);
+        WriteText("Demaster/pack/mod.ini", "priority = -1\n");
+        File.WriteAllText(Path.Combine(export, "mod.ini"), "enabled = 0\n");
+        File.WriteAllText(Path.Combine(export, "ignored.dll"), "ignored");
+        using (GameResourceHost classic = new(game, root, watch: false))
+        {
+            Assert.DoesNotContain(classic.Mods.InstalledPackages, package => package.Id == id);
+        }
+
+        File.WriteAllBytes(Path.Combine(game, "main.zzz"), new byte[4]);
+        File.WriteAllBytes(Path.Combine(game, "other.zzz"), new byte[4]);
+        using (GameResourceHost host = new(game, root, watch: false))
+        {
+            Assert.Equal(ModEffectiveStatus.Active, Assert.Single(host.Mods.View.Packages, view => view.Package.Id == id && view.CanToggle).Package.Status);
+            Assert.Equal(path, Assert.Single(host.Mods.ReadInstalledFiles(ModFormat.Demaster), file => file.PackageId == id).RelativePath);
+            PixelImage original = new(256, 256);
+            original[0, 0] = BaseColor;
+            TextureBuildContext context = new(new(new("menu/face_b00.tex"), "atlas"), host.Resources.Source, 1, "native-artwork", 256, 256, () => original);
+            var handle = host.Resources.GetTexture(context);
+            Assert.Equal(new Rgba32(0, 0, 255), handle.Value.Image[0, 0]);
+
+            Assert.True(host.Mods.SetEnabled("Demaster/pack", false).Success);
+            Assert.True(host.Pump(true));
+            Assert.Equal(new Rgba32(255, 0, 0), handle.Value.Image[0, 0]);
+
+            Assert.True(host.Mods.SetEnabled(id, false).Success);
+            Assert.True(host.Pump(true));
+            Assert.Equal(BaseColor, handle.Value.Image[0, 0]);
+        }
+
+        Assert.Equal("enabled = 0\n", File.ReadAllText(Path.Combine(export, "mod.ini")));
+        using GameResourceHost restarted = new(game, root, watch: false);
+        Assert.Equal(ModEffectiveStatus.Disabled, Assert.Single(restarted.Mods.InstalledPackages, package => package.Id == id).Status);
+        Assert.True(restarted.Mods.SetEnabled(id, true).Success);
+        Assert.True(restarted.Pump(true));
+        Assert.Equal(ModEffectiveStatus.Active, Assert.Single(restarted.Mods.Catalog.Packages, package => package.Id == id).Status);
+    }
+
+    [Fact]
     public void FirstInstallIsWatchedInTheGameDirectoryWhenBothLocationsAreEmpty()
     {
         string application = Path.Combine(root, "application");
@@ -339,7 +386,11 @@ public sealed class GameResourceHostTests : IDisposable
 
     private void WriteImage(string relative, IMagickColor<byte> color)
     {
-        string path = Path.Combine(root, "Mods", relative);
+        WriteImageFile(Path.Combine(root, "Mods", relative), color);
+    }
+
+    private static void WriteImageFile(string path, IMagickColor<byte> color)
+    {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         using MagickImage image = new(color, 256, 256);
         image.Write(path, MagickFormat.Png);

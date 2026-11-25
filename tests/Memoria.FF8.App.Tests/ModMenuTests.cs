@@ -51,7 +51,7 @@ public sealed class ModMenuTests : IDisposable
         Assert.Equal("Mods", entry.Label);
         Assert.Equal("mods", entry.Destination);
         menu.Open("mods");
-        Assert.Contains("game and application", menu.Entries.Single(entry => entry.Id == "mod-refresh").Help);
+        Assert.Contains("installed mods", menu.Entries.Single(entry => entry.Id == "mod-refresh").Help);
         Assert.Contains(menu.Entries, entry => entry.Id == "mod-auto" && entry.Label == "Automatically enable new mods");
         Assert.Contains(menu.Entries, entry => entry.Id == "Demaster/example" && entry.Label == "example" && entry.Help == "Active");
         Assert.NotNull(menu.BuildView());
@@ -72,6 +72,28 @@ public sealed class ModMenuTests : IDisposable
         Assert.Contains("In use: Active \u00b7 disabling\u2026", menu.CurrentScreen.Details(menu));
         Publish(runtime);
         Assert.Contains(menu.Entries, entry => entry.Id == "Demaster/example" && entry.Label == "example" && entry.Help == "Disabled");
+    }
+
+    [Fact]
+    public void InstalledDemasterUsesTheOrdinaryModMenuToggle()
+    {
+        const string id = ModRuntime.InstalledDemasterPackageId;
+        string export = Path.Combine(root, "DEMASTER_EXP", "textures");
+        Directory.CreateDirectory(export);
+        File.WriteAllText(Path.Combine(export, "sample.png"), "metadata only");
+        using ModRuntime runtime = new(root, watch: false, edition: "Remastered", remasteredGameDirectory: root);
+        Publish(runtime);
+        MenuController menu = Menu(runtime);
+        menu.Open("mods");
+        Assert.Equal("Installed Demaster (DEMASTER_EXP)", Assert.Single(menu.Entries, entry => entry.Id == id).Label);
+
+        menu.Execute(new("mod-toggle", id));
+        Publish(runtime);
+        Assert.Equal("Disabled", Assert.Single(menu.Entries, entry => entry.Id == id).Help);
+
+        menu.Execute(new("mod-toggle", id));
+        Publish(runtime);
+        Assert.Equal("Active", Assert.Single(menu.Entries, entry => entry.Id == id).Help);
     }
 
     [Fact]

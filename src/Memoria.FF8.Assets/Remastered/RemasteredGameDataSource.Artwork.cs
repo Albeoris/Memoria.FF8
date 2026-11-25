@@ -18,9 +18,9 @@ public sealed partial class RemasteredGameDataSource
         if (context.Key.Subresource == "atlas" && owner.StartsWith("menu/", StringComparison.Ordinal))
         {
             string name = owner[5..];
-            if (name is "face_b00.tex" or "face_b01.tex" or "gf_big00.tex" or "gf_big01.tex")
+            if (NativeResourceNames.RemasteredPortraitTextureStem(owner) is { } portraitStem)
             {
-                path = "textures/hires/" + name + ".png";
+                path = portraitStem + ".png";
             }
             else if (name == "icon.tex")
             {

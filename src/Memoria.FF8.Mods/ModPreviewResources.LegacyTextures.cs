@@ -15,6 +15,10 @@ public static partial class ModPreviewResources
         {
             return new(cards.Owner, cards.Members[0], Palette: 0, Members: cards.Members);
         }
+        if (DemasterTextureResolver.DescribePortraitArtworkTarget(stem) is { } portrait)
+        {
+            return new(portrait, "atlas", Palette: 0);
+        }
         if (DemasterTextureResolver.DescribeFieldPageTarget(stem) is { } field)
         {
             return new($"field/{field.Map}/{field.Map}.mim", Palette: field.Palette, Field: field.Map, NativeMember: $"page/{field.NativePage}");

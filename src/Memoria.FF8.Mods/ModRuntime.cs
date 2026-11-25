@@ -6,6 +6,10 @@ namespace Memoria.FF8.Mods;
 /// <summary>Owns mod discovery and publication. File watcher callbacks only request a later transaction.</summary>
 public sealed partial class ModRuntime : IModService, IDisposable
 {
+    public const string InstalledDemasterPackageId = "InstalledDemaster";
+    private const string InstalledDemasterDirectoryName = "DEMASTER_EXP";
+    private const string InstalledDemasterPreferenceFile = "DEMASTER_EXP.ini";
+
     private static readonly IComparer<string> PathOrder = Comparer<string>.Create((left, right) =>
     {
         int insensitive = StringComparer.OrdinalIgnoreCase.Compare(left, right);
@@ -18,6 +22,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
     private readonly string preferenceRoot;
     private readonly string legacyModsRoot;
     private readonly string bundledModsRoot;
+    private readonly string? installedDemasterRoot;
     private readonly Func<ModFormat, bool> isCompatible;
     private readonly Func<string, bool>? junctionPackageAllowed;
     private readonly Func<string, string?>? nativeRootUnavailable;
@@ -57,11 +62,12 @@ public sealed partial class ModRuntime : IModService, IDisposable
     private string? lastIdentity;
     private string? pendingIdentity;
 
-    public ModRuntime(string? applicationBaseDirectory = null, Func<ModFormat, bool>? isCompatible = null, Func<ModCatalogSnapshot, ModPreparationResult>? prepare = null, bool watch = true, TimeSpan? debounce = null, IEnumerable<string>? additionalBaseDirectories = null, string? modsDirectory = null, Func<string, bool>? junctionPackageAllowed = null, Func<string, string?>? nativeRootUnavailable = null, string edition = "Classic", string language = "en", Func<string, bool>? obsoleteBundledPackage = null, ModDirectories? modLocations = null)
+    public ModRuntime(string? applicationBaseDirectory = null, Func<ModFormat, bool>? isCompatible = null, Func<ModCatalogSnapshot, ModPreparationResult>? prepare = null, bool watch = true, TimeSpan? debounce = null, IEnumerable<string>? additionalBaseDirectories = null, string? modsDirectory = null, Func<string, bool>? junctionPackageAllowed = null, Func<string, string?>? nativeRootUnavailable = null, string edition = "Classic", string language = "en", Func<string, bool>? obsoleteBundledPackage = null, ModDirectories? modLocations = null, string? remasteredGameDirectory = null)
     {
         modsRoot = Path.TrimEndingDirectorySeparator(Path.GetFullPath(modLocations?.Primary ?? modsDirectory ?? DefaultModsDirectory(applicationBaseDirectory ?? AppContext.BaseDirectory)));
         preferenceRoot = modLocations?.Preferences ?? modsRoot;
         legacyModsRoot = modLocations?.LegacyDefault ?? modsRoot;
+        installedDemasterRoot = remasteredGameDirectory is null ? null : Path.GetFullPath(Path.Combine(remasteredGameDirectory, InstalledDemasterDirectoryName));
         if (modLocations is not null)
         {
             ImportLocationPreferences(modLocations);
@@ -84,7 +90,12 @@ public sealed partial class ModRuntime : IModService, IDisposable
         this.debounce = debounce ?? TimeSpan.FromMilliseconds(250);
         if (watch)
         {
-            foreach (string directory in ModsDirectories.Append(preferenceRoot).Distinct(ApplicationInstallation.ModPathComparer))
+            IEnumerable<string> watchRoots = ModsDirectories.Append(preferenceRoot);
+            if (installedDemasterRoot is not null)
+            {
+                watchRoots = watchRoots.Append(installedDemasterRoot);
+            }
+            foreach (string directory in watchRoots.Distinct(ApplicationInstallation.ModPathComparer))
             {
                 FileSystemWatcher watcher = new(ExistingWatchDirectory(directory))
                 {
@@ -130,7 +141,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
         {
             return;
         }
-        foreach (string relative in new[] { "mods.ini", "localization-stack.json", Path.Combine("Memoria", MemoriaSettingsFile) })
+        foreach (string relative in new[] { "mods.ini", "localization-stack.json", InstalledDemasterPreferenceFile, Path.Combine("Memoria", MemoriaSettingsFile) })
         {
             string previous = Path.Combine(locations.LegacyDefault, relative);
             string destination = Path.Combine(locations.Preferences, relative);
@@ -775,19 +786,24 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 roots = roots.OrderBy(bundledDescriptors.Contains).ToArray();
                 (requiredLanguageDependencies, unavailableLanguageRoots) = InspectLanguageDependencies(roots, managed, memoriaSettings);
             }
+            if (format == ModFormat.Demaster && installedDemasterRoot is not null && Directory.Exists(installedDemasterRoot) && !roots.Contains(installedDemasterRoot, ApplicationInstallation.ModPathComparer))
+            {
+                roots = [.. roots, installedDemasterRoot];
+            }
             foreach (string root in roots)
             {
-                string name = Path.GetFileName(root);
-                string id = $"{format}/{name}";
-                string modRoot = Path.GetDirectoryName(Path.GetDirectoryName(root))!;
+                bool installedDemaster = format == ModFormat.Demaster && ApplicationInstallation.ModPathComparer.Equals(root, installedDemasterRoot);
+                string name = installedDemaster ? "Installed Demaster (DEMASTER_EXP)" : Path.GetFileName(root);
+                string id = installedDemaster ? InstalledDemasterPackageId : $"{format}/{name}";
+                string? modRoot = Path.GetDirectoryName(Path.GetDirectoryName(root));
                 if (format == ModFormat.Memoria && (modRoot == bundledModsRoot && obsoleteBundledPackage?.Invoke(root) == true || IsLegacyStatusPreferenceDirectory(root)))
                 {
                     continue;
                 }
                 ModPackageInstallResult? native = format == ModFormat.Memoria
-                    ? managed.GetValueOrDefault(modRoot)?.Values.FirstOrDefault(entry => string.Equals(entry.NativeDestinationName, name, pathComparison))
+                    ? managed.GetValueOrDefault(modRoot!)?.Values.FirstOrDefault(entry => string.Equals(entry.NativeDestinationName, name, pathComparison))
                     : null;
-                if (native is not null && nativeRootUnavailable?.Invoke(modRoot) is { } leaseError)
+                if (native is not null && nativeRootUnavailable?.Invoke(modRoot!) is { } leaseError)
                 {
                     notices.Add(new("native-resource-lease", leaseError, native.PackageId));
                     continue;
@@ -861,7 +877,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 bool rejected = false;
                 try
                 {
-                    explicitEnabled = ModConfiguration.ReadBoolean(Path.Combine(root, "mod.ini"), "enabled");
+                    explicitEnabled = ModConfiguration.ReadBoolean(installedDemaster ? InstalledDemasterPreferencePath : Path.Combine(root, "mod.ini"), "enabled");
                     if (explicitEnabled is null && bundledRoot is not null && !root.Equals(bundledRoot, StringComparison.OrdinalIgnoreCase))
                     {
                         explicitEnabled = ModConfiguration.ReadBoolean(Path.Combine(bundledRoot, "mod.ini"), "enabled");
@@ -869,11 +885,11 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 }
                 catch (Exception exception) when (IsFileError(exception))
                 {
-                    notices.Add(new("invalid-package-configuration", exception.Message, id, "mod.ini"));
+                    notices.Add(new("invalid-package-configuration", exception.Message, id, installedDemaster ? InstalledDemasterPreferenceFile : "mod.ini"));
                     rejected = true;
                 }
                 int priority = 0;
-                if (format is ModFormat.Tonberry or ModFormat.Demaster || descriptor is not null)
+                if (!installedDemaster && (format is ModFormat.Tonberry or ModFormat.Demaster || descriptor is not null))
                 {
                     try
                     {
@@ -889,7 +905,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 {
                     explicitEnabled = MemoriaComponentPreference(memoriaSettings, id, native?.Official, descriptor) ?? explicitEnabled;
                 }
-                if (native?.Official is { } official && ModPackageInstaller.HasPendingEnable(modRoot, official, preferenceRoot))
+                if (native?.Official is { } official && ModPackageInstaller.HasPendingEnable(modRoot!, official, preferenceRoot))
                 {
                     explicitEnabled = true;
                 }
@@ -1058,11 +1074,16 @@ public sealed partial class ModRuntime : IModService, IDisposable
         }
         identity = string.Join('\n', identities);
         forceRevalidate = false;
+        return new(catalog.Generation + 1, packages, OrderFiles(files, packages), notices) { Hardcore = hardcore, StatusPreferences = memoriaSettings.StatusSettings.ToImmutableDictionary(StringComparer.Ordinal) };
+    }
+
+    private static IEnumerable<ModFile> OrderFiles(IEnumerable<ModFile> files, IEnumerable<ModPackage> packages)
+    {
         Dictionary<string, ModPackage> packagesById = packages.ToDictionary(package => package.Id, StringComparer.OrdinalIgnoreCase);
-        IEnumerable<ModFile> orderedFiles = files.OrderBy(file => file.Format)
+        return files.OrderBy(file => file.Format)
+            .ThenBy(file => file.PackageId == InstalledDemasterPackageId)
             .ThenByDescending(file => packagesById[file.PackageId].Priority)
             .ThenBy(file => packagesById[file.PackageId].Descriptor?.Id ?? string.Empty, StringComparer.Ordinal);
-        return new(catalog.Generation + 1, packages, orderedFiles, notices) { Hardcore = hardcore, StatusPreferences = memoriaSettings.StatusSettings.ToImmutableDictionary(StringComparer.Ordinal) };
     }
 
     private sealed class PackageDescriptorException(string packageId, string message) : IOException(message)
@@ -1083,6 +1104,10 @@ public sealed partial class ModRuntime : IModService, IDisposable
         {
             cancellationToken.ThrowIfCancellationRequested();
             string relative = ModCatalogSnapshot.NormalizePath(prefix + entry.Name);
+            if (id == InstalledDemasterPackageId && !IsInstalledDemasterEntry(relative, (entry.Attributes & FileAttributes.Directory) != 0))
+            {
+                continue;
+            }
             string physical = entry.FullName;
             if ((entry.Attributes & FileAttributes.ReparsePoint) != 0)
             {
@@ -1116,6 +1141,16 @@ public sealed partial class ModRuntime : IModService, IDisposable
             }
         }
         ancestors.Remove(actualDirectory);
+    }
+
+    private static bool IsInstalledDemasterEntry(string path, bool directory)
+    {
+        string family = path.Split('/', 2)[0];
+        if (family.Equals("textures", StringComparison.OrdinalIgnoreCase) || family.Equals("hashOutput", StringComparison.OrdinalIgnoreCase))
+        {
+            return directory || Path.GetExtension(path).Equals(".png", StringComparison.OrdinalIgnoreCase) || Path.GetExtension(path).Equals(".dds", StringComparison.OrdinalIgnoreCase);
+        }
+        return !directory && path.Equals(TextureLayoutManifest.FileName, StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsWithin(string root, string path)
@@ -1289,8 +1324,14 @@ public sealed partial class ModRuntime : IModService, IDisposable
         }
     }
 
+    private string InstalledDemasterPreferencePath => Path.Combine(preferenceRoot, InstalledDemasterPreferenceFile);
+
     private string PreferencePath(ModPackage package)
     {
+        if (package.Id == InstalledDemasterPackageId)
+        {
+            return InstalledDemasterPreferencePath;
+        }
         string root = package.Format == ModFormat.Memoria && IsWithin(bundledModsRoot, package.RootDirectory) ? Path.Combine(preferenceRoot, nameof(ModFormat.Memoria), Path.GetFileName(package.RootDirectory)) : package.RootDirectory;
         return ConfigurationPath(root, package.Format);
     }
