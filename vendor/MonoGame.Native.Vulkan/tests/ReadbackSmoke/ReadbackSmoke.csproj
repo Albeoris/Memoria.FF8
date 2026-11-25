@@ -9,4 +9,5 @@
     <PackageReference Include="MonoGame.Framework.Native" />
   </ItemGroup>
   <Import Project="../../NativeVulkan.targets" />
+  <Import Project="../../../MonoGame.Native.Packages/NativePackages.targets" Condition="'$(MemoriaNativePackages)' == 'true'" />
 </Project>

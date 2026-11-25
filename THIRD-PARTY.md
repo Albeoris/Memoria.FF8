@@ -10,7 +10,7 @@ The standalone `Memoria.PsfDecoder` audio codec uses the GPLv3 Highly Experiment
 
 Runtime packages are restored from NuGet at the versions in `Directory.Packages.props`. Their package metadata retains the authors, source and license declarations:
 
-The Linux Vulkan native runtime includes a narrow swapchain readback synchronization fix. Its pinned upstream source, dependency revisions, patch, build recipe and notices are retained under [vendor/MonoGame.Native.Vulkan](vendor/MonoGame.Native.Vulkan/README.md); the distribution includes the corresponding `licenses/MonoGame.Native.Vulkan/` notices.
+The desktop Vulkan and Windows Direct3D 12 hosts use patched native binaries from the [Memoria MonoGame fork](https://github.com/Albeoris/MonoGame). The [native package specification](docs/developers/native-graphics-packages.md) identifies their release and restoration process. The [Vulkan](vendor/MonoGame.Native.Vulkan/README.md) and [Direct3D 12](vendor/MonoGame.Native.DX12/README.md) source recipes retain the upstream revisions, patches and third-party notices. The distribution includes the notices under `licenses/MonoGame.Native.Vulkan/` or `licenses/MonoGame.Native.DX12/` for the corresponding host.
 
 | Component | Version | License and source |
 | --- | --- | --- |

@@ -153,6 +153,7 @@ test('pre-build validations run in dedicated bounded steps and respect artifact 
         ['node --test .github/scripts/*.test.cjs', 2],
         ['./tools/linux-testing/tests/Orchestration.Tests.ps1', 3],
         ['./tools/packaging/tests/Packaging.Tests.ps1', 5],
+        ['./tools/packaging/tests/NativeRuntimePackages.Tests.ps1', 2],
         ['./tools/packaging/tests/Publication.Tests.ps1', 2],
         ['./tools/packaging/tests/MacSigning.Tests.ps1', 8],
         ['./tools/Get-PlatformInventory.ps1 -Check', 2]

@@ -28,4 +28,5 @@
     <ProjectReference Include="../../tools/Memoria.FF8.BattleEffects/Memoria.FF8.BattleEffects.csproj" />
   </ItemGroup>
   <Import Project="../../vendor/MonoGame.Native.Vulkan/NativeVulkan.targets" Condition="'$(MemoriaGraphicsBackend)' == 'Vulkan'" />
+  <Import Project="../../vendor/MonoGame.Native.Packages/NativePackages.targets" Condition="'$(MemoriaNativePackages)' == 'true' And '$(MemoriaGraphicsBackend)' == 'Vulkan'" />
 </Project>

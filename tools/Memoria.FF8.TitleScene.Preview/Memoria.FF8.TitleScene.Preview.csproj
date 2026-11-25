@@ -12,4 +12,5 @@
   </ItemGroup>
   <Import Project="../../vendor/MonoGame.Native.DX12/NativeDirect3D12.targets" />
   <Import Project="../../vendor/MonoGame.Native.Vulkan/NativeVulkan.targets" />
+  <Import Project="../../vendor/MonoGame.Native.Packages/NativePackages.targets" Condition="'$(MemoriaNativePackages)' == 'true'" />
 </Project>

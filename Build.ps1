@@ -1,3 +1,8 @@
+<#
+.PARAMETER BuildNativeFromSource
+Reproduce the patched MonoGame native libraries using the pinned source recipes.
+Release distributions and portable builds otherwise restore the pinned binary packages.
+#>
 [CmdletBinding()]
 param(
     [ValidateSet('Debug', 'Release')]
@@ -8,7 +13,8 @@ param(
     [string]$RuntimeIdentifier = '',
     [string]$ArtifactsDirectory = '',
     [switch]$Test,
-    [switch]$TestPortable
+    [switch]$TestPortable,
+    [switch]$BuildNativeFromSource
 )
 
 $ErrorActionPreference = 'Stop'
@@ -71,6 +77,21 @@ function Invoke-PortableTests {
     }
     finally {
         $env:MEMORIA_TEST_FIXTURE_NOTICE_REPORTED = $previousFixtureNotice
+    }
+}
+
+function Initialize-NativeVulkan {
+    if ($useNativePackages) {
+        & $restoreNative -Backend vulkan -RuntimeIdentifier $RuntimeIdentifier -CacheDirectory $nativeCache -OutputDirectory $nativeVulkan
+    }
+    else {
+        & (Join-Path $root 'tools/Build-NativeVulkan.ps1') -RuntimeIdentifier $RuntimeIdentifier -OutputDirectory $nativeVulkan -Distro $env:MemoriaNativeVulkanDistro
+    }
+}
+
+function Remove-NativePackageWork {
+    if ([IO.Directory]::Exists($nativeWork)) {
+        [IO.Directory]::Delete($nativeWork, $true)
     }
 }
 
@@ -255,6 +276,25 @@ function Install-Distribution {
 
 $root = $PSScriptRoot
 $artifacts = if ($ArtifactsDirectory) { [IO.Path]::GetFullPath($ArtifactsDirectory) } else { Join-Path $root 'artifacts' }
+$buildId = [Guid]::NewGuid().ToString('N')
+$nativeWork = Join-Path $artifacts ('native-packages-work-' + $buildId)
+$useNativePackages = $Scope -ne 'Launcher' -and $Configuration -eq 'Release' -and !$BuildNativeFromSource
+$nativePackageArguments = @()
+if ($useNativePackages) {
+    $nativeCache = if ($env:MEMORIA_NATIVE_PACKAGE_CACHE) { [IO.Path]::GetFullPath($env:MEMORIA_NATIVE_PACKAGE_CACHE) } else { Join-Path $artifacts 'native-packages' }
+    $restoreNative = Join-Path $root 'tools/Restore-NativeRuntimePackage.ps1'
+    $nativeVulkan = Join-Path $nativeWork 'vulkan'
+    $nativeDirect3D12 = Join-Path $nativeWork 'dx12'
+    $nativePackageArguments = @('-p:MemoriaNativePackages=true', ('-p:MemoriaNativePackagesCache=' + $nativeCache))
+}
+else {
+    $nativeVulkan = Join-Path $artifacts "native-vulkan/$RuntimeIdentifier"
+    $nativeDirect3D12 = Join-Path $artifacts 'native-dx12'
+}
+$nativeVulkanArguments = $nativePackageArguments + @('-p:MemoriaNativeVulkanDirectory=' + $nativeVulkan)
+if (!$useNativePackages) {
+    $nativeVulkanArguments += '-p:MemoriaNativeVulkanPrepared=true'
+}
 $graphBuild = Join-Path $artifacts ('build/' + $RuntimeIdentifier + '/graph')
 $precompile = if ($Configuration -eq 'Release') { 'true' } else { 'false' }
 $graphArguments = @('--artifacts-path', $graphBuild, ('-p:MemoriaBuildRuntimeIdentifier=' + $RuntimeIdentifier), '-p:SelfContained=true', ('-p:MemoriaTargetRuntime=' + $RuntimeIdentifier), '-p:MemoriaGraphicsBackend=Vulkan', '-p:TargetFramework=net10.0', '-p:DebugType=None', '-p:DebugSymbols=false', '-p:PublishTrimmed=false', '-p:ShouldUnsetParentConfigurationAndPlatform=false')
@@ -268,7 +308,8 @@ if ($Scope -ne 'Distribution') {
         if ($Scope -eq 'Portable') {
             # Match the complete native graph so this subset updates incrementally
             # after packaging, while still building on a standalone invocation.
-            Invoke-DotNet (@('build', 'Memoria.FF8.Portable.slnx', '-c', $Configuration, '-m:1') + $graphArguments)
+            Initialize-NativeVulkan
+            Invoke-DotNet (@('build', 'Memoria.FF8.Portable.slnx', '-c', $Configuration, '-m:1') + $graphArguments + $nativeVulkanArguments)
             if ($Test) {
                 Invoke-PortableTests
             }
@@ -284,6 +325,7 @@ if ($Scope -ne 'Distribution') {
     }
     finally {
         Pop-Location
+        Remove-NativePackageWork
     }
     return
 }
@@ -301,7 +343,6 @@ $distributionTimings = [ordered]@{
     'Portable tests' = $null
 }
 $package = Join-Path $artifacts ('package/' + $RuntimeIdentifier)
-$buildId = [Guid]::NewGuid().ToString('N')
 $staging = Join-Path $artifacts ('staging-' + $buildId)
 $suffix = if ($RuntimeIdentifier -eq 'win-x64') { '.zip' } else { '.tar.gz' }
 $archive = Join-Path $artifacts ('Memoria-FF8-' + $RuntimeIdentifier + $suffix)
@@ -338,21 +379,23 @@ foreach ($file in $bundledModFiles) {
 Push-Location $root
 try {
     & (Join-Path $root 'tools/Update-Shaders.ps1') -Check
-    $nativeVulkan = Join-Path $artifacts "native-vulkan/$RuntimeIdentifier"
     Invoke-DistributionPhase 'Native Vulkan' {
-        & (Join-Path $root 'tools/Build-NativeVulkan.ps1') -RuntimeIdentifier $RuntimeIdentifier -OutputDirectory $nativeVulkan -Distro $env:MemoriaNativeVulkanDistro
+        Initialize-NativeVulkan
     }
-    $nativeVulkanArguments = @(('-p:MemoriaNativeVulkanDirectory=' + $nativeVulkan), '-p:MemoriaNativeVulkanPrepared=true')
+    if ($RuntimeIdentifier -eq 'win-x64') {
+        Invoke-DistributionPhase 'Native Direct3D 12' {
+            if ($useNativePackages) {
+                & $restoreNative -Backend dx12 -RuntimeIdentifier $RuntimeIdentifier -CacheDirectory $nativeCache -OutputDirectory $nativeDirect3D12
+            }
+            else {
+                & (Join-Path $root 'tools/Build-NativeDirect3D12.ps1') -OutputDirectory $nativeDirect3D12 -BuildDirectory (Join-Path $artifacts 'native-dx12-build')
+            }
+        }
+    }
     $solution = if ($TestPortable) { 'Memoria.FF8.Distribution.slnx' } else { 'Memoria.FF8.Native.slnx' }
     $buildNodes = if ($TestPortable) { '-m:2' } else { '-m:1' }
     Invoke-DistributionPhase 'Managed build graph' {
         Invoke-DotNet (@('build', $solution, '-c', $Configuration, $buildNodes) + $graphArguments + $nativeVulkanArguments)
-    }
-    $nativeDirect3D12 = Join-Path $artifacts 'native-dx12'
-    if ($RuntimeIdentifier -eq 'win-x64') {
-        Invoke-DistributionPhase 'Native Direct3D 12' {
-            & (Join-Path $root 'tools/Build-NativeDirect3D12.ps1') -OutputDirectory $nativeDirect3D12 -BuildDirectory (Join-Path $artifacts 'native-dx12-build')
-        }
     }
     $publishArguments = @('-c', $Configuration, '-r', $RuntimeIdentifier, '--self-contained', 'true', '-p:DebugType=None', '-p:DebugSymbols=false', '-p:PublishTrimmed=false', ('-p:MemoriaPrecompile=' + $precompile))
     foreach ($backend in $backends) {
@@ -367,7 +410,10 @@ try {
             $nativePublishArguments += @(('-p:MemoriaPsfDecoderDirectory=' + [IO.Path]::GetFullPath($env:MEMORIA_FF8_PSF_DECODER_DIRECTORY)), '-p:MemoriaPsfDecoderPrepared=true')
         }
         if ($RuntimeIdentifier -eq 'win-x64' -and $backend.Name -eq 'Direct3D12') {
-            $nativePublishArguments += @(('-p:MemoriaNativeDirect3D12Directory=' + $nativeDirect3D12), '-p:MemoriaNativeDirect3D12Prepared=true')
+            $nativePublishArguments += $nativePackageArguments + @('-p:MemoriaNativeDirect3D12Directory=' + $nativeDirect3D12)
+            if (!$useNativePackages) {
+                $nativePublishArguments += '-p:MemoriaNativeDirect3D12Prepared=true'
+            }
         }
         Invoke-DistributionPhase 'Managed publish / ReadyToRun' {
             if ($backend.Name -eq 'Vulkan') {
@@ -401,6 +447,27 @@ try {
             & (Join-Path $root 'tools/Get-MoltenVK.ps1') -Destination $hostOutput
         }
         Invoke-DistributionPhase 'Payload validation' {
+            if ($backend.Name -in @('Vulkan', 'Direct3D12')) {
+                $prepared = if ($backend.Name -eq 'Vulkan') { $nativeVulkan } else { $nativeDirect3D12 }
+                $library = switch ($RuntimeIdentifier) {
+                    'win-x64' { 'mgruntime.dll' }
+                    'linux-x64' { 'libmgruntime.so' }
+                    default { 'libmgruntime.dylib' }
+                }
+                foreach ($file in @($library, 'native-runtime.json')) {
+                    $published = Join-Path $hostOutput $file
+                    if ((Get-FileHash -LiteralPath $published -Algorithm SHA256).Hash -cne (Get-FileHash -LiteralPath (Join-Path $prepared $file) -Algorithm SHA256).Hash) {
+                        throw "The published $($backend.Name) host does not match the verified native runtime: $file."
+                    }
+                }
+                if ($useNativePackages -and $RuntimeIdentifier -like 'osx-*') {
+                    $staticNotice = Join-Path $prepared 'licenses/MoltenVK.LICENSE'
+                    $dynamicNotice = Join-Path $hostOutput 'MoltenVK.LICENSE'
+                    if ((Get-FileHash -LiteralPath $staticNotice -Algorithm SHA256).Hash -cne (Get-FileHash -LiteralPath $dynamicNotice -Algorithm SHA256).Hash) {
+                        throw 'The native package MoltenVK notice differs from the pinned MoltenVK distribution.'
+                    }
+                }
+            }
             Invoke-DotNet (@('run', '--project', 'tools/Memoria.FF8.Distribution.Check', '-c', $Configuration, '--no-build') + $graphArguments + @('--', $hostOutput, $RuntimeIdentifier))
             Invoke-DotNet (@('run', '--project', 'tools/Memoria.FF8.Distribution.Check', '-c', $Configuration, '--no-build') + $graphArguments + @('--', '--graphics-payload', $hostOutput, $backend.Name, (Join-Path $root 'tools/shader-manifest.json'), $RuntimeIdentifier))
         }
@@ -574,6 +641,7 @@ try {
 finally {
     Pop-Location
     [IO.File]::Delete($stagedArchive)
+    Remove-NativePackageWork
     Write-Host "Distribution timing ($Configuration, $RuntimeIdentifier):"
     foreach ($phase in $distributionTimings.GetEnumerator()) {
         $duration = if ($null -ne $phase.Value) { '{0:F2}s' -f $phase.Value } else { 'not run' }

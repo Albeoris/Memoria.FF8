@@ -1,0 +1,9 @@
+<Project>
+  <!-- The original targets still copy the verified payload and support direct source builds. -->
+  <Target Name="BuildNativeVulkanRuntime" BeforeTargets="CopyFilesToOutputDirectory" Condition="'$(MemoriaNativeVulkanLibrary)' != ''">
+    <Exec Command="pwsh -NoProfile -File &quot;$(MSBuildThisFileDirectory)../../tools/Restore-NativeRuntimePackage.ps1&quot; -VerifyOnly -Backend vulkan -RuntimeIdentifier &quot;$(MemoriaTargetRuntime)&quot; -CacheDirectory &quot;$(MemoriaNativePackagesCache)&quot; -OutputDirectory &quot;$(MemoriaNativeVulkanDirectory)&quot;" />
+  </Target>
+  <Target Name="BuildNativeDirect3D12Runtime" BeforeTargets="CopyFilesToOutputDirectory" Condition="'$(MemoriaGraphicsBackend)' == 'Direct3D12'">
+    <Exec Command="pwsh -NoProfile -File &quot;$(MSBuildThisFileDirectory)../../tools/Restore-NativeRuntimePackage.ps1&quot; -VerifyOnly -Backend dx12 -RuntimeIdentifier &quot;$(MemoriaTargetRuntime)&quot; -CacheDirectory &quot;$(MemoriaNativePackagesCache)&quot; -OutputDirectory &quot;$(MemoriaNativeDirect3D12Directory)&quot;" />
+  </Target>
+</Project>

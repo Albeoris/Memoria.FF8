@@ -46,6 +46,7 @@ Start with [installation and first launch](players/getting-started.md), then use
 | [Cross-platform migration](developers/cross-platform.md) | Portable projects, launcher/audio contracts and remaining native host gates. |
 | [Windows graphics hosts](developers/graphics-backends.md) | Shared-source DX11/Vulkan payloads, backend selection and initialization diagnostics. |
 | [Shader artifacts](developers/shaders.md) | Reproducible backend profiles, manifests and shipped-payload checks. |
+| [Native graphics packages](developers/native-graphics-packages.md) | MonoGame binary selection, release pins, provenance and source builds. |
 | [Linux testing from Windows](developers/linux-testing.md) | One-command WSL2 or SSH testing, reusable builds, Vulkan diagnostics and setup. |
 | [Shared music and sound](developers/audio.md) | Common x64 SGT/DLS/PCM implementation, device ownership and validation harness. |
 | [Architecture](developers/architecture.md) | Project responsibilities, state ownership and engine extension points. |

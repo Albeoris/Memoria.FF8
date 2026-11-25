@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "version": "3.8.5.1-memoria.1",
+  "producerCommit": "14cf3bc389916b07d1b3fef8cb034b708d4be033",
+  "packages": [
+    {
+      "backend": "vulkan",
+      "runtimeIdentifier": "win-x64",
+      "sha256": "0981656675db89de37f1af99d2658e8719a7907db77eeb3f2f12cfb6cb818de2"
+    },
+    {
+      "backend": "vulkan",
+      "runtimeIdentifier": "linux-x64",
+      "sha256": "df31ea292aded3b9fb6016bfa53dc82f0d8c6801c60c4d0169674f0429e4906a"
+    },
+    {
+      "backend": "vulkan",
+      "runtimeIdentifier": "osx-x64",
+      "sha256": "7a5de289a65af8f9e8da2314402558e89419bb8b10bd97eb11b3d0675c2fa07e"
+    },
+    {
+      "backend": "vulkan",
+      "runtimeIdentifier": "osx-arm64",
+      "sha256": "cca51683097bb4964ba29d47ee1e8436cb86d38ed0de685e403d909d9d4a3caf"
+    },
+    {
+      "backend": "dx12",
+      "runtimeIdentifier": "win-x64",
+      "sha256": "bd12f6952e63130c3da3d26de56596b00388a2c4f8a43d05cb6982967acf0821"
+    }
+  ]
+}
