@@ -13,7 +13,7 @@ public sealed partial class RemasteredGameDataSource
         {
             return atlas;
         }
-        string[] paths = Enumerable.Range(0, 4).Select(page => $"textures/hires/iconfl{page:D2}.tex/{language}/{palette}.png").ToArray();
+        string[] paths = Enumerable.Range(0, 4).Select(page => RemasteredArtworkPaths.SplitIconStem(language, palette, page) + ".png").ToArray();
         if (!paths.Any(Contains))
         {
             return null;

@@ -2,6 +2,7 @@ using System.Collections.Frozen;
 using System.Globalization;
 using Albeoris.Games.FF8.Imaging;
 using Memoria.FF8.Assets;
+using Memoria.FF8.Assets.Remastered;
 using Memoria.FF8.Resources;
 
 namespace Memoria.FF8.Mods;
@@ -11,7 +12,9 @@ public sealed record DemasterInspection(IReadOnlySet<string> UsablePackageIds, I
 /// <summary>Resolves source-published semantic addresses and native upload identities.</summary>
 public sealed partial class DemasterTextureResolver : ITextureReplacementResolver
 {
-    private const string PortraitArtworkLayout = "demaster-portrait-artwork";
+    private const string WorldCloudLayout = "demaster-world-wmset-cloud";
+    private const string WorldStaticSheetLayout = "demaster-world-static-sheet";
+    private const string WorldSetPrefix = "textures/world/dat/wmset/wmset_";
     private readonly ModCatalogSnapshot catalog;
     private readonly bool hasExplicitTextureLayouts;
 
@@ -56,10 +59,12 @@ public sealed partial class DemasterTextureResolver : ITextureReplacementResolve
             string stem = path[..^extension.Length];
             bool supported = DescribeWorldTerrainTarget(stem) is not null && HasLayout(source, "classic-world-texl");
             supported |= HasLayout(source, "demaster-card-artwork") && IsCardArtworkTarget(stem);
-            supported |= HasLayout(source, PortraitArtworkLayout) && DescribePortraitArtworkTarget(stem) is not null;
-            if (TryWorldTarget(stem, "textures/world/dat/wmset/wmset_", out int page))
+            supported |= HasLayout(source, RemasteredArtworkPaths.Layout) && IsRemasteredArtworkTarget(stem, source.Language);
+            supported |= HasLayout(source, WorldStaticSheetLayout) && stem.Equals(RemasteredGameDataSource.WorldStaticSheetStem, StringComparison.OrdinalIgnoreCase);
+            if (TryWorldTarget(stem, WorldSetPrefix, out int page, out int palette))
             {
                 supported |= page == 29 && HasLayout(source, "classic-world-road-region");
+                supported |= page == 14 && palette == 0 && HasLayout(source, WorldCloudLayout);
                 supported |= source.Edition == GameDataEdition.Remastered && HasLayout(source, "demaster-world-wmset");
             }
             if (TryWorldTarget(stem, "textures/world/dat/wmset/wmset0_", out _))
@@ -125,6 +130,14 @@ public sealed partial class DemasterTextureResolver : ITextureReplacementResolve
         {
             return card;
         }
+        if (context.Layout == "native-artwork" && HasLayout(context.Source, RemasteredArtworkPaths.Layout) && RemasteredArtworkPaths.MenuAtlasStem(context.Key, context.Source.Language) is { } artwork)
+        {
+            if (context.Key.Owner.Path == "menu/icon.tex")
+            {
+                return ResolveRemasteredIconAtlas(context);
+            }
+            return FindArtwork(artwork) is { } file ? ResolveWholeArtwork(context, file) : null;
+        }
         foreach (string path in CandidatePaths(context))
         {
             ModFile? file = catalog.FindAll(ModFormat.Demaster, path).FirstOrDefault();
@@ -134,15 +147,21 @@ public sealed partial class DemasterTextureResolver : ITextureReplacementResolve
             }
             DecodedModImage decoded = ModImageDecoder.Decode(file);
             bool roadRegion = context.Layout == "classic-world-road-region";
-            int canvasWidth = roadRegion ? context.Region.CanvasWidth : context.LogicalWidth;
-            int canvasHeight = roadRegion ? context.Region.CanvasHeight : context.LogicalHeight;
+            bool cloudRegion = IsWorldCloudRegion(context);
+            int canvasWidth = roadRegion || cloudRegion ? 256 : context.LogicalWidth;
+            int canvasHeight = roadRegion || cloudRegion ? 256 : context.LogicalHeight;
             if (decoded.Image.Width % canvasWidth != 0 || decoded.Image.Height % canvasHeight != 0 || decoded.Image.Width / canvasWidth != decoded.Image.Height / canvasHeight)
             {
                 throw new ModTextureLoadException(file.PackageId, file.RelativePath, new InvalidDataException($"Demaster texture '{file.RelativePath}' does not fit published layout '{context.Layout}' ({canvasWidth}x{canvasHeight})."));
             }
             if (roadRegion)
             {
-                decoded = CropRoadRegion(decoded, context);
+                decoded = CropWorldRegion(decoded, context.Region.X % 64 * 4, context.Region.Y % 256, context.LogicalWidth, context.LogicalHeight);
+            }
+            else if (cloudRegion)
+            {
+                TextureSourcePageAddress page = context.NativePage!;
+                decoded = CropWorldRegion(decoded, page.X, page.Y, page.Width, page.Height);
             }
             return new TextureReplacement(decoded.Image, $"{file.PackageId}/{file.RelativePath}@{file.Revision}", context.LogicalWidth, context.LogicalHeight, decoded.MipLevels);
         }
@@ -151,9 +170,14 @@ public sealed partial class DemasterTextureResolver : ITextureReplacementResolve
 
     public static IReadOnlyList<string> CandidatePaths(TextureBuildContext context)
     {
-        if (context.Layout == "native-artwork" && context.Key.Subresource == "atlas" && context.Key.Palette == 0 && HasLayout(context.Source, PortraitArtworkLayout) && NativeResourceNames.RemasteredPortraitTextureStem(context.Key.Owner.Path) is { } portraitStem)
+        if (context.Layout == "native-artwork" && HasLayout(context.Source, RemasteredArtworkPaths.Layout) && RemasteredArtworkPaths.MenuAtlasStem(context.Key, context.Source.Language) is { } atlasStem)
         {
-            return WithExtensions(portraitStem);
+            IEnumerable<string> paths = WithExtensions(atlasStem);
+            if (context.Key.Owner.Path == "menu/icon.tex")
+            {
+                paths = Enumerable.Range(0, 4).SelectMany(page => WithExtensions(RemasteredArtworkPaths.SplitIconStem(context.Source.Language, context.Key.Palette, page))).Concat(paths);
+            }
+            return paths.ToArray();
         }
         if (context.Layout == GfAtlasLayout)
         {
@@ -165,7 +189,7 @@ public sealed partial class DemasterTextureResolver : ITextureReplacementResolve
         }
         if (context.Layout == "classic-battle")
         {
-            return TryModelSheetAddress(context, out string modelStem, out _) ? WithExtensions(modelStem) : Array.Empty<string>();
+            return TryModelSheetAddress(context, out string modelStem, out _) ? ModelSheetPaths(context.Source, modelStem) : Array.Empty<string>();
         }
         if (context.Layout == "classic-field-tile")
         {
@@ -179,6 +203,12 @@ public sealed partial class DemasterTextureResolver : ITextureReplacementResolve
         bool paletteFallback = true;
         string owner = context.Key.Owner.Path;
         string subresource = context.Key.Subresource;
+        if (context.Layout == "classic-model" && HasLayout(context.Source, WorldStaticSheetLayout) && IsWorldSet(owner) && subresource.StartsWith("static/", StringComparison.Ordinal) &&
+            context.LogicalWidth == 256 && context.LogicalHeight == 256 &&
+            context.NativeAlias is { Owner.Path: RemasteredGameDataSource.WorldStaticSheetStem, Subresource: "", Palette: 0, X: 0, Y: 0, Width: 256, Height: 256, CanvasWidth: 256, CanvasHeight: 256 })
+        {
+            return WithExtensions(RemasteredGameDataSource.WorldStaticSheetStem);
+        }
         if (owner == "world/texl.obj" && context.Layout == "classic-world-texl" && subresource.StartsWith("texl/", StringComparison.Ordinal) && TryNonnegative(subresource[5..], out int page) && page < int.MaxValue && context.LogicalWidth == 256 && context.LogicalHeight == 256)
         {
             // GetTextureIndex adds one to the native loaded texl index, independently of VRAM page.
@@ -187,11 +217,15 @@ public sealed partial class DemasterTextureResolver : ITextureReplacementResolve
         else if (IsWorldSet(owner) && context.Layout == "classic-world-road-region" && subresource.StartsWith("roads/", StringComparison.Ordinal) && TryNonnegative(subresource[6..], out _) && context.Key.Palette == 0 && IsRoadRegion(context))
         {
             // Match the unmodified section-38 TIM before the engine packs its road atlas.
-            stem = "textures/world/dat/wmset/wmset_029";
+            stem = WorldSetPrefix + "029";
+        }
+        else if (IsWorldCloudRegion(context))
+        {
+            stem = WorldSetPrefix + "014";
         }
         else if (IsWorldSet(owner) && context.Layout == "demaster-world-wmset" && TryNonnegative(subresource, out int worldPage))
         {
-            stem = $"textures/world/dat/wmset/wmset_{worldPage:D3}";
+            stem = $"{WorldSetPrefix}{worldPage:D3}";
         }
         else if (IsWorldSet(owner) && context.Layout == "demaster-world-wmset0" && TryNonnegative(subresource, out int worldPage0))
         {
@@ -293,21 +327,27 @@ public sealed partial class DemasterTextureResolver : ITextureReplacementResolve
         return region.BitsPerPixel == 4 && region.CanvasWidth == 256 && region.CanvasHeight == 256 && region.X is >= 832 and < 896 && region.Y is >= 256 and < 512 && context.LogicalWidth > 0 && context.LogicalHeight > 0 && context.LogicalWidth <= 256 - x && context.LogicalHeight <= 256 - y;
     }
 
-    private static DecodedModImage CropRoadRegion(DecodedModImage decoded, TextureBuildContext context)
+    private static bool IsWorldCloudRegion(TextureBuildContext context)
     {
-        int x = context.Region.X % 64 * 4;
-        int y = context.Region.Y % 256;
+        return context.Layout == "classic-world-section" && HasLayout(context.Source, WorldCloudLayout) && IsWorldSet(context.Key.Owner.Path) &&
+            context.Key.Subresource == "section/38/texture/10" && context.Key.Palette == 0 &&
+            context.LogicalWidth == 256 && context.LogicalHeight == 64 &&
+            context.NativePage is { Namespace: "world-wmset", Page: 14, X: 0, Y: 64, Width: 256, Height: 64, PaletteX: 832, PaletteY: 224 };
+    }
+
+    private static DecodedModImage CropWorldRegion(DecodedModImage decoded, int x, int y, int logicalWidth, int logicalHeight)
+    {
         List<PixelImage> levels = [];
         foreach (PixelImage mip in decoded.MipLevels)
         {
-            if ((long)x * mip.Width % 256 != 0 || (long)y * mip.Height % 256 != 0 || (long)context.LogicalWidth * mip.Width % 256 != 0 || (long)context.LogicalHeight * mip.Height % 256 != 0)
+            if ((long)x * mip.Width % 256 != 0 || (long)y * mip.Height % 256 != 0 || (long)logicalWidth * mip.Width % 256 != 0 || (long)logicalHeight * mip.Height % 256 != 0)
             {
                 break;
             }
             int cropX = x * mip.Width / 256;
             int cropY = y * mip.Height / 256;
-            int width = context.LogicalWidth * mip.Width / 256;
-            int height = context.LogicalHeight * mip.Height / 256;
+            int width = logicalWidth * mip.Width / 256;
+            int height = logicalHeight * mip.Height / 256;
             if (width == 0 || height == 0)
             {
                 break;
@@ -336,6 +376,11 @@ public sealed partial class DemasterTextureResolver : ITextureReplacementResolve
     internal static (int Page, int Palette)? DescribeWorldTerrainTarget(string stem)
     {
         return TryWorldTarget(stem, "textures/world/dat/texl/texl_", out int id, out int palette) && id >= 1 ? (id - 1, palette) : null;
+    }
+
+    internal static bool IsWorldCloudTarget(string stem)
+    {
+        return stem.Equals(WorldSetPrefix + "014_0", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool TryWorldTarget(string stem, string prefix, out int id, out int palette)

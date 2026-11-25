@@ -23,13 +23,13 @@ internal sealed class AssetTextureScope(ResourceService? resources) : IDisposabl
         return handle;
     }
 
-    public IReadOnlyList<PixelImage> RegisterList(ResourceKey owner, IReadOnlyList<PixelImage> images, string layout, string prefix = "texture", long? revision = null, int? logicalWidth = null, int? logicalHeight = null)
+    public IReadOnlyList<PixelImage> RegisterList(ResourceKey owner, IReadOnlyList<PixelImage> images, string layout, string prefix = "texture", long? revision = null, int? logicalWidth = null, int? logicalHeight = null, TextureSourceAddress? nativeAlias = null)
     {
         if (resources is null)
         {
             return images;
         }
-        AssetHandle<TextureValue>[] handles = images.Select((image, index) => Register(new TextureKey(owner, $"{prefix}/{index}"), image, layout, revision: revision, logicalWidth: logicalWidth, logicalHeight: logicalHeight)!).ToArray();
+        AssetHandle<TextureValue>[] handles = images.Select((image, index) => Register(new TextureKey(owner, $"{prefix}/{index}"), image, layout, revision: revision, logicalWidth: logicalWidth, logicalHeight: logicalHeight, nativeAlias: nativeAlias)!).ToArray();
         return new ResourceTextureList(handles);
     }
 

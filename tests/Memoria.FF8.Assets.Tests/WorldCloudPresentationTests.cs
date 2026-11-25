@@ -2,7 +2,9 @@ using System.Numerics;
 using System.Reflection;
 using Albeoris.Games.FF8.Imaging;
 using Memoria.FF8.Assets;
+using Memoria.FF8.Assets.Remastered;
 using Memoria.FF8.Rendering;
+using Memoria.FF8.Resources;
 
 namespace Memoria.FF8.Assets.Tests;
 
@@ -71,6 +73,46 @@ public sealed class WorldCloudPresentationTests
         draw.Invoke(renderer, [camera, Vector3.Zero, sky, (byte)0]);
         byte[] pixels = (byte[])typeof(WorldTerrainRenderer).GetField("pixels", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(renderer)!;
         Assert.Contains(pixels, value => value != 0);
+    }
+
+    [Fact]
+    public void InstalledRemasteredCloudPublishesItsPageRegionToRuntimeAndCatalog()
+    {
+        string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_REMASTERED_DIR");
+        Assert.SkipUnless(directory is not null && File.Exists(Path.Combine(directory, "main.zzz")), "Set MEMORIA_FF8_REMASTERED_DIR to the installed Remastered game directory.");
+        using RemasteredGameDataSource source = new(directory!);
+        ResourceService resources = new(source);
+        CaptureTextureSources capture = new();
+        resources.Prepare(capture).Commit();
+
+        using WorldAssets world = new(directory!, resources: resources);
+        _ = world.ReadNativeSectionTexture(38, 10);
+        _ = world.ReadNativeSectionTexture(38, 11);
+        TextureBuildContext clouds = Assert.Single(capture.Contexts, context => context.NativePage is not null);
+
+        using GameAssets assets = new(directory!, resources: resources);
+        IReadOnlyList<TextureBuildContext>? unit = assets.LoadAddressableCatalogTextureUnit(TextureTarget.FromKey(clouds.Key));
+        Assert.NotNull(unit);
+        TextureBuildContext catalogClouds = Assert.Single(unit, context => context.NativePage is not null);
+        Assert.All(new[] { clouds, catalogClouds }, context =>
+        {
+            Assert.Equal(new TextureKey(new ResourceKey("world/wmsetus.obj"), "section/38/texture/10"), context.Key);
+            Assert.Equal((256, 64), (context.LogicalWidth, context.LogicalHeight));
+            TextureSourcePageAddress page = Assert.IsType<TextureSourcePageAddress>(context.NativePage);
+            Assert.Equal("world-wmset", page.Namespace);
+            Assert.Equal((14, 0, 64, 256, 64, 832, 224), (page.Page, page.X, page.Y, page.Width, page.Height, page.PaletteX, page.PaletteY));
+        });
+    }
+
+    private sealed class CaptureTextureSources : ITextureReplacementResolver
+    {
+        public List<TextureBuildContext> Contexts { get; } = [];
+
+        public TextureReplacement? Resolve(TextureBuildContext context)
+        {
+            Contexts.Add(context);
+            return null;
+        }
     }
 
     private sealed class CaptureTriangles : ITriangleRenderer

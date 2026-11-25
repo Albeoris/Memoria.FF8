@@ -15,9 +15,9 @@ public static partial class ModPreviewResources
         {
             return new(cards.Owner, cards.Members[0], Palette: 0, Members: cards.Members);
         }
-        if (DemasterTextureResolver.DescribePortraitArtworkTarget(stem) is { } portrait)
+        if (DemasterTextureResolver.DescribeRemasteredArtworkTarget(stem) is { } artwork)
         {
-            return new(portrait, "atlas", Palette: 0);
+            return new(artwork.Owner.Path, artwork.Subresource, Palette: artwork.Palette);
         }
         if (DemasterTextureResolver.DescribeFieldPageTarget(stem) is { } field)
         {
@@ -26,6 +26,10 @@ public static partial class ModPreviewResources
         if (DemasterTextureResolver.DescribeWorldTerrainTarget(stem) is { } terrain)
         {
             return new("world/texl.obj", $"texl/{terrain.Page}", terrain.Palette == 0 ? null : terrain.Palette);
+        }
+        if (DemasterTextureResolver.IsWorldCloudTarget(stem))
+        {
+            return new("world/wmset", "section/38/texture/10", Palette: 0);
         }
         return null;
     }

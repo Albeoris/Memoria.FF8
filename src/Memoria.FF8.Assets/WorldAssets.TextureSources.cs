@@ -24,7 +24,7 @@ public sealed partial class WorldAssets
         TimImage tim = WorldAssetReader.ReadTim(wmset, sections[section - 1] + pointers[member]).Image;
         PixelImage original = tim.Decode(palette);
         TextureKey key = new(worldSettingsKey, $"section/{section}/texture/{member}", palette);
-        AssetHandle<TextureValue>? handle = textureScope.Register(key, original, "classic-world-section", SectionTextureRegion(tim, palette), value => tim.Decode(value), tim.Palettes.Count);
+        AssetHandle<TextureValue>? handle = textureScope.Register(key, original, "classic-world-section", SectionTextureRegion(tim, palette), value => tim.Decode(value), tim.Palettes.Count, nativePage: SectionTexturePage(section, member, tim, palette));
         if (handle is not null)
         {
             nativeSectionTextures.Add((section, member, palette), handle);
@@ -42,6 +42,16 @@ public sealed partial class WorldAssets
         int colors = bits == 4 ? 16 : 256;
         int offset = checked(palette * colors);
         return new(tim.X, tim.Y, bits, PaletteX: clut.X + offset % clut.Width, PaletteY: clut.Y + offset / clut.Width);
+    }
+
+    internal static TextureSourcePageAddress? SectionTexturePage(int section, int member, TimImage tim, int palette)
+    {
+        if (section == 38 && member == 10 && palette == 0 && tim.PixelMode == TimPixelMode.Indexed4 && tim.X == 896 && tim.Y == 64 && tim.WidthInWords == 64 && tim.Height == 64 && tim.Clut is { X: 832, Y: 224, Width: 16, Height: 1 })
+        {
+            // The horizon strip occupies rows 64 through 127 of world texture page 14.
+            return new(14, 0, 64, 256, 64, 832, 224, []) { Namespace = "world-wmset" };
+        }
+        return null;
     }
 
     private TextureSourceAddress ReadSectionTextureAddress(int section, TimImage source, int palette, int x, int y, int width, int height)

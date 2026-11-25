@@ -36,6 +36,31 @@ public sealed class DemasterBattleModelSheetTests
         }
     }
 
+    [Fact]
+    public void RemasteredWeaponsUseTheBaseDirectoryWhenTheNewDirectoryHasNoReplacement()
+    {
+        ResourceSourceDescriptor remastered = Source with { Edition = GameDataEdition.Remastered };
+        TextureBuildContext remasteredContext = Context("d0w000", 0, 32, 32, source: remastered);
+        TextureBuildContext classicContext = Context("d0w000", 0, 32, 32);
+        const string preferredPath = "textures/battle.fs/hd_new/d0w000_0.png";
+        const string fallbackPath = "textures/battle.fs/hd/d0w000_0.png";
+        ModFile fallback = Image(fallbackPath, 384, 96);
+        ModFile preferred = Image(preferredPath, 256, 64);
+
+        Assert.Equal(new[] { preferredPath.Replace(".png", ".dds"), preferredPath, fallbackPath.Replace(".png", ".dds"), fallbackPath }, DemasterTextureResolver.CandidatePaths(remasteredContext));
+        Assert.Equal((384, 96), Size(Resolver(fallback).Resolve(remasteredContext)));
+        Assert.Equal((256, 64), Size(Resolver(fallback, preferred).Resolve(remasteredContext)));
+        Assert.Null(Resolver(fallback).Resolve(classicContext));
+        Assert.Empty(DemasterTextureResolver.Inspect(remastered, new(1, [], [fallback])).Diagnostics);
+        Assert.Equal("demaster-unsupported-target", Assert.Single(DemasterTextureResolver.Inspect(Source, new(1, [], [fallback])).Diagnostics).Code);
+
+        static (int Width, int Height) Size(TextureReplacement? value)
+        {
+            TextureReplacement replacement = Assert.IsType<TextureReplacement>(value);
+            return (replacement.Image.Width, replacement.Image.Height);
+        }
+    }
+
     [Theory]
     [InlineData("d0c000", 1, 64, 128)]
     [InlineData("d0c000", 0, 128, 128)]

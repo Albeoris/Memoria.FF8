@@ -43,7 +43,7 @@ public sealed partial class WorldAssets
             ushort page = BinaryPrimitives.ReadUInt16LittleEndian(wmset.AsSpan(modelStart + 4));
             NativeWorldStaticTextureSheet? sheet = resources.GetSource<INativeWorldStaticTextureSource>()?.ReadWorldStaticTextureSheet(nativeSourceFieldName, texture.Image, page);
             model = WorldStaticModelReader.Read(shape, wmset.AsSpan(modelStart), texture.Image, sheet);
-            model = model with { Textures = textureScope.RegisterList(worldSettingsKey, model.Textures, "classic-model", $"static/{shape}/palette", logicalWidth: sheet?.Width, logicalHeight: sheet?.Height) };
+            model = model with { Textures = textureScope.RegisterList(worldSettingsKey, model.Textures, "classic-model", $"static/{shape}/palette", logicalWidth: sheet?.Width, logicalHeight: sheet?.Height, nativeAlias: sheet?.SourceAlias) };
             scriptedStaticModels.Add(shape, model);
         }
         return modelOverrides?.Apply($"world/static/{shape}", model) ?? model;

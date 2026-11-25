@@ -18,30 +18,18 @@ public sealed partial class RemasteredGameDataSource
         if (context.Key.Subresource == "atlas" && owner.StartsWith("menu/", StringComparison.Ordinal))
         {
             string name = owner[5..];
-            if (NativeResourceNames.RemasteredPortraitTextureStem(owner) is { } portraitStem)
+            if (name == "icon.tex" && ReadSplitIconAtlas(context.Key.Palette) is { } icons)
             {
-                path = portraitStem + ".png";
+                _ = NativeArtworkTexture.Scale(icons, context.LogicalWidth, context.LogicalHeight);
+                return new TextureReplacement(icons, $"{Descriptor.Id}:{context.Key}", context.LogicalWidth, context.LogicalHeight);
             }
-            else if (name == "icon.tex")
+            if (RemasteredArtworkPaths.MenuAtlasStem(context.Key, language) is { } stem)
             {
-                if (ReadSplitIconAtlas(context.Key.Palette) is { } icons)
-                {
-                    _ = NativeArtworkTexture.Scale(icons, context.LogicalWidth, context.LogicalHeight);
-                    return new TextureReplacement(icons, $"{Descriptor.Id}:{context.Key}", context.LogicalWidth, context.LogicalHeight);
-                }
-                path = $"textures/icon.tex/{language}/{context.Key.Palette}.png";
+                path = stem + ".png";
             }
             else if (name.Length == 8 && name.StartsWith("mc", StringComparison.Ordinal) && int.TryParse(name.AsSpan(2, 2), out int cardAtlas) && cardAtlas is >= 0 and <= 9)
             {
                 path = "textures/" + name + (cardAtlas == 5 && language != "jp" ? "_en" : "") + ".png";
-            }
-            else if (name.Length == 9 && name.StartsWith("mag", StringComparison.Ordinal) && int.TryParse(name.AsSpan(3, 2), out int magazineAtlas) && magazineAtlas is >= 0 and <= 7)
-            {
-                path = "textures/" + name + ".png";
-            }
-            else if (name.Length == 9 && name.StartsWith("mag", StringComparison.Ordinal) && int.TryParse(name.AsSpan(3, 2), out int tutorialAtlas) && (tutorialAtlas is >= 10 and <= 14 or 17))
-            {
-                path = "textures/" + name + "_" + language + ".png";
             }
         }
         else if (owner == "cards/cards" && context.Key.Subresource.StartsWith("front/", StringComparison.Ordinal) && int.TryParse(context.Key.Subresource.AsSpan(6), out int cardId) && cardId is >= 0 and < CardArtwork.CardCount)

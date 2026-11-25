@@ -61,7 +61,8 @@ When settings are supplied as an archive sidecar, copy the JSON file to the extr
 | Tonberry | Classic `classic-world-texl`, `classic-world-road-region`, and explicitly supplied `tonberry-classic-page` | Requires original color/page semantics. Generic field tiles, model atlases and battle images are not automatically equivalent. Remastered is incompatible. |
 | Demaster | Classic world TEXL pages and original road regions represented by world page 29 | Compatibility of a package does not make every target compatible. Other families require a source-published compatible layout. |
 | Demaster card artwork | `demaster-card-artwork`: menu card atlases, Triple Triad fronts, back, elements and split backgrounds | Square 256 × 256 source sheets at an integer scale; localized alternatives follow the source language. |
-| Demaster Remastered portraits | `demaster-portrait-artwork`: `textures/hires/face_b00.tex`, `face_b01.tex`, `gf_big00.tex` and `gf_big01.tex`, each with `.dds` or `.png` | Whole 256 × 256 source atlases at an integer scale. |
+| Demaster Remastered menu artwork | Portraits in `textures/hires/`, magazine pages `textures/magNN.tex`, localized tutorial pages `textures/magNN.tex_<language>`, and menu icons | Portraits, magazine pages 00–07 and tutorials 10–14 and 17 use 256 × 256 logical atlases. Icons use the active language and original palette. |
+| Demaster Remastered world artwork | `textures/world/dat/wmset/wmset_014_0` for the cloud strip and `textures/field.fs/field_hd_new/wmset_014_0` for the scripted boat sheet | Both take separate 256 × 256 pages at an integer scale. Only the source-published region is used. |
 | Demaster field backgrounds | `native-field-background-page`: original MAP tiles addressed within their MIM pages | Square 256 × 256 source pages at a positive integer scale; native page, palette and pixel UV metadata select each tile. |
 | Demaster battle stages | `native-battle-stage-page`: original stage pages 16–21 under `textures/battle.fs/hd_new/` | Independent 256 × 256 page canvases; static and numbered animation frames. Model and effect layouts are separate contracts. |
 | Demaster battle models | `native-battle-model-sheet`: original character, weapon and monster DAT owners with source-published TIM row identities | Body and monster rows use 128 × 128 canvases; weapon rows use 128 × 32. Only original TIM layouts that publish this contract are eligible. |
@@ -74,6 +75,10 @@ When settings are supplied as an archive sidecar, copy the JSON file to the extr
 | Junction FFNx | Source-published `classic-ffnx` identities under selected `mods/textures/` resources | Card/menu atlases, native field/world/battle model textures, native effect uploads and composite pages, terrain TEXL pages, roads, static world objects and implemented native world section consumers. |
 
 Unknown targets produce diagnostics or retain original pixels. World overlays use native consumers: map/globe geometry and markers, clouds, object shadows and supported particle producers retain their original coordinates, palette selection and blend modes. Texture files alone do not establish support for an unimplemented producer. Full UI native-page reconstruction, general palette-animation revisions and general Tonberry resize preferences remain outside the implemented contract.
+
+### Demaster Remastered menu artwork
+
+PNG and DDS files use their Remastered paths. A whole icon atlas uses `textures/icon.tex/<language>/<palette>` and individual 128 × 128 logical quadrants use `textures/hires/iconflNN.tex/<language>/<palette>` with `NN` from `00` to `03`. A supplied quadrant replaces the corresponding part of the atlas. Missing quadrants fall back to the supplied whole atlas or to the installed game's image. Magazine, tutorial and portrait replacements preserve their logical canvas at a positive integer scale. Device-specific icon pages and additional palettes require their own source selectors.
 
 FFNx lookup preserves native model/texture indexes and world section/member identities. DDS and PNG replacements must preserve the native canvas aspect ratio and map crop boundaries to whole pixels. Crops used by terrain redirects and native atlas copies apply to the enlarged replacement image. When an exact palette suffix is absent, lookup uses the lowest available palette, following the external texture convention. The localized `eng/` root precedes the common root for English resources.
 
@@ -130,6 +135,8 @@ Numbered images append `_0`, `_1`, and so on. Frame zero takes precedence over t
 Only polygons explicitly submitted from the corresponding original stage resource receive these page replacements. The current resource identity follows stage reloads. An older snapshot without the current resource identity or required animation epoch must be explicitly migrated before these replacements can render; the engine reports the missing contract instead of guessing from the encounter's initial stage. Existing Junction atlas replacements retain their original VRAM pixel and CLUT guards. Disabling or reloading a package refreshes the same resident page handles.
 
 ### Demaster battle model sheets
+
+Remastered weapon strips can also use `textures/battle.fs/hd/dHwNNN_0`. The resolver tries DDS then PNG in `hd_new` before trying DDS then PNG in `hd`.
 
 Model images use `textures/battle.fs/hd_new/<original DAT basename>_<row>.dds` or `.png`, with DDS preferred. Character bodies use `dHcNNN`, weapons use `dHwNNN`, and monsters use `c0mNNN`; `H` is the original hexadecimal character identity and `NNN` is the original three-digit model identity. The source retains each actual DAT owner independently, including models whose original images happen to match. The row suffix identifies a native TIM slot, not an animation frame or decoded palette number.
 

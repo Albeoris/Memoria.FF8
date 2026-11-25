@@ -9,8 +9,10 @@ public sealed partial class DemasterTextureResolver
     private const string ModelSheetLayout = "native-battle-model-sheet";
     private const string BodySheetLayout = "native-battle-body-sheet";
     private const string ModelSheetPrefix = "textures/battle.fs/hd_new/";
+    private const string BaseModelSheetPrefix = "textures/battle.fs/hd/";
     private static readonly Regex modelSheetOwner = new(@"\Abattle/(?<name>c0m[0-9]{3}|d[0-9a-f][cw][0-9]{3})\.dat\z", RegexOptions.CultureInvariant);
     private static readonly Regex modelSheetTarget = new(@"\Atextures/battle\.fs/hd_new/(?<name>c0m[0-9]{3}|d[0-9a-f][cw][0-9]{3})_(?<row>0|[1-5])\z", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+    private static readonly Regex baseWeaponSheetTarget = new(@"\Atextures/battle\.fs/hd/d[0-9a-f]w[0-9]{3}_0\z", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
     private TextureReplacement? ResolveModelSheet(TextureBuildContext context)
     {
@@ -28,7 +30,7 @@ public sealed partial class DemasterTextureResolver
                 return ResolveDeclaredMonsterAtlas(context, bank, address, row, layout);
             }
         }
-        ModFile? file = WithExtensions(stem).SelectMany(path => catalog.FindAll(ModFormat.Demaster, path)).FirstOrDefault();
+        ModFile? file = ModelSheetPaths(context.Source, stem).SelectMany(path => catalog.FindAll(ModFormat.Demaster, path)).FirstOrDefault();
         if (file is null)
         {
             RejectUnresolvedMonsterOverlap(stem, address);
@@ -371,8 +373,22 @@ public sealed partial class DemasterTextureResolver
 
     private static bool IsModelSheetTarget(ResourceSourceDescriptor source, string stem)
     {
+        if (source.Edition == GameDataEdition.Remastered && baseWeaponSheetTarget.IsMatch(stem))
+        {
+            return true;
+        }
         Match match = modelSheetTarget.Match(stem);
         return match.Success && SupportsModelSheetName(source, match.Groups["name"].Value) && ValidModelSheetRow(match.Groups["name"].Value, match.Groups["row"].Value[0] - '0');
+    }
+
+    private static IReadOnlyList<string> ModelSheetPaths(ResourceSourceDescriptor source, string stem)
+    {
+        string name = stem[ModelSheetPrefix.Length..];
+        if (source.Edition == GameDataEdition.Remastered && name[2] == 'w')
+        {
+            return WithExtensions(stem).Concat(WithExtensions(BaseModelSheetPrefix + name)).ToArray();
+        }
+        return WithExtensions(stem);
     }
 
     private static bool SupportsModelSheetName(ResourceSourceDescriptor source, string name)
@@ -382,7 +398,7 @@ public sealed partial class DemasterTextureResolver
 
     private static bool IsModelSheetFamily(string stem)
     {
-        return stem.StartsWith(ModelSheetPrefix + "c0m", StringComparison.OrdinalIgnoreCase) || Regex.IsMatch(stem, @"\Atextures/battle\.fs/hd_new/d[0-9a-f][cw]", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        return stem.StartsWith(ModelSheetPrefix + "c0m", StringComparison.OrdinalIgnoreCase) || Regex.IsMatch(stem, @"\Atextures/battle\.fs/(?:hd_new/d[0-9a-f][cw]|hd/d[0-9a-f]w)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
     }
 
     private static bool ValidModelSheetRow(string name, int row)

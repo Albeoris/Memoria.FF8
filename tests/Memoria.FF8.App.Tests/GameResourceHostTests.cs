@@ -127,10 +127,14 @@ public sealed class GameResourceHostTests : IDisposable
         Assert.Equal(new Rgba32(255, 0, 0), host.Resources.GetTexture(Context(host)).Value.Image[0, 0]);
     }
 
-    [Fact]
-    public void InstalledDemasterPublishesRemasteredPortraitsAndRemembersTheToggle()
+    [Theory]
+    [InlineData("menu/face_b00.tex", "textures/hires/face_b00.tex.png", 0)]
+    [InlineData("menu/mag00.tex", "textures/mag00.tex.png", 0)]
+    [InlineData("menu/mag10.tex", "textures/mag10.tex_en.png", 0)]
+    [InlineData("menu/icon.tex", "textures/icon.tex/en/4.png", 4)]
+    [InlineData("menu/icon.tex", "textures/hires/iconfl00.tex/en/4.png", 4)]
+    public void InstalledDemasterPublishesRemasteredArtworkAndRemembersTheToggle(string owner, string path, int palette)
     {
-        const string path = "textures/hires/face_b00.tex.png";
         const string id = ModRuntime.InstalledDemasterPackageId;
         string game = Path.Combine(root, "game");
         string export = Path.Combine(game, "DEMASTER_EXP");
@@ -153,16 +157,16 @@ public sealed class GameResourceHostTests : IDisposable
             Assert.Equal(path, Assert.Single(host.Mods.ReadInstalledFiles(ModFormat.Demaster), file => file.PackageId == id).RelativePath);
             PixelImage original = new(256, 256);
             original[0, 0] = BaseColor;
-            TextureBuildContext context = new(new(new("menu/face_b00.tex"), "atlas"), host.Resources.Source, 1, "native-artwork", 256, 256, () => original);
+            TextureBuildContext context = new(new(new(owner), "atlas", palette), host.Resources.Source, 1, "native-artwork", 256, 256, () => original);
             var handle = host.Resources.GetTexture(context);
             Assert.Equal(new Rgba32(0, 0, 255), handle.Value.Image[0, 0]);
 
             Assert.True(host.Mods.SetEnabled("Demaster/pack", false).Success);
-            Assert.True(host.Pump(true));
+            Assert.True(SpinWait.SpinUntil(() => host.Pump(true), TimeSpan.FromSeconds(5)));
             Assert.Equal(new Rgba32(255, 0, 0), handle.Value.Image[0, 0]);
 
             Assert.True(host.Mods.SetEnabled(id, false).Success);
-            Assert.True(host.Pump(true));
+            Assert.True(SpinWait.SpinUntil(() => host.Pump(true), TimeSpan.FromSeconds(5)));
             Assert.Equal(BaseColor, handle.Value.Image[0, 0]);
         }
 
@@ -170,7 +174,7 @@ public sealed class GameResourceHostTests : IDisposable
         using GameResourceHost restarted = new(game, root, watch: false);
         Assert.Equal(ModEffectiveStatus.Disabled, Assert.Single(restarted.Mods.InstalledPackages, package => package.Id == id).Status);
         Assert.True(restarted.Mods.SetEnabled(id, true).Success);
-        Assert.True(restarted.Pump(true));
+        Assert.True(SpinWait.SpinUntil(() => restarted.Pump(true), TimeSpan.FromSeconds(5)));
         Assert.Equal(ModEffectiveStatus.Active, Assert.Single(restarted.Mods.Catalog.Packages, package => package.Id == id).Status);
     }
 

@@ -507,7 +507,7 @@ public sealed partial class GameAssets
         for (int member = 0; member < pointers.Length; member++)
         {
             TimImage tim = WorldAssetReader.ReadTim(bytes, start + pointers[member]).Image;
-            result.AddRange(TimContexts(owner, $"section/{section}/texture/{member}", tim, "classic-world-section"));
+            result.AddRange(TimContexts(owner, $"section/{section}/texture/{member}", tim, "classic-world-section", WorldAssets.SectionTexturePage(section, member, tim, 0)));
         }
         return result;
     }
@@ -553,9 +553,9 @@ public sealed partial class GameAssets
         return result;
     }
 
-    private IReadOnlyList<TextureBuildContext> TimContexts(ResourceKey owner, string subresource, TimImage tim, string layout)
+    private IReadOnlyList<TextureBuildContext> TimContexts(ResourceKey owner, string subresource, TimImage tim, string layout, TextureSourcePageAddress? nativePage = null)
     {
         int bits = tim.PixelMode == TimPixelMode.Indexed4 ? 4 : tim.PixelMode == TimPixelMode.Indexed8 ? 8 : 16;
-        return Enumerable.Range(0, Math.Max(1, tim.Palettes.Count)).Select(palette => new TextureBuildContext(new(owner, subresource, palette), resources.Source, resources.Get(owner).Revision, layout, tim.PixelWidth, tim.Height, () => tim.Decode(palette), layout == "classic-world-section" ? WorldAssets.SectionTextureRegion(tim, palette) : new(tim.X, tim.Y, bits), tim.Decode, Math.Max(1, tim.Palettes.Count), resources.Get(owner))).ToArray();
+        return Enumerable.Range(0, Math.Max(1, tim.Palettes.Count)).Select(palette => new TextureBuildContext(new(owner, subresource, palette), resources.Source, resources.Get(owner).Revision, layout, tim.PixelWidth, tim.Height, () => tim.Decode(palette), layout == "classic-world-section" ? WorldAssets.SectionTextureRegion(tim, palette) : new(tim.X, tim.Y, bits), tim.Decode, Math.Max(1, tim.Palettes.Count), resources.Get(owner)) { NativePage = palette == 0 ? nativePage : null }).ToArray();
     }
 }

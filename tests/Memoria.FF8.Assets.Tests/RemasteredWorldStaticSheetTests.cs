@@ -14,7 +14,11 @@ public sealed class RemasteredWorldStaticSheetTests
     public void NativeFieldAndUploadSelectTheFullBoatSheet(string fieldName)
     {
         string directory = RemasteredDirectory();
-        using WorldAssets assets = new(directory, nativeSourceFieldName: fieldName);
+        using RemasteredGameDataSource source = new(directory);
+        ResourceService resources = new(source);
+        CaptureTextureSources capture = new();
+        resources.Prepare(capture).Commit();
+        using WorldAssets assets = new(directory, resources: resources, nativeSourceFieldName: fieldName);
         WorldStaticModel model = assets.ReadScriptedStaticModel(78);
         Assert.Equal(217, model.NativeVertices.Count);
         Assert.Equal(253, model.Faces.Count);
@@ -26,6 +30,17 @@ public sealed class RemasteredWorldStaticSheetTests
             Assert.InRange(uv.X, 0, 255);
             Assert.InRange(uv.Y, 0, 255);
         });
+        Assert.Same(model, assets.ReadScriptedStaticModel(78));
+        Assert.Equal(model.Textures.Count, capture.Contexts.Count);
+        TextureSourceAddress alias = new(new ResourceKey("textures/field.fs/field_hd_new/wmset_014_0"), "", 0, 0, 0, 256, 256, 256, 256);
+        ResourceKey owner = NativeResourceNames.WorldSettings(resources.ResourceLanguage);
+        for (int index = 0; index < capture.Contexts.Count; index++)
+        {
+            TextureBuildContext context = capture.Contexts[index];
+            Assert.Equal(new TextureKey(owner, $"static/78/palette/{index}"), context.Key);
+            Assert.Equal("classic-model", context.Layout);
+            Assert.Equal(alias, context.NativeAlias);
+        }
     }
 
     [Theory]
@@ -56,5 +71,16 @@ public sealed class RemasteredWorldStaticSheetTests
         string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_REMASTERED_GAME_DIR");
         Assert.SkipUnless(Directory.Exists(directory) && File.Exists(Path.Combine(directory!, "main.zzz")), "Select optional Remastered resources with MEMORIA_FF8_REMASTERED_GAME_DIR.");
         return directory!;
+    }
+
+    private sealed class CaptureTextureSources : ITextureReplacementResolver
+    {
+        public List<TextureBuildContext> Contexts { get; } = [];
+
+        public TextureReplacement? Resolve(TextureBuildContext context)
+        {
+            Contexts.Add(context);
+            return null;
+        }
     }
 }
