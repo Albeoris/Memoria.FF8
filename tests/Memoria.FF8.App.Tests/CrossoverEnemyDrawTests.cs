@@ -176,16 +176,20 @@ public sealed class CrossoverEnemyDrawTests
         Assert.Equal(0, active.Invocation.TargetSlot);
         Assert.Equal(grouped ? 2 : 1, active.CompositePrepared.Length);
         Assert.Null(active.StockAction);
-        Ff7BattleSnapshot continuation = JsonSerializer.Deserialize<Ff7BattleSnapshot>(JsonSerializer.Serialize(host.Capture()))!;
-        CrossoverGunbladeHostSnapshot caster = JsonSerializer.Deserialize<CrossoverGunbladeHostSnapshot>(JsonSerializer.Serialize(attack.Capture()))!;
-        CrossoverGuestHostActionsSnapshot actionState = JsonSerializer.Deserialize<CrossoverGuestHostActionsSnapshot>(JsonSerializer.Serialize(actions.Capture()))!;
+        Ff7BattleSnapshot continuation = host.Capture();
+        CrossoverGunbladeHostSnapshot caster = attack.Capture();
+        CrossoverGuestHostActionsSnapshot actionState = actions.Capture();
         host = new(formation, progress, kernel, Ff7PcExecutableData.Load(installation).NativeMateriaStatModifiers, 1, snapshot: continuation, animations: animations, enemyExtensions: catalog);
         attack = new(roster, kit, assets, game, game.ReadNewGameGlobalRandom(), () => host.Data.Cameras[0], _ => 128, caster);
         actions = new(roster, kit, origin, NativeCrtRandomState.FromColdProcess(), attack, host, game, assets, actionState);
         BindForeignGeometry();
         Assert.Null(actions.DescribeScriptInteraction(2, 0xE001, 4).DrawSourceSlot);
         host.BindGuestAttack(actions);
-        IReadOnlyList<Ff7BattleGuestPhysicalHit> preparedHits = active.CompositePrepared.Select(contact => contact.HitDescription).ToArray();
+        CrossoverGuestFireHostState resumed = Assert.IsType<CrossoverGuestFireHostState>(actions.ActiveAbility);
+        Assert.Equal(active.Invocation, resumed.Invocation);
+        Assert.Equal(active.DrawCast, resumed.DrawCast);
+        Assert.Equal(active.Presentation.BoundContacts.Select(contact => contact.Contact.Recipient), resumed.Presentation.BoundContacts.Select(contact => contact.Contact.Recipient));
+        IReadOnlyList<Ff7BattleGuestPhysicalHit> preparedHits = resumed.CompositePrepared.Select(contact => contact.HitDescription).ToArray();
         HashSet<int> healedTargets = [];
         bool effect = false;
         for (int tick = 0; tick < 1000 && actions.Invocation is not null; tick++)
