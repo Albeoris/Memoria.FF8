@@ -504,7 +504,7 @@ internal static class AutoPlayTraversalPolicy
         };
     }
 
-    internal static string? GalbadiaAssignmentPassage(string visitKey)
+    internal static string? GalbadiaGardenPassage(string visitKey, bool hasStationFare)
     {
         // NG-129: Meet Martine before leaving Galbadia Garden for the train.
         return visitKey switch
@@ -521,6 +521,24 @@ internal static class AutoPlayTraversalPolicy
             "900:330" => "900:gateway:1",
             "916:330" => "916:gateway:2",
             "899:330" => "899:gateway:0",
+            // NG-130: Take the original route back to the station after Irvine joins.
+            "676:345" => "676:gateway:0",
+            "677:345" => "677:gateway:2",
+            "679:345" => "679:gateway:1",
+            "680:345" => "680:gateway:1",
+            "681:345" => "681:gateway:1",
+            "682:345" => "682:gateway:3",
+            "685:345" => "685:gateway:3",
+            "686:345" => "686:gateway:1",
+            "687:345" => "687:gateway:0",
+            "690:345" => "690:gateway:2",
+            "691:345" => "691:gateway:2",
+            "692:345" => "692:gateway:0",
+            "697:345" => "697:gateway:0",
+            "702:345" => "702:gateway:0",
+            "712:345" => "712:gateway:5",
+            "world:345" when hasStationFare => "world-entry:708:7",
+            "708:345" when hasStationFare => "708:talk:6",
             _ => null
         };
     }

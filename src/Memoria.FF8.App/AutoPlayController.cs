@@ -974,7 +974,7 @@ internal sealed partial class AutoPlayController
             }
         }
         int timberPhase = (visit.EndsWith(":270", StringComparison.Ordinal) || visit.EndsWith(":285", StringComparison.Ordinal)) && world.Events.EventMemory.Read(528, 2).Values is [int phase] ? phase : 0;
-        string? departure = AutoPlayTraversalPolicy.GardenExamPassage(visit, world.Events.PlayerActor?.Y) ?? AutoPlayTraversalPolicy.BalambStationPassage(visit) ?? AutoPlayTraversalPolicy.OrphanageDeparturePassage(visit) ?? AutoPlayTraversalPolicy.TimberBroadcastPassage(visit, timberPhase) ?? AutoPlayTraversalPolicy.GalbadiaAssignmentPassage(visit);
+        string? departure = AutoPlayTraversalPolicy.GardenExamPassage(visit, world.Events.PlayerActor?.Y) ?? AutoPlayTraversalPolicy.BalambStationPassage(visit) ?? AutoPlayTraversalPolicy.OrphanageDeparturePassage(visit) ?? AutoPlayTraversalPolicy.TimberBroadcastPassage(visit, timberPhase) ?? AutoPlayTraversalPolicy.GalbadiaGardenPassage(visit, session.State.Economy is { Gil: >= 3000 });
         if (AvailableProgressionPassage(visit, departure) is { } progressionPassage && next?.Event.Id != progressionPassage.Event.Id)
         {
             next = progressionPassage;
@@ -1785,7 +1785,7 @@ internal sealed partial class AutoPlayController
         run.ActiveAvailabilityFingerprint = null;
         run.SceneFrames = 0;
         SaveLocationEntry();
-        AutoPlayPlanStep next = AvailableProgressionPassage(visit, AutoPlayTraversalPolicy.GalbadiaAssignmentPassage(visit)) ?? planner.PlanNavigation(navigation, run.RefreshTargetVisit is null ? null : _ => false, run.RefreshTargetVisit, vertex => IsNavigationResourceCurrent(world, vertex), canTravel: TravelAdmission(navigation), preferredGoal: preferredGoal) ?? throw new NotSupportedException("Reachable world frontier exhausted before the ending.");
+        AutoPlayPlanStep next = AvailableProgressionPassage(visit, AutoPlayTraversalPolicy.GalbadiaGardenPassage(visit, session.State.Economy is { Gil: >= 3000 })) ?? planner.PlanNavigation(navigation, run.RefreshTargetVisit is null ? null : _ => false, run.RefreshTargetVisit, vertex => IsNavigationResourceCurrent(world, vertex), canTravel: TravelAdmission(navigation), preferredGoal: preferredGoal) ?? throw new NotSupportedException("Reachable world frontier exhausted before the ending.");
         UpdateExhaustedSurveyTarget(run, next.RefreshVisitKey);
         WorldAutoPlayTarget target = targets.Single(item => item.Id == next.Event.Id);
         string beforeCheckpoint = StageAttempt($"world-{run.Steps:D10}.json", CaptureState());
