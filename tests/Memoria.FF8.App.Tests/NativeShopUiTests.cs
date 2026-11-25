@@ -2,8 +2,10 @@ using System.Buffers.Binary;
 using Albeoris.Games.FF8.Jsm;
 using System.Text.Json;
 using Memoria.FF8.Assets;
+using Memoria.FF8.Assets.Localization;
 using Memoria.FF8.Events;
 using Memoria.FF8.GameUi;
+using Memoria.FF8.Resources.Localization;
 using Memoria.FF8.Runtime;
 using Memoria.FF8.Ui;
 
@@ -204,6 +206,35 @@ public sealed class NativeShopUiTests
             controller.Navigate(MenuInput.Down);
         }
         Assert.Equal(original, JsonSerializer.Serialize(shop));
+    }
+
+    [Theory]
+    [InlineData("shop-buy")]
+    [InlineData("shop-sell")]
+    public void ShopShowsTheActiveItemTranslationInTheListAndDetails(string screen)
+    {
+        using GameAssets assets = InstalledAssets();
+        LiveMenuCatalog catalog = LiveMenuCatalog.ReadInstalled(assets);
+        const int itemId = 191;
+        const int fieldItemOrdinal = itemId - 33;
+        const string translatedName = "Питомцы";
+        NativeShopTransaction shop = OriginalShop(assets);
+        shop = shop with { Counts = shop.Counts.SetItem(itemId, 2) };
+        string key = LocalizationSourceExporter.IndexedKey(assets.Resources.Source.Language, LocalizationSourceExporter.KernelTable("FieldItems", "Name"), fieldItemOrdinal);
+        assets.Resources.Prepare(null, localization: new(new Dictionary<string, LocalizationValue> { [key] = new(translatedName, "test", "test") })).Commit();
+        MenuController controller = new(() => NativeShopMenuProjection.Build(shop, catalog));
+        controller.Open(screen);
+        int rowIndex = controller.Entries.ToList().FindIndex(entry => entry.Id == $"item-{itemId}");
+        Assert.True(rowIndex >= 0);
+        for (int index = 0; index < rowIndex; index++)
+        {
+            controller.Navigate(MenuInput.Down);
+        }
+
+        UiView view = controller.BuildView();
+        UiList list = Assert.Single(Descendants(view.Root).OfType<UiList>(), element => element.Id == "commands");
+        Assert.Equal(translatedName, list.Items[controller.SelectedIndex]);
+        Assert.Contains(Descendants(view.Root).OfType<UiLabel>(), label => label.Text == translatedName);
     }
 
     private static IEnumerable<UiElement> Descendants(UiElement root)

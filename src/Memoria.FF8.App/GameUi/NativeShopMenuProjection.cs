@@ -25,7 +25,7 @@ public static class NativeShopMenuProjection
         foreach (byte itemId in shop.AvailableItems.Concat(Enumerable.Range(1, shop.Definitions.Prices.Length - 1).Where(id => shop.Counts[id] > 0).Select(id => (byte)id)).Distinct())
         {
             string id = $"item-{itemId}";
-            string name = shop.Definitions.ResolvePrice(itemId).Name!;
+            string name = catalog.ItemName(itemId) ?? shop.Definitions.ResolvePrice(itemId).Name!;
             data.Items.Add(new MenuItem { Id = id, Icon = catalog.ItemIcon(itemId), Name = name, Quantity = shop.Counts[itemId], Price = shop.AvailableItems.Contains(itemId) ? checked((int)shop.Price(itemId)) : null, SalePrice = checked((int)shop.Definitions.SellPrice(itemId, shop.AbilityMask)), Description = catalog.ItemDescription(itemId) ?? catalog.SystemText("shop.item.description-unavailable", "Item description unavailable.") });
             if (shop.AvailableItems.Contains(itemId))
             {
