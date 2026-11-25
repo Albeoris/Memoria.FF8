@@ -569,6 +569,20 @@ internal static class AutoPlayTraversalPolicy
         };
     }
 
+    internal static string? DelingRescuePassage(string visitKey)
+    {
+        // NG-132: Reach the clock and speak to the sniper team after the rescue.
+        return visitKey switch
+        {
+            "754:387" => "754:gateway:0",
+            "748:387" => "748:gateway:0",
+            "749:387" => "749:gateway:0",
+            "746:387" => "746:talk:6",
+            "716:387" => "716:talk:6",
+            _ => null
+        };
+    }
+
     internal static int? CastleRouteOrder(string eventId, bool sphinxDefeated)
     {
         // NG-083: Use the original side corridor and clock-tower exits.
