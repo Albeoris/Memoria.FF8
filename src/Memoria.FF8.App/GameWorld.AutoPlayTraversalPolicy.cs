@@ -30,6 +30,10 @@ internal static class AutoPlayTraversalPolicy
         {
             return castleOrder;
         }
+        if (BalambStationPassage(visit.Key) == item.Id)
+        {
+            return -1;
+        }
         return (visit.Key, item.Id) switch
         {
             // NG-120: Prefer the original wardrobe after the Fire Cavern exam.
@@ -49,6 +53,9 @@ internal static class AutoPlayTraversalPolicy
             // NG-124: Return to the original dormitory route after the training scene.
             ("163:175", "163:line:16" or "163:gateway:0") or ("165:175", "165:gateway:3") or ("168:175", "168:gateway:0") => -1,
             ("174:175", "174:line:24") or ("231:177", "231:line:11") => -1,
+            // NG-125: Prefer the actual world entrance and the first station contact.
+            ("127:205", "127:line:16") => -2,
+            ("world:205", "world-entry:106:1") or ("127:205", "127:gateway:1") or ("104:205", "104:line:17") => -1,
             // NG-019: Quistis advances this phase once the ordinary approach is available.
             ("679:324", "679:talk:3") => -1,
             // NG-020: Prefer the station exits toward Caraway's guard during this phase.
@@ -426,6 +433,29 @@ internal static class AutoPlayTraversalPolicy
         {
             "165:135" when playerY < -9209 => "165:line:29",
             "175:135" => "175:line:14",
+            _ => null
+        };
+    }
+
+    internal static string? BalambStationPassage(string visitKey)
+    {
+        // NG-125: Reuse the ordinary exits even when their survey is complete.
+        return visitKey switch
+        {
+            "150:205" => "150:line:19",
+            "145:205" => "145:line:21",
+            "230:205" => "230:line:18",
+            "226:205" => "226:line:15",
+            "170:205" => "170:line:25",
+            "165:205" => "165:gateway:0",
+            "163:205" => "163:line:17",
+            "162:205" => "162:gateway:0",
+            "161:205" => "161:gateway:3",
+            "160:205" => "160:gateway:1",
+            "159:205" => "159:line:13",
+            "106:205" => "106:gateway:0",
+            "102:205" => "102:gateway:0",
+            "114:205" => "114:gateway:0",
             _ => null
         };
     }

@@ -404,6 +404,10 @@ internal sealed partial class AutoPlayController
         }
         run.Error = null;
         run.LastProgressStep = run.Steps;
+        foreach (AutoPlayNavigationVisit visit in run.Coverage.NavigationVisits.Where(visit => visit.VisitKey.StartsWith("world:", StringComparison.Ordinal)))
+        {
+            RefreshWalkingSearchRevision(run, visit.Key, WorldWalkingSearchRevision);
+        }
         planner = new(run.Coverage, (visit, item) => AutoPlayTraversalPolicy.PhaseOrder(visit.Region, item.Order), ProgressionEntryOrder);
         Running = true;
         Paused = false;
@@ -938,7 +942,7 @@ internal sealed partial class AutoPlayController
                 return;
             }
         }
-        if ((AutoPlayTraversalPolicy.GardenExamPassage(visit, world.Events.PlayerActor?.Y) ?? AutoPlayTraversalPolicy.OrphanageDeparturePassage(visit)) is string departure)
+        if ((AutoPlayTraversalPolicy.GardenExamPassage(visit, world.Events.PlayerActor?.Y) ?? AutoPlayTraversalPolicy.BalambStationPassage(visit) ?? AutoPlayTraversalPolicy.OrphanageDeparturePassage(visit)) is string departure)
         {
             AutoPlayEventCoverage? passage = run.Coverage.Visits.Single(item => item.Visit.Key == visit).Events.FirstOrDefault(item => item.Event.Id == departure && item.Available && !item.Unavailable && item.BlockedReason is null);
             if (passage is not null && next?.Event.Id != departure)
@@ -1661,6 +1665,8 @@ internal sealed partial class AutoPlayController
         choice.BeforeContext = CaptureInputSearchContext();
     }
 
+    private const int WorldWalkingSearchRevision = 7;
+
     private void ExploreWorld(GameWorld world)
     {
         WorldState current = session.State.World ?? throw new InvalidDataException("Automatic world exploration requires its current world owner.");
@@ -1719,7 +1725,7 @@ internal sealed partial class AutoPlayController
         string navigation = ObserveNavigation(world, visit);
         RefreshUnavailable(world);
         InspectSurveyVisit(navigation);
-        RefreshWalkingSearchRevision(run, navigation);
+        RefreshWalkingSearchRevision(run, navigation, WorldWalkingSearchRevision);
         if (FinishChoices())
         {
             return;
@@ -1777,7 +1783,7 @@ internal sealed partial class AutoPlayController
         {
             if (!travel.Action.Accepted || travel.Action.Trigger.Kind == PlayerTriggerKind.FieldTransition)
             {
-                planner.Block(visit, target.Id, travel.Action.Detail ?? "Ordinary world movement reached a different native entrance.", AutoPlayBlockKind.Walking);
+                planner.Block(visit, target.Id, travel.Action.Detail ?? "Ordinary world movement reached a different native entrance.", AutoPlayBlockKind.Walking, WorldWalkingSearchRevision);
             }
             ClearNativeUnavailableInteraction();
         }

@@ -210,6 +210,21 @@ public sealed class AutoPlaySoftWalkBlockTests
     }
 
     [Fact]
+    public void ScopedWalkingRevisionReleasesOldAttemptsAndKeepsCurrentBlocks()
+    {
+        var test = Create();
+        int scopedRevision = AutoPlayPlanner.CurrentWalkingSearchRevision + 1;
+        test.Planner.Block("hub", "to-frontier", "old world approach", AutoPlayBlockKind.Walking);
+        AutoPlayController.RefreshWalkingSearchRevision(test.State, "hub-nav", scopedRevision);
+        Assert.Null(test.Blocked.BlockedReason);
+
+        test.Planner.Block("hub", "to-frontier", "current world approach", AutoPlayBlockKind.Walking, scopedRevision);
+        AutoPlayController.RefreshWalkingSearchRevision(test.State, "hub-nav", scopedRevision);
+        Assert.Equal("current world approach", test.Blocked.BlockedReason);
+        Assert.Equal(scopedRevision, test.Blocked.WalkingSearchRevision);
+    }
+
+    [Fact]
     public void SearchRevisionReleasesOnlyTheUncompletedFailedEntry()
     {
         var test = Create();

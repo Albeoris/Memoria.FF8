@@ -144,9 +144,9 @@ internal sealed partial class AutoPlayController
         return shared is null ? [] : shared.Events.Where(item => AutoPlayPlanner.IsSoftWalkingBlock(item) && observed!.Events.Any(known => known.Id == item.Event.Id && known.ConditionSignature == item.Event.ConditionSignature)).OrderBy(item => item.Event.Id, StringComparer.Ordinal).ToArray();
     }
 
-    internal static void RefreshWalkingSearchRevision(AutoPlayRunState state, string navigation)
+    internal static void RefreshWalkingSearchRevision(AutoPlayRunState state, string navigation, int revision = AutoPlayPlanner.CurrentWalkingSearchRevision)
     {
-        foreach (AutoPlayEventCoverage item in SoftWalkingBlocks(state, navigation).Where(item => (item.WalkingSearchRevision ?? 0) < AutoPlayPlanner.CurrentWalkingSearchRevision))
+        foreach (AutoPlayEventCoverage item in SoftWalkingBlocks(state, navigation).Where(item => (item.WalkingSearchRevision ?? 0) < revision))
         {
             ReleaseWalkingSearchBlock(item);
         }

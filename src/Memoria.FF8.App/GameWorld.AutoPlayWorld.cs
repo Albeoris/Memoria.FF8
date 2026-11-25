@@ -53,7 +53,7 @@ internal sealed partial class GameWorld
                 int x = WorldMapScene.NearWrapped(path[waypoint].X, before.X, 262144);
                 int z = WorldMapScene.NearWrapped(path[waypoint].RawZ, before.Z, 196608);
                 long distance = WorldDistanceSquared(before.X, before.Z, x, z);
-                if (distance <= (long)stride * stride)
+                if (distance <= (long)stride * stride && (waypoint < path.Count - 1 || scene.IsAtAutoPlayEntrance(target)))
                 {
                     waypoint++;
                     break;

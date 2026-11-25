@@ -273,11 +273,16 @@ public sealed partial class AutoPlayPlanner<TDeferral> where TDeferral : class, 
 
     public void Block(string visitKey, string eventId, string reason, AutoPlayBlockKind? kind = null)
     {
+        Block(visitKey, eventId, reason, kind, CurrentWalkingSearchRevision);
+    }
+
+    public void Block(string visitKey, string eventId, string reason, AutoPlayBlockKind? kind, int walkingSearchRevision)
+    {
         ArgumentException.ThrowIfNullOrWhiteSpace(reason);
         AutoPlayEventCoverage<TDeferral> item = FindEvent(visitKey, eventId);
         item.BlockedReason = reason;
         item.BlockKind = kind;
-        item.WalkingSearchRevision = kind == AutoPlayBlockKind.Walking ? CurrentWalkingSearchRevision : null;
+        item.WalkingSearchRevision = kind == AutoPlayBlockKind.Walking ? walkingSearchRevision : null;
         ConsumeConditions(item, null);
     }
 
