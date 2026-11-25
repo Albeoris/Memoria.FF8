@@ -968,7 +968,8 @@ internal sealed partial class AutoPlayController
                 return;
             }
         }
-        if ((AutoPlayTraversalPolicy.GardenExamPassage(visit, world.Events.PlayerActor?.Y) ?? AutoPlayTraversalPolicy.BalambStationPassage(visit) ?? AutoPlayTraversalPolicy.OrphanageDeparturePassage(visit)) is string departure)
+        bool timberPubCleared = visit.EndsWith(":270", StringComparison.Ordinal) && world.Events.EventMemory.Read(528, 2).Values is [>= 184];
+        if ((AutoPlayTraversalPolicy.GardenExamPassage(visit, world.Events.PlayerActor?.Y) ?? AutoPlayTraversalPolicy.BalambStationPassage(visit) ?? AutoPlayTraversalPolicy.OrphanageDeparturePassage(visit) ?? AutoPlayTraversalPolicy.TimberBroadcastPassage(visit, timberPubCleared)) is string departure)
         {
             AutoPlayEventCoverage? passage = run.Coverage.Visits.Single(item => item.Visit.Key == visit).Events.FirstOrDefault(item => item.Event.Id == departure && item.Available && !item.Unavailable && item.BlockedReason is null);
             if (passage is not null && next?.Event.Id != departure)

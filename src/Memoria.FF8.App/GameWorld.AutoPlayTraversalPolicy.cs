@@ -472,6 +472,26 @@ internal static class AutoPlayTraversalPolicy
         };
     }
 
+    internal static string? TimberBroadcastPassage(string visitKey, bool pubCleared)
+    {
+        // NG-126: Follow the original pub exit and alley after the drifter moves.
+        if (!pubCleared)
+        {
+            return null;
+        }
+        return visitKey switch
+        {
+            "918:270" => "918:gateway:2",
+            "920:270" => "920:gateway:4",
+            "921:270" => "921:gateway:2",
+            "922:270" => "922:gateway:1",
+            "912:270" => "912:gateway:0",
+            "897:270" => "897:gateway:0",
+            "898:270" => "898:gateway:0",
+            _ => null
+        };
+    }
+
     internal static int? CastleRouteOrder(string eventId, bool sphinxDefeated)
     {
         // NG-083: Use the original side corridor and clock-tower exits.

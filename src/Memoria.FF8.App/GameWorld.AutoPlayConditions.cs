@@ -95,6 +95,11 @@ internal sealed partial class GameWorld
 
     internal static int[] DiscoverAutoPlayConditionReads(JsmProgram program, string eventId, int objectId)
     {
+        // NG-126: The drifter's initial placement determines whether the pub exit is reachable.
+        if (eventId == "912:gateway:0" && program.Objects.Count > 11 && program.Objects[11].Scripts[0] is { Id: 74 } drifter && drifter.ContainsOperation(1001) && program.Operations[1001] is { Opcode: Jsm.Opcode.PSHM_W, Parameter: 528 })
+        {
+            return [1001];
+        }
         List<EventScript> roots = [];
         if ((uint)objectId < program.Objects.Count)
         {
