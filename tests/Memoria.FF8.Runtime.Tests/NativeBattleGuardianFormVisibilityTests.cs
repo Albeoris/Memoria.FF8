@@ -1,5 +1,5 @@
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
-using System.Buffers.Binary;
+using static Memoria.FF8.Runtime.BattlePresentationProcess;
 using System.Collections.Immutable;
 using System.Reflection;
 
@@ -35,27 +35,23 @@ public sealed class NativeBattleGuardianFormVisibilityTests
     [InlineData(GuardianFormInvocationMode.FinisherWithoutEntry, 5, true)]
     public void CinematicReturnRestoresAllParticipantsAndTheCapturedHumanVisibility(GuardianFormInvocationMode mode, byte phase, bool skip)
     {
-        BattleSession battle = Session();
         NativeBattleGuardianFormPresentation presentation = Presentation(mode, phase) with { SkipRequested = skip };
         NativeBattleGraphicsState graphics = HiddenGraphics() with { Flags = 0x10, GuardianFormPresentation = presentation };
-        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeGraphics))!.SetValue(battle.Presentation!, graphics);
-        Return(battle);
-        Assert.Null(battle.Presentation!.Graphics.GuardianFormPresentation);
-        AssertVisibility(battle.Presentation!.Graphics, presentation);
-        Assert.Equal(presentation.HumanModel.Flags0, ReadOriginalModelCell(battle.Presentation!.Graphics, 0).Flags0);
-        Assert.Equal(presentation.HumanModel.Flags2, ReadOriginalModelCell(battle.Presentation!.Graphics, 0).Flags2);
+        NativeBattleGraphicsState restored = Return(graphics, presentation);
+        Assert.Null(restored.GuardianFormPresentation);
+        AssertVisibility(restored, presentation);
+        Assert.Equal(presentation.HumanModel.Flags0, ReadOriginalModelCell(restored, 0).Flags0);
+        Assert.Equal(presentation.HumanModel.Flags2, ReadOriginalModelCell(restored, 0).Flags2);
     }
 
     [Fact]
     public void ActiveReturnPreservesLaterVisibilityChangesToOtherParticipants()
     {
-        BattleSession battle = Session();
         NativeBattleGuardianFormPresentation presentation = Presentation(GuardianFormInvocationMode.EntryOnly, 3);
         NativeBattleGraphicsState current = HiddenGraphics();
-        NativeBattleGraphicsState graphics = current with { GuardianFormPresentation = presentation };
-        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeGraphics))!.SetValue(battle.Presentation!, graphics);
-        Return(battle);
-        Assert.Equal(current.ActorModels.Entries.Where(entry => entry.Owner != Actor), battle.Presentation!.Graphics.ActorModels.Entries.Where(entry => entry.Owner != Actor));
+        NativeBattleGraphicsState restored = Return(current with { GuardianFormPresentation = presentation }, presentation);
+        Assert.Null(restored.GuardianFormPresentation);
+        Assert.Equal(current.ActorModels.Entries.Where(entry => entry.Owner != Actor), restored.ActorModels.Entries.Where(entry => entry.Owner != Actor));
     }
 
     [Fact]
@@ -69,34 +65,6 @@ public sealed class NativeBattleGuardianFormVisibilityTests
         Assert.Equal((ushort)0, ReadOriginalModelCell(restored, 6).Flags0);
     }
 
-    private static BattleSession Session()
-    {
-        return new(new BattleDefinition
-        {
-            NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(),
-            NativeCommonEffectTexture = CommonTexture(),
-            NativeClockRules = new(10),
-            NativeBattleSpeed = 2,
-            Combatants = [new() { Id = "actor", Name = "Actor", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }]
-        }, BattleAtbMode.Normal);
-    }
-
-    private static NativeBattleEffectInitializerAsset CommonTexture()
-    {
-        byte[] data = new byte[66];
-        BinaryPrimitives.WriteUInt32LittleEndian(data, 16);
-        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(4), 8);
-        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(8), 44);
-        BinaryPrimitives.WriteUInt16LittleEndian(data.AsSpan(16), 16);
-        BinaryPrimitives.WriteUInt16LittleEndian(data.AsSpan(18), 1);
-        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(52), 14);
-        BinaryPrimitives.WriteUInt16LittleEndian(data.AsSpan(56), 64);
-        BinaryPrimitives.WriteUInt16LittleEndian(data.AsSpan(58), 256);
-        BinaryPrimitives.WriteUInt16LittleEndian(data.AsSpan(60), 1);
-        BinaryPrimitives.WriteUInt16LittleEndian(data.AsSpan(62), 1);
-        return new("common.tim", data.ToImmutableArray());
-    }
-
     private static readonly BattlePartyActorModel Actor = new(new("actor"));
     private static readonly BattlePartyActorModel Other = new(new("other"));
     private static readonly BattleEnemyActorModel Enemy = new(new("enemy"));
@@ -106,7 +74,7 @@ public sealed class NativeBattleGuardianFormVisibilityTests
     {
         ImmutableDictionary<BattleModelOwner, NativeBattleGuardianModelVisibility> saved = ImmutableDictionary<BattleModelOwner, NativeBattleGuardianModelVisibility>.Empty
             .Add(Actor, new(6, 4)).Add(Other, new(2, 0)).Add(Enemy, new(2, 0)).Add(Extra, new(10, 0));
-        return new("actor", 1, mode, Actor, phase, new(6) { ModelId4 = 0, Flags2 = 4 }, NativeBattleCameraState.FromColdProcess(), NativeBattleStageState.FromColdProcess(), saved, 0)
+        return new("actor", 1, mode, Actor, phase, LoadedModel(6, 4, 0) with { ModelId4 = 0 }, NativeBattleCameraState.FromColdProcess(), NativeBattleStageState.FromColdProcess(), saved, 0)
         {
             UnboundVisibility = ImmutableDictionary<NativeBattleModelSlot, NativeBattleGuardianModelVisibility>.Empty.Add(NativeBattleModelSlot.Decode(6), new(0, null)),
             HumanFocalLength = 512
@@ -118,7 +86,12 @@ public sealed class NativeBattleGuardianFormVisibilityTests
         NativeBattleGraphicsState graphics = OriginalGraphics([(0, Actor, Model(0)), (1, Other, Model(1)), (3, Enemy, Model(3))]);
         return graphics with { ActorModels = graphics.ActorModels.Add(Extra, Model(7)) };
 
-        static NativeBattleGraphicsModel Model(uint flags) => new(0x40E) { Flags2 = 0x8C, Flags8 = flags };
+        static NativeBattleGraphicsModel Model(uint flags) => LoadedModel(0x40E, 0x8C, flags);
+    }
+
+    private static NativeBattleGraphicsModel LoadedModel(ushort flags0, ushort flags2, uint flags8)
+    {
+        return new(flags0) { Flags2 = flags2, Flags8 = flags8, ResourceFlags44 = 0, SequenceState = new() };
     }
 
     private static NativeBattleGraphicsState RestoreVisibility(NativeBattleGraphicsState graphics, NativeBattleGuardianFormPresentation presentation)
@@ -140,9 +113,27 @@ public sealed class NativeBattleGuardianFormVisibilityTests
         Assert.Equal(0, ReadOriginalModelCell(graphics, 6).Flags0 & 2);
     }
 
-    private static void Return(BattleSession battle)
+    private static NativeBattleGraphicsState Return(NativeBattleGraphicsState graphics, NativeBattleGuardianFormPresentation presentation)
     {
-        BattleGuardianFormState form = new("actor", 2, "ifrit-v1", BattleGuardianFormPhase.Active, 1, 1) { EntryCompleted = true };
-        typeof(BattlePresentationProcess).GetMethod("ReturnGuardianFormPresentation", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(battle.Presentation!, [battle.Combatants[0], form]);
+        BattleSession logical = new(new BattleDefinition
+        {
+            NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(),
+            NativeClockRules = new(10),
+            NativeBattleSpeed = 2,
+            Combatants =
+            [
+                new() { Id = "actor", Name = "Actor", IsPlayer = true },
+                new() { Id = "other", Name = "Other", IsPlayer = true },
+                new() { Id = "extra", Name = "Extra", IsPlayer = true },
+                new() { Id = "enemy", Name = "Enemy" }
+            ]
+        }, BattleAtbMode.Normal);
+        BattlePresentationProcess process = NativeBattleHostedTestFixture.SeedProcess(logical, graphics with { EntryReady = true });
+        HostedGuardianFormVisualOwner owner = new(presentation.Actor, presentation.ActorId, presentation.InvocationId, presentation.GuardianForceId, presentation.VariantId);
+        HostedGuardianFormVisualChange change = new(owner, Entering: false, new(owner, BattleGuardianFormPhase.Returning, HasAction: false, Finishing: false));
+        PreparedHostedGuardianFormChange prepared = process.PrepareGuardianFormChange(change);
+        process.ValidatePreparedGuardianFormChange(prepared);
+        process.CommitGuardianFormChange(prepared);
+        return process.Graphics;
     }
 }
