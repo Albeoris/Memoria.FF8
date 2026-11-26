@@ -43,6 +43,7 @@ public sealed class TextAndInitialDataTests
         Assert.Equal(314, initial.Characters[0].CurrentHp);
         Assert.Equal(65535, initial.Characters[0].RecordedMaximumHp);
         Assert.Equal(132, initial.Characters[0].Raw.Length);
+        Assert.Equal(new byte[] { 0, 255, 255 }, initial.Party);
         Assert.Equal(12, initial.Inventory[0].ItemId);
         Assert.Equal(7, initial.Inventory[0].Quantity);
         Assert.Equal(0x56, initial.Materia[0].MateriaId);
@@ -50,6 +51,9 @@ public sealed class TextAndInitialDataTests
         Assert.Equal(240u, initial.Gil);
         Assert.Throws<InvalidDataException>(() => KernelInitialData.Read(data.AsSpan(0, 2875)));
         data[0x4A4] = 9;
+        data[0x4A5] = 10;
+        Assert.Equal(new byte[] { 9, 10, 255 }, KernelInitialData.Read(data).Party);
+        data[0x4A4] = 11;
         Assert.Throws<InvalidDataException>(() => KernelInitialData.Read(data));
     }
 

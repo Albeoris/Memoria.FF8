@@ -298,7 +298,8 @@ internal static class InstalledOpeningTests
         Ff7SessionSave prepared = initial with { Progress = initial.Progress with { Party = [1, 0, 255], Characters = characters }, BattleBigShotChargeRotation = 14080, BattleBigShotCounterRotation = -9856 };
         using Ff7Session session = Ff7Session.Restore(installation, JsonSerializer.Deserialize<Ff7SessionSave>(JsonSerializer.Serialize(prepared))!);
         int entity = session.Host.Process.Actors.Single(actor => actor.PlayerControlled).Entity;
-        session.Host.StartEncounter(new(session.Progress.NextEncounterRequestId, entity, 7, 0, new FieldBattleCommand(301)), 0);
+        long requestId = checked(session.Progress.NextEncounterRequestId + 1);
+        session.Host.StartEncounter(new(requestId, entity, 7, 0, new FieldBattleCommand(301)), 0);
         Ff7BattleSession battle = session.Battle ?? throw new InvalidOperationException("The presentation carry fixture did not start its original encounter.");
         Equal((short)14080, battle.BigShotChargeRotation);
         Equal((short)-9856, battle.BigShotCounterRotation);
@@ -328,7 +329,7 @@ internal static class InstalledOpeningTests
         Equal((short)-19712, saved.BattleBigShotCounterRotation);
         using Ff7Session cold = Ff7Session.Restore(installation, saved);
         int restoredEntity = cold.Host.Process.Actors.Single(actor => actor.PlayerControlled).Entity;
-        cold.Host.StartEncounter(new(cold.Progress.NextEncounterRequestId, restoredEntity, 7, 0, new FieldBattleCommand(301)), 0);
+        cold.Host.StartEncounter(new(checked(requestId + 1), restoredEntity, 7, 0, new FieldBattleCommand(301)), 0);
         Equal((short)28160, cold.Battle!.BigShotChargeRotation);
         Equal((short)-19712, cold.Battle.BigShotCounterRotation);
         Console.WriteLine("Big Shot original charge angles survived result confirmation, a field save and the next encounter.");

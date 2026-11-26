@@ -124,6 +124,7 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Hosted Guardian Force requires preliminary contacts and its original command254 header.");
         }
+        StopTurnAdvance();
         ExpandedHostedInvocation invocation = new(command, header, contacts, enemyDraw, disposition) { PendingGunblade = pendingGunblade, PendingGuardian = pendingGuardian };
         for (int index = 0; index < expandedOperationCursor.Operations.Length; index++)
         {

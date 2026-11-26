@@ -130,18 +130,22 @@ internal static class NativeScriptedInputTests
             [0x5F, 0],
             [0x24, 0, 0, 0],
             [0x12, 0, 0],
-            [0x14, 0x50, 0, 0, 0, 1, 0]
+            [0x14, 0x50, 0, 0, 0, 2, 0, 0x5F, 0],
+            [0x14, 0x50, 0, 0, 0, 2, 0x5F, 0]
         })
         {
             FieldMachine machine = new(new([0, 0x30, 0x40, 2, 1, .. body], [entries]), host: host);
             machine.Initialize();
             string before = JsonSerializer.Serialize(machine.Capture());
-            Check(!machine.CanSkipScriptEntryForInput(0, 4, new()), "An unmatched KEY path with a read, write, host, request or yield was incorrectly proved inert.");
+            Check(!machine.CanSkipScriptEntryForInput(0, 4, new()), $"An unmatched KEY path with unproved continuation {Convert.ToHexString(body)} was incorrectly proved inert.");
             Check(before == JsonSerializer.Serialize(machine.Capture()) && host.Calls == 0, "A rejected skip proof changed native state or called the live host.");
         }
         FieldMachine jumps = new(new([0, 0x10, 1, 0x11, 2, 0, 0], [entries]));
         jumps.Initialize();
         Check(jumps.CanSkipScriptEntryForInput(0, 4, new()), "Pure native forward jumps to RET were not proved inert.");
+        FieldMachine conditionalReturns = new(new([0, 0x30, 0x40, 2, 1, 0x14, 0x50, 0, 0, 0, 2, 0, 0], [entries]));
+        conditionalReturns.Initialize();
+        Check(conditionalReturns.CanSkipScriptEntryForInput(0, 4, new()), "A variable predicate with both successors returning was not proved inert.");
         FieldMachine uninitialized = new(new([0, 0], [entries]));
         Check(!uninitialized.CanSkipScriptEntryForInput(0, 4, new()), "An uninitialized VM supplied an entry skip proof.");
     }

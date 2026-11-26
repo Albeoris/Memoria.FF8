@@ -246,16 +246,16 @@ internal static class WorldRuntimeTests
         Ff7FieldHost cold = new(field, (_, _) => 1, JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(host.Capture()))!);
         cold.SubmitNativeAudio(new(0x14, 71, 4));
         Check(cold.Process.MusicTicks == 1, "Native immediate same-track publication must preserve cold playback continuation.");
-        string before = JsonSerializer.Serialize(cold.Capture());
-        try
+        cold.SubmitNativeAudio(new(0x18, 13, 20));
+        Check(cold.Process.NativeMusicTrack == 71 && cold.Process.MusicTicks == 1 && cold.Process.MusicTransition is { Track: 13, Duration: 10, Phase: Ff7MusicTransitionPhase.FadeOut }, "A timed music transition must retain its current track during fade-out.");
+        Ff7FieldHost fadingCold = new(field, (_, _) => 1, JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(cold.Capture()))!);
+        foreach (Ff7FieldHost fading in new[] { cold, fadingCold })
         {
-            cold.SubmitNativeAudio(new(0x18, 13, 10));
-            throw new InvalidOperationException("An unproved pending music transition was accepted.");
+            fading.AdvanceAudioClock(TimeSpan.FromMilliseconds(200));
+            Check(fading.Process.NativeMusicTrack == 13 && fading.Process.MusicTicks == 0 && fading.Process.MusicTransition is { Phase: Ff7MusicTransitionPhase.FadeIn }, "The timed fade-out must start its target track and retain fade-in ownership.");
+            fading.AdvanceAudioClock(TimeSpan.FromMilliseconds(200));
         }
-        catch (NotSupportedException)
-        {
-        }
-        Check(JsonSerializer.Serialize(cold.Capture()) == before, "An unsupported long music transition must fail before changing global audio.");
+        Check(cold.Process.MusicTransition is null && cold.Process.MusicVolume == 127 && cold.Process.Tick == process.Tick && JsonSerializer.Serialize(cold.Capture()) == JsonSerializer.Serialize(fadingCold.Capture()), "The timed transition must finish identically after a cold restore without advancing field simulation.");
         cold.SubmitNativeAudio(new(0xF1));
         cold.Capture().Validate();
         Ff7FieldHost stoppedCold = new(field, (_, _) => 1, JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(cold.Capture()))!);

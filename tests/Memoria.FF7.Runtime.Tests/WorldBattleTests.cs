@@ -72,11 +72,14 @@ internal static class WorldBattleTests
         Check(Snapshot(restored) == Snapshot(returning), "Cold restore after battle return replayed the world occurrence.");
         Check(restored.Progress.WorldBattleResults.Single() == resultReceipt && !restored.ConfirmBattleEscape(), "Cold world return lost or repeated its result receipt.");
 
+        Ff7InventorySlot[] fullPotionStack = [new(0, 99, 0)];
+        IReadOnlyList<KernelSection> kernel = KernelArchive.Read(File.ReadAllBytes(installation.GetRequired(Ff7ResourceRole.Kernel).Path));
         Ff7BattleSnapshot victory = during.Battle! with
         {
             Outcome = Ff7BattleOutcome.Victory,
             TerminalFrames = 45,
-            Inventory = [new(0, 99)],
+            Inventory = fullPotionStack,
+            Economy = during.Battle.Economy! with { Inventory = Ff7NativeBattleInventory.Create(fullPotionStack, kernel) },
             Actors = during.Battle.Actors.Select(actor => actor.Actor.Slot >= 4
                 ? actor with { Actor = actor.Actor with { HitPoints = 0, Statuses = actor.Actor.Statuses | Ff7NativeBattleActionResolver.Death } } : actor).ToArray()
         };
@@ -249,6 +252,10 @@ internal static class WorldBattleTests
         Check(Snapshot(winning) == Snapshot(coldField), "Cold special field return replayed the encounter or changed field progression.");
 
         using Ff7Session escaping = Ff7Session.Restore(installation, active with { Battle = active.Battle! with { Outcome = Ff7BattleOutcome.Escaped, TerminalFrames = 8 } });
+        for (int callback = 0; callback < 300 && !escaping.Battle!.ResultReady; callback++)
+        {
+            escaping.AdvanceTick(false);
+        }
         Check(escaping.ConfirmBattleEscape() && escaping.World is { PendingBattle: null } && escaping.Progress.BattleEscapes == 1, "Tagged escape must return to World without a field departure.");
         Check(escaping.World!.Process.EntryModule == 1 && escaping.World.ReadSpecial(10, -1) == 1 && escaping.World.Process.Tick == 0, "Tagged escape did not preserve native battle-entry origin and escape bit.");
         using Ff7Session coldEscape = Ff7Session.Restore(installation, RoundTrip(escaping));
@@ -288,6 +295,10 @@ internal static class WorldBattleTests
             Battle = wonBeforeZero,
             Progress = timedVictory.Progress with { Clock = new(CountdownSeconds: 1) }
         });
+        for (int callback = 0; callback < 300 && !timelyVictory.Battle!.ResultReady; callback++)
+        {
+            timelyVictory.AdvanceTick(false);
+        }
         Check(timelyVictory.ConfirmBattleVictory() && timelyVictory.World!.Process.EntryModule == 1 && timelyVictory.World.Process.Tick == 0, "Winning a timed world battle before zero did not prepare the original world module.");
         Check(timelyVictory.World!.ReadSpecial(10, -1) == 0, "Timed victory set the native escape bit.");
 

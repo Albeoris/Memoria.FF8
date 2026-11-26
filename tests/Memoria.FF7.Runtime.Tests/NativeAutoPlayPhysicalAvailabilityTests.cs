@@ -319,15 +319,15 @@ internal static class NativeAutoPlayPhysicalAvailabilityTests
         Check(blocked is { Status: Ff7AutoPlayPhysicalSearchStatus.Exhausted, Inputs.Length: 0 }, "A blocked native triangle-only relabel was accepted as physical transit through a portal.");
         Ff7NativeMoveResult Preview(Ff7Actor actor, Ff7AutoplayInput input)
         {
-            if (actor.Y4096 == 0 && input.Horizontal == 1 && input.Vertical == 0)
+            if (actor.Triangle == 0 && actor.Y4096 == 0 && input.Horizontal == 1 && input.Vertical == 0)
             {
                 return Blocked(actor, input);
             }
-            if (actor.Y4096 == 0 && input.Horizontal == 0 && input.Vertical == 1)
+            if (actor.Triangle == 0 && actor.Y4096 == 0 && input.Horizontal == 0 && input.Vertical == 1)
             {
                 return new(actor with { Y4096 = 10 * 4096 }, false, true, []);
             }
-            if (actor.Y4096 == 10 * 4096 && input.Horizontal == 1 && input.Vertical == 0)
+            if (actor.Triangle == 0 && actor.Y4096 == 10 * 4096 && input.Horizontal == 1 && input.Vertical == 0)
             {
                 return new(actor with { X4096 = 10 * 4096, Triangle = 1 }, false, true, []);
             }

@@ -31,7 +31,12 @@ internal static class NativeTrainGraveyardTests
             {
                 session.Host.CompleteDialogue(dialogue.RequestId, dialogue.Selected);
             }
+            driver.BeginPlanningStep();
             Check(policy.TryChooseInput(driver, out Ff7AutoplayInput input), "Every field to the Sector 7 stairs must have a physical route.");
+            if (driver.PlanningPending)
+            {
+                continue;
+            }
             driver.Apply(input);
             session.AdvanceTick();
             if (visited[^1] == session.MapId)
@@ -43,7 +48,7 @@ internal static class NativeTrainGraveyardTests
             Check(JsonSerializer.Serialize(restored.Capture()) == JsonSerializer.Serialize(session.Capture()), "A native field transition must cold-restore exactly.");
         }
 
-        Check(visited.SequenceEqual(new ushort[] { 144, 145, 146, 156, 157, 156, 158, 159, 160 }), "The physical route must reach the top of the Sector 7 pillar.");
+        Check(visited.SequenceEqual(new ushort[] { 144, 145, 146, 156, 157, 156, 158, 159, 160 }), $"The physical route must reach the top of the Sector 7 pillar. Visited {string.Join(", ", visited)} at story {session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0)}.");
         Check(session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0) == 221, "The original directors must publish the story updates.");
         Check(session.Battle?.Formation.FormationId == 412, "Barret's original pillar scene must start the Reno battle.");
     }

@@ -20,21 +20,21 @@ public sealed class BattleSessionTests
     [Fact]
     public void AdvanceTurnLetsAnotherPlayerBecomeReadyWhilePreservingWaitingPlayer()
     {
-        BattleCombatantDefinition ally = Player(speed: 1_000) with { Id = "ally", Name = "Ally" };
-        BattleSession session = new(Definition(Player(initialAtb: BattleSession.AtbMaximum), ally, Enemy(speed: 1)), BattleAtbMode.TurnBased);
-        session.Tick();
+        BattleCombatantDefinition ally = Player(speed: 170) with { Id = "ally", Name = "Ally" };
+        BattleSession session = BattleTurnClockTestFixture.Create(Player(initialAtb: BattleSession.AtbMaximum), ally, Enemy(speed: 1));
+        BattleTurnClockTestFixture.Step(session);
         Assert.Equal(0, session.Frame);
         Assert.Equal(10, session.AdvanceTurn());
         Assert.True(session.Combatants[0].IsReady);
         Assert.True(session.Combatants[1].IsReady);
-        session.Tick();
+        BattleTurnClockTestFixture.Step(session);
         Assert.Equal(10, session.Frame);
     }
 
     [Fact]
     public void AlreadyReadyActorsArePreservedAndAllReadyAdvanceIsZero()
     {
-        BattleSession session = new(Definition(Player(initialAtb: BattleSession.AtbMaximum), Enemy(initialAtb: BattleSession.AtbMaximum)), BattleAtbMode.TurnBased);
+        BattleSession session = BattleTurnClockTestFixture.Create(Player(initialAtb: BattleSession.AtbMaximum), Enemy(initialAtb: BattleSession.AtbMaximum));
         Assert.Equal(0, session.AdvanceTurn());
         Assert.Equal(0, session.Frame);
         Assert.All(session.Combatants, actor => Assert.True(actor.IsReady));
@@ -71,7 +71,7 @@ public sealed class BattleSessionTests
     [Fact]
     public void FastForwardIsBoundedAndFailureLeavesActualClockUnchanged()
     {
-        BattleSession session = new(Definition(Player(speed: 1), Enemy(speed: 1)), BattleAtbMode.TurnBased);
+        BattleSession session = BattleTurnClockTestFixture.Create(Player(speed: 1), Enemy(speed: 1));
         Assert.Throws<ArgumentOutOfRangeException>(() => session.AdvanceTurn(BattleSession.MaximumAdvanceFrames + 1));
         Assert.Equal(0, session.Frame);
         Assert.Throws<TimeoutException>(() => session.AdvanceTurn(3));
@@ -118,7 +118,8 @@ public sealed class BattleSessionTests
     [Fact]
     public void ExplicitPassDoesNotCompleteTheBusyActorsQueuedAction()
     {
-        BattleSession session = new(Definition(Player(speed: BattleSession.AtbMaximum, initialAtb: BattleSession.AtbMaximum), Enemy(speed: 1000)), BattleAtbMode.TurnBased);
+        BattleNativeAction attack = new(1, 0, 4, 0) { Name = "Attack", MagicId = 0, AttackType = 1, Power = 20, HitCount = 1, TargetFlags = 0x50, AttackFlags = 0, DamagePresentation = 4, Element = 0, ElementPercent = 0, StatusAttack = 100, Statuses0 = 0, Statuses1 = 0, Hit = 255, Critical = 255, PowerModifier = null, LevelModifier = null, RawRecord = [], SupplementalRecord = [] };
+        BattleSession session = BattleTurnClockTestFixture.Create(Player(speed: 255, initialAtb: BattleSession.AtbMaximum) with { NativeAttack = attack }, Enemy(speed: 170));
         session.QueueAttack("player", "enemy");
         Assert.Equal(10, session.AdvanceTurn());
         Assert.False(session.Combatants[0].IsReady);

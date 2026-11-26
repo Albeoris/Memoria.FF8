@@ -144,7 +144,7 @@ internal static class NativeBattleActionTests
         Check(thrown.Damage.Damage == 136 && thrown.Target.Hp == 64 && random.Capture().WordCounter == 0 && random.Capture().Indices[0] == 42, $"Original Grenade damage changed its fixed-power variance: {thrown}.");
 
         Ff7InventorySlot[] inventory = [new(0, 1), new(3, 2)];
-        Check(Ff7NativeBattleActionResolver.TrySpendItem(inventory, 0, out Ff7InventorySlot[] reduced) && reduced.SequenceEqual(new[] { new Ff7InventorySlot(3, 2) }) && inventory.Length == 2, "Original Item cost must remove the exhausted slot once.");
+        Check(Ff7NativeBattleActionResolver.TrySpendItem(inventory, 0, out Ff7InventorySlot[] reduced) && reduced is [Ff7InventorySlot { ItemId: 3, Quantity: 2, NativeSlot: 1 }] && inventory[0] == new Ff7InventorySlot(0, 1), "Original Item cost must remove the exhausted slot once and leave the other item in its native slot.");
         Ff7BattleAttack bolt = Ff7BattleAttack.Read(kernel[1].Data.Span.Slice(0x21 * Ff7BattleAttack.RecordSize, Ff7BattleAttack.RecordSize));
         Check(Ff7NativeBattleActionResolver.TrySpendCastingCost(cloudVitals, bolt, out Ff7BattleActionVitals spent) && spent.Mp == 7, "Original Bolt must spend four MP.");
         Check(!Ff7NativeBattleActionResolver.TrySpendCastingCost(cloudVitals with { Statuses = 0x80 }, bolt, out _), "Silence must reject an MP action.");

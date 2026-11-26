@@ -62,9 +62,9 @@ internal static class NativeBattleShinraTests
                     CheckCold(combat, "Rufus linked helicopter action");
                     verifiedReportHelicopter = true;
                 }
-                if (!verifiedReportGain && presentation.SoundRequests.Any(sound => sound is { Channel: 1, ChannelGain: 0x50 }))
+                if (!verifiedReportGain && presentation.SoundRequests.Any(sound => sound is { Channel: 1, ChannelGain: 0, ChannelGainDuration: 0x50 }))
                 {
-                    CheckCold(combat, "Rufus Report sound gain");
+                    CheckCold(combat, "Rufus Report sound fade");
                     verifiedReportGain = true;
                 }
             }
@@ -76,7 +76,7 @@ internal static class NativeBattleShinraTests
             {
                 Check(active.Outcome == Ff7BattleOutcome.Victory && combat.ConfirmBattleVictory() && !combat.ConfirmBattleVictory(), $"Original Shinra formation {formation} did not settle once. Final phase={active.Formation.FormationId}, outcome={active.Outcome}.");
                 Check(formation is not (460 or 462) || phases.SetEquals(new[] { (int)formation, formation + 1 }), "The elevator fixture must run both authored formations.");
-                Check(formation != 464 || verifiedReportHelicopter && verifiedReportGain, $"Rufus's final action must advance the linked helicopter and issue its original gain. Helicopter={verifiedReportHelicopter}, gain={verifiedReportGain}.");
+                Check(formation != 464 || verifiedReportHelicopter && verifiedReportGain, $"Rufus's final action must advance the linked helicopter and issue its original channel fade. Helicopter={verifiedReportHelicopter}, fade={verifiedReportGain}.");
                 Check(attacks.Count > 0, $"Original Shinra formation {formation} did not execute a native enemy action.");
                 return;
             }

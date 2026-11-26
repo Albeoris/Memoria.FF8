@@ -16,8 +16,11 @@ internal static class NativeAutoPlayPolicyPlanningTests
         planner.Observe(visit, [new("repeatable", AutoPlayEventKind.Interaction, ConditionSignature: "before"), new("unseen", AutoPlayEventKind.Interaction, Order: 1, ConditionSignature: "ready")]);
         planner.Completed(visit.Key, "repeatable", entrySignature: "before", entrySignatureAuthoritative: true);
         planner.Observe(visit, [new("repeatable", AutoPlayEventKind.Interaction, ConditionSignature: "changed"), new("unseen", AutoPlayEventKind.Interaction, Order: 1, ConditionSignature: "ready")]);
-        Check(planner.Plan(visit.Key)?.Event.Id == "unseen", "A changed repeatable event must not starve an unexecuted frontier.");
+        Check(planner.Plan(visit.Key)?.Event.Id == "repeatable", "A genuinely rearmed local interaction must precede an untouched frontier.");
+        planner.Completed(visit.Key, "repeatable", entrySignature: "changed", entrySignatureAuthoritative: true);
+        Check(planner.Plan(visit.Key)?.Event.Id == "unseen", "Executing the rearmed interaction must make room for the unexecuted frontier.");
         planner.Completed(visit.Key, "unseen", entrySignature: "ready", entrySignatureAuthoritative: true);
+        planner.Observe(visit, [new("repeatable", AutoPlayEventKind.Interaction, ConditionSignature: "changed again"), new("unseen", AutoPlayEventKind.Interaction, Order: 1, ConditionSignature: "ready")]);
         Check(planner.Plan(visit.Key)?.Event.Id == "repeatable", "A changed predicate must remain eligible after the unexecuted frontier is covered.");
         Ff7AutoPlayState restored = state.Clone();
         Check(Ff7AutoPlayPolicy.CreatePlanner(restored).Plan(visit.Key)?.Event.Id == "repeatable", "Cold planner restoration lost the changed predicate.");
@@ -97,7 +100,7 @@ internal static class NativeAutoPlayPolicyPlanningTests
         AutoPlayEvent fresh = new("fresh", AutoPlayEventKind.Interaction, ConditionSignature: "fresh");
         planner.Observe(new("source", "region"), [exit, repeat, retry, fresh]);
         planner.ObserveNavigation("source", "new-source-nav", [exit, repeat, retry, fresh]);
-        Check(planner.PlanNavigation("new-source-nav", preferredGoal: preferred)?.Event.Id == fresh.Id, "A never-attempted frontier must retain its priority ahead of rank-zero retries and connectivity probes.");
+        Check(planner.PlanNavigation("new-source-nav", preferredGoal: preferred, readAvailability: (_, item) => item.Id == repeat.Id ? new(true, new(StringComparer.Ordinal) { repeat.Id }, "unavailable") : null)?.Event.Id == fresh.Id, "A never-attempted frontier must retain its priority ahead of rank-zero retries and connectivity probes when the rearmed local interaction is unavailable.");
     }
 
     private static void CheckFailedApproachDoesNotStarveFreshGateway()
@@ -239,14 +242,12 @@ internal static class NativeAutoPlayPolicyPlanningTests
         AutoPlayEvent story = new("story", AutoPlayEventKind.Interaction, ChangesStory: true, ConditionSignature: "previous-heading");
         planner.Observe(new("current", "resource-a"), [party, exit]);
         planner.Observe(new("remote", "resource-b"), [story]);
-        planner.Completed("remote", "story", observedStoryChanged: true);
-        story = story with { ConditionSignature = "new-heading" };
-        planner.Observe(new("remote", "resource-b"), [story]);
+        planner.Completed("remote", "story", observedStoryChanged: true, entrySignature: story.ConditionSignature, entrySignatureAuthoritative: true);
         planner.ObserveNavigation("current", "current-component", [party, exit]);
         planner.ObserveNavigation("remote", "remote-component", [story]);
         planner.Completed("current", "exit", "remote", observedStoryChanged: false);
         planner.RecordNavigationRoute("current-component", "remote-component", "exit", state.Coverage.Visits[0].Events.Single(item => item.Event.Id == "exit").Routes.Single());
-        Check(planner.PlanNavigation("current-component") is { IsTravel: false, Event.Id: "party" }, "A new raw heading on a completed potential story writer displaced a genuinely uncompleted local party frontier.");
+        Check(planner.PlanNavigation("current-component") is { IsTravel: false, Event.Id: "party" }, "A consumed story condition displaced an uncompleted local party frontier.");
     }
 
     private static void CheckStoryFrontierPrecedesRefresh()

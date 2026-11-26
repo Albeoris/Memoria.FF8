@@ -30,7 +30,11 @@ public sealed partial class BattleSession
         {
             return;
         }
-        StopTurnAdvance();
+        // A tracked enemy can complete its ordinary turn without producing an action.
+        if (stage != 1 || turnAdvance?.EnemyActorIds.Contains(actor.Id) != true)
+        {
+            StopTurnAdvance();
+        }
         actor.IsBusy = true;
         actions.Enqueue(packet);
         if (participantCallbackObservations is { } staged)

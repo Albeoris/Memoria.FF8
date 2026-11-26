@@ -32,7 +32,7 @@ public sealed class BattleTurnAdvanceTests
         long stoppedAt = battle.Frame;
         for (int frame = 0; frame < 5; frame++)
         {
-            battle.Tick();
+            BattleTurnClockTestFixture.Step(battle);
         }
         Assert.Equal(stoppedAt, battle.Frame);
     }
@@ -41,21 +41,21 @@ public sealed class BattleTurnAdvanceTests
     [InlineData(0)]
     [InlineData(1)]
     [InlineData(2)]
-    public void PendingEmptyTurnContinuationSurvivesJsonRestore(int ticksBeforeRestore)
+    public void PendingEmptyTurnContinuationSurvivesPrivateFork(int ticksBeforeRestore)
     {
         BattleSession battle = Create([19, 96, 1, 0]);
         battle.AdvanceTurn();
         for (int frame = 0; frame < ticksBeforeRestore; frame++)
         {
-            battle.Tick();
+            BattleTurnClockTestFixture.Step(battle);
         }
         Assert.NotNull(battle.Capture().TurnAdvance);
         BattleSession restored = Resume(battle);
 
         for (int frame = 0; frame < 100 && !battle.Combatants[1].IsReady; frame++)
         {
-            battle.Tick();
-            restored.Tick();
+            BattleTurnClockTestFixture.Step(battle);
+            BattleTurnClockTestFixture.Step(restored);
             Assert.Equal(Json(battle), Json(restored));
         }
 
@@ -96,14 +96,18 @@ public sealed class BattleTurnAdvanceTests
         battle.AdvanceTurn();
         for (int frame = 0; frame < 5 && battle.Capture().TurnAdvance is not null; frame++)
         {
-            battle.Tick();
+            BattleTurnClockTestFixture.Step(battle);
         }
 
         Assert.Null(battle.Capture().TurnAdvance);
         Assert.False(battle.Combatants[1].IsReady);
+        if (!message)
+        {
+            Assert.NotEmpty(battle.NativeScriptState.WaitCounters);
+        }
         for (int frame = 0; frame < 70; frame++)
         {
-            battle.Tick();
+            BattleTurnClockTestFixture.Step(battle);
         }
         Assert.False(battle.Combatants[1].IsReady);
         Assert.True(battle.Combatants[0].IsReady);
@@ -127,6 +131,31 @@ public sealed class BattleTurnAdvanceTests
     }
 
     [Fact]
+    public void NativeEnemyContactAdmissionCancelsThePassBeforeGraphics()
+    {
+        BattleNativeAction attack = new(8, 1, 3, 1) { Name = "Native attack", MagicId = 0, AttackType = 1, Power = 20, HitCount = 1, TargetFlags = 0x50, AttackFlags = 0, DamagePresentation = 0, Element = 0, ElementPercent = null, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = 255, Critical = 0, PowerModifier = null, LevelModifier = null, RawRecord = [.. new byte[20]], SupplementalRecord = [] };
+        NativeBattleAiDefinition ai = new([[0], [4, 0, 12, 0, 0], [0], [0], [0]], Enumerable.Repeat(new NativeBattleAiAbility(8, 12, 1), 48).ToArray(), 0, []);
+        BattleSession battle = BattleTurnClockTestFixture.Create([attack],
+        [
+            Actor("player", true, 1) with { InitialAtb = BattleSession.AtbMaximum },
+            Actor("ally", true, 20),
+            Actor("enemy", false, 170) with { NativeAi = ai }
+        ]);
+        BattleTurnClockTestFixture.Step(battle);
+        battle.AdvanceTurn();
+        Assert.NotNull(battle.Capture().TurnAdvance);
+        int waitingGauge = battle.Combatants[1].Atb;
+        BattleTurnClockTestFixture.DispatchTurnBasedFrameCore(battle);
+
+        Assert.Null(battle.Capture().TurnAdvance);
+        Assert.Equal("enemy", battle.ActiveAction?.ActorId);
+        Assert.NotNull(battle.Presentation!.ActiveActionToken);
+        Assert.Equal(waitingGauge, battle.Combatants[1].Atb);
+        Assert.True(battle.Combatants[0].IsReady);
+        Assert.DoesNotContain(battle.Events, entry => entry.Kind == "EffectContact");
+    }
+
+    [Fact]
     public void LeavingTurnBasedModeCancelsThePassEvenWhenReturningBeforeTheNextTick()
     {
         BattleSession battle = RestorePendingPass();
@@ -142,7 +171,7 @@ public sealed class BattleTurnAdvanceTests
     [Fact]
     public void ANewlyReadyPlayerEndsThePassAtItsFirstBoundary()
     {
-        BattleSession battle = Create([0], allySpeed: 2000);
+        BattleSession battle = Create([0], allySpeed: 250);
 
         Assert.True(battle.AdvanceTurn() > 0);
 
@@ -150,7 +179,7 @@ public sealed class BattleTurnAdvanceTests
         Assert.False(battle.Combatants[2].IsReady);
         Assert.Null(battle.Capture().TurnAdvance);
         string before = Json(battle);
-        battle.Tick();
+        BattleTurnClockTestFixture.Step(battle);
         Assert.Equal(before, Json(battle));
     }
 
@@ -180,10 +209,10 @@ public sealed class BattleTurnAdvanceTests
     {
         BattleSession battle = Create([0]);
         Assert.Equal(10, battle.AdvanceTurn(10));
-        battle.Tick();
+        BattleTurnClockTestFixture.Step(battle);
         string before = Json(battle);
 
-        Assert.Throws<TimeoutException>(() => battle.Tick());
+        Assert.Throws<TimeoutException>(() => BattleTurnClockTestFixture.Step(battle));
 
         Assert.Equal(before, Json(battle));
     }
@@ -213,10 +242,10 @@ public sealed class BattleTurnAdvanceTests
         return BattleSession.Restore(snapshot);
     }
 
-    private static BattleSession Create(byte[]? turnScript, int allySpeed = 100, bool enemyPoisoned = false)
+    private static BattleSession Create(byte[]? turnScript, int allySpeed = 20, bool enemyPoisoned = false)
     {
         NativeBattleAiDefinition? ai = turnScript is null ? null : new([[0], turnScript, [0], [0], [0]], Enumerable.Repeat(new NativeBattleAiAbility(0, 0, 0), 48).ToArray(), 0, ["Enemy message"]);
-        BattleSession battle = new(new()
+        BattleDefinition definition = new()
         {
             NativeCommandSequences = NativeBattleCommandSequenceFixture.Values,
             NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(),
@@ -224,26 +253,29 @@ public sealed class BattleTurnAdvanceTests
             [
                 Actor("player", true, 1) with { InitialAtb = BattleSession.AtbMaximum },
                 Actor("ally", true, allySpeed),
-                Actor("enemy", false, 1000) with { NativeAi = ai, NativeStatus0 = enemyPoisoned ? (ushort)2 : (ushort)0 }
+                Actor("enemy", false, 170) with { NativeAi = ai, NativeStatus0 = enemyPoisoned ? (ushort)2 : (ushort)0 }
             ]
-        }, BattleAtbMode.TurnBased);
-        if (ai is not null)
+        };
+        if (ai is null || enemyPoisoned)
         {
-            battle.Tick();
+            return new BattleSession(definition, BattleAtbMode.TurnBased);
         }
+
+        BattleSession battle = BattleTurnClockTestFixture.Create(definition.Combatants);
+        BattleTurnClockTestFixture.Step(battle);
         return battle;
     }
 
     private static BattleCombatantDefinition Actor(string id, bool player, int speed)
     {
-        return new() { Id = id, Name = id, IsPlayer = player, Speed = speed, MaximumHp = 1000, CurrentHp = 1000 };
+        return new() { Id = id, Name = id, IsPlayer = player, Speed = speed, MaximumHp = 1000, CurrentHp = 1000, NativeCombatantFlags = player ? 0u : 0x10u };
     }
 
     private static void TickUntilAllyReady(BattleSession battle)
     {
         for (int frame = 0; frame < 100 && !battle.Combatants[1].IsReady; frame++)
         {
-            battle.Tick();
+            BattleTurnClockTestFixture.Step(battle);
         }
         Assert.True(battle.Combatants[1].IsReady);
     }
@@ -255,6 +287,6 @@ public sealed class BattleTurnAdvanceTests
 
     private static BattleSession Resume(BattleSession battle)
     {
-        return BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(Json(battle))!);
+        return battle.ForkForContinuation();
     }
 }

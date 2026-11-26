@@ -38,7 +38,7 @@ internal static class AutoPlayFieldDestinationGoalTests
             planner.ObserveNavigation(current.VisitId, current.NavigationKey, events);
         }
         Observe(observation with { Events = [optional, entrance with { ConditionFingerprint = "previous" }] });
-        planner.Completed(observation.VisitId, entrance.Id, entrySignature: "previous", entrySignatureAuthoritative: true);
+        planner.Completed(observation.VisitId, entrance.Id, "destination", entrySignature: "previous", entrySignatureAuthoritative: true);
         Observe(observation);
         string coverage = JsonSerializer.Serialize(state.Coverage);
         Ff7AutoPlayPolicy.ResolveFieldDestinationGoal(state, observation);

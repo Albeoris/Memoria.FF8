@@ -88,7 +88,8 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
                 bool recordedNavigation = coverage.Routes.Any(route => route.DestinationVisitKey != visit.Key) || state.Coverage.NavigationRoutes.Any(route => route.EventId == target.Id && state.Coverage.NavigationVisits.Any(navigation => navigation.Key == route.SourceKey && navigation.VisitKey == visit.Key));
                 if (!recordedNavigation)
                 {
-                    return -1;
+                    // Rearmed local conditions precede fresh candidates, with fewer executions breaking ties.
+                    return int.MinValue + conditions.ConsumedEntries.Count;
                 }
             }
             return coverage.Conditions?.ConsumedEntries.Count ?? (coverage.Completed ? 1 : 0);

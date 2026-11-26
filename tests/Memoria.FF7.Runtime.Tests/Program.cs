@@ -3314,6 +3314,11 @@ var tests = new (string Name, Action Run)[]
     ("installed opening and cold process continuation", InstalledOpeningTests.Run)
 };
 var selected = tests.Where(test => args.Length == 0 || test.Name.Contains(args[0], StringComparison.OrdinalIgnoreCase)).ToArray();
+if (selected.Length == 0)
+{
+    Console.Error.WriteLine($"No FFVII runtime test groups match '{args[0]}'.");
+    return 2;
+}
 int failed = 0;
 foreach (var test in selected)
 {
