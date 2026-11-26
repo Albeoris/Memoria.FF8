@@ -190,7 +190,7 @@ public sealed class GameLanguageDistributionTests : IDisposable
         await installer.RequestInstallAsync(await installer.InspectAsync(mediaArchive, mediaEntry, Token), cancellationToken: Token);
         Assert.True(installer.ApplyNewInstallations());
         string mediaDirectory = Path.Combine(modsRoot, "Memoria", media.Id);
-        Directory.Delete(mediaDirectory, recursive: true);
+        File.Delete(Path.Combine(mediaDirectory, "asset.txt"));
         Guid installationId = installer.GetStatus(mediaEntry)!.InstallationId;
         Assert.NotNull(installer.GetStatus(mediaEntry)!.Error);
 
@@ -203,13 +203,54 @@ public sealed class GameLanguageDistributionTests : IDisposable
             IOException error = await Assert.ThrowsAsync<IOException>(() => library.AcquireLanguageAsync(offer, installer, Token));
             Assert.Contains("Close any game using this mod directory", error.Message);
             Assert.True(installer.GetStatus(mediaEntry)?.RestartRequired);
-            Assert.False(Directory.Exists(mediaDirectory));
+            Assert.False(File.Exists(Path.Combine(mediaDirectory, "asset.txt")));
         }
 
         Assert.Equal(translation.RuntimePackageId, await library.AcquireLanguageAsync(offer, installer, Token));
         Assert.Equal(installationId, installer.GetStatus(mediaEntry)?.InstallationId);
         Assert.True(installer.GetStatus(mediaEntry)?.Installed);
         Assert.Equal("fixture-1.0.0", File.ReadAllText(Path.Combine(mediaDirectory, "asset.txt")));
+    }
+
+    [Fact]
+    public async Task DeletedLanguageAndDependencyCanBeReinstalledBeforeRestart()
+    {
+        OfficialModComponent media = Component("opening-media", "1.0.0", dependency: true);
+        OfficialModComponent translation = Component("translation", "3.2.0", dependency: false, new LanguageDependencyPin(media.Id, media.Latest!.Version));
+        Dictionary<string, byte[]> downloads = [];
+        media = BuildArchive(media, downloads);
+        translation = BuildArchive(translation, downloads);
+        string modsRoot = Path.Combine(root, "Mods");
+        string cache = Path.Combine(root, "catalog-cache");
+        Directory.CreateDirectory(cache);
+        File.WriteAllBytes(Path.Combine(cache, "languages-v1.json"), Catalog(1, [translation], [media]));
+        using HttpClient client = new(new FixtureServer(request => downloads.TryGetValue(request.RequestUri!.AbsoluteUri, out byte[]? archive)
+            ? new(HttpStatusCode.OK) { Content = new ByteArrayContent(archive) }
+            : new(HttpStatusCode.NotFound)));
+        ModPackageInstaller installer = new(ModPackageInstaller.StateDirectoryFor(modsRoot), modsRoot, "Remastered/en/fixture", junctionSupported: false);
+        foreach (OfficialModComponent component in new[] { media, translation })
+        {
+            RemoteModEntry entry = new(OfficialModCatalog.SourceId, component.CatalogId, component.Name, component.Latest!.Version) { Official = component };
+            string archive = Path.Combine(root, component.Id + ".zip");
+            File.WriteAllBytes(archive, downloads[component.Latest.Artifact.Url]);
+            await installer.RequestInstallAsync(await installer.InspectAsync(archive, entry, Token), cancellationToken: Token);
+        }
+        Assert.All(installer.RecoverAndApply(), result => Assert.True(result.Installed, result.Error));
+        using ModRuntime runtime = new(root, watch: false, modsDirectory: modsRoot, edition: Remastered.Edition, language: Remastered.ResourceLanguage);
+        runtime.PreparePending(force: true);
+        runtime.CommitPending();
+        await using ModLibraryService library = new(Path.Combine(root, "library"), installer, runtime, "Remastered/en/fixture", false, client, officialCacheDirectory: cache, officialSupported: true);
+        RemoteModEntry translationEntry = await WaitForOffer(library, translation.Latest!.Version);
+        GameLanguageOffer offer = Inventory(library, runtime).Groups.Single(group => group.DisplayTag == "ru").Offers.Single();
+        Assert.NotNull(offer.InstalledPackage);
+        Guid previousId = installer.GetStatus(translationEntry)!.InstallationId;
+        Directory.Delete(Path.Combine(modsRoot, "Memoria", translation.Id), recursive: true);
+        Directory.Delete(Path.Combine(modsRoot, "Memoria", media.Id), recursive: true);
+
+        Assert.Null(installer.GetStatus(translationEntry));
+        Assert.Equal(translation.RuntimePackageId, await library.AcquireLanguageAsync(offer, installer, Token));
+        Assert.NotEqual(previousId, installer.GetStatus(translationEntry)!.InstallationId);
+        Assert.True(File.Exists(Path.Combine(modsRoot, "Memoria", media.Id, "asset.txt")));
     }
 
     [Fact]

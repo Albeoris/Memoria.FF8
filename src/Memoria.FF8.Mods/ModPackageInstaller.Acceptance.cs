@@ -26,6 +26,14 @@ public sealed partial class ModPackageInstaller
                 {
                     journal = Read<Journal>(path)!;
                     ValidateJournal(journal, path);
+                    if (WasPublishedAndDeleted(journal))
+                    {
+                        if (ForgetMissingInstallation(Path.GetFileNameWithoutExtension(path)) is { } removed)
+                        {
+                            results.Add(removed);
+                        }
+                        continue;
+                    }
                     if (journal.Phase != "AwaitingValidation")
                     {
                         continue;

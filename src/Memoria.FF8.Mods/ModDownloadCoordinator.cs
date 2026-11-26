@@ -72,6 +72,11 @@ public sealed class ModDownloadCoordinator : IDisposable
                 string finalArchive = Path.Combine(JobDirectory(job.JobId), "package.download");
                 bool inspectCached = job.Entry.SourceId == OfficialModCatalog.SourceId && job.Phase == ModDownloadPhase.ReadyToInstall && job.ArchivePath == finalArchive && job.Sha256 is { } hash
                     && File.Exists(finalArchive) && MatchesPublisher(job.Entry, new FileInfo(finalArchive).Length, hash);
+                if (job.Phase == ModDownloadPhase.ReadyToInstall)
+                {
+                    // A recovered archive is a cache entry. Wait for a fresh installation request.
+                    job = job with { InstallAfterDownload = false };
+                }
                 jobs[job.JobId] = inspectCached ? job : job with
                 {
                     Phase = job.Phase == ModDownloadPhase.Cancelled ? ModDownloadPhase.Cancelled : ModDownloadPhase.Paused,
@@ -160,6 +165,20 @@ public sealed class ModDownloadCoordinator : IDisposable
     }
 
     public string? GetCompletedPath(Guid id) => jobs.TryGetValue(id, out DownloadJobSnapshot? job) && job.Phase == ModDownloadPhase.ReadyToInstall ? job.ArchivePath : null;
+
+    internal async Task ClearInstallIntentAsync(Guid id)
+    {
+        lock (commandGate)
+        {
+            if (!jobs.TryGetValue(id, out DownloadJobSnapshot? job) || !job.InstallAfterDownload)
+            {
+                return;
+            }
+            jobs[id] = job with { InstallAfterDownload = false };
+            Interlocked.Increment(ref revision);
+        }
+        await SaveAsync(id).ConfigureAwait(false);
+    }
 
     private void Stop(Guid id, ModDownloadPhase phase)
     {

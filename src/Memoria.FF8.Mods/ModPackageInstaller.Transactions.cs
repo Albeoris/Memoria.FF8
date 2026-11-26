@@ -50,6 +50,7 @@ public sealed partial class ModPackageInstaller
                 string name = Path.GetFileName(plan.Destination);
                 string key = ManagedName(plan.Entry);
                 string receiptPath = ReceiptPath(key);
+                ForgetMissingInstallation(key);
                 if (Read<RelocationReservation>(IncomingRelocationPath(key)) is not null)
                 {
                     throw new InvalidOperationException("An update is moving to this directory. Restart to complete the move first.");
@@ -67,7 +68,7 @@ public sealed partial class ModPackageInstaller
                 string? repairSourceHash = repair && previous is not null && plan.Entry.Official is not null && Directory.Exists(destination) ? Fingerprint(destination, false, cancellationToken) : null;
                 CheckOwnership(plan.Entry, destination, previous, allowMissing: true, repairSourceHash);
                 bool previousPayloadExists = Exists(destination);
-                if (previousPayloadExists && previous?.PayloadHash == item.Hash && accepted.CompareVersion(previous.Version) == 0)
+                if (previousPayloadExists && previous?.PayloadHash == item.Hash && (repairSourceHash is null || repairSourceHash == item.Hash) && accepted.CompareVersion(previous.Version) == 0)
                 {
                     prepared.Remove(plan.Token);
                     Directory.Delete(item.Root, true);
@@ -148,7 +149,10 @@ public sealed partial class ModPackageInstaller
     private IReadOnlyList<ModPackageInstallResult> RecoverAndApply(bool additionsOnly, RemoteModEntry? languagePackage = null)
     {
         IReadOnlyList<ModPackageInstallResult> removals = additionsOnly || languagePackage is not null ? [] : RecoverRemovals();
-        if (!Directory.Exists(StatePath("journals", "")))
+        string journals = StatePath("journals", "");
+        string receipts = StatePath("receipts", "");
+        bool startup = !additionsOnly && languagePackage is null;
+        if (!Directory.Exists(journals) && (!startup || !Directory.Exists(receipts)))
         {
             return removals;
         }
@@ -157,7 +161,29 @@ public sealed partial class ModPackageInstaller
         {
             using FileStream installLock = AcquireLock();
             List<ModPackageInstallResult> results = new(removals);
-            string journals = StatePath("journals", "");
+            if (startup && Directory.Exists(receipts))
+            {
+                EnsureNoLinks(receipts);
+                foreach (string receipt in Directory.EnumerateFiles(receipts, "managed-*.json"))
+                {
+                    string key = Path.GetFileNameWithoutExtension(receipt);
+                    if (File.Exists(JournalPath(key)))
+                    {
+                        continue;
+                    }
+                    try
+                    {
+                        if (ForgetMissingInstallation(key) is { } removed)
+                        {
+                            results.Add(removed);
+                        }
+                    }
+                    catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or ArgumentException or JsonException)
+                    {
+                        results.Add(new(Guid.Empty, "", "", false, false, "Mod removal reconciliation: " + exception.Message));
+                    }
+                }
+            }
             if (!Directory.Exists(journals))
             {
                 return results.AsReadOnly();
@@ -171,6 +197,14 @@ public sealed partial class ModPackageInstaller
                     EnsureNoLinks(path);
                     journal = Read<Journal>(path) ?? throw new InvalidDataException("Empty installation journal.");
                     ValidateJournal(journal, path);
+                    if (WasPublishedAndDeleted(journal))
+                    {
+                        if (ForgetMissingInstallation(Path.GetFileNameWithoutExtension(path)) is { } removed)
+                        {
+                            results.Add(removed);
+                        }
+                        continue;
+                    }
                     if (IsRelocationPhase(journal))
                     {
                         continue;
@@ -240,6 +274,10 @@ public sealed partial class ModPackageInstaller
         if (journal is not null)
         {
             ValidateJournal(journal, JournalPath(key));
+            if (WasPublishedAndDeleted(journal))
+            {
+                return null;
+            }
             if (journal.Phase == "Relocated")
             {
                 return null;
@@ -250,15 +288,6 @@ public sealed partial class ModPackageInstaller
             }
             // Applied files can await game resource validation without requiring another file application.
             bool applied = journal.Phase is "AwaitingValidation" or "Committed";
-            if (applied)
-            {
-                string appliedDestination = Destination(journal.Next.SourceId, journal.Next.DestinationName);
-                EnsureNoLinks(appliedDestination);
-                if (!Exists(appliedDestination))
-                {
-                    return Result(journal.Next, false, false, "The managed installation was removed outside the mod manager.");
-                }
-            }
             return Result(journal.Next, !applied || journal.RelocateTo is not null, applied) with { PendingEnable = ShouldEnable(journal) };
         }
         Receipt? receipt = Read<Receipt>(ReceiptPath(key));
@@ -272,6 +301,10 @@ public sealed partial class ModPackageInstaller
             {
                 return Result(receipt, false, false, "The native installation receipt does not match this component.");
             }
+            if (IsPayloadMissing(receipt))
+            {
+                return null;
+            }
             ModPackageInstallResult status = NativeResult(receipt);
             return status with { CanUninstall = status.Installed && !receipt.Migrated && receipt.Version.Length > 0 };
         }
@@ -279,11 +312,9 @@ public sealed partial class ModPackageInstaller
         {
             return Result(receipt, false, false, "The installation receipt does not match this target.");
         }
-        string destination = Destination(receipt.SourceId, receipt.DestinationName);
-        EnsureNoLinks(destination);
-        if (!Exists(destination))
+        if (IsPayloadMissing(receipt))
         {
-            return Result(receipt, false, false, "The managed installation was removed outside the mod manager.");
+            return null;
         }
         return Result(receipt, false, true) with { CanUninstall = true };
     }
@@ -588,15 +619,19 @@ public sealed partial class ModPackageInstaller
     private static T? Read<T>(string path) where T : class
     {
         EnsureNoLinks(path);
-        if (!File.Exists(path))
+        try
+        {
+            using FileStream stream = new(path, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete);
+            if (stream.Length > 1024 * 1024)
+            {
+                throw new InvalidDataException("Installation metadata exceeds its size limit.");
+            }
+            return JsonSerializer.Deserialize<T>(stream) ?? throw new InvalidDataException("Invalid installation metadata.");
+        }
+        catch (IOException exception) when (exception is FileNotFoundException or DirectoryNotFoundException)
         {
             return null;
         }
-        if (new FileInfo(path).Length > 1024 * 1024)
-        {
-            throw new InvalidDataException("Installation metadata exceeds its size limit.");
-        }
-        return JsonSerializer.Deserialize<T>(File.ReadAllText(path)) ?? throw new InvalidDataException("Invalid installation metadata.");
     }
 
     private static void WriteAtomic<T>(string path, T value) => WriteTextAtomic(path, JsonSerializer.Serialize(value));

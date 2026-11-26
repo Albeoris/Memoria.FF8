@@ -42,7 +42,10 @@ public sealed partial class ModPackageInstaller
             {
                 continue;
             }
-            result[component.RuntimePackageId] = installer.NativeResult(receipt);
+            if (!installer.IsPayloadMissing(receipt))
+            {
+                result[component.RuntimePackageId] = installer.NativeResult(receipt);
+            }
         }
         return result;
     }
@@ -151,7 +154,7 @@ public sealed partial class ModPackageInstaller
             prepared.Add(token, new(root, stable, hash, bytes, entry) { NativeFiles = manifest.Files });
             string name = component.RuntimePackageId["Memoria/".Length..];
             Receipt? previous = Read<Receipt>(ReceiptPath(ManagedName(entry)));
-            if (previous is not null && CanUseInstalledDestination(component, previous))
+            if (previous is not null && CanUseInstalledDestination(component, previous) && !IsPayloadMissing(previous))
             {
                 name = previous.DestinationName;
             }

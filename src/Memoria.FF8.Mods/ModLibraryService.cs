@@ -125,6 +125,8 @@ public sealed partial class ModLibraryService : IModLibraryService, IDisposable,
         return (owner, status);
     }
 
+    private static bool HasLocalPayload(ModPackage package) => Directory.Exists(package.RootDirectory) || File.Exists(package.RootDirectory);
+
     private void QueueCore(RemoteModEntry entry, bool enable)
     {
         if (LanguagePackages.IsLanguage(entry))
@@ -154,9 +156,9 @@ public sealed partial class ModLibraryService : IModLibraryService, IDisposable,
         {
             throw new InvalidOperationException("This mod is waiting to be uninstalled. Wait for removal before downloading it again.");
         }
-        if (mods.InstalledPackages.Any(package => package.JunctionMetadata?.Id == entry.Id))
+        if (mods.InstalledPackages.Any(package => package.JunctionMetadata?.Id == entry.Id && HasLocalPayload(package)))
         {
-            if (status is null || mods.InstalledPackages.Any(package => package.JunctionMetadata?.Id == entry.Id && package.Id != status.PackageId))
+            if (status is null || mods.InstalledPackages.Any(package => package.JunctionMetadata?.Id == entry.Id && package.Id != status.PackageId && HasLocalPayload(package)))
             {
                 throw new InvalidOperationException("This mod is already installed manually. View its installed settings; automatic replacement is unavailable.");
             }
@@ -334,11 +336,11 @@ public sealed partial class ModLibraryService : IModLibraryService, IDisposable,
             throw new InvalidOperationException("Installation is unavailable for this target or mod directory.");
         }
         StringComparison pathComparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
-        if (mods.InstalledPackages.Any(package => package.JunctionMetadata?.Id == state.Plan.Entry.Id && (package.Id != state.Plan.PackageId || !Path.GetFullPath(package.RootDirectory).Equals(Path.GetFullPath(state.Plan.Destination), pathComparison))))
+        if (mods.InstalledPackages.Any(package => package.JunctionMetadata?.Id == state.Plan.Entry.Id && HasLocalPayload(package) && (package.Id != state.Plan.PackageId || !Path.GetFullPath(package.RootDirectory).Equals(Path.GetFullPath(state.Plan.Destination), pathComparison))))
         {
             throw new InvalidOperationException("A manual installation or another variant already owns this mod identity. No files were replaced.");
         }
-        if (state.Plan.Entry.Official is not null && mods.InstalledPackages.Any(package => package.Id.Equals(state.Plan.PackageId, StringComparison.OrdinalIgnoreCase) && !Path.GetFullPath(package.RootDirectory).Equals(Path.GetFullPath(state.Plan.Destination), pathComparison)))
+        if (state.Plan.Entry.Official is not null && mods.InstalledPackages.Any(package => package.Id.Equals(state.Plan.PackageId, StringComparison.OrdinalIgnoreCase) && HasLocalPayload(package) && !Path.GetFullPath(package.RootDirectory).Equals(Path.GetFullPath(state.Plan.Destination), pathComparison)))
         {
             throw new InvalidOperationException("Another mod directory owns this component. Resolve that installation before replacing it.");
         }
@@ -564,12 +566,17 @@ public sealed partial class ModLibraryService : IModLibraryService, IDisposable,
                         }
                     }
                     installations = known.AsReadOnly();
-                    foreach (Inspection state in inspections.Values.Where(state => state.Result?.Installed == true))
+                    foreach ((Guid id, Inspection state) in inspections.Where(pair => pair.Value.Result?.Installed == true).ToArray())
                     {
-                        if (known.FirstOrDefault(item => item.PackageId == state.Result!.PackageId) is { Available: false } missing)
+                        ModLibraryInstallation? local = known.FirstOrDefault(item => item.PackageId == state.Result!.PackageId);
+                        if (local is null)
+                        {
+                            inspections.Remove(id);
+                        }
+                        else if (!local.Available)
                         {
                             state.Result = null;
-                            state.Error = missing.Error;
+                            state.Error = local.Error;
                         }
                     }
                 }
@@ -632,6 +639,7 @@ public sealed partial class ModLibraryService : IModLibraryService, IDisposable,
                             state.Result = await state.Installation.ConfigureAwait(false);
                             state.Error = state.Result.Error;
                             reconciledCatalog = null;
+                            await QueueForJob(job.JobId).ClearInstallIntentAsync(job.JobId).ConfigureAwait(false);
                         }
                         catch (Exception exception) when (exception is not OperationCanceledException)
                         {

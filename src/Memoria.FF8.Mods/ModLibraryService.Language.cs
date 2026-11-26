@@ -43,13 +43,14 @@ public sealed partial class ModLibraryService
         {
             return null;
         }
+        ModPackage? installedProvider = offer.InstalledPackage is { } provider && HasLocalPayload(provider) ? provider : null;
         if (offer.Release is not { } selected)
         {
-            return offer.InstalledPackage?.Id ?? throw new InvalidOperationException("The language package is unavailable.");
+            return installedProvider?.Id ?? throw new InvalidOperationException("The language package is unavailable.");
         }
-        if (offer.InstalledPackage is not null && !offer.RequiresAcquisition && !update)
+        if (installedProvider is not null && !offer.RequiresAcquisition && !update && HasInstalledLanguageDependencies(installedProvider, profile))
         {
-            return offer.InstalledPackage.Id;
+            return installedProvider.Id;
         }
         using CancellationTokenSource activity = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, lifetime.Token);
         CancellationToken token = activity.Token;
@@ -102,7 +103,7 @@ public sealed partial class ModLibraryService
                 token.ThrowIfCancellationRequested();
                 prepared.Add(PlanLanguageMember(dependency.ToEntry(), destination));
             }
-            string? packageId = offer.InstalledPackage?.Id;
+            string? packageId = installedProvider?.Id;
             if (packageId is null || update || offer.RequiresAcquisition && offer.Version is string version && release.CompareVersion(version) is > 0)
             {
                 prepared.Add(PlanLanguageMember(release, destination));
@@ -155,6 +156,19 @@ public sealed partial class ModLibraryService
         }
     }
 
+    private bool HasInstalledLanguageDependencies(ModPackage provider, GameLanguageProfile profile)
+    {
+        try
+        {
+            LanguagePackages.ResolveInstalledDependencies(provider, mods.InstalledPackages.Where(HasLocalPayload), profile);
+            return true;
+        }
+        catch (InvalidDataException)
+        {
+            return false;
+        }
+    }
+
     private static bool SameLanguageRelease(RemoteModEntry candidate, RemoteModEntry reviewed)
     {
         return candidate.SourceId == reviewed.SourceId && candidate.Id == reviewed.Id && candidate.Version == reviewed.Version
@@ -187,7 +201,7 @@ public sealed partial class ModLibraryService
         {
             throw new InvalidOperationException($"'{release.Name}' is managed in a different mod directory.");
         }
-        if (mods.InstalledPackages.Any(package => (native ? package.Descriptor?.Id == release.Official?.Id : package.JunctionMetadata?.Id == release.Id) && package.Id != installed?.PackageId))
+        if (mods.InstalledPackages.Any(package => (native ? package.Descriptor?.Id == release.Official?.Id : package.JunctionMetadata?.Id == release.Id) && package.Id != installed?.PackageId && HasLocalPayload(package)))
         {
             throw new InvalidOperationException($"'{release.Name}' is already installed manually. Automatic replacement is unavailable.");
         }

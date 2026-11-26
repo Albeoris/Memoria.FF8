@@ -36,6 +36,98 @@ public sealed partial class ModPackageInstaller
 
     private string RemovalPath(string key) => StatePath("removals", key + ".json");
 
+    // The caller holds the installation lock. Pending additions and interrupted moves still own their staging.
+    private ModPackageInstallResult? ForgetMissingInstallation(string key)
+    {
+        if (Exists(IncomingRelocationPath(key)) || Exists(RemovalPath(key)))
+        {
+            return null;
+        }
+        string receiptPath = ReceiptPath(key);
+        string journalPath = JournalPath(key);
+        Receipt? receipt = Read<Receipt>(receiptPath);
+        Journal? journal = Read<Journal>(journalPath);
+        if (journal is not null)
+        {
+            ValidateJournal(journal, journalPath);
+            if (!WasPublishedAndDeleted(journal))
+            {
+                return null;
+            }
+            if (receipt is not null && !SameReceipt(receipt, journal.Next))
+            {
+                Receipt? previous = journal.Previous ?? journal.MissingPrevious;
+                if (previous is null || !SameReceipt(receipt, previous))
+                {
+                    throw new InvalidDataException("The missing installation journal and receipt have different owners.");
+                }
+            }
+            receipt = journal.Next;
+        }
+        if (receipt is null || !ReceiptMatchesKey(receipt, key) || !IsPayloadMissing(receipt))
+        {
+            return null;
+        }
+        if (!receipt.Folder)
+        {
+            string settings = Configuration(Destination(receipt.SourceId, receipt.DestinationName), false);
+            EnsureNoLinks(settings);
+            if (!PathMissing(settings))
+            {
+                File.Delete(settings);
+            }
+        }
+        if (journal is not null)
+        {
+            string transaction = StatePath("transactions", journal.TransactionId.ToString("N"));
+            DeleteTransactionDirectory(transaction);
+        }
+        File.Delete(receiptPath);
+        File.Delete(journalPath);
+        return Result(receipt, false, false);
+    }
+
+    private bool ReceiptMatchesKey(Receipt receipt, string key)
+    {
+        if (receipt.Schema != 1 || receipt.ModId == Guid.Empty || string.IsNullOrWhiteSpace(receipt.SourceId) ||
+            ManagedName(new(receipt.SourceId, receipt.ModId, "", receipt.Version)) != key)
+        {
+            return false;
+        }
+        return receipt.SourceId == OfficialModCatalog.SourceId
+            ? ValidNativeReceipt(receipt)
+            : receipt.Target == targetProfile && receipt.DestinationName == key + (receipt.Folder ? "" : ".iroj");
+    }
+
+    private bool WasPublishedAndDeleted(Journal journal)
+    {
+        if (journal.Phase is "NewMoved" or "AwaitingValidation" or "Committed")
+        {
+            return IsPayloadMissing(journal.Next);
+        }
+        return journal.Phase == "PendingRestart" && journal.Previous is not null && IsPayloadMissing(journal.Previous)
+            && PathMissing(StatePath("transactions", Path.Combine(journal.TransactionId.ToString("N"), "previous")));
+    }
+
+    private bool IsPayloadMissing(Receipt receipt) => PathMissing(Destination(receipt.SourceId, receipt.DestinationName));
+
+    private static bool PathMissing(string path)
+    {
+        EnsureNoLinks(path);
+        try
+        {
+            if ((File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0)
+            {
+                throw new InvalidDataException("Installation paths must not contain links or reparse points.");
+            }
+            return false;
+        }
+        catch (IOException exception) when (exception is FileNotFoundException or DirectoryNotFoundException)
+        {
+            return true;
+        }
+    }
+
     // The caller holds the exclusive resource lease and resolved the path from a discovered package.
     internal void DeleteLocalPayload(ModPackage package)
     {
@@ -144,7 +236,7 @@ public sealed partial class ModPackageInstaller
                             Directory.CreateDirectory(Path.GetDirectoryName(discarded)!);
                             Move(destination, discarded);
                         }
-                        if (!Exists(discarded) || Fingerprint(discarded, false) != receipt.PayloadHash || SettingsHash(receipt.Folder ? Configuration(discarded, true) : settings) != removal.SettingsHash)
+                        if (!PathMissing(discarded) && (Fingerprint(discarded, false) != receipt.PayloadHash || SettingsHash(receipt.Folder ? Configuration(discarded, true) : settings) != removal.SettingsHash))
                         {
                             throw new InvalidDataException("The removal payload or settings changed. Recovery data has been retained.");
                         }

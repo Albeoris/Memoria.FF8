@@ -154,7 +154,7 @@ public sealed partial class ModPackageInstaller
                 }
                 if (!reservation.Publishing || !Exists(payload))
                 {
-                    DeleteRelocationStage(stage);
+                    DeleteTransactionDirectory(stage);
                     target.CheckSpace(PayloadBytes(source));
                     CopyRelocationPayload(source, payload, next.Folder);
                     if (!next.Folder && File.Exists(sourceSettings))
@@ -247,7 +247,7 @@ public sealed partial class ModPackageInstaller
         }
         if (next.Folder && Directory.Exists(retired))
         {
-            DeleteRelocationStage(retired);
+            DeleteTransactionDirectory(retired);
         }
         else if (!next.Folder)
         {
@@ -330,7 +330,7 @@ public sealed partial class ModPackageInstaller
         output.Flush(true);
     }
 
-    private static void DeleteRelocationStage(string directory)
+    private static void DeleteTransactionDirectory(string directory)
     {
         if (Directory.Exists(directory))
         {

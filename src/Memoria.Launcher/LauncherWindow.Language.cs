@@ -38,6 +38,8 @@ internal sealed partial class LauncherWindow
         {
             return;
         }
+        launcherMods?.RequestRefresh();
+        PollLauncherMods();
         Window dialog = new() { Title = "Game language", Width = 690, Height = 560, MinWidth = 410, MinHeight = 300, WindowStartupLocation = WindowStartupLocation.CenterOwner };
         StackPanel branches = new() { Spacing = 8 };
         TextBlock notice = LauncherDescription("");
@@ -45,7 +47,12 @@ internal sealed partial class LauncherWindow
         Button close = LauncherModButton("Close");
         close.IsCancel = true;
         close.Click += (_, _) => dialog.Close();
-        refresh.Click += (_, _) => launcherModLibrary?.RefreshCatalog();
+        refresh.Click += (_, _) =>
+        {
+            launcherMods?.RequestRefresh();
+            PollLauncherMods();
+            launcherModLibrary?.RefreshCatalog();
+        };
         DockPanel layout = new() { Margin = new Thickness(20) };
         DockPanel.SetDock(notice, Dock.Top);
         layout.Children.Add(notice);

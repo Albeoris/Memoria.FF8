@@ -89,7 +89,7 @@ public sealed class ModLibraryServiceTests
         installer.CompleteStartupApplications([installed.PackageId]);
         string destination = Path.Combine(root, "Mods", installed.PackageId.Replace('/', Path.DirectorySeparatorChar));
         Directory.Delete(destination, true);
-        Assert.False(installer.GetStatus(job.Entry)!.Installed);
+        Assert.Null(installer.GetStatus(job.Entry));
         library.Queue(job.Entry);
         await Until(() => library.View.Jobs.Single().CanInstall);
         Assert.Null(library.View.Jobs.Single().Error);

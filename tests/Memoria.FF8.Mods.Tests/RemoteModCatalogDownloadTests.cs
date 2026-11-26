@@ -126,7 +126,7 @@ public sealed class RemoteModCatalogDownloadTests : IAsyncDisposable
         Directory.CreateDirectory(directory);
         string archive = Path.Combine(directory, "package.download");
         await File.WriteAllBytesAsync(archive, Package, TestContext.Current.CancellationToken);
-        DownloadJobSnapshot saved = new(id, Entry(), "profile", false, ModDownloadPhase.ReadyToInstall)
+        DownloadJobSnapshot saved = new(id, Entry(), "profile", true, ModDownloadPhase.ReadyToInstall)
         {
             ArchivePath = archive, CompletedBytes = Package.Length, Sha256 = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Package)).ToLowerInvariant()
         };
@@ -136,7 +136,9 @@ public sealed class RemoteModCatalogDownloadTests : IAsyncDisposable
         await coordinator.InitializeAsync(TestContext.Current.CancellationToken);
         Assert.Equal(ModDownloadPhase.Paused, Assert.Single(coordinator.Snapshot).Phase);
         coordinator.Resume(id);
-        Assert.Equal(ModDownloadPhase.ReadyToInstall, (await Finish(id)).Phase);
+        DownloadJobSnapshot recovered = await Finish(id);
+        Assert.Equal(ModDownloadPhase.ReadyToInstall, recovered.Phase);
+        Assert.False(recovered.InstallAfterDownload);
     }
 
     [Fact]

@@ -428,9 +428,10 @@ public sealed partial class ModPackageInstallerTests : IDisposable
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task RemovedManagedInstallationIsReportedWithoutReinstallation(bool validated)
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public async Task StartupForgetsADeletedManagedInstallationWithoutRestoringIt(bool validated, bool completeValidation)
     {
         ModPackageInstaller installer = Installer();
         ModPackageInstallPlan plan = await installer.InspectAsync(Zip(("mod.xml", Manifest()), ("a.bin", "old")), Entry(), cancellationToken: TestContext.Current.CancellationToken);
@@ -441,8 +442,14 @@ public sealed partial class ModPackageInstallerTests : IDisposable
             installer.CompleteStartupApplications([plan.PackageId]);
         }
         Directory.Delete(plan.Destination, true);
-        Assert.False(installer.GetStatus(Entry())!.Installed);
-        Assert.Contains("removed", installer.GetStatus(Entry())!.Error!);
+        Assert.Null(installer.GetStatus(Entry()));
+        ModPackageInstallResult removed = Assert.Single(completeValidation ? Installer().CompleteStartupApplications([plan.PackageId]) : Installer().RecoverAndApply());
+        Assert.False(removed.Installed);
+        Assert.Null(removed.Error);
+        Assert.Empty(Directory.GetFiles(Path.Combine(State, "receipts")));
+        Assert.Empty(Directory.GetFiles(Path.Combine(State, "journals")));
+        Assert.Empty(Installer().RecoverAndApply());
+        Assert.False(Directory.Exists(plan.Destination));
     }
 
     [Fact]
@@ -489,7 +496,7 @@ public sealed partial class ModPackageInstallerTests : IDisposable
     [InlineData(false, true)]
     [InlineData(true, false)]
     [InlineData(true, true)]
-    public async Task ExplicitReinstallRetainsIdentityAndRestoresMissingReceiptOnRejection(bool archive, bool accept)
+    public async Task ReinstallationAfterManualDeletionStartsFresh(bool archive, bool accept)
     {
         ModPackageInstaller installer = Installer();
         string source = archive ? Iroj() : Zip(("mod.xml", Manifest()), ("a.bin", "old"));
@@ -507,20 +514,25 @@ public sealed partial class ModPackageInstallerTests : IDisposable
         {
             Directory.Delete(first.Destination, true);
         }
-        Assert.False(installer.GetStatus(Entry())!.Installed);
+        Assert.Null(installer.GetStatus(Entry()));
         ModPackageInstallPlan reinstall = await installer.InspectAsync(source, Entry(), cancellationToken: TestContext.Current.CancellationToken);
         ModPackageInstallResult pending = await installer.RequestInstallAsync(reinstall, false, cancellationToken: TestContext.Current.CancellationToken);
-        Assert.Equal(firstPending.InstallationId, pending.InstallationId);
+        Assert.NotEqual(firstPending.InstallationId, pending.InstallationId);
         Assert.True(pending.RestartRequired);
         Assert.True(Assert.Single(Installer().RecoverAndApply()).Installed);
         ModPackageInstallResult completion = Assert.Single(Installer().CompleteStartupApplications(accept ? [first.PackageId] : []));
         Assert.Equal(accept, completion.Installed);
-        ModPackageInstallResult status = Installer().GetStatus(Entry())!;
-        Assert.Equal(accept, status.Installed);
-        Assert.Equal(firstPending.InstallationId, status.InstallationId);
-        if (archive)
+        ModPackageInstallResult? status = Installer().GetStatus(Entry());
+        if (accept)
         {
-            Assert.Contains("priority=17", File.ReadAllText(settingsPath));
+            Assert.True(status?.Installed);
+            Assert.Equal(pending.InstallationId, status?.InstallationId);
+            Assert.DoesNotContain("priority=17", File.ReadAllText(settingsPath));
+        }
+        else
+        {
+            Assert.Null(status);
+            Assert.False(File.Exists(settingsPath));
         }
         Assert.Empty(Installer().RecoverAndApply());
     }
