@@ -27,37 +27,37 @@
       },
       "tag": "v0.9.16",
       "name": "v0.9.16",
-      "publishedAt": "2026-11-26T09:56:56.0000000+00:00",
+      "publishedAt": "2026-11-26T09:56:56+00:00",
       "buildId": "91f42e385b868503b506110ada2708e49ea0c480"
     },
     "nightly": {
       "engineCompatibilityVersion": "0.9.15",
-      "tag": "nightly",
-      "publishedAt": "2026-11-25T21:42:41+00:00",
-      "name": "Nightly - 2026-10-27 02:22:56 UTC",
       "artifacts": {
         "win-x64": {
           "url": "https://github.com/Albeoris/Memoria.FF8/releases/download/nightly/Memoria-FF8-win-x64.zip",
-          "sha256": "58d542cb0f18af06af70344cf7bd44621edefeceb6e05250b6734d86847908ce",
-          "size": 546613351
+          "size": 547170326,
+          "sha256": "980e124994460a3545f27bcaa287de0e06bbb451fa02e35be62db654f22e2d87"
         },
         "linux-x64": {
           "url": "https://github.com/Albeoris/Memoria.FF8/releases/download/nightly/Memoria-FF8-linux-x64.tar.gz",
-          "sha256": "85b8e3cf0ff20a5459bfe9a07fc9e4554599289720415a4ab797da5dd9c864be",
-          "size": 299737759
+          "size": 299954992,
+          "sha256": "0dcd3a5b0beefd20616f18befd0d434a340bb9f63f6ae20c24aa5fac758c7e3e"
         },
         "osx-x64": {
           "url": "https://github.com/Albeoris/Memoria.FF8/releases/download/nightly/Memoria-FF8-osx-x64.tar.gz",
-          "sha256": "609b357dfc72f00d21f7e8b9cd3d5462b3fb1aff1c765c9814fd00c5b4b59001",
-          "size": 297658250
+          "size": 297888657,
+          "sha256": "b3eb66a4dd8d0edfda186b0150ebce9d212b4894574ad04c834db28fc1a6ebb1"
         },
         "osx-arm64": {
           "url": "https://github.com/Albeoris/Memoria.FF8/releases/download/nightly/Memoria-FF8-osx-arm64.tar.gz",
-          "sha256": "a3e3ed2e3c053091673652a2a5288586854e1effc28543f1434a2356627c7752",
-          "size": 276810010
+          "size": 277007982,
+          "sha256": "73f663bc05580b755e631a0b30833688ff8f9c1e9d967ad8c7a21969eb8ebc08"
         }
       },
-      "buildId": "a0ee01e1f299c8c5185e743f2059b5c8f3402434"
+      "publishedAt": "2026-11-26T09:57:50.0000000+00:00",
+      "name": "Nightly - 2026-10-27 02:22:56 UTC",
+      "tag": "nightly",
+      "buildId": "91f42e385b868503b506110ada2708e49ea0c480"
     }
   }
 }
