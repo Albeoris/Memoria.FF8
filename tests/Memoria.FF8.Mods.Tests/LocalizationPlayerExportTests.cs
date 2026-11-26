@@ -11,6 +11,40 @@ public sealed class LocalizationPlayerExportTests : IDisposable
 {
     private readonly string root = Path.Combine(Path.GetTempPath(), "memoria-player-export-" + Guid.NewGuid().ToString("N"));
 
+    [Theory]
+    [InlineData("ui.register.details.choose.a.refinement.ability")]
+    [InlineData("ui.retired.prompt.")]
+    public void ExtraSystemKeysDoNotPreventLoadingOtherTranslations(string previousId)
+    {
+        const string currentId = "ui.register.details.choose.an.ability";
+        const string target = "Выберите умение для преобразования.";
+        CancellationToken cancellation = TestContext.Current.CancellationToken;
+        string authoring = Path.Combine(root, "authoring");
+        string player = Path.Combine(root, "player");
+        LocalizationProject project = new()
+        {
+            Manifest = new()
+            {
+                SchemaVersion = 2, TargetLanguage = "ru", SourceEdition = "Remastered", MappingVersion = FieldCorrespondenceCatalog.Version,
+                CompatibleVariants = ["Remastered:en", "Classic:en"]
+            },
+            Entries =
+            [
+                new() { Category = "System", File = SystemTextCatalog.File, Key = SystemTextCatalog.Key(previousId), Source = "Choose a refinement ability.", Target = target },
+                new() { Category = "System", File = SystemTextCatalog.File, Key = SystemTextCatalog.Key("title.continue"), Source = "Continue", Target = "Продолжить" }
+            ]
+        };
+        LocalizationProjectIO.WriteNew(project, authoring, "json", "split", cancellation);
+        LocalizationProjectIO.ExportPlayer(authoring, player, cancellation);
+        ModPackage package = new("Memoria/test", "Test", ModFormat.Memoria, true, true, ModEffectiveStatus.Active, player) { HasLocalization = true };
+        LocalizationPreparation ready = LocalizationRuntime.Prepare(new(1, [package], []), [package.Id], new("fixture", GameDataEdition.Remastered, [], "en"), cancellation);
+        using var revision = ready.InputRevision;
+        Assert.Equal(target, ready.Catalog.Resolve(SystemTextCatalog.Key(previousId), "default"));
+        Assert.Equal("Продолжить", ready.Catalog.Resolve(SystemTextCatalog.Key("title.continue"), "default"));
+        Assert.Equal("Choose an ability.", SystemTextCatalog.Translate(ready.Catalog.Resolve, currentId, "Choose an ability."));
+        Assert.Throws<InvalidDataException>(() => LocalizationProjectIO.Validate(project with { Entries = [project.Entries[0] with { Key = SystemTextCatalog.Key("invalid/system/key") }] }));
+    }
+
     [Fact]
     public void EnrichedPlayerReferencesDoNotReplaceRuntimeTargetsOrSurviveCleanExport()
     {
@@ -122,7 +156,8 @@ public sealed class LocalizationPlayerExportTests : IDisposable
                         ["Edition Targets"] = JsonSerializer.SerializeToElement(new Dictionary<string, string> { ["Classic:en"] = "Классика" })
                     }
                 },
-                new() { Category = "Items", File = "items", Key = "$en_items_0000", Source = "Original item", Target = "Предмет" }
+                new() { Category = "Items", File = "items", Key = "$en_items_0000", Source = "Original item", Target = "Предмет" },
+                new() { Category = "Items", File = "items", Key = "$en_items_9999", Source = "Unavailable item", Target = "Лишний предмет" }
             ]
         };
         LocalizationProjectIO.WriteNew(project, input, "json", "single", cancellation);
@@ -161,6 +196,7 @@ public sealed class LocalizationPlayerExportTests : IDisposable
         {
             Assert.Equal("Перевод", remastered.Catalog.Resolve("$en_magic_0000", "default"));
             Assert.Equal("Предмет", remastered.Catalog.Resolve("$en_items_0000", "default"));
+            Assert.Equal("default", remastered.Catalog.Resolve("$en_items_9999", "default"));
         }
         LocalizationPreparation classic = Prepare(GameDataEdition.Classic, "Different English prose");
         using (classic.InputRevision)
@@ -178,6 +214,7 @@ public sealed class LocalizationPlayerExportTests : IDisposable
     {
         const string fieldKey = "$en_bgroom_1_0000";
         const string itemKey = "$en_items_0000";
+        const string extraItemKey = "$en_items_9999";
         CancellationToken cancellation = TestContext.Current.CancellationToken;
         string input = Path.Combine(root, "input");
         string output = Path.Combine(root, "player");
@@ -198,7 +235,8 @@ public sealed class LocalizationPlayerExportTests : IDisposable
                         ["sourceContext"] = JsonSerializer.SerializeToElement(new Dictionary<string, string> { ["Source MSD SHA256"] = new string('A', 64), ["JSM SHA256"] = new string('B', 64) })
                     }
                 },
-                new() { Category = "Items", File = "items", Key = itemKey, Source = "Original item", Target = "Translated item" }
+                new() { Category = "Items", File = "items", Key = itemKey, Source = "Original item", Target = "Translated item" },
+                new() { Category = "Items", File = "items", Key = extraItemKey, Source = "Extra item", Target = "Extra translation" }
             ]
         };
         LocalizationProjectIO.WriteNew(project, input, "json", "single", cancellation);
@@ -234,6 +272,7 @@ public sealed class LocalizationPlayerExportTests : IDisposable
         Assert.False(LocalizationBindingValidation.RequiresNonFieldSourceCatalog(prepared));
         LocalizationBindingValidation.Validate(prepared, source, cancellation);
         Assert.Equal("Translated item", prepared.Catalog.Resolve(itemKey, "default"));
+        Assert.Equal("default", prepared.Catalog.Resolve(extraItemKey, "default"));
 
         LocalizationFieldText? field = prepared.Catalog.ResolveField(fieldKey, 7, () => throw new InvalidOperationException("The script must not be hashed."), null, null, null, null);
         Assert.NotNull(field);

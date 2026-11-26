@@ -68,11 +68,15 @@ internal static class LocalizationNativeEdition
             }
             bool keyBinding = UsesKeyBinding(project.Manifest, row);
             var native = (keyBinding ? keyEntries : verifiedEntries)?.Value ?? throw new InvalidDataException($"{profile}: native resources are required to bind the shared localization.");
-            if (!native.TryGetValue(row.Key, out LocalizationSourceEntry? entry) || entry.Category != row.Category || entry.File != row.File)
+            if (!native.TryGetValue(row.Key, out LocalizationSourceEntry? entry))
+            {
+                continue;
+            }
+            if (entry.Category != row.Category || entry.File != row.File)
             {
                 if (playerExport && !alternate)
                 {
-                    throw new InvalidDataException($"{row.Key}: player localization has no matching native resource identity.");
+                    throw new InvalidDataException($"{row.Key}: player localization declares a different native category or file.");
                 }
                 continue;
             }

@@ -375,11 +375,16 @@ public static partial class LocalizationProjectIO
                 throw new InvalidDataException($"Contradictory or case-colliding file ownership: {row.File}.");
             }
             files[row.File] = row.Category + "/" + row.File;
-            string prefix = "$" + FieldLanguage(row.Key) + "_" + row.File + "_";
+            string language = FieldLanguage(row.Key);
+            string prefix = "$" + language + "_" + row.File + "_";
             string suffix = row.Key.StartsWith(prefix, StringComparison.Ordinal) ? row.Key[prefix.Length..] : "";
-            string keyPattern = row.Category == "Fields" ? "^[0-9]{4,}(_ctx_[a-fA-F0-9]{8,64})?$" : "^[0-9]{4,}$";
-            bool authoredSystem = row.Category == "System" && row.File == SystemTextCatalog.File && SystemTextCatalog.Defaults.ContainsKey(suffix);
-            if (!authoredSystem && (!Regex.IsMatch(suffix, keyPattern, RegexOptions.CultureInvariant) || !Regex.IsMatch(FieldLanguage(row.Key), "^[a-z][a-z0-9-]*$", RegexOptions.CultureInvariant)))
+            string keyPattern = row.Category switch
+            {
+                "Fields" => @"\A[0-9]{4,}(_ctx_[a-fA-F0-9]{8,64})?\z",
+                "System" when row.File == SystemTextCatalog.File => @"\A[A-Za-z0-9_.-]+\z",
+                _ => @"\A[0-9]{4,}\z"
+            };
+            if (!Regex.IsMatch(suffix, keyPattern, RegexOptions.CultureInvariant) || !Regex.IsMatch(language, @"\A[a-z][a-z0-9-]*\z", RegexOptions.CultureInvariant))
             {
                 throw new InvalidDataException($"Malformed canonical key {row.Key} for {row.File}.");
             }
@@ -387,7 +392,7 @@ public static partial class LocalizationProjectIO
             {
                 throw new InvalidDataException($"Duplicate canonical key: {row.Key}.");
             }
-            if (project.Manifest.SchemaVersion >= 2 && !FieldLanguage(row.Key).Equals(project.Manifest.FieldScriptBaseLanguage.Equals("ja", StringComparison.OrdinalIgnoreCase) ? "jp" : project.Manifest.FieldScriptBaseLanguage, StringComparison.OrdinalIgnoreCase))
+            if (project.Manifest.SchemaVersion >= 2 && !language.Equals(project.Manifest.FieldScriptBaseLanguage.Equals("ja", StringComparison.OrdinalIgnoreCase) ? "jp" : project.Manifest.FieldScriptBaseLanguage, StringComparison.OrdinalIgnoreCase))
             {
                 throw new InvalidDataException("A localization row must belong to the selected base language: " + row.Key);
             }
