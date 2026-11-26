@@ -174,6 +174,7 @@ public sealed partial class ModLibraryService : IModLibraryService, IDisposable,
         {
             queue.Resume(id);
         }
+        reconciledCatalog = null;
         error = null;
     }
 

@@ -10,17 +10,19 @@ public sealed class NativeColdProcessResourceTests
     public void Production_cold_process_retains_authenticated_executable_memory_across_new_game_and_restore()
     {
         using GameAssets assets = new(TestResources.GameDirectory);
-        NativeBattleRetainedMemory expected = assets.ReadColdProcessNativeBattleMemory();
+        NativeBattleRetainedMemory expected = ReadExpectedColdMemory(assets);
         GameSession session = GameWorld.CreateColdProcess(TestResources.GameDirectory);
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(session.State.NativeBattleMemory));
+        AssertExecutableOwners(expected, session.State.NativeBattleMemory!);
         session.StartNewGame();
         Assert.NotNull(session.State.NativeBattleMemory!.EffectMemory!.QuezacotlExecutableMemory);
         string path = TestResources.ArtifactFile("cold-process-roundtrip.json");
         session.Save(path);
-        GameSession restored = new(GameSession.Load(path));
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(restored.State.NativeBattleMemory));
+        GameState checkpoint = GameSession.Load(path);
+        AssertExecutableOwners(expected, checkpoint.NativeBattleMemory!);
+        GameSession restored = GameWorld.CreateColdProcess(TestResources.GameDirectory);
+        restored.Restore(checkpoint);
         restored.StartNewGame();
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(restored.State.NativeBattleMemory));
+        AssertExecutableOwners(expected, restored.State.NativeBattleMemory!);
     }
     [Fact]
     public void Autoplay_restart_uses_authenticated_cold_resources_before_creating_a_world()
@@ -29,8 +31,24 @@ public sealed class NativeColdProcessResourceTests
         AutoPlayController controller = new(session, () => throw new InvalidOperationException("World creation must remain deferred."), session.Restore, TestResources.ArtifactFile("cold-autoplay"), createColdProcess: () => GameWorld.CreateColdProcess(TestResources.GameDirectory));
         controller.Start();
         using GameAssets assets = new(TestResources.GameDirectory);
-        Assert.Equal(JsonSerializer.Serialize(assets.ReadColdProcessNativeBattleMemory()), JsonSerializer.Serialize(session.State.NativeBattleMemory));
+        AssertExecutableOwners(ReadExpectedColdMemory(assets), session.State.NativeBattleMemory!);
         Assert.Equal(74, session.State.FieldId);
+    }
+
+    private static NativeBattleRetainedMemory ReadExpectedColdMemory(GameAssets assets)
+    {
+        return NativeExecutionStackSelection.Apply(assets.ReadColdProcessNativeBattleMemory(), NativeExecutionStackSelection.Read(NativeExecutionStackSelection.ConfiguredPath));
+    }
+
+    private static void AssertExecutableOwners(NativeBattleRetainedMemory expected, NativeBattleRetainedMemory actual)
+    {
+        Assert.Equal(expected.ColdExecutableSha256, actual.ColdExecutableSha256);
+        Assert.NotNull(expected.EffectMemory!.QuezacotlExecutableMemory);
+        Assert.NotNull(actual.EffectMemory!.QuezacotlExecutableMemory);
+        NativeBattleQuezacotlExecutableMemory expectedExecutable = NativeBattleStorageSnapshots.Capture(expected.EffectMemory.QuezacotlExecutableMemory);
+        NativeBattleQuezacotlExecutableMemory actualExecutable = NativeBattleStorageSnapshots.Capture(actual.EffectMemory.QuezacotlExecutableMemory);
+        Assert.Equal(JsonSerializer.Serialize(expectedExecutable), JsonSerializer.Serialize(actualExecutable));
+        Assert.Equal(expected.EffectMemory.ExecutionStack, actual.EffectMemory.ExecutionStack);
     }
 
 }

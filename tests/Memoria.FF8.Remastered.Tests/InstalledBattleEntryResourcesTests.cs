@@ -16,8 +16,12 @@ public sealed class InstalledBattleEntryResourcesTests
         int first = source.Section(0);
         int length = source.Section(5) - first;
         Assert.Equal(72904, length);
-        NativeBattleModelResourceBind bind = new(new(3, new BattlePartyActorModel(new("party")), NativeBattleModelSlot.Decode(0), 0, 0, 0x5077B0, 2), source, new([]));
+        BattlePartyModelOwner owner = new BattlePartyActorModel(new("party"));
+        NativeBattleModelSlot slot = NativeBattleModelSlot.Decode(0);
+        BattleModelRoster roster = new([owner]);
+        NativeBattleModelResourceBind bind = new(new(3, owner, slot, 0, 0, 0x5077B0, 2), source, new([]));
         NativeBattleModelCpuResources cpu = NativeBattleModelCpuResources.FromColdProcess(NativeFieldRuntimeProfile.RemasteredEnImageHash);
+        cpu = cpu with { Cpu = cpu.Cpu.WithPresentationRoster(roster, new(roster, [(slot, owner)])) };
         Assert.Throws<InvalidDataException>(() => NativeBattleModelResourceCopies.Complete(bind, NativeBattleModelCpuBanks.Unknown(), cpu.Rows, 0, null));
         NativeBattleModelResourceCompletion completed = NativeBattleModelResourceCopies.Complete(bind, cpu.Cpu, cpu.Rows, 0, null);
         Assert.Equal(source.Bytes.AsSpan().Slice(first, length).ToArray(), completed.Cpu.Banks[0].Read(0, length));

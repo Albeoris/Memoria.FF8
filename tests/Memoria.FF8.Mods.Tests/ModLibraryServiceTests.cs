@@ -39,7 +39,7 @@ public sealed class ModLibraryServiceTests
     [Fact]
     public async Task DownloadCheckAndInstallAreSeparateAndDoNotPublishDuringGameplay()
     {
-        string root = Path.Combine(Path.GetTempPath(), "mod-library-" + Guid.NewGuid().ToString("N"));
+        string root = TestResources.ArtifactFile("mod-library-install");
         Guid id = Guid.NewGuid();
         using MemoryStream bytes = new();
         using (ZipArchive archive = new(bytes, ZipArchiveMode.Create, true))
@@ -96,7 +96,7 @@ public sealed class ModLibraryServiceTests
         library.Install(job.Id);
         await Until(() => library.View.Jobs.Single().Phase == "Waiting to apply");
         Assert.Equal(3, requests);
-        // The service cancels without waiting on network or package workers. Temporary data is outside discovery.
+        await library.StopAsync();
     }
 
     [Theory]

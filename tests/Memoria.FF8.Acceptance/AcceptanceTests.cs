@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Reflection;
+using System.Text.Json;
 
 namespace Memoria.FF8.Acceptance;
 
@@ -33,8 +34,14 @@ public sealed class AcceptanceTests
     [Fact]
     public void Spec_observations_hold()
     {
-        (int exit, string output) = Recomp("observe", "--all", "--no-record");
-        Assert.True(exit is 0 or 3, output);
+        (int exit, string output) = Recomp("observe", "--all", "--no-record", "--candidate", Environment.GetEnvironmentVariable("MEMORIA_FF8_CANDIDATE") ?? Metadata("Candidate"), "--json");
+        using JsonDocument report = JsonDocument.Parse(output);
+        if (report.RootElement.TryGetProperty("result", out JsonElement result))
+        {
+            bool executableEvidence = result.GetProperty("features").EnumerateArray().SelectMany(feature => feature.GetProperty("checks").EnumerateArray()).Any(check => check.GetProperty("outcome").GetString() != "skipped");
+            Assert.SkipUnless(executableEvidence, "The recording workspace contains no executable scenario or UI observations.");
+        }
+        Assert.True(exit == 0, output);
     }
 
     private static string Metadata(string key)

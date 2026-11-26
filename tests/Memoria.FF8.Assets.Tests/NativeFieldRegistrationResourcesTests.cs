@@ -15,17 +15,24 @@ public sealed class NativeFieldRegistrationResourcesTests
         ushort[] groups = Enumerable.Range(0, groupCount).Select(index => System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(field.Jsm.AsSpan(8 + index * 2, 2))).OrderBy(group => group >> 7).ToArray();
         (int Object, int Model)[] bindings = [(0, 0), (5, 5), (9, 9), (11, -1)];
         NativeFieldRetainedActor[] actors = bindings.Select(binding => new NativeFieldRetainedActor(binding.Object, binding.Model, groups[binding.Object] >> 7, (groups[binding.Object] >> 7) + (groups[binding.Object] & 127) + 1)).ToArray();
-        // Declared cold resource component: these retained bindings do not migrate or reconstruct a historical field save.
+        // Derive the empty instance address from the installed resources, then seed its retained WORD12.
         NativeBattleRetainedMemory cold = NativeBattleRetainedMemory.FromColdProcess();
-        NativeFieldRegistrationStep first = NativeFieldRegistrationMachine.Register(NativeFieldRegistrationEntry.BattleReturn, source, actors, cold);
-        NativeFieldRegistrationStep restored = NativeFieldRegistrationMachine.Register(NativeFieldRegistrationEntry.BattleReturn, NativeBattleSnapshotJson.Deserialize<NativeFieldRegistrationResources>(NativeBattleSnapshotJson.Serialize(source))!, actors, NativeBattleSnapshotJson.Deserialize<NativeBattleRetainedMemory>(NativeBattleSnapshotJson.Serialize(cold))!);
+        NativeFieldRegistrationStep coldRegistration = NativeFieldRegistrationMachine.Register(NativeFieldRegistrationEntry.BattleReturn, source, actors, cold);
+        NativeFieldRegisteredInstance coldEmpty = coldRegistration.State.Instances[^1];
+        Assert.Equal((ushort?)0, coldEmpty.EmptyTerminal);
+        NativeBattleRetainedMemory working = NativeBattleStorageSnapshots.Restore(cold);
+        working.FileStaging!.WriteUInt16(coldEmpty.Address + 12, 1024);
+        NativeBattleRetainedMemory retained = NativeBattleStorageSnapshots.Capture(working);
+        NativeFieldRegistrationStep first = NativeFieldRegistrationMachine.Register(NativeFieldRegistrationEntry.BattleReturn, source, actors, retained);
+        NativeFieldRegistrationStep restored = NativeFieldRegistrationMachine.Register(NativeFieldRegistrationEntry.BattleReturn, NativeBattleSnapshotJson.Deserialize<NativeFieldRegistrationResources>(NativeBattleSnapshotJson.Serialize(source))!, actors, NativeBattleSnapshotJson.Deserialize<NativeBattleRetainedMemory>(NativeBattleSnapshotJson.Serialize(retained))!);
         Assert.Equal(NativeBattleSnapshotJson.Serialize(first), NativeBattleSnapshotJson.Serialize(restored));
         Assert.Equal(new[] { 0, 5, 9 }, first.State.Resources.Select(resource => resource.ModelId));
         Assert.Equal(bindings.Select(binding => binding.Object), first.State.Instances.Select(instance => instance.ObjectId));
         Assert.Equal(bindings.Select(binding => binding.Model), first.State.Instances.Select(instance => instance.ModelId));
         NativeFieldRegisteredInstance empty = first.State.Instances[^1];
         Assert.Equal(uint.MaxValue, System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(first.Memory.FileStaging!.Read(empty.Address, 4)));
-        //531D40 leaves WORD12 untouched here; the original retained input slab supplies this known value.
+        // 531D40 leaves the retained WORD12 untouched.
+        Assert.Equal(coldEmpty.Address, empty.Address);
         Assert.Equal((ushort?)1024, empty.EmptyTerminal);
         Assert.Equal((ushort)1024, System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(first.Memory.FileStaging.Read(empty.Address + 12, 2)));
         foreach (NativeFieldRegisteredResource resource in first.State.Resources)
@@ -41,8 +48,9 @@ public sealed class NativeFieldRegistrationResourcesTests
         }
         first.State.Validate(first.Memory);
         NativeFieldRegisteredResource squall = first.State.Resources[0];
-        uint eyeBank = System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(first.Memory.FileStaging!.Read(squall.Address + 20, 4));
-        short blinkWord = System.Buffers.Binary.BinaryPrimitives.ReadInt16LittleEndian(first.Memory.FileStaging.Read(eyeBank + 10, 2));
+        using NativeFieldRegistrationMemory resourceMemory = new(first.Memory.FileStaging!, first.State.MemoryLayout.MemoryStart, first.State.MemoryLayout.MemoryEnd);
+        NativeFieldResourceCursor registeredModel = squall.Resolve(resourceMemory.ReadResourcePointer(0x1DCB0F0 + (uint)squall.Index * 4));
+        short blinkWord = resourceMemory.ReadSigned16(resourceMemory.ReadPointer(registeredModel + 20) + 10);
         NativeFieldRetainedPresentation[] presentation = bindings.Select(binding => new NativeFieldRetainedPresentation(binding.Object, 0, 16, false, 0, true, 17, 0, 128, 128, 128, false, false, binding.Object == 0 ? 0x80000u : 0u) { EyeBlinkParameter611 = 128 }).ToArray();
         NativeCrtRandomState random = new(12345);
         NativeBattleFieldResourceReloadResult blink = NativeFieldRegistrationMachine.RestoreRetainedPresentation(first.State, first.Memory, presentation, random);
@@ -60,7 +68,8 @@ public sealed class NativeFieldRegistrationResourcesTests
             expected = expected.Draw(out ushort secondDraw);
             firstTimer = (byte)(firstDraw % 8 + 1);
             secondTimer = (byte)(secondDraw % 8 + 1);
-            Assert.Equal((ushort)128, System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(blink.Memory.FileStaging!.Read(eyeBank + 10, 2)));
+            NativeFieldEyeBlinkPhase phase = Assert.IsType<NativeFieldEyeBlinkPhase>(NativeFieldRegistrationMachine.CaptureBlinkPhase(first.State, blink.Memory, actor.ObjectId));
+            Assert.Equal((short)128, phase.Period);
         }
         Assert.Equal(random, blink.CrtRandomBefore);
         Assert.Equal(expected, blink.CrtRandomAfter);

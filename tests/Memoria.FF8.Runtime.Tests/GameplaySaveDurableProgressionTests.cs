@@ -89,7 +89,7 @@ public sealed class GameplaySaveDurableProgressionTests
         GameplaySaveComponentDocument loaded = GameplaySaveCodec.Read(stream);
         GameplaySaveProgression restored = loaded.Progression!;
 
-        Assert.Equal(2, loaded.Version);
+        Assert.Equal(GameplaySaveComponentDocument.CurrentVersion, loaded.Version);
         Assert.Equal(0x12345678, restored.Story.RestoreEventMemory().Read(300, 4).RequireExact());
         Assert.Equal(source.WorldEntryMemory!.Bytes, restored.Story.WorldEntry!.Value);
         Assert.Equal(1234u, restored.Clocks.Playtime!.Seconds);
@@ -242,7 +242,7 @@ public sealed class GameplaySaveDurableProgressionTests
     }
 
     [Fact]
-    public void Version_two_cannot_claim_durable_coverage_without_its_progression_component()
+    public void Current_save_cannot_claim_durable_coverage_without_its_progression_component()
     {
         GameplaySaveComponentDocument document = GameplaySaveComponentDocument.CaptureProgression(State(), Resume());
         Assert.Throws<InvalidDataException>(() => (document with { Progression = null }).Validate());
@@ -254,7 +254,7 @@ public sealed class GameplaySaveDurableProgressionTests
     {
         HashSet<Type> visited = [];
         Queue<Type> pending = new([typeof(GameplaySaveProgression)]);
-        string[] approved = ["NativeCardInventory", "TripleTriadStatistics", "ChocoboRewardLedger", "ChocoboImportReceipt", "GameplayPreferences", "GameplayTuning", "RareItemProbabilities", "TripleTriadSettings", "PendingEntityName", "DialogueDraft", "NativeRandomEncounterState", "NativeExamTimerState", "NativeTimerAlternative", "NativeTimerDisplayBlink", "NativePlaytimeState", "NativeEventRandomState", "NativeDrawPointMemory", "NativeCrtRandomState", "NativeMenuRandomState", "NativeGlobalRandomState", "NativeBattleStatistics", "NativeBattleVariableState", "EnemyDefeatedEvent", "BattleKillTotalObservedEvent", "OriginalAchievementObservedEvent", "OriginalAchievementActionEvent", "OriginalAchievementDrawCursor", "BattleAchievementCursor", "AchievementEventId", "AchievementContextId", "EnemyDefeatFacts", "AchievementOwner", "OriginalAchievementProgress", "BattleNativeDrawContext", "NativeSavedWorldVehicleSlot", "NativeSavedWorldPose", "NativeWorldEventFlags", "NativeSavedWorldAngleWords", "NativeWorldTerrainFlags109", "NativeSavedWorldUnsupportedEntry", "WorldTransition", "NativeSavedBattleFlagFieldWrite", "NativeFadeWords", "NativeMessageVariables", "NativeFieldLocationPose", "NativeFieldLocationSlot", "NativeWorldClosingChannel", "NativeWorldChannelReadiness", "NativeMovieSource", "NativeMusicBufferIdentity", "NativeModelPartResourceState", "NativeModelPartTranslation", "NativeSaveInteroperability", "NativeSaveDormantWorldPosition"];
+        string[] approved = ["NativeCardInventory", "TripleTriadStatistics", "ChocoboRewardLedger", "ChocoboImportReceipt", "GameplayPreferences", "GameplayTuning", "RareItemProbabilities", "TripleTriadSettings", "PendingEntityName", "DialogueDraft", "NativeRandomEncounterState", "NativeExamTimerState", "NativeTimerAlternative", "NativeTimerDisplayBlink", "NativePlaytimeState", "NativeEventRandomState", "NativeDrawPointMemory", "NativeCrtRandomState", "NativeMenuRandomState", "NativeGlobalRandomState", "NativeBattleStatistics", "NativeBattleVariableState", "EnemyDefeatedEvent", "BattleKillTotalObservedEvent", "OriginalAchievementObservedEvent", "OriginalAchievementActionEvent", "OriginalAchievementDrawCursor", "BattleAchievementCursor", "AchievementEventId", "AchievementContextId", "EnemyDefeatFacts", "AchievementOwner", "OriginalAchievementProgress", "BattleNativeDrawContext", "NativeSavedWorldVehicleSlot", "NativeSavedWorldPose", "NativeWorldEventFlags", "NativeSavedWorldAngleWords", "NativeWorldTerrainFlags109", "NativeSavedWorldUnsupportedEntry", "WorldTransition", "NativeSavedBattleFlagFieldWrite", "NativeFadeWords", "NativeDialogueTextProgress", "NativeFieldEyeBlinkPhase", "NativeMessageVariables", "NativeFieldLocationPose", "NativeFieldLocationSlot", "NativeWorldClosingChannel", "NativeWorldChannelReadiness", "NativeMovieSource", "NativeMusicBufferIdentity", "NativeModelPartResourceState", "NativeModelPartTranslation", "NativeSaveInteroperability", "NativeSaveDormantWorldPosition"];
         while (pending.TryDequeue(out Type? type))
         {
             if (!visited.Add(type))

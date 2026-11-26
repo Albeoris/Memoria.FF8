@@ -20,7 +20,7 @@ public sealed class BattleResourceRoutingTests
     }
 
     [Fact]
-    public void BorrowedSourceSurvivesBattleDisposalAndNativeReadersRejectUnsupportedRuntime()
+    public void BorrowedSourceSurvivesBattleDisposalAndRetainsNativeMemoryIdentity()
     {
         string directory = InstalledDirectory();
         using RemasteredGameDataSource source = new(directory);
@@ -35,7 +35,7 @@ public sealed class BattleResourceRoutingTests
         Assert.NotEmpty(resources.Read(new ResourceKey("main/kernel.bin")));
         using GameAssets game = new(directory, resources: resources);
         Assert.NotNull(game.ReadNativeCommonEffectTexture());
-        Assert.Throws<NotImplementedException>(() => game.ReadNativeBlizzardResources());
+        Assert.Equal(Memoria.FF8.Runtime.NativeFieldRuntimeProfile.RemasteredEnImageHash, GameDataResources.ReadNativeMemory(game.Resources).SourceHash);
     }
 
     private static string InstalledDirectory()

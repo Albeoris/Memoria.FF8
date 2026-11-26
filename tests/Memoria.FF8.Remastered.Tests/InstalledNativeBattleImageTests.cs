@@ -40,8 +40,9 @@ public sealed class InstalledNativeBattleImageTests
         NativeBattleModelTextureLoad load = NativeBattleModelTextures.Prepare507400(model.NativeBodyTexturePack!, blockedSlots);
         NativeBattleEffectTextureState state = NativeBattleModelTextures.Enqueue507400(NativeBattleEffectTextureState.FromColdProcess(), load).Drain505D20().State;
         IReadOnlyList<NativeBattleTextureReplacement> replacements = NativeBattleTextureReplacements.Bind(model, load.Binding);
-        Assert.Equal(model.Textures.Count, replacements.Count);
-        foreach (NativeBattleTextureReplacement replacement in replacements)
+        IGrouping<(ushort Page, ushort Clut, int U, int V), NativeBattleTextureReplacement>[] materials = replacements.GroupBy(replacement => (replacement.Page, replacement.Clut, replacement.U, replacement.V)).ToArray();
+        Assert.Equal(model.Textures.Count, materials.Length);
+        foreach (NativeBattleTextureReplacement replacement in materials.Select(material => material.First()))
         {
             PixelImage original = NativeBattleEffectTextureReader.DecodePcRegion(state, replacement.Page, replacement.Clut, replacement.U, replacement.V, replacement.Width, replacement.Height);
             PixelImage selected = NativeBattleEffectTextureReader.ApplyModelReplacements(original, state, replacement.Page, replacement.Clut, replacement.U, replacement.V, null, replacements);
@@ -49,7 +50,7 @@ public sealed class InstalledNativeBattleImageTests
             int row = TextureRow(replacement.Page);
             NativeBattlePcTextureWindowPixels retained = NativeBattlePcTextureWindowPixels.Capture(row, new(replacement.U + 16, replacement.V + 16, 32, 32), state);
             PixelImage croppedOriginal = NativeBattleEffectTextureReader.DecodePcRegion(state, replacement.Page, replacement.Clut, replacement.U + 16, replacement.V + 16, 32, 32, pixelWords: retained);
-            PixelImage cropped = NativeBattleEffectTextureReader.ApplyModelReplacements(croppedOriginal, state, replacement.Page, replacement.Clut, replacement.U + 16, replacement.V + 16, retained, replacements);
+            PixelImage cropped = NativeBattleEffectTextureReader.ApplyModelReplacements(croppedOriginal, state, replacement.Page, replacement.Clut, replacement.U + 16, replacement.V + 16, retained, [replacement]);
             Assert.Equal(96, cropped.Width);
             Assert.Equal(96, cropped.Height);
             Assert.Equal(replacement.Image[48, 48], cropped[0, 0]);
@@ -78,7 +79,8 @@ public sealed class InstalledNativeBattleImageTests
         short paletteX = checked((short)((replacement.Clut & 63) * 16));
         short paletteY = checked((short)((replacement.Clut & 0x7FFF) >> 6));
         BinaryPrimitives.WriteUInt16LittleEndian(changed, (ushort)(BinaryPrimitives.ReadUInt16LittleEndian(replacement.PaletteWords.AsSpan()) ^ 1));
-        NativeBattleEffectTextureState changedPalette = state.Upload45BD30(paletteX, paletteY, 1, 1, changed);
+        NativeBattleEffectTextureState originalPalette = NativeBattleModelTextures.Enqueue507400(NativeBattleEffectTextureState.FromColdProcess(), load).Drain505D20().State;
+        NativeBattleEffectTextureState changedPalette = originalPalette.Upload45BD30(paletteX, paletteY, 1, 1, changed);
         Assert.Same(original, NativeBattleEffectTextureReader.ApplyModelReplacements(original, changedPalette, replacement.Page, replacement.Clut, replacement.U, replacement.V, retained, replacements));
     }
 

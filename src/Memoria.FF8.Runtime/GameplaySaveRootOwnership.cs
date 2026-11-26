@@ -57,7 +57,7 @@ internal static class GameplaySaveRootOwnership
         Add("Progression.SalaryPresentation", GameplaySavePersistenceRequirement.Split, nameof(GameState.SalaryPresentation));
         Add("Progression.FieldContinuation.Scene.PreparedMovieSource", GameplaySavePersistenceRequirement.Split, nameof(GameState.MovieSource));
         Add("Fresh normal-load process", GameplaySavePersistenceRequirement.Runtime, nameof(GameState.NativeFieldDebugRequested), nameof(GameState.NativeBattleMemory), nameof(GameState.MovieIndex), nameof(GameState.MovieSeconds), nameof(GameState.MoviePlayback), nameof(GameState.VibrationProcess), nameof(GameState.FieldButtonInput), nameof(GameState.WorldProcess), nameof(GameState.DebugView));
-        Add("Schema, resource identity or canonical alias", GameplaySavePersistenceRequirement.Derived, nameof(GameState.SnapshotSchemaVersion), nameof(GameState.Version), nameof(GameState.FieldName), nameof(GameState.MagicSystem), nameof(GameState.Variables), nameof(GameState.NativeVariableValues));
+        Add("Schema, resource identity or canonical alias", GameplaySavePersistenceRequirement.Derived, nameof(GameState.SnapshotSchemaVersion), nameof(GameState.Version), nameof(GameState.FieldName), nameof(GameState.MagicSystem), nameof(GameState.LevelRules), nameof(GameState.Variables), nameof(GameState.NativeVariableValues));
         return members.AsReadOnly();
     }
 }

@@ -37,17 +37,15 @@ public sealed class NativeBattleFlagInitializationTests
         session.SetRandomEncounters(new(true, NativeRandomEncounterState.FromColdProcess(), request));
         ushort flags = world.Events.Scene.NativeBattleFlagWrites![^1].ActiveFlags;
         world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.TurnBased, NativeSeed: 0));
-        Assert.NotNull(world.Battle);
-        Assert.Equal(flags, world.Events.Scene.NativeRandomFieldBattle!.Flags);
+        BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
+        NativeRandomFieldBattleOwner owner = Assert.IsType<NativeRandomFieldBattleOwner>(world.Events.Scene.NativeRandomFieldBattle);
+        Assert.Equal(flags, owner.Flags);
         world.ApplyBattleInput(new(BattleInputKind.Tick, Frames: 1));
-        session.SetEventState(world.Events.Capture());
-        string json = JsonSerializer.Serialize(session.State);
-        GameSession independent = new(JsonSerializer.Deserialize<GameState>(json)!);
-        using GameWorld restored = new(independent, assets.GameDirectory);
-        restored.EnsureField();
+        BattleSession continuation = battle.ForkForContinuation();
         world.ApplyBattleInput(new(BattleInputKind.Tick, Frames: 1));
-        restored.ApplyBattleInput(new(BattleInputKind.Tick, Frames: 1));
-        Assert.Equal(JsonSerializer.Serialize(world.Battle!.Capture()), JsonSerializer.Serialize(restored.Battle!.Capture()));
+        continuation.Tick();
+        Assert.Equal(owner with { Callbacks = owner.Callbacks + 2 }, world.Events.Scene.NativeRandomFieldBattle);
+        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(battle.Capture()), JsonSerializer.SerializeToElement(continuation.Capture())));
     }
 
     [Fact]

@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 
 namespace Memoria.FF8.Assets.Tests;
@@ -31,43 +32,11 @@ public sealed class ExpandedAiInstalledAdmissionTests
 
     [Theory]
     [InlineData(194, 102, 8, 119, 14, 298)]
-    [InlineData(247, 57, 32, 132, 12, 0)]
     public void OriginalZeroDamageCommandsPublishTheirAuthoredSelfContactAcrossPrivateRestore(int formation, int model, int level, ushort action, byte sequence, ushort effect)
     {
         using BattleAssets assets = new(TestResources.GameDirectory);
-        BattleEnemyPlacement placement = Assert.Single(assets.LoadEncounter(formation).Enemies);
-        Assert.Equal(model, placement.ModelId);
-        byte partyLevel = model == 102 ? (byte)10 : (byte)40;
-        Assert.Equal(level, NativeBattleEnemyLevelRules.ResolveExpanded((byte)placement.Level, [partyLevel], 0));
-        NativeBattleAiDefinition ai = assets.ReadEnemyAi(model, level);
-        List<string> blockers = [];
-        Assert.True(NativeBattleExpandedAi.Evaluate(ai, assets.NativeActions, formation, blockers) == ExpandedAiAdmission.Supported, string.Join(", ", blockers));
-
         bool deathCallback = action == 119;
-        BattleEnemyNativeProjection stats = assets.ReadEnemyNativeStats(model).Project(level);
-        int startingHp = deathCallback ? 1 : stats.MaximumHp / 4;
-        BattleCombatantDefinition[] party = Enumerable.Range(0, 11).Select(index => new BattleCombatantDefinition
-        {
-            Id = $"ally-{index}", Name = $"Ally {index}", ModelId = index, IsPlayer = true, Level = partyLevel,
-            CurrentHp = 1000, MaximumHp = 1000, Attack = 100, Speed = 1, Hit = 255,
-            InitialAtb = deathCallback && index == 10 ? BattleSession.AtbMaximum : 0
-        }).ToArray();
-        BattleCombatantDefinition enemy = new()
-        {
-            Id = "enemy", Name = assets.ReadEnemyName(model), ModelId = model, SceneSlot = placement.Slot, Level = level,
-            CurrentHp = startingHp, MaximumHp = stats.MaximumHp, Attack = stats.Strength, Defense = stats.Vitality, Magic = stats.Magic, Spirit = stats.Spirit, Speed = 1,
-            NativeAi = ai, NativeCombatantFlags = assets.ReadEnemyNativeCombatantFlags(model), NativeStatus1 = deathCallback ? 0u : 0x800000u,
-            InitialAtb = deathCallback ? 0 : BattleSession.AtbMaximum
-        };
-        IEnumerable<BattleCombatantDefinition> remainingEnemies = Enumerable.Range(1, 10).Select(index => new BattleCombatantDefinition
-        {
-            Id = $"enemy-{index}", Name = $"Enemy {index}", CurrentHp = 0, NativeStatus0 = 1
-        });
-        BattleSession battle = new(new()
-        {
-            EncounterId = formation, Combatants = [.. party, enemy, .. remainingEnemies],
-            NativeActions = assets.NativeActions.ToArray(), NativeStatusRules = assets.ReadNativeStatusRules(0), InitialRandom = NativeBattleRandomState.ForecastPhase(3)
-        }, BattleAtbMode.TurnBased);
+        var (battle, enemy, startingHp) = CreateBattle(assets, formation, model, level, deathCallback);
         Assert.Equal(new BattleExpandedAiCallbackRequest(new BattleEnemyActorReference(enemy.Id), 0), Assert.Single(battle.QueuedActions).ExpandedAiCallback);
         if (deathCallback)
         {
@@ -129,6 +98,123 @@ public sealed class ExpandedAiInstalledAdmissionTests
         Assert.Equal(before.Random.Indexes.AsSpan().ToArray(), after.Random.Indexes.AsSpan().ToArray());
         Assert.Equal(JsonSerializer.Serialize(after), JsonSerializer.Serialize(restored.Capture()));
     }
+
+    [Fact]
+    public void OriginalZeroDamageTurnResolvesItsSelfContactAcrossPrivateRestore()
+    {
+        using BattleAssets assets = new(TestResources.GameDirectory);
+        var (battle, enemy, startingHp) = CreateBattle(assets, 247, 57, 32, deathCallback: false);
+        BattleCombatant actor = battle.Combatants.Single(candidate => candidate.Id == enemy.Id);
+        BattleAttackCommand initial = Assert.Single(battle.QueuedActions);
+        InterpretExpandedAiCallback(battle, initial, Assert.IsType<BattleExpandedAiCallbackRequest>(initial.ExpandedAiCallback), actor);
+        QueueExpandedAiCallback(battle, actor, 1, null);
+        BattleAttackCommand turn = Assert.Single(battle.QueuedActions);
+        InterpretExpandedAiCallback(battle, turn, Assert.IsType<BattleExpandedAiCallbackRequest>(turn.ExpandedAiCallback), actor);
+
+        BattleAttackCommand queued = Assert.Single(battle.QueuedActions);
+        Assert.Equal((byte)1, queued.NativeAiCallbackStage);
+        Assert.Equal((byte)12, queued.NativeSequence);
+        Assert.Equal(enemy.Id, Assert.Single(Assert.IsType<BattleTargetSelection.Explicit>(queued.TargetRequest.Selection).Actors).ActorId);
+        BattleNativeAction native = Assert.IsType<BattleNativeAction>(queued.NativeAction);
+        Assert.Equal((byte)8, native.Command);
+        Assert.Equal((ushort)132, native.ActionId);
+        Assert.Equal((byte)0, native.AttackType);
+        Assert.Equal((byte)0, native.AttackFlags);
+        Assert.Equal((ushort)0, native.MagicId);
+        BattleSnapshot before = battle.Capture();
+        BattleCombatantSnapshot charged = Assert.Single(before.Combatants, current => current.Id == enemy.Id);
+        Assert.Equal((byte)1, charged.NativeParticipant!.TurnCount);
+        Assert.Equal(1u, charged.NativeParticipant.Variables[0]);
+        Assert.Equal(0x800000u, charged.NativeStatus!.Battle & 0x800000u);
+
+        BattleSession restored = battle.ForkForContinuation();
+        Assert.Equal(ResolveSelfContact(battle, enemy.Id), ResolveSelfContact(restored, enemy.Id));
+
+        BattleSnapshot after = battle.Capture();
+        BattleCombatantSnapshot finished = Assert.Single(after.Combatants, current => current.Id == enemy.Id);
+        Assert.Equal(startingHp, finished.CurrentHp);
+        Assert.Equal(0u, finished.NativeStatus!.Battle & 0x800000u);
+        Assert.Equal((byte)0, finished.NativeParticipant!.LastAction!.AttackType);
+        Assert.Equal((byte)8, finished.NativeParticipant.LastAction.Command);
+        Assert.Equal((byte)132, finished.NativeParticipant.LastAction.ActionId);
+        Assert.Equal(before.Random!.Lane, after.Random!.Lane);
+        Assert.Equal(before.Random.Indexes.AsSpan().ToArray(), after.Random.Indexes.AsSpan().ToArray());
+        Assert.Equal(JsonSerializer.Serialize(after), JsonSerializer.Serialize(restored.Capture()));
+    }
+
+    private static NativeBattleContactPacket ResolveSelfContact(BattleSession battle, string actorId)
+    {
+        DispatchAction(battle);
+        BattleActionPresentation command = Assert.IsType<BattleActionPresentation>(battle.ActiveAction);
+        BattleCombatant actor = battle.Combatants.Single(candidate => candidate.Id == actorId);
+        SetNativeActionEvent(battle, actor, 2);
+        BattleActionDefinition action = ExpandedActionDefinition(battle, actor, command);
+        NativeBattleContactPacket contact = ResolveInstalledNativeHitWithContact(battle, actor, actor, command, action, action.NativeAction!, null, false);
+        Assert.Equal(new BattleEnemyActorModel(new(actorId)), contact.Primary.Recipient);
+        Assert.Equal(0, contact.Primary.PresentedAmount);
+        CompleteActionPresentation(battle, command, "Native turn completed.", true);
+        Assert.Single(battle.Events, entry => entry.Kind == "ActionComplete" && entry.ActorId == actorId);
+        return contact;
+    }
+
+    private static (BattleSession Battle, BattleCombatantDefinition Enemy, int StartingHp) CreateBattle(BattleAssets assets, int formation, int model, int level, bool deathCallback)
+    {
+        BattleEnemyPlacement placement = Assert.Single(assets.LoadEncounter(formation).Enemies);
+        Assert.Equal(model, placement.ModelId);
+        byte partyLevel = model == 102 ? (byte)10 : (byte)40;
+        Assert.Equal(level, NativeBattleEnemyLevelRules.ResolveExpanded((byte)placement.Level, [partyLevel], 0));
+        NativeBattleAiDefinition ai = assets.ReadEnemyAi(model, level);
+        List<string> blockers = [];
+        Assert.True(NativeBattleExpandedAi.Evaluate(ai, assets.NativeActions, formation, blockers) == ExpandedAiAdmission.Supported, string.Join(", ", blockers));
+
+        BattleEnemyNativeProjection stats = assets.ReadEnemyNativeStats(model).Project(level);
+        int startingHp = deathCallback ? 1 : stats.MaximumHp / 4;
+        BattleCombatantDefinition[] party = Enumerable.Range(0, 11).Select(index => new BattleCombatantDefinition
+        {
+            Id = $"ally-{index}", Name = $"Ally {index}", ModelId = index, IsPlayer = true, Level = partyLevel,
+            CurrentHp = 1000, MaximumHp = 1000, Attack = 100, Speed = 1, Hit = 255,
+            InitialAtb = deathCallback && index == 10 ? BattleSession.AtbMaximum : 0
+        }).ToArray();
+        BattleCombatantDefinition enemy = new()
+        {
+            Id = "enemy", Name = assets.ReadEnemyName(model), ModelId = model, SceneSlot = placement.Slot, Level = level,
+            CurrentHp = startingHp, MaximumHp = stats.MaximumHp, Attack = stats.Strength, Defense = stats.Vitality, Magic = stats.Magic, Spirit = stats.Spirit, Speed = 1,
+            NativeAi = ai, NativeCombatantFlags = assets.ReadEnemyNativeCombatantFlags(model), NativeStatus1 = deathCallback ? 0u : 0x800000u,
+            InitialAtb = deathCallback ? 0 : BattleSession.AtbMaximum
+        };
+        IEnumerable<BattleCombatantDefinition> remainingEnemies = Enumerable.Range(1, 10).Select(index => new BattleCombatantDefinition
+        {
+            Id = $"enemy-{index}", Name = $"Enemy {index}", CurrentHp = 0, NativeStatus0 = 1
+        });
+        BattleSession battle = new(new()
+        {
+            EncounterId = formation, Combatants = [.. party, enemy, .. remainingEnemies],
+            NativeActions = assets.NativeActions.ToArray(), NativeStatusRules = assets.ReadNativeStatusRules(0), InitialRandom = NativeBattleRandomState.ForecastPhase(3)
+        }, BattleAtbMode.TurnBased);
+        return (battle, enemy, startingHp);
+    }
+
+    [UnsafeAccessor(UnsafeAccessorKind.Method)]
+    private static extern void InterpretExpandedAiCallback(BattleSession battle, BattleAttackCommand packet, BattleExpandedAiCallbackRequest request, BattleCombatant actor);
+
+    [UnsafeAccessor(UnsafeAccessorKind.Method)]
+    private static extern void QueueExpandedAiCallback(BattleSession battle, BattleCombatant actor, int stage, NativeBattlePendingReaction? reaction);
+
+    [UnsafeAccessor(UnsafeAccessorKind.Method)]
+    private static extern void DispatchAction(BattleSession battle);
+
+    [UnsafeAccessor(UnsafeAccessorKind.Method)]
+    private static extern void SetNativeActionEvent(BattleSession battle, BattleCombatant actor, byte lane);
+
+    [UnsafeAccessor(UnsafeAccessorKind.Method)]
+    private static extern BattleActionDefinition ExpandedActionDefinition(BattleSession battle, BattleCombatant actor, BattleActionPresentation command);
+
+    [UnsafeAccessor(UnsafeAccessorKind.Method)]
+    private static extern NativeBattleContactPacket ResolveInstalledNativeHitWithContact(BattleSession battle, BattleCombatant actor, BattleCombatant recipient, BattleActionPresentation command, BattleActionDefinition action, BattleNativeAction native, BattleModelOwner? coverSource, bool preliminary);
+
+    [UnsafeAccessor(UnsafeAccessorKind.Method)]
+    private static extern void CompleteActionPresentation(BattleSession battle, BattleActionPresentation action, string message, bool completeActiveAction);
+
 
     private static void Until(BattleSession battle, Func<bool> reached)
     {

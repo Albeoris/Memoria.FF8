@@ -1,7 +1,8 @@
 using System.Text.Json;
-using Memoria.FF8.Runtime;
-using Memoria.FF8.Events;
 using Albeoris.Games.FF8.Imaging;
+using Memoria.FF8.Assets;
+using Memoria.FF8.Events;
+using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.App.Tests;
 
@@ -110,16 +111,17 @@ public sealed class NativeInitialEyeRegistrationTests
         var field = world.Field!;
         NativeCrtRandomState current = session.State.CrtRandom!.Draw(out _);
         session.SetNativeFieldEyeOwners(session.State.NativeBattleMemory!, current);
-        // Isolate persistence ownership with a component battle, without executing effects.
-        BattleSession battle = new(new BattleDefinition
+        // Use the installed entry presentation and stop before any action is queued.
+        using GameAssets game = new(TestResources.GameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        BattleDefinition definition = NativeBattleTestDefinitions.CreateTargetGuardianDefinition(game, assets, 0, 116, out NativeBattleGraphicsDefinition graphics);
+        definition = definition with
         {
-            NativeRetainedMemory = cached.Memory with { EffectIoResult = -1 },
-            Combatants =
-            [
-                new() { Id = "party", IsPlayer = true, Name = "Party", MaximumHp = 1000, CurrentHp = 1000 },
-                new() { Id = "enemy", Name = "Enemy", MaximumHp = 1000, CurrentHp = 1000 }
-            ]
-        }, BattleAtbMode.Normal);
+            NativeCrtRandom = current,
+            NativeRetainedMemory = session.CaptureNativeFieldMemory()! with { EffectIoResult = -1 }
+        };
+        BattleSession battle = NativeBattleTypedFixture.CreateBattle(definition, BattleAtbMode.Normal, graphics);
+        BattleSnapshot boundary = battle.CaptureForContinuation();
         session.SetBattle(battle.Capture());
         session.SetEventState(world.Events.Capture());
         Assert.NotEqual(cached.Memory.EffectIoResult, session.State.NativeBattleMemory!.EffectIoResult);
@@ -155,10 +157,16 @@ public sealed class NativeInitialEyeRegistrationTests
         store.Save(slot, session, Validate);
         GameState loaded = store.Load(slot);
         Validate(loaded);
-        BattleSession resumed = BattleSession.Restore(loaded.Battle!);
+        BattleSnapshot continuation = loaded.Battle! with
+        {
+            PresentationContinuation = boundary.PresentationContinuation,
+            LogicalContinuation = boundary.LogicalContinuation
+        };
+        BattleSession resumed = NativeBattleTypedFixture.RestoreBattle(continuation);
         battle.Tick();
         resumed.Tick();
         Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(battle.Capture()), JsonSerializer.SerializeToElement(resumed.Capture())));
+        Assert.Equal(battle.Presentation!.Graphics.Callback, resumed.Presentation!.Graphics.Callback);
     }
 
     [Fact]
@@ -209,21 +217,28 @@ public sealed class NativeInitialEyeRegistrationTests
         session.RequestField(75, 0);
         NativeCrtRandomState current = session.State.CrtRandom!.Draw(out _);
         session.SetNativeFieldEyeOwners(session.State.NativeBattleMemory!, current);
-        GameState before = session.State;
         EventEngine dormant = new(session)
         {
             AnimationFrameCount = field.GetAnimationFrameCount,
+            ReadNativeFieldRegistrationResources = () => field.NativeRegistration,
             ReadNativeEyes = model => field.Models[model].NativeEyes,
             ReadNativeModelParts = model => field.Models[model].NativeParts,
             InitInputAxisDirection = field.Information!.ControlDirection
         };
         dormant.LoadField(74, field.Jsm, field.Messages, nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En, restoringCheckpoint: true);
+        GameState before = session.State;
+        NativeBattleRetainedMemory memory = session.CurrentNativeBattleMemory!;
         dormant.RestoreFieldState(frozen);
-        Assert.Same(before, session.State);
+        GameState restored = session.State;
+        NativeEventMemory outgoingMemory = frozen.GetProperty("EventMemory").Deserialize<NativeEventMemory>()!;
+        NativeEventMemory expected = before.EventMemory!.Write(211, 1, outgoingMemory.Read(211, 1));
+        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(expected), JsonSerializer.SerializeToElement(restored.EventMemory)));
+        Assert.True((before with { EventMemory = restored.EventMemory }) == restored);
         Assert.Equal(current, session.State.CrtRandom);
+        Assert.Same(memory, session.CurrentNativeBattleMemory);
         Assert.Equal(cached.CrtRandom, dormant.Scene.NativeEyeProcess!.CrtRandom);
         Assert.True(JsonElement.DeepEquals(frozen.GetProperty("Scene").GetProperty("NativeEyeProcess"), dormant.Capture().GetProperty("Scene").GetProperty("NativeEyeProcess")));
-        Assert.Same(before, session.State);
+        Assert.Same(restored, session.State);
     }
 
 }

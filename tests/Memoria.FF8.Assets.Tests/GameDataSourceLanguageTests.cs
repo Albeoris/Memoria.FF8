@@ -78,7 +78,7 @@ public sealed class GameDataSourceLanguageTests : IDisposable
         Assert.Null(native.NativeExecutableHash);
         File.WriteAllBytes(Path.Combine(directory, "FFVIII_EN.exe.dat"), [1, 2, 3]);
         NotImplementedException error = Assert.Throws<NotImplementedException>(() => native.NativeExecutableHash);
-        Assert.Contains("authenticated source image", error.Message);
+        Assert.Contains("FFVIII_EN.exe.dat", error.Message);
     }
 
     private static (byte[] Fl, byte[] Fi, byte[] Fs) Archive(params (string Name, byte[] Data)[] entries)

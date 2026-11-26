@@ -14,9 +14,9 @@ public sealed class InstalledWorldNativeResourceTests
         NativeWorldForestTables installed = new(directory);
         Assert.Equal(NativeFieldRuntimeProfile.RemasteredEnImageHash, installed.SourceHash);
         Assert.Equal("FA4AB9025D0922FDAFA6993E1559F96CEB82C5C7DC59C53CAFFD501B56A13B00", Convert.ToHexString(SHA256.HashData(installed.Random)));
-        Assert.Equal(11, installed.Effects.Count);
-        Assert.Equal((short)-8, installed.Effects[6].VelocityY);
-        Assert.Equal((short)-16, installed.Effects[10].VelocityY);
+        Assert.Equal(Enumerable.Range(4, 18), installed.Effects.Select(effect => (int)effect.Type));
+        Assert.Equal((short)-8, installed.GetEffect(10).VelocityY);
+        Assert.Equal((short)-16, installed.GetEffect(14).VelocityY);
         using WorldAssets assets = new(directory);
         Assert.Equal(installed.Effects.ToArray(), assets.ForestTables.Effects.ToArray());
         NativeGardenCameraDefaults garden = assets.ReadGardenCameraDefaults();

@@ -1,5 +1,5 @@
 using System.Collections.Immutable;
-using System.Text.Json;
+using System.Runtime.CompilerServices;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Battle.Tests;
@@ -33,20 +33,18 @@ public sealed class BattleRewardTests
         BattleEnemyRewardDefinition rewards = new(10, 20, 20, 30, 0, true, 255, Enumerable.Range(0, 12).Select(index => new BattleStock(index + 1, 1)).ToImmutableArray());
         BattleDefinition definition = new()
         {
+            NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(),
             GuardianForces = [new(1, 100, 100) { KillCount = ushort.MaxValue, DeathCount = 4 }],
             Combatants =
             [
                 new() { Id = "party-0", Name = "Owner", IsPlayer = true, InitialAtb = BattleSession.AtbMaximum, Level = 8, Attack = 100, Abilities = [BattleAbility.Attack, BattleAbility.GuardianForce], EquipmentIds = [1] },
+                new() { Id = "enemy-0", Name = "Defeated enemy", CurrentHp = 0, NativeStatus0 = 1 },
+                new() { Id = "enemy-1", Name = "Defeated enemy", CurrentHp = 0, NativeStatus0 = 1 },
                 new() { Id = "enemy-2", Name = "Target", MaximumHp = 1, CurrentHp = 1, Speed = 1, Level = 8, RewardSlot = 2, Rewards = rewards }
-            ],
-            ActionDefinitions = [new(BattleAbility.GuardianForce, 1, "Shiva", BattleActionEffect.Damage, 100, false, Level: 1)]
+            ]
         };
         BattleSession session = new(definition, BattleAtbMode.TurnBased);
-        session.QueueAction("party-0", "enemy-2", ability, gf ?? 0);
-        for (int frame = 0; frame < 100 && session.Outcome == BattleOutcome.Active; frame++)
-        {
-            session.Tick();
-        }
+        ApplyDefeatingContact(session, "enemy-2", ability, gf ?? 0);
         Assert.Equal(BattleOutcome.Victory, session.Outcome);
         BattleEnemyDefeat fact = Assert.Single(session.EnemyDefeats);
         Assert.Equal((2, (byte)8, expected, (byte?)0, gf is int id ? (byte?)id : null), (fact.Slot, fact.Level, fact.Credit, fact.KillerRow, fact.GuardianForceId));
@@ -63,7 +61,7 @@ public sealed class BattleRewardTests
         Assert.InRange(fact.DropSelection, (sbyte)0, (sbyte)3);
         Assert.Equal(rewards.Drop(8, fact.DropSelection), Assert.Single(session.NativeRewardItems));
         BattleSnapshot snapshot = session.Capture() with { Events = [] };
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(snapshot))!);
+        BattleSession restored = BattleSession.Restore(snapshot);
         Assert.Equal(fact, Assert.Single(restored.EnemyDefeats));
         Assert.Empty(restored.Events);
     }
@@ -77,16 +75,84 @@ public sealed class BattleRewardTests
         NativeBattleAiDefinition ai = new([init, [0], [0], [0], [0]], Enumerable.Repeat(new NativeBattleAiAbility(0, 0, 0), 48).ToArray(), 0, []);
         BattleEnemyRewardDefinition rewards = new(0, 0, 20, 30, 255, false, 255, Enumerable.Repeat(new BattleStock(7, 1), 12).ToImmutableArray());
         BattleSession battle = new(new() { NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(), Combatants = [new() { Id = "party-0", Name = "Party", IsPlayer = true, Attack = 100, InitialAtb = BattleSession.AtbMaximum }, new() { Id = "enemy-0", Name = "Enemy", MaximumHp = 1, CurrentHp = 1, Level = 8, RewardSlot = 0, Rewards = rewards, NativeAi = ai }] }, BattleAtbMode.TurnBased);
-        battle.Tick();
-        battle.QueueAttack("party-0", "enemy-0");
-        for (int frame = 0; frame < 100 && battle.Outcome == BattleOutcome.Active; frame++)
-        {
-            battle.Tick();
-        }
+        BattleAttackCommand initial = Assert.Single(battle.QueuedActions);
+        InterpretExpandedAiCallback(battle, initial, Assert.IsType<BattleExpandedAiCallbackRequest>(initial.ExpandedAiCallback), battle.Combatants[1]);
+        ApplyDefeatingContact(battle, "enemy-0", BattleAbility.Attack, 0);
         Assert.Equal(BattleOutcome.Victory, battle.Outcome);
         Assert.Equal(expectDrop, Assert.Single(battle.EnemyDefeats).DropSelection >= 0);
         Assert.Equal(24, battle.NativeRewardItems.Count);
     }
+
+    private static void ApplyDefeatingContact(BattleSession battle, string enemyId, BattleAbility ability, int actionId)
+    {
+        bool guardian = ability == BattleAbility.GuardianForce;
+        byte commandId = guardian ? (byte)254 : (byte)1;
+        BattleCombatant source = battle.Combatants[0];
+        BattleCombatant target = battle.Combatants.Single(actor => actor.Id == enemyId);
+        BattleNativeAction native = new(commandId, guardian ? (ushort)(64 + actionId) : (ushort)0, guardian ? 2 : -1, actionId)
+        {
+            MagicId = 0,
+            AttackType = guardian ? (byte)11 : (byte)1,
+            Power = 100,
+            PowerModifier = 10,
+            LevelModifier = 10,
+            HitCount = 1,
+            Hit = 255,
+            TargetFlags = guardian ? (byte)0x40 : null,
+            AttackFlags = 0,
+            DamagePresentation = 0,
+            Element = 0,
+            ElementPercent = null,
+            StatusAttack = 0,
+            Statuses0 = 0,
+            Statuses1 = 0,
+            Critical = 0,
+            RawRecord = [],
+            SupplementalRecord = []
+        };
+        BattleTargetRequest targets = new(new BattleTargetSelection.Explicit([new BattleEnemyActorReference(enemyId)]), BattleTargetEligibility.Living, false, BattleTargetReplacement.None);
+        BattleActionPresentation command = new(source.Id, target.Id, BattleActionPhase.Recovery, targets, ability, actionId) { NativeAction = native, NativeQueuedCommand = commandId };
+        BattleActionDefinition action = new(ability, actionId, "Defeating contact", BattleActionEffect.Native, native.Power, false, Level: 8) { NativeAction = native };
+        SetNativeActionEvent(battle, source, 2);
+        ref NativeBattleActionScratch scratch = ref NativeActionScratch(battle);
+        scratch = scratch with { Command = commandId, Action = native.ActionId, GuardianBoostPercent = 100 };
+        target.NativeRemainingHits = 1;
+        BeginNativeReactionBatch(battle);
+        ResolvingNativeAction(battle) = command;
+        try
+        {
+            NativeBattleContactPacket contact = ResolveInstalledNativeHitWithContact(battle, source, target, command, action, native, null, false);
+            Assert.Equal(new BattleEnemyActorModel(new(enemyId)), contact.Primary.Recipient);
+            Assert.True(contact.Primary.PresentedAmount > 0);
+        }
+        finally
+        {
+            ResolvingNativeAction(battle) = null;
+        }
+        Assert.False(target.IsAlive);
+        CompleteBattleIfNeeded(battle);
+    }
+
+    [UnsafeAccessor(UnsafeAccessorKind.Method)]
+    private static extern void SetNativeActionEvent(BattleSession battle, BattleCombatant actor, byte lane);
+
+    [UnsafeAccessor(UnsafeAccessorKind.Field, Name = "nativeActionScratch")]
+    private static extern ref NativeBattleActionScratch NativeActionScratch(BattleSession battle);
+
+    [UnsafeAccessor(UnsafeAccessorKind.Field, Name = "resolvingNativeAction")]
+    private static extern ref BattleActionPresentation? ResolvingNativeAction(BattleSession battle);
+
+    [UnsafeAccessor(UnsafeAccessorKind.Method)]
+    private static extern void BeginNativeReactionBatch(BattleSession battle);
+
+    [UnsafeAccessor(UnsafeAccessorKind.Method)]
+    private static extern void InterpretExpandedAiCallback(BattleSession battle, BattleAttackCommand packet, BattleExpandedAiCallbackRequest request, BattleCombatant actor);
+
+    [UnsafeAccessor(UnsafeAccessorKind.Method)]
+    private static extern NativeBattleContactPacket ResolveInstalledNativeHitWithContact(BattleSession battle, BattleCombatant actor, BattleCombatant recipient, BattleActionPresentation command, BattleActionDefinition action, BattleNativeAction native, BattleModelOwner? coverSource, bool preliminary);
+
+    [UnsafeAccessor(UnsafeAccessorKind.Method)]
+    private static extern void CompleteBattleIfNeeded(BattleSession battle);
 
     [Theory]
     [InlineData(177, false, 0)]
