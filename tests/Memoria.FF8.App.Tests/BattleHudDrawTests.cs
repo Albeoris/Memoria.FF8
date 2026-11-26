@@ -184,7 +184,7 @@ public sealed class BattleHudDrawTests
         BattleDefinition definition = Create(false).Capture().Definition;
         definition.Combatants[3] = definition.Combatants[3] with { NativeDrawSlots = [new(2, 5), new(3, 0), new(0, 0), new(0, 0)] };
         definition.Combatants[4] = definition.Combatants[4] with { NativeDrawSlots = [new(2, 0), new(0, 0), new(0, 0), new(0, 0)] };
-        definition = definition with { ActionDefinitions = [.. definition.ActionDefinitions, new(BattleAbility.Magic, 3, "Fire", BattleActionEffect.Damage, 10, false)] };
+        definition = definition with { ActionDefinitions = [.. definition.ActionDefinitions, BattleHudTestActions.WithNativeRecord(new(BattleAbility.Magic, 3, "Fire", BattleActionEffect.Damage, 10, false))] };
         BattleSession battle = new(definition, BattleAtbMode.TurnBased);
         var random = battle.Capture().Random;
         List<BattleInput> inputs = [];
@@ -322,7 +322,7 @@ public sealed class BattleHudDrawTests
         BattleDefinition definition = Create(false).Capture().Definition;
         definition.Combatants[3] = definition.Combatants[3] with { NativeDrawSlots = [new(2, 0), new(3, 0), new(4, 0), new(5, 0)] };
         definition.Combatants[4] = definition.Combatants[4] with { NativeDrawSlots = [new(6, 0), new(7, 0), new(8, 0), new(9, 0)] };
-        definition = definition with { ActionDefinitions = [.. definition.ActionDefinitions, .. Enumerable.Range(3, 7).Select(id => new BattleActionDefinition(BattleAbility.Magic, id, $"Spell{id}", BattleActionEffect.Damage, 10, false))] };
+        definition = definition with { ActionDefinitions = [.. definition.ActionDefinitions, .. Enumerable.Range(3, 7).Select(id => BattleHudTestActions.WithNativeRecord(new(BattleAbility.Magic, id, $"Spell{id}", BattleActionEffect.Damage, 10, false)))] };
         BattleHudController hud = CreateHud(new(definition, BattleAtbMode.TurnBased));
         hud.Choose(0);
         hud.Navigate(MenuInput.Down);
@@ -346,15 +346,14 @@ public sealed class BattleHudDrawTests
 
     private static void ConsumeSourceMagic(BattleSession battle)
     {
-        battle.QueueAction("ally", "source", BattleAbility.Draw, 2);
-        battle.Tick();
-        Assert.DoesNotContain(battle.Combatants.Single(actor => actor.Id == "source").NativeDrawSlots, slot => slot.Id == 2);
+        BattleCombatant source = battle.Combatants.Single(actor => actor.Id == "source");
+        source.ConsumeDrawMagic(2);
+        Assert.DoesNotContain(source.NativeDrawSlots, slot => slot.Id == 2);
     }
 
     private static BattleSession CreateConcurrentDraw(bool anotherSource, bool anotherSpell)
     {
         BattleDefinition definition = Create(false).Capture().Definition;
-        definition.Combatants[1] = definition.Combatants[1] with { InitialAtb = BattleSession.AtbMaximum, Magic = 100, Abilities = [BattleAbility.Draw] };
         if (anotherSource)
         {
             definition.Combatants[4] = definition.Combatants[4] with { NativeDrawSlots = [new(2, 0), new(0, 0), new(0, 0), new(0, 0)] };
@@ -362,7 +361,7 @@ public sealed class BattleHudDrawTests
         if (anotherSpell)
         {
             definition.Combatants[3] = definition.Combatants[3] with { NativeDrawSlots = [new(2, 0), new(3, 0), new(0, 0), new(0, 0)] };
-            definition = definition with { ActionDefinitions = [.. definition.ActionDefinitions, new(BattleAbility.Magic, 3, "Fire", BattleActionEffect.Damage, 10, false)] };
+            definition = definition with { ActionDefinitions = [.. definition.ActionDefinitions, BattleHudTestActions.WithNativeRecord(new(BattleAbility.Magic, 3, "Fire", BattleActionEffect.Damage, 10, false))] };
         }
         return new(definition with { DrawOncePerSpell = true }, BattleAtbMode.TurnBased);
     }
@@ -406,7 +405,8 @@ public sealed class BattleHudDrawTests
                 new() { Id = "other", Name = "Other", MaximumHp = 100, CurrentHp = 100, Speed = 1 }
             ],
             GuardianForces = [new(1, 1000, 100, false)],
-            ActionDefinitions = [new(BattleAbility.Magic, 2, revive ? "Life" : "Cure", revive ? BattleActionEffect.Revive : BattleActionEffect.Heal, 0, true)]
+            NativeKnownMagic = BattleHudTestActions.KnownMagic,
+            ActionDefinitions = [BattleHudTestActions.WithNativeRecord(new(BattleAbility.Magic, 2, revive ? "Life" : "Cure", revive ? BattleActionEffect.Revive : BattleActionEffect.Heal, 0, true))]
         }, BattleAtbMode.TurnBased);
     }
 }

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Collections.Immutable;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -80,7 +81,7 @@ public sealed class BattleGuardianFormLifecycleTests
         }
         else
         {
-            RunLogicalStep(battle, "DispatchExpandedGuardianForceCharges");
+            DispatchExpandedGuardianForceCharges(battle);
             Assert.Empty(battle.GuardianForceCasts);
             battle = RoundTrip(battle.Capture());
         }
@@ -97,14 +98,14 @@ public sealed class BattleGuardianFormLifecycleTests
         battle.RequestGuardianForm("actor", 2);
         Actor(battle).CurrentHp = 0;
         Actor(battle).NativeStatus0 |= 1;
-        RunLogicalStep(battle, "DispatchGuardianForceCasts");
-        RunLogicalStep(battle, "DispatchExpandedGuardianForceCharges");
+        DispatchGuardianForceCasts(battle);
+        DispatchExpandedGuardianForceCharges(battle);
         Assert.False(battle.IsGuardianSummonOccupied);
         Assert.True(battle.CanSelectExpandedGuardianForce("other", 0));
 
         battle = ReadySummonForm(definition);
         Actor(battle).CurrentHp = 0;
-        RunLogicalStep(battle, "DispatchGuardianFormTransitions");
+        DispatchGuardianFormTransitions(battle);
         Assert.Null(battle.GetGuardianForm("actor"));
         Assert.Equal(37, Actor(battle).CurrentHp);
         Assert.False(battle.IsGuardianSummonOccupied);
@@ -129,7 +130,7 @@ public sealed class BattleGuardianFormLifecycleTests
         };
         battle = RoundTrip(battle.Capture() with { QueuedActions = [], ActiveAction = committed });
         Assert.True(battle.IsGuardianSummonOccupied);
-        RunLogicalStep(battle, "CompleteActionPresentation", committed, "Finisher completed.", true);
+        CompleteActionPresentation(battle, committed, "Finisher completed.", true);
         Assert.Null(battle.GetGuardianForm("actor"));
         Assert.False(battle.IsGuardianSummonOccupied);
         battle.QueueAction("other", "enemy", BattleAbility.GuardianForce, 0);
@@ -157,10 +158,10 @@ public sealed class BattleGuardianFormLifecycleTests
         Assert.Equal(actionId, Assert.Single(restored.QueuedActions).ActionId);
         Assert.NotEmpty(restored.Capture().Definition.GuardianFormResources[0].InnateBindings);
         Assert.Null(restored.Capture().Definition.GuardianFormResources[0].AbilityBands);
-        RunLogicalStep(restored, "DispatchAction");
+        DispatchAction(restored);
         BattleActionPresentation windup = Assert.IsType<BattleActionPresentation>(restored.ActiveAction);
         Assert.Equal(action, windup.GuardianFormAction);
-        BattleActionDefinition resolved = Assert.IsType<BattleActionDefinition>(RunLogicalStep(restored, "ExpandedActionDefinition", Actor(restored), windup));
+        BattleActionDefinition resolved = ExpandedActionDefinition(restored, Actor(restored), windup);
         Assert.Equal(actionId, resolved.Id);
         Assert.Equal(windup.NativeAction, resolved.NativeAction);
     }
@@ -182,47 +183,34 @@ public sealed class BattleGuardianFormLifecycleTests
         Assert.Contains("overlapping GF summons", error.Message);
     }
 
-    [Fact]
-    public void ExpandedIfritChargesAndUsesHisInstalledCommandsAgainstTheLastEnemy()
+    [Theory]
+    [InlineData(BattleGuardianFormAction.Attack)]
+    [InlineData(BattleGuardianFormAction.Fire)]
+    [InlineData(BattleGuardianFormAction.HellFire)]
+    public void ExpandedIfritActionsRetainTheLastEnemyTargetAcrossRestore(BattleGuardianFormAction action)
     {
         BattleDefinition initial = Definition();
-        BattleNativeAction hellFire = Native(254, 66, 11, 20, 0x40) with { KernelSection = 2, KernelIndex = 2, PowerModifier = 10, LevelModifier = 10, RawRecord = [.. new byte[128]] };
         BattleDefinition definition = initial with
         {
-            NativeBattleSpeed = 0,
-            NativeActions = [.. initial.NativeActions, hellFire],
-            ActionDefinitions = [initial.ActionDefinitions[0], initial.ActionDefinitions[1] with { NativeAction = hellFire }],
-            Combatants = [initial.Combatants[0] with { InitialAtb = BattleSession.AtbMaximum }, .. Enumerable.Range(0, 7).Select(index => initial.Combatants[1] with { Id = $"enemy-{index}", Speed = 1 })]
+            Combatants = [initial.Combatants[0] with { InitialAtb = BattleSession.AtbMaximum }, .. Enumerable.Range(0, 7).Select(index => initial.Combatants[1] with { Id = $"enemy-{index}" })]
         };
-        BattleSession battle = new(definition, BattleAtbMode.Normal);
-        battle.RequestGuardianForm("actor", 2);
-        Assert.Equal(BattleGuardianFormPhase.Charging, battle.GetGuardianForm("actor")!.Phase);
-        battle = RoundTrip(battle.Capture());
-        battle.Tick();
-        Assert.Equal(61, battle.GetGuardianFormVisual("actor"));
-        Assert.Equal(80, Actor(battle).CurrentHp);
-        foreach (BattleGuardianFormAction action in new[] { BattleGuardianFormAction.Attack, BattleGuardianFormAction.Fire, BattleGuardianFormAction.HellFire })
+        BattleSession battle = ReadySummonForm(definition);
+        battle.QueueGuardianFormAction("actor", "enemy-6", action);
+        BattleSession restored = RoundTrip(battle.Capture());
+        BattleAttackCommand command = Assert.Single(restored.QueuedActions);
+        Assert.Equal("enemy-6", command.TargetId);
+
+        if (action == BattleGuardianFormAction.Attack)
         {
-            Actor(battle).Atb = BattleSession.AtbMaximum;
-            battle.QueueGuardianFormAction("actor", "enemy-6", action);
-            BattleAttackCommand queued = Assert.Single(battle.QueuedActions);
-            Assert.Equal("enemy-6", queued.TargetId);
-            if (action == BattleGuardianFormAction.Attack)
-            {
-                BattleTargetSelection.Explicit selected = Assert.IsType<BattleTargetSelection.Explicit>(queued.TargetRequest.Selection);
-                Assert.Equal(new BattleEnemyActorReference("enemy-6"), Assert.Single(selected.Actors));
-            }
-            battle = RoundTrip(battle.Capture());
-            int before = battle.Events.Count;
-            for (int frame = 0; frame < 32 && Actor(battle).IsBusy; frame++)
-            {
-                battle.Tick();
-            }
-            Assert.Contains(battle.Events.Skip(before), item => item.Kind == "EffectContact" && item.TargetId == "enemy-6");
+            BattleTargetSelection.Explicit selection = Assert.IsType<BattleTargetSelection.Explicit>(command.TargetRequest.Selection);
+            Assert.Equal(new BattleEnemyActorReference("enemy-6"), Assert.Single(selection.Actors));
         }
-        Assert.Null(battle.GetGuardianForm("actor"));
-        Assert.Equal(37, Actor(battle).CurrentHp);
+
+        DispatchAction(restored);
+        Assert.Equal(action, restored.ActiveAction!.GuardianFormAction);
+        Assert.Equal("enemy-6", restored.ActiveAction.TargetId);
     }
+
     [Fact]
     public void DisabledBattleUsesNoFeatureMetadataOrResources()
     {
@@ -293,10 +281,8 @@ public sealed class BattleGuardianFormLifecycleTests
         saved = saved with { Definition = definition, GuardianForces = definition.GuardianForces };
         BattleSession battle = RoundTrip(saved);
         battle.QueueAction("other", "actor", BattleAbility.Magic, 1);
-        for (int frame = 0; frame < 1200 && !(battle.ActiveAction is null && battle.QueuedActions.Count == 0); frame++)
-        {
-            battle.Tick();
-        }
+        DispatchAction(battle);
+        ResolveLogicalContacts(battle);
         int difference = Actor(battle).CurrentHp - 8000;
         Assert.True(absorbed ? difference > 0 : difference < 0);
         int multiplier = absorbed ? 1 : 2;
@@ -329,7 +315,13 @@ public sealed class BattleGuardianFormLifecycleTests
         Assert.Equal(Enumerable.Repeat((byte)0, 40), saved.Combatants[0].NativeStatus!.Resistances);
         BattleSession restored = RoundTrip(saved);
         Assert.Equal(BattleGuardianFormPhase.Active, restored.GetGuardianForm("actor")!.Phase);
+        Actor(restored).CurrentHp = 0;
+        DispatchGuardianFormTransitions(restored);
+        Assert.Null(restored.GetGuardianForm("actor"));
         Assert.Equal(37, Actor(restored).CurrentHp);
+        Assert.Equal(humanElements, Actor(restored).ElementDefenses);
+        AssertCasterStatistics(Actor(restored));
+        Assert.Equal(Enumerable.Repeat((byte)0, 40), restored.Capture().Combatants[0].NativeStatus!.Resistances);
         Assert.Equal(humanElements, restored.Capture().Definition.Combatants[0].ElementDefenses);
     }
 
@@ -353,10 +345,8 @@ public sealed class BattleGuardianFormLifecycleTests
         saved = saved with { Definition = definition, GuardianForms = transformed ? saved.GuardianForms : new(true, 1, []) };
         BattleSession battle = RoundTrip(saved);
         battle.QueueAction("other", "actor", BattleAbility.Magic, 1);
-        for (int frame = 0; frame < 1200 && !(battle.ActiveAction is null && battle.QueuedActions.Count == 0); frame++)
-        {
-            battle.Tick();
-        }
+        DispatchAction(battle);
+        ResolveLogicalContacts(battle);
         NativeBattleStatusSnapshot status = battle.Capture().Combatants[0].NativeStatus!;
         Assert.Equal(!transformed, (status.Saved & 2) != 0);
         Assert.Equal(Enumerable.Repeat((byte)0, 40), status.Resistances);
@@ -395,11 +385,12 @@ public sealed class BattleGuardianFormLifecycleTests
     {
         BattleSession battle = Active(ready: true);
         battle.QueueGuardianFormAction("actor", "enemy", BattleGuardianFormAction.Attack);
-        battle.Tick();
+        DispatchAction(battle);
         BattleActionPresentation action = Assert.IsType<BattleActionPresentation>(battle.ActiveAction);
         Assert.Equal((byte)1, action.NativeAction!.AttackType);
         Assert.Equal((byte)14, action.NativeAction.Power);
         Assert.Equal((byte)12, action.NativeSequence);
+        ResolveLogicalContacts(battle);
         BattleEvent damage = Assert.Single(battle.Events, item => item.Kind == "Damage" && item.ActorId == "actor");
         Assert.Contains(damage.Amount, Enumerable.Range(0, 256).Select(random => NativeBattleDamage.Physical(23, battle.Combatants.Single(actor => actor.Id == "enemy").Defense, 14, random)));
         Assert.False(battle.CanTriggerGunblade);
@@ -412,19 +403,13 @@ public sealed class BattleGuardianFormLifecycleTests
     {
         BattleSession battle = Active(ready: true);
         battle.QueueGuardianFormAction("actor", "enemy", BattleGuardianFormAction.Fire);
-        bool capturedPresentation = false;
-        for (int tick = 0; tick < 100 && (battle.QueuedActions.Count != 0 || battle.ActiveAction is not null || Actor(battle).IsBusy); tick++)
-        {
-            battle.Tick();
-            if (battle.ActiveAction is { } action)
-            {
-                capturedPresentation = true;
-                Assert.Equal(BattleGuardianFormAction.Fire, action.GuardianFormAction);
-                Assert.True(action.FreeNativeMagic);
-                battle = RoundTrip(battle.Capture());
-            }
-        }
-        Assert.True(capturedPresentation);
+        DispatchAction(battle);
+        battle = RoundTrip(battle.Capture());
+        BattleActionPresentation action = Assert.IsType<BattleActionPresentation>(battle.ActiveAction);
+        Assert.Equal(BattleGuardianFormAction.Fire, action.GuardianFormAction);
+        Assert.True(action.FreeNativeMagic);
+        ResolveLogicalContacts(battle);
+        CompleteActionPresentation(battle, action, "Innate Fire completed.", true);
         Assert.Empty(battle.QueuedActions);
         Assert.Null(battle.ActiveAction);
         Assert.Empty(Actor(battle).MagicStocks);
@@ -436,29 +421,13 @@ public sealed class BattleGuardianFormLifecycleTests
     }
 
     [Fact]
-    public void Debug_victory_does_not_cancel_the_admitted_fire()
-    {
-        BattleSession battle = Active(ready: true);
-        battle.QueueGuardianFormAction("actor", "enemy", BattleGuardianFormAction.Fire);
-        battle.Tick();
-        var header = battle.Presentation!.NativeActionPackets.ActiveHeader;
-        Assert.NotNull(header);
-        BattleActionPresentation? action = battle.ActiveAction;
-
-        Assert.Throws<InvalidOperationException>(battle.InstantVictory);
-        Assert.Equal(BattleOutcome.Active, battle.Outcome);
-        Assert.Equal(header, battle.Presentation.NativeActionPackets.ActiveHeader);
-        Assert.Same(action, battle.ActiveAction);
-        Assert.NotNull(battle.GetGuardianForm("actor"));
-    }
-
-    [Fact]
     public void BerserkUsesTheFormPhysicalBindingWithoutHeroWeaponStockOrItems()
     {
         BattleSession battle = Active(ready: true, berserk: true);
         BattleStock[] stock = Actor(battle).MagicStocks.ToArray();
         BattleStock[] items = battle.Items.ToArray();
-        battle.Tick();
+        DispatchGuardianFormTransitions(battle);
+        DispatchAction(battle);
         BattleActionPresentation action = Assert.IsType<BattleActionPresentation>(battle.ActiveAction);
         Assert.Equal(BattleGuardianFormAction.Attack, action.GuardianFormAction);
         Assert.Equal(BattleAbility.EnemyAbility, action.Ability);
@@ -467,7 +436,6 @@ public sealed class BattleGuardianFormLifecycleTests
         Assert.Equal((ushort)79, action.NativeAction!.ActionId);
         Assert.Equal((byte)1, action.NativeAction.AttackType);
         Assert.Equal((byte)12, action.NativeSequence);
-        Assert.NotNull(battle.Presentation!.NativeActionPackets.ActiveHeader);
         Assert.Equal(stock, Actor(battle).MagicStocks);
         Assert.Equal(items, battle.Items);
         BattleSession restored = RoundTrip(battle.Capture());
@@ -485,18 +453,20 @@ public sealed class BattleGuardianFormLifecycleTests
     public void LifetimeTracksAdvancingSimulationEvenWithFullAtb(BattleAtbMode mode, bool ready)
     {
         BattleSession battle = Active(ready: ready);
-        BattleSnapshot boundary = battle.Capture();
-        boundary.Combatants[1] = boundary.Combatants[1] with { Atb = BattleSession.AtbMaximum - 1 };
-        battle = BattleSession.Restore(boundary);
+        battle.Combatants.Single(actor => actor.Id == "enemy").Atb = BattleSession.AtbMaximum - 1;
+        battle = RoundTrip(battle.Capture());
         battle.SetMode(mode);
+        battle.ActivateExpandedHostedClock();
+        Assert.Equal(ready, Actor(battle).IsReady);
         long frame = battle.Frame;
         if (mode == BattleAtbMode.TurnBased)
         {
-            battle.AdvanceTurn(1);
+            AdvanceTurnBasedTime(battle, true);
         }
         else
         {
-            battle.Tick();
+            Assert.True(AdmitNativeBattleClock(battle, true, false));
+            DispatchFrameCore(battle, true);
         }
         Assert.Equal(frame + 1, battle.Frame);
         Assert.Equal(72, battle.GetGuardianForm("actor")!.RemainingTicks);
@@ -522,7 +492,7 @@ public sealed class BattleGuardianFormLifecycleTests
         Assert.NotNull(actor.NativeStatus);
         saved.Combatants[0] = actor with { NativeStatus = actor.NativeStatus! with { Saved = (ushort)(actor.NativeStatus.Saved | 1) } };
         BattleSession battle = BattleSession.Restore(saved);
-        battle.Tick();
+        DispatchGuardianFormTransitions(battle);
         Assert.Null(battle.GetGuardianForm("actor"));
         Assert.False(Actor(battle).IsAlive);
         Assert.Equal(0, Actor(battle).CurrentHp);
@@ -562,6 +532,19 @@ public sealed class BattleGuardianFormLifecycleTests
         Assert.Contains("GF transformation", error.Message);
     }
 
+    private static void ResolveLogicalContacts(BattleSession battle)
+    {
+        BattleActionPresentation command = Assert.IsType<BattleActionPresentation>(battle.ActiveAction);
+        BattleCombatant source = battle.Combatants.Single(actor => actor.Id == command.ActorId);
+        BattleCombatant target = battle.Combatants.Single(actor => actor.Id == command.TargetId);
+        BattleActionDefinition action = ExpandedActionDefinition(battle, source, command);
+        BeginNativeReactionBatch(battle);
+        MethodInfo produce = typeof(BattleSession).GetMethod("ProduceNativeInstalledContacts", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        object result = produce.Invoke(battle, [source, target, command, action, null, null])!;
+        ImmutableArray<NativeBattleContactPacket> contacts = Assert.IsType<ImmutableArray<NativeBattleContactPacket>>(result.GetType().GetProperty("Contacts")!.GetValue(result));
+        Assert.Single(contacts);
+    }
+
     private static BattleSession RoundTrip(BattleSnapshot snapshot)
     {
         return BattleSession.Restore(snapshot);
@@ -597,7 +580,7 @@ public sealed class BattleGuardianFormLifecycleTests
             definition = definition with { Combatants = [definition.Combatants[0], new() { Id = "other", Name = "Other", IsPlayer = true, MaximumHp = 100, CurrentHp = 100, InitialAtb = BattleSession.AtbMaximum, Abilities = [BattleAbility.GuardianForce], EquipmentIds = [2], GuardianForceCompatibility = new ushort[16] }, definition.Combatants[1]] };
         }
         BattleSession battle = new(definition, BattleAtbMode.Normal);
-        return BattleSession.Restore(battle.Capture() with
+        return RoundTrip(battle.Capture() with
         {
             GuardianForms = new(true, 1, [new("actor", 2, "ifrit-v1", BattleGuardianFormPhase.Active, 1, 73) { EntryCompleted = true }])
         });
@@ -607,15 +590,18 @@ public sealed class BattleGuardianFormLifecycleTests
     {
         BattleNativeAction physical = Native(8, 79, 1, 14, null);
         BattleNativeAction fire = Native(2, 1, 2, 18, 0);
+        BattleNativeAction hellFire = Native(254, 66, 11, 20, 0x40) with { KernelSection = 2, KernelIndex = 2, PowerModifier = 10, LevelModifier = 10, RawRecord = [.. new byte[128]] };
         return new()
         {
             GuardianFormsEnabled = true,
+            NativeClockRules = new(10),
+            NativeBattleSpeed = 0,
             GuardianFormResources = [new(2, physical, 12, new([0, 0]) { AnimationFrames = [] }) { AbilityBands = IfritBands(), ElementDefenses = [1000, 700, 800, 800, 800, 800, 800, 800], StatusResistances = Enumerable.Range(0, 40).Select(index => index == 1 ? (byte)255 : (byte)100).ToImmutableArray() }],
             GuardianForces = [new(2, 80, 100, true) { DeathCount = 0 }],
-            NativeActions = [physical, fire],
+            NativeActions = [physical, fire, hellFire],
             NativeCommandSequences = NativeBattleCommandSequenceFixture.Values,
             NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(),
-            ActionDefinitions = [new(BattleAbility.Magic, 1, "Fire", BattleActionEffect.Native, 18, false) { NativeAction = fire }, new(BattleAbility.GuardianForce, 2, "Hell Fire", BattleActionEffect.Damage, 20, false)],
+            ActionDefinitions = [new(BattleAbility.Magic, 1, "Fire", BattleActionEffect.Native, 18, false) { NativeAction = fire }, new(BattleAbility.GuardianForce, 2, "Hell Fire", BattleActionEffect.Damage, 20, false) { NativeAction = hellFire }],
             Combatants =
             [
                 new() { Id = "actor", Name = "Actor", IsPlayer = true, ModelId = 0, MaximumHp = 100, CurrentHp = 37, Attack = 23, Magic = 31, Defense = 17, Spirit = 19, Speed = 3, Level = 11, Luck = 13, Hit = 93, Evasion = 5, ElementDefenses = [700, 800, 900, 1000, 800, 800, 800, 800], NativeStatusResistances = new byte[40], Abilities = [BattleAbility.Attack, BattleAbility.Magic, BattleAbility.GuardianForce], EquipmentIds = [2], GuardianForceCompatibility = new ushort[16] },
@@ -643,9 +629,8 @@ public sealed class BattleGuardianFormLifecycleTests
         BattleNativeAction flare = Native(2, 15, 2, 48, 0x54);
         return initial with
         {
-            NativeBattleSpeed = 0,
             GuardianForces = [initial.GuardianForces[0], new(0, 100, 100)],
-            NativeActions = [.. initial.NativeActions, Native(8, 59, 1, 20, null), ifrit, quezacotl, fira, firaga, flare],
+            NativeActions = [.. initial.NativeActions, Native(8, 59, 1, 20, null), quezacotl, fira, firaga, flare],
             ActionDefinitions =
             [
                 initial.ActionDefinitions[0],
@@ -668,10 +653,37 @@ public sealed class BattleGuardianFormLifecycleTests
         });
     }
 
-    private static object? RunLogicalStep(BattleSession battle, string name, params object?[] arguments)
-    {
-        return typeof(BattleSession).GetMethod(name, BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(battle, arguments);
-    }
+    // These tests exercise logical battle boundaries. The installed App cases drive the complete hosted path.
+    [UnsafeAccessor(UnsafeAccessorKind.Method)]
+    private static extern void DispatchGuardianForceCasts(BattleSession battle);
+
+    [UnsafeAccessor(UnsafeAccessorKind.Method)]
+    private static extern void DispatchExpandedGuardianForceCharges(BattleSession battle);
+
+    [UnsafeAccessor(UnsafeAccessorKind.Method)]
+    private static extern void DispatchGuardianFormTransitions(BattleSession battle);
+
+    [UnsafeAccessor(UnsafeAccessorKind.Method)]
+    private static extern void DispatchAction(BattleSession battle);
+
+    [UnsafeAccessor(UnsafeAccessorKind.Method)]
+    private static extern BattleActionDefinition ExpandedActionDefinition(BattleSession battle, BattleCombatant actor, BattleActionPresentation action);
+
+    [UnsafeAccessor(UnsafeAccessorKind.Method)]
+    private static extern void BeginNativeReactionBatch(BattleSession battle);
+
+    [UnsafeAccessor(UnsafeAccessorKind.Method)]
+    private static extern void CompleteActionPresentation(BattleSession battle, BattleActionPresentation action, string message, bool completeActiveAction);
+
+    [UnsafeAccessor(UnsafeAccessorKind.Method)]
+    private static extern bool AdmitNativeBattleClock(BattleSession battle, bool uiAllowsAtb, bool scriptWaitHeld);
+
+    [UnsafeAccessor(UnsafeAccessorKind.Method)]
+    private static extern void DispatchFrameCore(BattleSession battle, bool advanceFrame);
+
+    [UnsafeAccessor(UnsafeAccessorKind.Method)]
+    private static extern HashSet<string> AdvanceTurnBasedTime(BattleSession battle, bool explicitAdvance);
+
 
     private static BattleNativeAction Native(byte command, ushort id, byte type, byte power, byte? targets)
     {

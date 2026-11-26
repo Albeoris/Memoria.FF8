@@ -67,8 +67,8 @@ public sealed class BattleMagicSectionRenderingTests
     {
         BattleActionDefinition[] actions =
         [
-            .. Enumerable.Range(1, count).Select(id => new BattleActionDefinition(BattleAbility.Magic, id, $"Spell{id}", BattleActionEffect.Damage, 10, false)),
-            .. (recovery ? new[] { new BattleActionDefinition(BattleAbility.Magic, count + 1, "Cure", BattleActionEffect.Heal, 10, true) } : [])
+            .. Enumerable.Range(1, count).Select(id => BattleHudTestActions.WithNativeRecord(new(BattleAbility.Magic, id, $"Spell{id}", BattleActionEffect.Damage, 10, false))),
+            .. (recovery ? new[] { BattleHudTestActions.WithNativeRecord(new(BattleAbility.Magic, count + 1, "Cure", BattleActionEffect.Heal, 10, true)) } : [])
         ];
         BattleSession session = new(new BattleDefinition
         {
@@ -79,6 +79,6 @@ public sealed class BattleMagicSectionRenderingTests
             ],
             ActionDefinitions = actions
         }, BattleAtbMode.TurnBased);
-        return new(session, (_, _) => { }, () => { }, () => { });
+        return new(session, (_, _) => { }, () => { }, () => { }, readPresentationUi: BattleHudTestPresentation.Visible);
     }
 }

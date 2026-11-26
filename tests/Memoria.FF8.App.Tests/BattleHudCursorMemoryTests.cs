@@ -1,3 +1,4 @@
+using Memoria.FF8.Assets;
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Runtime;
 using Memoria.FF8.Ui;
@@ -44,15 +45,19 @@ public sealed class BattleHudCursorMemoryTests
         Assert.Equal(ability, command.Ability);
         Assert.False(command.DrawCast);
         Assert.Null(command.DrawCastTargetId);
-        BattleAttackCommand queued = Assert.Single(battle.QueuedActions);
+        BattleAttackCommand queued = ability == BattleAbility.GuardianForce ? Assert.Single(battle.GuardianForceCasts).Command : Assert.Single(battle.QueuedActions);
         Assert.Equal(ability, queued.Ability);
         Assert.Equal("enemy", queued.TargetId);
         Assert.False(queued.DrawCast);
         if (ability is BattleAbility.Magic or BattleAbility.Item)
         {
             BattleSession restored = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(battle.Capture()));
-            restored.Tick();
-            Assert.NotNull(restored.ActiveAction);
+            BattleAttackCommand restoredCommand = Assert.Single(restored.QueuedActions);
+            Assert.Equal(queued.Ability, restoredCommand.Ability);
+            Assert.Equal(queued.ActionId, restoredCommand.ActionId);
+            Assert.Equal(queued.TargetId, restoredCommand.TargetId);
+            Assert.False(restoredCommand.DrawCast);
+            Assert.Null(restoredCommand.DrawCastTargetId);
         }
     }
 
@@ -134,6 +139,7 @@ public sealed class BattleHudCursorMemoryTests
         Assert.Equal(1, hud.SelectedAction!.Id);
         hud.Navigate(MenuInput.Cancel);
         OpenCommand(hud, BattleAbility.GuardianForce);
+        Assert.Equal(new[] { "First GF", "Second GF" }, hud.ChoiceLabels);
         Assert.Equal(2, hud.SelectedAction!.Id);
     }
 
@@ -205,23 +211,21 @@ public sealed class BattleHudCursorMemoryTests
     [Fact]
     public void RealQueuedActionKeepsMemoryWithItsSubmittingActorThroughHandoff()
     {
-        BattleSession battle = Create();
+        using GameAssets game = new(TestResources.GameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        BattleActionDefinition[] spells = [.. assets.ActionDefinitions.Where(action => action.Ability == BattleAbility.Magic && action.Id is 1 or 2).OrderBy(action => action.Id)];
+        BattleSession battle = CreateHosted(game, assets, spells);
         BattleHudController hud = Hud(battle, input => battle.QueueAction(input.ActorId!, input.TargetId!, input.Ability, input.ActionId));
         Submit(hud, BattleAbility.Magic, 1);
         hud.BuildView();
         Assert.Equal("second", hud.SelectedActor!.Id);
         Assert.Equal(BattleAbility.Attack, hud.SelectedCommand);
-        for (int frame = 0; frame < 25; frame++)
-        {
-            battle.Tick();
-        }
-        Assert.Equal(9, battle.Combatants.Single(actor => actor.Id == "first").MagicStocks.Single(stock => stock.Id == 2).Count);
-        battle.AdvanceTurn();
-        Assert.Contains(battle.ReadyPlayerCommandOrder, actor => actor.Id == "first");
+        WaitForNextCommand(battle);
+        Assert.Equal(9, battle.Combatants.Single(actor => actor.Id == "first").MagicStocks.Single(stock => stock.Id == spells[1].Id).Count);
         hud.SelectParty("first");
         Assert.Equal(BattleAbility.Magic, hud.SelectedCommand);
         hud.Navigate(MenuInput.Confirm);
-        Assert.Equal(2, hud.SelectedAction!.Id);
+        Assert.Equal(spells[1].Id, hud.SelectedAction!.Id);
     }
 
     [Fact]
@@ -258,30 +262,24 @@ public sealed class BattleHudCursorMemoryTests
     [Fact]
     public void DepletedAcceptedItemFallsBackToFirstRemainingChoiceAndNavigatesFromIt()
     {
-        BattleSession battle = Create(definition => definition with
-        {
-            Items = [new(1, 10), new(2, 1), new(3, 10)],
-            ActionDefinitions = [.. definition.ActionDefinitions, new(BattleAbility.Item, 3, "Third item", BattleActionEffect.Damage, 10, false)]
-        });
+        using GameAssets game = new(TestResources.GameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        BattleActionDefinition[] items = [.. assets.ActionDefinitions.Where(action => action.Ability == BattleAbility.Item && action.Available && !action.Allies && action.NativeAction is { AttackType: 2, Power: > 0 } native && ExpandedBattleActionRules.SupportsPlayerAction(action.Ability, native)).OrderBy(action => action.Id).Take(3)];
+        BattleSession battle = CreateHosted(game, assets, items);
         BattleHudController hud = Hud(battle, input => battle.QueueAction(input.ActorId!, input.TargetId!, input.Ability, input.ActionId));
         Submit(hud, BattleAbility.Item, 1);
-        Assert.DoesNotContain(battle.Items, stock => stock.Id == 2);
-        for (int frame = 0; frame < 25; frame++)
-        {
-            battle.Tick();
-        }
-        battle.AdvanceTurn();
-        Assert.Contains(battle.ReadyPlayerCommandOrder, actor => actor.Id == "first");
+        Assert.DoesNotContain(battle.Items, stock => stock.Id == items[1].Id);
+        WaitForNextCommand(battle);
         hud.SelectParty("first");
         OpenCommand(hud, BattleAbility.Item);
-        Assert.Equal(new[] { "First item", "Third item" }, hud.ChoiceLabels);
-        Assert.Equal(1, hud.SelectedAction!.Id);
+        Assert.Equal(new[] { items[0].Name, items[2].Name }, hud.ChoiceLabels);
+        Assert.Equal(items[0].Id, hud.SelectedAction!.Id);
         Assert.Equal(0, hud.ChoiceIndex);
         hud.Navigate(MenuInput.Down);
-        Assert.Equal(3, hud.SelectedAction!.Id);
+        Assert.Equal(items[2].Id, hud.SelectedAction!.Id);
         Assert.Equal(1, hud.ChoiceIndex);
         hud.Navigate(MenuInput.Up);
-        Assert.Equal(1, hud.SelectedAction!.Id);
+        Assert.Equal(items[0].Id, hud.SelectedAction!.Id);
         Assert.Equal(0, hud.ChoiceIndex);
     }
 
@@ -308,13 +306,14 @@ public sealed class BattleHudCursorMemoryTests
 
     private static BattleHudController Hud(BattleSession battle, Action<BattleInput> execute)
     {
-        return new(battle, (_, _) => { }, () => { }, () => { }, execute: execute) { CursorMemory = true };
+        return new(battle, (_, _) => { }, () => { }, () => { }, execute: execute, readPresentationUi: BattleHudTestPresentation.Visible) { CursorMemory = true };
     }
 
     private static void OpenCommand(BattleHudController hud, BattleAbility command)
     {
         hud.Choose(hud.Commands.ToList().IndexOf(command));
         Assert.True(hud.SelectingAction);
+        Assert.Equal(command, hud.SelectedCommand);
     }
 
     private static void OpenDraw(BattleHudController hud)
@@ -347,7 +346,8 @@ public sealed class BattleHudCursorMemoryTests
             Speed = 100,
             Abilities = [BattleAbility.Attack, BattleAbility.Magic, BattleAbility.Item, BattleAbility.GuardianForce, BattleAbility.Draw],
             MagicStocks = [new(1, 10), new(2, 10)],
-            EquipmentIds = [1, 2]
+            EquipmentIds = [1, 2],
+            GuardianForceCompatibility = new ushort[16]
         };
         BattleDefinition definition = new()
         {
@@ -358,17 +358,62 @@ public sealed class BattleHudCursorMemoryTests
                 new() { Id = "enemy", Name = "Enemy", MaximumHp = 10000, CurrentHp = 10000, Speed = 1, NativeDrawSlots = [new(1, 0), new(2, 0), new(0, 0), new(0, 0)] }
             ],
             Items = [new(1, 10), new(2, 10)],
+            NativeBattleSpeed = 0,
+            NativeKnownMagic = BattleHudTestActions.KnownMagic,
             GuardianForces = [new(1, 1000, 1000, true), new(2, 1000, 1000, true)],
             ActionDefinitions =
             [
-                new(BattleAbility.Magic, 1, "Fire", BattleActionEffect.Damage, 10, false),
-                new(BattleAbility.Magic, 2, "Blizzard", BattleActionEffect.Damage, 10, false),
-                new(BattleAbility.Item, 1, "First item", BattleActionEffect.Damage, 10, false),
-                new(BattleAbility.Item, 2, "Second item", BattleActionEffect.Damage, 10, false),
-                new(BattleAbility.GuardianForce, 1, "First GF", BattleActionEffect.Damage, 10, false),
-                new(BattleAbility.GuardianForce, 2, "Second GF", BattleActionEffect.Damage, 10, false)
+                BattleHudTestActions.WithNativeRecord(new(BattleAbility.Magic, 1, "Fire", BattleActionEffect.Damage, 10, false)),
+                BattleHudTestActions.WithNativeRecord(new(BattleAbility.Magic, 2, "Blizzard", BattleActionEffect.Damage, 10, false)),
+                BattleHudTestActions.WithNativeRecord(new(BattleAbility.Item, 1, "First item", BattleActionEffect.Damage, 10, false)),
+                BattleHudTestActions.WithNativeRecord(new(BattleAbility.Item, 2, "Second item", BattleActionEffect.Damage, 10, false)),
+                BattleHudTestActions.WithNativeRecord(new(BattleAbility.GuardianForce, 1, "First GF", BattleActionEffect.Damage, 10, false, AllTargets: true)),
+                BattleHudTestActions.WithNativeRecord(new(BattleAbility.GuardianForce, 2, "Second GF", BattleActionEffect.Damage, 10, false, AllTargets: true))
             ]
         };
         return new(transform is null ? definition : transform(definition), BattleAtbMode.TurnBased);
+    }
+
+    private static BattleSession CreateHosted(GameAssets game, BattleAssets assets, BattleActionDefinition[] actions)
+    {
+        Assert.InRange(actions.Length, 2, 3);
+        BattleDefinition source = NativeBattleTestDefinitions.CreateTargetGuardianDefinition(game, assets, 2, 201, out _);
+        NativeCharacterVitals vitals = game.ReadNewGameCharacterVitals();
+        BattleStock[] magic = actions.Where(action => action.Ability == BattleAbility.Magic).Select(action => new BattleStock(action.Id, 10)).ToArray();
+        BattleStock[] items = actions.Where(action => action.Ability == BattleAbility.Item).Select((action, index) => new BattleStock(action.Id, index == 1 ? 1 : 10)).ToArray();
+        BattleCombatantDefinition first = source.Combatants[0] with { Id = "first", Speed = 100, Abilities = [BattleAbility.Attack, actions[0].Ability], MagicStocks = magic, EquipmentIds = [] };
+        BattleCombatantDefinition second = first with { Id = "second", Name = "Quistis", ModelId = 3, WeaponId = vitals.Records[3].Weapon, NativeAttack = assets.ReadPlayerNativeAttackData(vitals, 3) };
+        BattleCombatantDefinition enemy = source.Combatants[1] with { NativeCombatantFlags = 8 };
+        BattleCombatantDefinition[] actors = [first, second, enemy];
+        BattleDefinition definition = source with
+        {
+            Combatants = actors,
+            ActionDefinitions = actions,
+            Items = items,
+            GuardianForces = [],
+            NativeEffectCatalog = game.ReadNativeEffectCatalogForEffects(actions.Select(action => action.NativeAction!.MagicId).Distinct().ToArray())
+        };
+        NativeBattleGraphicsDefinition graphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), assets.LoadEncounter(definition.EncounterId!.Value));
+        BattleSession battle = NativeBattleTypedFixture.CreateBattle(definition, BattleAtbMode.TurnBased, graphics);
+        for (int frame = 0; frame < 400 && (!battle.CanChoosePlayerCommand("first") || !battle.CanChoosePlayerCommand("second")); frame++)
+        {
+            battle.Tick();
+        }
+        Assert.True(battle.CanChoosePlayerCommand("first"));
+        Assert.True(battle.CanChoosePlayerCommand("second"));
+        return battle;
+    }
+
+    private static void WaitForNextCommand(BattleSession battle)
+    {
+        for (int frame = 0; frame < 1200 && !battle.CanChoosePlayerCommand("first"); frame++)
+        {
+            if (battle.ActiveAction is null && battle.QueuedActions.Count == 0 && battle.CanChoosePlayerCommand("second"))
+            {
+                battle.AdvanceTurn();
+            }
+            battle.Tick();
+        }
+        Assert.True(battle.CanChoosePlayerCommand("first"));
     }
 }

@@ -135,8 +135,9 @@ public sealed class BattleDrawLayoutTests
                 new() { Id = "party", Name = "Caster", IsPlayer = true, InitialAtb = BattleSession.AtbMaximum, Magic = 100, Abilities = [BattleAbility.Draw] },
                 .. Enumerable.Range(0, (count + 3) / 4).Select(enemy => new BattleCombatantDefinition { Id = $"enemy{enemy}", Name = "Enemy", NativeDrawSlots = Enumerable.Range(0, 4).Select(slot => new NativeBattleDrawSlot((byte)(enemy * 4 + slot < count ? enemy * 4 + slot + 1 : 0), 0)).ToArray() })
             ],
-            ActionDefinitions = Enumerable.Range(1, count).Select(id => new BattleActionDefinition(BattleAbility.Magic, id, $"Spell{id}", BattleActionEffect.Damage, 10, false)).ToArray()
+            NativeKnownMagic = BattleHudTestActions.KnownMagic,
+            ActionDefinitions = Enumerable.Range(1, count).Select(id => BattleHudTestActions.WithNativeRecord(new(BattleAbility.Magic, id, $"Spell{id}", BattleActionEffect.Damage, 10, false))).ToArray()
         }, BattleAtbMode.TurnBased);
-        return new(session, (_, _) => { }, () => { }, () => { }, execute: submitted.Add);
+        return new(session, (_, _) => { }, () => { }, () => { }, execute: submitted.Add, readPresentationUi: BattleHudTestPresentation.Visible);
     }
 }
