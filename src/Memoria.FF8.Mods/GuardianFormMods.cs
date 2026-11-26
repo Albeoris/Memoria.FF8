@@ -189,7 +189,7 @@ public sealed class GuardianFormMods
 
     private static void ValidateAction(BattleGuardianFormActionBinding action)
     {
-        if ((uint)action.Action >= 0x100 || string.IsNullOrWhiteSpace(action.Name) || !Enum.IsDefined(action.Source) ||
+        if ((uint)action.Action >= 0x100 || string.IsNullOrWhiteSpace(action.Name) || action.LabelKey is not null && string.IsNullOrWhiteSpace(action.LabelKey) || !Enum.IsDefined(action.Source) ||
             !Enum.IsDefined(action.Role) || !Enum.IsDefined(action.Target) || !Enum.IsDefined(action.Cost) ||
             action.ResourceActionId is < 0 or > ushort.MaxValue || action.Sequence == 0 || action.Power is < 0 or > byte.MaxValue ||
             action.PresentedModels.IsDefault || action.PresentedModels.Any(id => !IsIdentifier(id)) || action.PresentedModels.Distinct(StringComparer.Ordinal).Count() != action.PresentedModels.Length ||

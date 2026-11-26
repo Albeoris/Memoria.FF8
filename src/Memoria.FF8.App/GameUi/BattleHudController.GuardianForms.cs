@@ -35,13 +35,13 @@ public sealed partial class BattleHudController
             string name = definition.DisplayName ?? definition.Name;
             return FormatBattleText(localizedCommandName?.Invoke(native, name) ?? name);
         }
-        return (BattleGuardianFormAction)command.Id switch
+        if (command.LabelKey is { } labelKey)
         {
-            BattleGuardianFormAction.Attack => SystemText("battle.ui.guardianformcommandlabel.attack", definition.Name),
-            BattleGuardianFormAction.HeavyStrike => SystemText("battle.ui.guardianformcommandlabel.heavy.strike", definition.Name),
-            _ when definition.Ability == BattleAbility.GuardianForce => ChoiceLabel(definition with { Name = definition.NativeAction?.Name ?? definition.Name, DisplayName = null }),
-            _ => ChoiceLabel(definition)
-        };
+            return SystemText(labelKey, definition.Name);
+        }
+        return definition.Ability == BattleAbility.GuardianForce
+            ? ChoiceLabel(definition with { Name = definition.NativeAction?.Name ?? definition.Name, DisplayName = null })
+            : ChoiceLabel(definition);
     }
 
     public bool CanOpenGuardianFormActions(BattleActionDefinition action)

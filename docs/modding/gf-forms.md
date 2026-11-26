@@ -8,7 +8,7 @@ The file has `version: 1` and a `variants` array. Each entry has a `profile` and
 
 | Property | Meaning |
 | --- | --- |
-| `profileId`, `variantId` | Stable lowercase identifiers of up to 64 characters using letters, digits and hyphens. Use a distinct `variantId` for each selectable body across enabled packages. |
+| `profileId`, `variantId` | Stable lowercase identifiers of up to 64 characters using letters, digits and hyphens. All variants of one GF share its `profileId`. Use a distinct `variantId` for each selectable body across enabled packages. A GF supports up to 256 variants. |
 | `guardianForceId`, `modelId` | Native GF index 0–15 and installed enemy-model index 0–239. The model must provide supported graphics, defenses and sequences. |
 | `name` | Display name. Set `useInstalledModelName` for the installed model name or `useGuardianForceName` for the player's saved GF name. |
 | `lifetimeTicks` | Active lifetime in battle-clock ticks, from 1 to 65,535. |
@@ -33,6 +33,7 @@ A package can supply multiple body variants for the same GF. Each entrant owns o
 | `role` | `Attack`, `Spell`, `Recovery`, `Special` or `Finisher`. |
 | `target` | `Native` uses the row's native targeting. `SingleEnemy`, `Self` and `AllEnemies` are relative to the actor. |
 | `cost` | `Native` is the default. `Innate` makes a form spell independent of stocked magic. The actor still spends its turn. |
+| `labelKey` | Optional battle UI localization key for an innate command. Its authored name is the fallback. |
 | `power` | Optional replacement power from 0 through 255 for a physical or native action. `nativeIdentity.power` still checks the original installed value. |
 | `oncePerInvocation`, `requiresGrounded`, `requiresFullAtb` | Admission conditions, each off by default. |
 | `presentedModels` | For native paired effect 258, two variant IDs belonging to the same GF, including the active body. The pair must bind the two native body roles, enemy models 62 and 63. |

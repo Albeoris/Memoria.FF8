@@ -100,6 +100,10 @@ public sealed partial class BattleSession
             return;
         }
         BattleCombatant actor = candidate.GetActor(owner.ActorId);
+        if (candidate.expandedPartyReadyStatusMirrors is { } mirrors)
+        {
+            candidate.expandedPartyReadyStatusMirrors = mirrors.SetItem(actor.Id, actor.NativePresentationStatus);
+        }
         const uint callback = 0x47DE70;
         BattleNativeAction action = candidate.FindAction(BattleAbility.GuardianForce, owner.GuardianForceId).NativeAction!;
         BattleActionPresentation entry = new(owner.ActorId, owner.ActorId, BattleActionPhase.Recovery, SelectBattleTarget(actor), BattleAbility.GuardianForce, owner.GuardianForceId)
@@ -134,6 +138,7 @@ public sealed partial class BattleSession
         BattleSession candidate = Restore(before);
         candidate.stagingExpandedHostedGuardianForms = true;
         candidate.expandedPartyPresentation = expandedPartyPresentation;
+        candidate.expandedPartyReadyStatusMirrors = expandedPartyReadyStatusMirrors;
         candidate.preparedResolutionObservations = DiagnosticResolution is null ? null : [];
         return candidate;
     }

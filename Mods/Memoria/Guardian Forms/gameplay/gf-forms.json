@@ -22,8 +22,8 @@
         ]
       },
       "actions": [
-        {"action": "Attack", "name": "Attack", "source": "Physical", "resourceActionId": 79, "sequence": 12, "role": "Attack", "target": "SingleEnemy", "nativeIdentity": {"attackType": 1, "power": 14, "effectId": 0, "element": 0}, "requirePrototypeBinding": true},
-        {"action": "HeavyStrike", "name": "Heavy Strike", "source": "Physical", "resourceActionId": 59, "sequence": 12, "role": "Attack", "target": "SingleEnemy", "nativeIdentity": {"attackType": 1, "power": 20, "effectId": 0, "element": 0}, "requirePrototypeBinding": true},
+        {"action": "Attack", "name": "Attack", "labelKey": "battle.ui.guardianformcommandlabel.attack", "source": "Physical", "resourceActionId": 79, "sequence": 12, "role": "Attack", "target": "SingleEnemy", "nativeIdentity": {"attackType": 1, "power": 14, "effectId": 0, "element": 0}, "requirePrototypeBinding": true},
+        {"action": "HeavyStrike", "name": "Heavy Strike", "labelKey": "battle.ui.guardianformcommandlabel.heavy.strike", "source": "Physical", "resourceActionId": 59, "sequence": 12, "role": "Attack", "target": "SingleEnemy", "nativeIdentity": {"attackType": 1, "power": 20, "effectId": 0, "element": 0}, "requirePrototypeBinding": true},
         {"action": "Fire", "name": "Fire", "source": "Magic", "resourceActionId": 1, "sequence": 11, "role": "Spell", "target": "Native", "nativeIdentity": {"attackType": 2, "power": 18, "effectId": 2, "element": 1}, "cost": "Innate", "requirePrototypeBinding": true},
         {"action": "Fira", "name": "Fira", "source": "Magic", "resourceActionId": 2, "sequence": 11, "role": "Spell", "target": "Native", "nativeIdentity": {"attackType": 2, "power": 24, "effectId": 142, "element": 1}, "cost": "Innate"},
         {"action": "Firaga", "name": "Firaga", "source": "Magic", "resourceActionId": 3, "sequence": 11, "role": "Spell", "target": "Native", "nativeIdentity": {"attackType": 2, "power": 35, "effectId": 143, "element": 1}, "cost": "Innate"},
@@ -52,9 +52,9 @@
         ]
       },
       "actions": [
-        {"action": "SacredAttack", "name": "Attack", "source": "Physical", "resourceActionId": 2, "sequence": 12, "role": "Attack", "target": "SingleEnemy", "nativeIdentity": {"attackType": 1, "power": 16, "effectId": 0, "element": 0}, "requirePrototypeBinding": true},
-        {"action": "SacredHeavyStrike", "name": "Heavy Strike", "source": "Physical", "resourceActionId": 2, "sequence": 12, "role": "Attack", "target": "SingleEnemy", "nativeIdentity": {"attackType": 1, "power": 16, "effectId": 0, "element": 0}, "requirePrototypeBinding": true, "power": 20},
-        {"action": "SacredMasterStrike", "name": "Heavy Strike", "source": "Physical", "resourceActionId": 2, "sequence": 12, "role": "Attack", "target": "SingleEnemy", "nativeIdentity": {"attackType": 1, "power": 16, "effectId": 0, "element": 0}, "requirePrototypeBinding": true, "power": 24},
+        {"action": "SacredAttack", "name": "Attack", "labelKey": "battle.ui.guardianformcommandlabel.attack", "source": "Physical", "resourceActionId": 2, "sequence": 12, "role": "Attack", "target": "SingleEnemy", "nativeIdentity": {"attackType": 1, "power": 16, "effectId": 0, "element": 0}, "requirePrototypeBinding": true},
+        {"action": "SacredHeavyStrike", "name": "Heavy Strike", "labelKey": "battle.ui.guardianformcommandlabel.heavy.strike", "source": "Physical", "resourceActionId": 2, "sequence": 12, "role": "Attack", "target": "SingleEnemy", "nativeIdentity": {"attackType": 1, "power": 16, "effectId": 0, "element": 0}, "requirePrototypeBinding": true, "power": 20},
+        {"action": "SacredMasterStrike", "name": "Heavy Strike", "labelKey": "battle.ui.guardianformcommandlabel.heavy.strike", "source": "Physical", "resourceActionId": 2, "sequence": 12, "role": "Attack", "target": "SingleEnemy", "nativeIdentity": {"attackType": 1, "power": 16, "effectId": 0, "element": 0}, "requirePrototypeBinding": true, "power": 24},
         {"action": "SacredMend", "name": "Mend", "source": "Native", "resourceActionId": 212, "sequence": 17, "role": "Recovery", "target": "Self", "nativeIdentity": {"attackType": 3, "power": 5, "effectId": 1, "element": 0}, "oncePerInvocation": true, "requiresGrounded": true, "requirePrototypeBinding": true},
         {"action": "MadCowSpecial", "name": "Mad Cow Special", "source": "Native", "resourceActionId": 213, "sequence": 14, "role": "Special", "target": "AllEnemies", "nativeIdentity": {"attackType": 2, "power": 32, "effectId": 258, "element": 8}, "oncePerInvocation": true, "requiresFullAtb": true, "requirePrototypeBinding": true, "presentedModels": ["sacred", "minotaur"]}
       ]
@@ -80,7 +80,7 @@
         ]
       },
       "actions": [
-        {"action": "MinotaurAttack", "name": "Attack", "source": "Physical", "resourceActionId": 2, "sequence": 12, "role": "Attack", "target": "SingleEnemy", "nativeIdentity": {"attackType": 1, "power": 16, "effectId": 0, "element": 0}, "requirePrototypeBinding": true},
+        {"action": "MinotaurAttack", "name": "Attack", "labelKey": "battle.ui.guardianformcommandlabel.attack", "source": "Physical", "resourceActionId": 2, "sequence": 12, "role": "Attack", "target": "SingleEnemy", "nativeIdentity": {"attackType": 1, "power": 16, "effectId": 0, "element": 0}, "requirePrototypeBinding": true},
         {"action": "MinotaurMower", "name": "Mower", "source": "Native", "resourceActionId": 220, "sequence": 13, "role": "Attack", "target": "AllEnemies", "nativeIdentity": {"attackType": 1, "power": 11, "effectId": 0, "element": 0}, "requirePrototypeBinding": true},
         {"action": "MinotaurHeavyMower", "name": "Mower", "source": "Native", "resourceActionId": 220, "sequence": 13, "role": "Attack", "target": "AllEnemies", "nativeIdentity": {"attackType": 1, "power": 11, "effectId": 0, "element": 0}, "requirePrototypeBinding": true, "power": 14},
         {"action": "MinotaurMend", "name": "Mend", "source": "Native", "resourceActionId": 211, "sequence": 17, "role": "Recovery", "target": "Self", "nativeIdentity": {"attackType": 3, "power": 10, "effectId": 1, "element": 0}, "oncePerInvocation": true, "requiresGrounded": true, "requirePrototypeBinding": true},

@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattlePresentationProcess
 {
-    private (NativeBattleWaterExecutionFrame Frame, NativeBattleGraphicsState Graphics) DrawNativeCinematicModel(NativeBattleWaterExecutionFrame frame, int secondFileLength, NativeBattleCinematicModelServices services, NativeBattleGraphicsState graphics, Func<NativeBattleWaterExecutionFrame, NativeBattleWaterExecutionFrame>? prepare = null)
+    private (NativeBattleWaterExecutionFrame Frame, NativeBattleGraphicsState Graphics) DrawNativeCinematicModel(NativeBattleWaterExecutionFrame frame, int secondFileLength, NativeBattleCinematicModelServices services, NativeBattleGraphicsState graphics, Func<NativeBattleWaterExecutionFrame, NativeBattleWaterExecutionFrame>? prepare = null, ReadOnlyMemory<byte>? selectedBody = null)
     {
         NativeBattleWaterSlotBank bank = NativeBattleWaterInstructionDispatcher.CurrentBank(frame, secondFileLength);
         int index = NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, bank);
@@ -39,7 +39,7 @@ public sealed partial class BattlePresentationProcess
         uint color = BinaryPrimitives.ReadUInt32LittleEndian(frame.Arena.Read(ArenaOffset(unchecked(model + 0x5C), 4), 4));
         NativeBattleModelRendererRegisters renderer = (common.ModelRendererRegisters ?? new(null, null, null, null, null)).PublishModelColor(color);
         NativeBattleSummonColors colors = this.resources.NativeGraphics!.Rules.SummonColors ?? throw new NotSupportedException("Native cinematic model requires its original color arithmetic tables.");
-        NativeBattleCinematicModelDraw drawn = NativeBattleCinematicModel.Render(frame, model, projection, colors, OtBucket, NativeBattleCinematicVisualIdentity.SelectedResource(NativeBattleCinematicVisualIdentity.Identity(graphics.OriginalEffect!.Binding.Effect, frame, bank, index) with { ResourceGeneration = graphics.OriginalEffect.Binding.Effect is 18 or 208 or 211 ? model : 0 }, model));
+        NativeBattleCinematicModelDraw drawn = NativeBattleCinematicModel.Render(frame, model, projection, colors, OtBucket, NativeBattleCinematicVisualIdentity.SelectedResource(NativeBattleCinematicVisualIdentity.Identity(graphics.OriginalEffect!.Binding.Effect, frame, bank, index) with { ResourceGeneration = graphics.OriginalEffect.Binding.Effect is 18 or 208 or 211 ? model : 0 }, model), selectedBody);
         frame = drawn.Frame;
         uint manager = CoreDword(frame, 0x27973EC);
         uint start = CoreDword(frame, unchecked(manager + 0x7C));

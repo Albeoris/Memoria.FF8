@@ -17,11 +17,22 @@ public sealed partial class BattleSession
         }
         BattleCombatant actor = GetActor(actorId);
         List<BattleGuardianFormCommand> result = [];
+        bool legacyIfrit = GuardianFormResources(form).Profile is null;
         foreach (BattleGuardianFormActionBinding binding in GetGuardianFormBindings(form))
         {
             BattleActionDefinition action = ResolveGuardianFormAction(form, binding);
             bool available = CanSelectGuardianFormInnateAction(actor, form, binding, action) && combatants.Any(target => IsGuardianFormInnateTarget(actor, target, binding, action));
-            result.Add(new((int)binding.Action, action with { Available = available }, TargetFlags: action.NativeAction?.TargetFlags));
+            string? labelKey = binding.LabelKey;
+            if (labelKey is null && legacyIfrit)
+            {
+                labelKey = binding.Action switch
+                {
+                    BattleGuardianFormAction.Attack => "battle.ui.guardianformcommandlabel.attack",
+                    BattleGuardianFormAction.HeavyStrike => "battle.ui.guardianformcommandlabel.heavy.strike",
+                    _ => null
+                };
+            }
+            result.Add(new((int)binding.Action, action with { Available = available }, TargetFlags: action.NativeAction?.TargetFlags) { LabelKey = labelKey });
         }
         foreach ((int ability, byte command) in GuardianFormLearnedCommands(form.GuardianForceId))
         {

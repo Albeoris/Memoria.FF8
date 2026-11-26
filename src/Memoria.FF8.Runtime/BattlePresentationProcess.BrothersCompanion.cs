@@ -7,7 +7,8 @@ public sealed partial class BattlePresentationProcess
     private BattleGuardianFormResources BrothersCompanionResource(NativeBattleGuardianFormPresentation form)
     {
         BattleGuardianFormResources source = GuardianFormResources(form.GuardianForceId, form.VariantId);
-        BattleGuardianFormActionBinding action = source.InnateBindings.Single(binding => binding is { Command: 8, ResourceActionId: 213, NativeIdentity.EffectId: 258 });
+        BattleGuardianFormActionBinding action = source.InnateBindings.Where(binding => binding is { Command: 8, ResourceActionId: 213, NativeIdentity.EffectId: 258 })
+            .OrderBy(binding => binding.Action).FirstOrDefault() ?? throw new InvalidDataException("Mad Cow Special requires its admitted paired visual binding.");
         string variant = action.PresentedModels.Single(model => model != form.VariantId);
         return GuardianFormResources(form.GuardianForceId, variant);
     }

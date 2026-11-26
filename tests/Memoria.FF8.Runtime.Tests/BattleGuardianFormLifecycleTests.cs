@@ -349,7 +349,7 @@ public sealed class BattleGuardianFormLifecycleTests
             Random = NativeBattleRandomState.ForecastPhase(rngPhase)
         });
         NativeBattleRandomState random = battle.Capture().Random!.Draw(out _).Draw(out _);
-        Assert.Equal(true, RunLogicalStep(battle, "ActivateGuardianFormEntry", "actor", form.InvocationId));
+        Assert.True(ActivateGuardianFormEntry(battle, "actor", form.InvocationId));
         BattleSnapshot landed = battle.Capture();
         statuses = landed.Combatants[0].NativeStatus!;
         Assert.Equal(8, statuses.Saved & 0x7F);
@@ -363,8 +363,8 @@ public sealed class BattleGuardianFormLifecycleTests
         Assert.Equal(random.Indexes.ToArray(), landed.Random.Indexes.ToArray());
 
         battle = RoundTrip(landed);
-        Assert.Equal(false, RunLogicalStep(battle, "ActivateGuardianFormEntry", "actor", form.InvocationId));
-        RunLogicalStep(battle, "ReturnGuardianForm", Actor(battle), false);
+        Assert.False(ActivateGuardianFormEntry(battle, "actor", form.InvocationId));
+        ReturnGuardianForm(battle, Actor(battle), false);
         BattleSnapshot returned = battle.Capture();
         NativeBattleStatusSnapshot afterReturn = returned.Combatants[0].NativeStatus!;
         Assert.Equal(statuses.Saved & 0x7F, afterReturn.Saved & 0x7F);
@@ -609,6 +609,12 @@ public sealed class BattleGuardianFormLifecycleTests
         Assert.Equal(93, actor.Hit);
         Assert.Equal(5, actor.Evasion);
     }
+
+    [System.Runtime.CompilerServices.UnsafeAccessor(System.Runtime.CompilerServices.UnsafeAccessorKind.Method)]
+    private static extern bool ActivateGuardianFormEntry(BattleSession battle, string actorId, long invocationId);
+
+    [System.Runtime.CompilerServices.UnsafeAccessor(System.Runtime.CompilerServices.UnsafeAccessorKind.Method)]
+    private static extern void ReturnGuardianForm(BattleSession battle, BattleCombatant actor, bool terminal);
 
     private static BattleCombatant Actor(BattleSession battle)
     {

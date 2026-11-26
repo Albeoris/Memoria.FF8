@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattlePresentationProcess
 {
-    private (NativeBattleWaterExecutionFrame Frame, NativeBattleGraphicsState Graphics) DrawNativeCinematicBrothersModel3(NativeBattleWaterExecutionFrame frame, int resourceLength, NativeBattleCinematicModelServices modelServices, NativeBattleGraphicsState graphics, bool hideModel = false)
+    private (NativeBattleWaterExecutionFrame Frame, NativeBattleGraphicsState Graphics) DrawNativeCinematicBrothersModel3(NativeBattleWaterExecutionFrame frame, int resourceLength, NativeBattleCinematicModelServices modelServices, NativeBattleGraphicsState graphics, bool hideModel = false, Func<NativeBattleWaterExecutionFrame, NativeBattleWaterExecutionFrame>? presentGesture = null, ReadOnlyMemory<byte>? finisherGeometry = null)
     {
         if (hideModel)
         {
@@ -12,7 +12,7 @@ public sealed partial class BattlePresentationProcess
         }
         NativeBattleCinematicBrothersModelServices services = new(current =>
         {
-            var primary = DrawNativeCinematicModel(current, resourceLength, modelServices, graphics, PrepareModel);
+            var primary = DrawNativeCinematicModel(current, resourceLength, modelServices, graphics, PrepareModel, finisherGeometry);
             graphics = primary.Graphics;
             return primary.Frame;
         }, (current, selector) =>
@@ -52,7 +52,12 @@ public sealed partial class BattlePresentationProcess
             {
                 throw new NotSupportedException("Native Brothers model advance requires its current callback pause binding.");
             }
-            return NativeBattleCinematicModel.PrepareDraw(current, modelServices);
+            if (finisherGeometry.HasValue)
+            {
+                current = ScaleMinotaurFinisherBody(current);
+            }
+            current = NativeBattleCinematicModel.PrepareDraw(current, modelServices);
+            return presentGesture is null ? current : presentGesture(current);
         }
     }
 }

@@ -371,7 +371,7 @@ public sealed partial class BattleSession
                 bool friendly = !magic && (NativeBattleStatusBits(actor) & 0x4000) != 0;
                 BattleCombatant[] recipients = Roster(friendly ? BattleSide.Allies : BattleSide.Enemies).Where(IsExpandedAiTarget).ToArray();
                 BattleGuardianFormActionBinding? binding = magic ? GetGuardianFormSpellBinding(form) : GetGuardianFormPhysicalBinding(form);
-                if (binding is not null && recipients.Length != 0 && (!magic || (NativeSavedStatusBits(actor) & 0x10) == 0))
+                if (binding is not null && recipients.Length != 0 && CanSelectGuardianFormInnateAction(actor, form, binding, ResolveGuardianFormAction(form, binding)))
                 {
                     QueueGuardianFormActionCore(actor, form, recipients[NextRandomByte() % recipients.Length], binding, compelled: true);
                 }

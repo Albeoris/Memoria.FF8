@@ -23,6 +23,11 @@ public static partial class NativeBattleCinematicModel
 
     public static NativeBattleCinematicModelDraw Render(NativeBattleWaterExecutionFrame frame, uint model, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, Func<uint, int> resolveOrderingTable, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
+        return Render(frame, model, projection, colors, resolveOrderingTable, pilotIdentity, null);
+    }
+
+    internal static NativeBattleCinematicModelDraw Render(NativeBattleWaterExecutionFrame frame, uint model, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, Func<uint, int> resolveOrderingTable, NativeBattlePilotVisualIdentity? pilotIdentity, ReadOnlyMemory<byte>? selectedBody)
+    {
         uint table = Dword(unchecked(model + 0x14));
         uint skeleton = Dword(table);
         uint geometry = Dword(unchecked(table + 4));
@@ -30,7 +35,7 @@ public static partial class NativeBattleCinematicModel
         {
             pilotIdentity = resourceIdentity with { ResourceGeneration = unchecked(resourceIdentity.ResourceGeneration * 397 ^ geometry) };
         }
-        int objects = unchecked((int)Dword(geometry));
+        int objects = selectedBody is { } selected ? BinaryPrimitives.ReadInt32LittleEndian(selected.Span) : unchecked((int)Dword(geometry));
         if (objects != 1)
         {
             throw new NotSupportedException($"Native cinematic embedded geometry object count {objects} requires its selected rendering contract.");
@@ -44,7 +49,7 @@ public static partial class NativeBattleCinematicModel
         ImmutableArray<ushort> counts = default;
         int facePayload = 0;
         int sourceEnd = 0;
-        ImmutableArray<NativeBattleRawMesh> meshes = NativeBattleRawGeometryReader.Read((offset, length) => frame.Arena.Read(ArenaOffset(unchecked(geometry + (uint)offset), length), length), boneCount, (_, actualCounts, payload, end) =>
+        ImmutableArray<NativeBattleRawMesh> meshes = NativeBattleRawGeometryReader.Read((offset, length) => selectedBody is { } body ? body.Span.Slice(offset, length).ToArray() : frame.Arena.Read(ArenaOffset(unchecked(geometry + (uint)offset), length), length), boneCount, (_, actualCounts, payload, end) =>
         {
             counts = actualCounts;
             facePayload = payload;

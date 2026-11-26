@@ -37,6 +37,7 @@ public enum BattleGuardianFormAction
 public sealed record BattleGuardianFormCommand(int Id, BattleActionDefinition Action, int? LearnedAbilityId = null, byte? NativeCommand = null, byte? TargetFlags = null)
 {
     internal const int LearnedAbilityOffset = 0x100;
+    public string? LabelKey { get; init; }
 }
 
 /// <summary>Small, typed profile adjustments applied to the actor's statistics.</summary>
@@ -81,6 +82,7 @@ public sealed record BattleGuardianFormActionBinding(BattleGuardianFormAction Ac
     public bool RequiresGrounded { get; init; }
     public bool RequiresFullAtb { get; init; }
     public int? Power { get; init; }
+    public string? LabelKey { get; init; }
     public byte? NativeCommand { get; init; }
     public byte? NativeCrisisLevel { get; init; }
     public BattleGuardianFormNativeIdentity? NativeIdentity { get; init; }

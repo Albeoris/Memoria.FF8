@@ -571,14 +571,6 @@ public sealed partial class BattlePresentationProcess
                     PublishNativeModuleSound((RequireWaterMemory().SummonStream ?? throw new NotSupportedException("Native cinematic volume requires its retained summon stream number.")).Play5018C0(128, (uint)(current.ReadTemporaryWord(0x14A) >> 9)));
                     return NativeBattleScriptedCommandReads.Advance(current, 2);
                 case 0x3F:
-                    if (profile.Effect == 205 && entryCaster is not null && graphics.GuardianFormPresentation is { BodyModelId: SacredBody })
-                    {
-                        return RegisterBrothersEntranceModel(current, program, resources, ModelServices(0));
-                    }
-                    if (brothersFinisher && continuation!.BodyModelId == MinotaurBody && pc - CoreDword(current, 0x2798A68) is 0x16D8 or 0x16E8)
-                    {
-                        return RegisterBrothersFinisherBody(current, program, resources, ModelServices(0));
-                    }
                     return NativeBattleCinematicModel.Register(current, program, ModelServices(0));
                 case 0x37:
                     return NativeBattleScriptedMotionReset.Execute(current, bank, UpdateSlot);
@@ -1228,10 +1220,15 @@ public sealed partial class BattlePresentationProcess
                 if (kind == 3)
                 {
                     uint model = BinaryPrimitives.ReadUInt32LittleEndian(ReadSlot(frame, 0xBC, 4));
-                    byte shapeIndex = frame.Arena.Read(ArenaOffset(unchecked(model + 8), 1), 1)[0];
+                    ushort role = BinaryPrimitives.ReadUInt16LittleEndian(frame.Arena.Read(ArenaOffset(unchecked(model + 8), 2), 2));
+                    byte shapeIndex = unchecked((byte)role);
                     uint shape = NativeBattleWaterShapeSelection.ResolveCinematic(frame, resources, shapeIndex).Selected;
+                    bool minotaurFinisherBody = brothersFinisher && continuation!.BodyModelId == MinotaurBody && role is 0x0210 or 0x0310;
                     bool hideBrother = brothersFinisher && (shapeIndex == MinotaurRitualShape || shapeIndex == SacredRitualShape && (CoreWord(frame, CoreDword(frame, 0x279744C) + 2) & 0x0E00) == 0);
-                    var drawn = selectedDrawHandler == 0xAF5810 ? DrawNativeCinematicBrothersModel3(frame, assets[1].Data.Length, ModelServices(shape), graphics, hideBrother) : DrawNativeCinematicModel(frame, assets[1].Data.Length, ModelServices(shape), graphics);
+                    bool mirrorHands = profile.Effect == 205 && entryCaster is not null && graphics.GuardianFormPresentation is { BodyModelId: SacredBody };
+                    var drawn = selectedDrawHandler == 0xAF5810
+                        ? DrawNativeCinematicBrothersModel3(frame, assets[1].Data.Length, ModelServices(shape), graphics, hideBrother, mirrorHands ? current => MirrorBrothersHands(current, assets[0], resources) : null, minotaurFinisherBody ? ReadMinotaurFinisherGeometry(resources) : (ReadOnlyMemory<byte>?)null)
+                        : DrawNativeCinematicModel(frame, assets[1].Data.Length, ModelServices(shape), graphics);
                     graphics = drawn.Graphics;
                     return drawn.Frame;
                 }
@@ -1259,10 +1256,6 @@ public sealed partial class BattlePresentationProcess
                 return selectedShape;
             }, (frame, animationAddress) =>
             {
-                if (profile.Effect == 205 && entryCaster is not null && graphics.GuardianFormPresentation is { BodyModelId: SacredBody })
-                {
-                    selectedShape = ReadBrothersEntrancePoseOwner(frame, resources, selectedShape, animationAddress);
-                }
                 uint extent = BinaryPrimitives.ReadUInt32LittleEndian(frame.Arena.Read(ArenaOffset(selectedShape, 4), 4));
                 uint relative = unchecked(animationAddress - selectedShape);
                 NativeBattleWaterScriptProgram owner = Program(frame, selectedShape);

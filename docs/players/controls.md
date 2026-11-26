@@ -62,7 +62,7 @@ Instant victory and instant defeat appear at the top of Debug Room only while a 
 | Instant victory | Unbound | Win the current battle or Triple Triad match during your turn. |
 | Instant defeat | Unbound | Lose the current battle or Triple Triad match during your turn. |
 | Battle editor | F4 | Open battle debug controls. |
-| GF animation Skip | D / left trigger (Escape battle, left) | Play only the finale of the active GF summon, including the Ifrit form finisher; preserve earned Boost, damage and statuses. |
+| GF animation Skip | D / left trigger (Escape battle, left) | Skip to the finale of a GF summon or form finisher. Earned Boost, damage and statuses are preserved. |
 | Quick save | F5 | Write the configured quick-save snapshot. |
 | Save menu | F6 | Open the player save interface. |
 | Quick load | F9 | Open the quick-save picker. |

@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
+using System.Reflection;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Mods;
 using Memoria.FF8.Runtime;
@@ -11,7 +12,9 @@ public sealed class InstalledBrothersFormTests(ITestOutputHelper output)
     private const int Ifrit = 2;
     private const int Brothers = 4;
     private const string Caster = "party-0";
+    private const ushort PoisonMask = 1 << (int)NativeStatusId.Poison;
     private static readonly int[] entranceSampleOffsets = [0, 72, 84, 96, 108];
+    private static readonly int[] madCowSampleAges = [1, 40, 64];
 
     [Fact]
     public void BothVariantsLandAndRestoreTheirInstalledForms()
@@ -25,14 +28,21 @@ public sealed class InstalledBrothersFormTests(ITestOutputHelper output)
         VerifyInstalledForms(verifyActions: true);
     }
 
-    [Theory]
-    [InlineData((ushort)22, 1)]
-    [InlineData((ushort)24, 3)]
-    public void EqualStatsFormDamageOverTheNativeLifetime(ushort formation, int enemyCount)
+    [Fact]
+    public void EqualStatsFormDamageOverTheNativeLifetimeAgainstOneEnemy()
+    {
+        MeasureRegularAttackDamage(22, 1);
+    }
+
+    [Fact]
+    public void EqualStatsFormDamageOverTheNativeLifetimeAgainstThreeEnemies()
+    {
+        MeasureRegularAttackDamage(24, 3);
+    }
+
+    private void MeasureRegularAttackDamage(ushort formation, int enemyCount)
     {
         string directory = TestResources.GameDirectory;
-        using BattleAssets assets = new(directory);
-        ImmutableArray<BattleGuardianFormResources> resources = ReadFormPackage(assets);
         var measured = new Dictionary<string, int[]>(StringComparer.Ordinal);
         (int Level, int Strength, int Speed)? commonCaster = null;
         foreach (int guardian in new[] { Ifrit, Brothers })
@@ -45,12 +55,14 @@ public sealed class InstalledBrothersFormTests(ITestOutputHelper output)
                 session.SetExamTimer(session.ExamTimer!.SetRemaining(600));
                 using GameWorld world = new(session, directory, sharedAssets: game, applyEncounterMods: (definition, _) => definition with
                 {
-                    GuardianFormResources = resources,
                     Combatants = definition.Combatants.Select(combatant => combatant.IsPlayer ? combatant : combatant with
                     {
                         NativeCombatantFlags = combatant.NativeCombatantFlags | 8,
+                        Level = 30,
                         MaximumHp = 60000,
                         CurrentHp = 60000,
+                        Defense = combatant.NativeTemplate!.Levels[30].Vitality,
+                        Evasion = combatant.NativeTemplate!.Levels[30].Evasion,
                         NativeTemplate = combatant.NativeTemplate! with { SceneLevel = 30, Levels = combatant.NativeTemplate!.Levels.Select(level => level with { MaximumHp = 60000 }).ToArray() }
                     }).ToArray()
                 });
@@ -78,6 +90,7 @@ public sealed class InstalledBrothersFormTests(ITestOutputHelper output)
                 {
                     "ifrit" => BattleGuardianFormAction.HeavyStrike,
                     "sacred" => BattleGuardianFormAction.SacredMasterStrike,
+                    "minotaur" when enemyCount == 1 => BattleGuardianFormAction.MinotaurAttack,
                     "minotaur" => BattleGuardianFormAction.MinotaurHeavyMower,
                     _ => throw new InvalidDataException($"Unexpected installed form variant '{variant}'.")
                 };
@@ -94,10 +107,11 @@ public sealed class InstalledBrothersFormTests(ITestOutputHelper output)
                     }
                     battle.Tick();
                 }
-                Assert.InRange(battle.Frame - start, form.RemainingTicks, form.RemainingTicks + 1);
+                Assert.InRange(form.RemainingTicks, 899, 900);
+                Assert.False(battle.GetGuardianForm(Caster) is { Phase: BattleGuardianFormPhase.Active, RemainingTicks: > 0 });
                 int[] damage = enemies.Select((enemy, index) => before[index] - enemy.CurrentHp).ToArray();
                 measured.Add(variant, damage);
-                output.WriteLine($"{variant}, seed {seed}, {battle.Frame - start} battle ticks, {submissions} regular actions, damage [{string.Join(", ", damage)}].");
+                output.WriteLine($"{variant}, seed {seed}, {form.RemainingTicks} form ticks over {battle.Frame - start} battle frames, {submissions} regular actions, damage [{string.Join(", ", damage)}].");
             }
         }
         Assert.Equal(new[] { "ifrit", "minotaur", "sacred" }, measured.Keys.Order().ToArray());
@@ -111,8 +125,9 @@ public sealed class InstalledBrothersFormTests(ITestOutputHelper output)
         string directory = TestResources.GameDirectory;
         using BattleAssets assets = new(directory);
         ImmutableArray<BattleGuardianFormResources> resources = ReadFormPackage(assets);
-        string? captureDirectory = verifyActions ? null : Environment.GetEnvironmentVariable("MEMORIA_FF8_BROTHERS_CAPTURE");
+        string? captureDirectory = Environment.GetEnvironmentVariable("MEMORIA_FF8_BROTHERS_CAPTURE");
         HashSet<string> tested = new(StringComparer.Ordinal);
+        Dictionary<string, InstalledBrothersGestureProof.Sample> gestureReveal = new(StringComparer.Ordinal);
         for (byte seed = 0; seed < 8 && tested.Count < 2; seed++)
         {
             using GameAssets game = new(directory);
@@ -120,7 +135,6 @@ public sealed class InstalledBrothersFormTests(ITestOutputHelper output)
             session.SetExamTimer(session.ExamTimer!.SetRemaining(600));
             using GameWorld world = new(session, directory, sharedAssets: game, applyEncounterMods: (definition, _) => definition with
             {
-                GuardianFormResources = resources,
                 Combatants = definition.Combatants.Select(combatant => combatant.IsPlayer ? combatant : combatant with { NativeCombatantFlags = combatant.NativeCombatantFlags | 8, MaximumHp = 60000, CurrentHp = 60000 }).ToArray()
             });
             ExpandedBattleInstalledEntry.Prepare(world, session, current => PrepareParty(current, Brothers), formation: 24, allies: 3, additionalEnemies: 0);
@@ -148,9 +162,14 @@ public sealed class InstalledBrothersFormTests(ITestOutputHelper output)
             BattleScenePresentation? scene = string.IsNullOrWhiteSpace(captureDirectory) ? null : new(assets, battle.ReadDefinition());
             int entranceSamples = 0;
             long? firstEntranceSample = null;
-            BattleSession? restored = verifyActions ? null : battle.ForkForContinuation();
+            BattleSession? restored = null;
+            if (!verifyActions)
+            {
+                SeedEnteringPoison(battle, caster);
+                restored = battle.ForkForContinuation();
+            }
             WaitFor(battle, () => battle.GetGuardianForm(Caster)?.Phase == BattleGuardianFormPhase.Active && battle.ActiveAction is null, observe: ObserveEntrance);
-            if (scene is not null)
+            if (scene is not null && !verifyActions)
             {
                 SaveFrame(captureDirectory!, $"{variant}-active", scene.Render(battle, 320, 224));
             }
@@ -158,6 +177,8 @@ public sealed class InstalledBrothersFormTests(ITestOutputHelper output)
             {
                 WaitFor(restored, () => restored.GetGuardianForm(Caster)?.Phase == BattleGuardianFormPhase.Active && restored.ActiveAction is null);
                 Assert.Equal(battle.GetGuardianForm(Caster), restored.GetGuardianForm(Caster));
+                AssertPoisonClearedAtLanding(battle);
+                AssertPoisonClearedAtLanding(restored);
             }
             Assert.Equal(variant, battle.GetGuardianForm(Caster)!.VariantId);
             BattleGuardianFormResources expected = Assert.Single(resources, item => item.VariantId == variant);
@@ -207,6 +228,8 @@ public sealed class InstalledBrothersFormTests(ITestOutputHelper output)
             enemies[2].CurrentHp = Math.Max(1, enemies[2].MaximumHp / 2);
             BattleSession? companionFork = null;
             bool verifiedCompanionResume = false;
+            bool drewCompanion = false;
+            int madCowFrames = 0;
             int[] madCow = RunAction(battle, caster, enemies, BattleGuardianFormAction.MadCowSpecial, observe: () =>
             {
                 NativeBattleGuardianFormPresentation? visual = process.Graphics.GuardianFormPresentation;
@@ -224,26 +247,58 @@ public sealed class InstalledBrothersFormTests(ITestOutputHelper output)
                 {
                     Assert.False(process.Graphics.ActorModels.TryGet(companion, out _));
                     companionFork ??= battle.ForkForContinuation();
+                    bool submittedCompanion = process.Graphics.PrimitiveFrame is { } frame && frame.LastCommands.Any(packet => packet.Command.PresentationActorId == companion.Presentation.Key);
+                    drewCompanion |= submittedCompanion;
+                    if (scene is not null && submittedCompanion && madCowFrames < madCowSampleAges.Length && visual.CompanionAge >= madCowSampleAges[madCowFrames])
+                    {
+                        SaveFrame(captureDirectory!, $"{variant}-mad-cow-{visual.CompanionAge:D3}", scene.Render(battle, 320, 224));
+                        madCowFrames++;
+                    }
                 }
                 Assert.Equal(roster, battle.Combatants.Select(actor => actor.Id));
             });
             Assert.True(verifiedCompanionResume);
+            Assert.True(drewCompanion);
+            Assert.Equal(BattleGuardianFormPhase.Active, battle.GetGuardianForm(Caster)?.Phase);
+            Assert.Null(process.Graphics.GuardianFormPresentation!.Companion);
+            Assert.Equal(roster, battle.Combatants.Select(actor => actor.Id));
+            Assert.True(scene is null || madCowFrames > 0);
             Assert.True(madCow[0] > 0);
             Assert.Equal(0, madCow[1]);
             Assert.True(madCow[2] < 0);
             Assert.False(Assert.Single(battle.GetGuardianFormCommands(Caster), command => command.Id == (int)BattleGuardianFormAction.MadCowSpecial).Action.Available);
 
-            int[] finisher = RunAction(battle, caster, enemies, BattleGuardianFormAction.BrotherlyLove);
+            BattleSession? skipped = null;
+            int finisherStartedAt = battle.Events.Count;
+            int[] finisher = RunAction(battle, caster, enemies, BattleGuardianFormAction.BrotherlyLove, observe: () =>
+            {
+                if (sacred && skipped is null && battle.CanSkipGuardianFormFinisher)
+                {
+                    skipped = battle.ForkForContinuation();
+                    Assert.True(skipped.SkipGuardianFormFinisher());
+                }
+            });
             Assert.Contains(finisher, damage => damage > 0);
             WaitFor(battle, () => battle.GetGuardianForm(Caster) is null);
             Assert.Null(battle.GetGuardianForm(Caster));
             Assert.Equal(humanHp, caster.CurrentHp);
             Assert.Equal(nativeModel, process.Graphics.ActorModels.Get(owner).ModelId4);
             Assert.Equal(roster, battle.Combatants.Select(actor => actor.Id));
+            if (sacred)
+            {
+                BattleSession skippedBattle = Assert.IsType<BattleSession>(skipped);
+                WaitFor(skippedBattle, () => skippedBattle.GetGuardianForm(Caster) is null);
+                Assert.Equal(battle.Combatants.Select(actor => (actor.Id, actor.CurrentHp)), skippedBattle.Combatants.Select(actor => (actor.Id, actor.CurrentHp)));
+                Assert.Equal(nativeModel, skippedBattle.Presentation!.Graphics.ActorModels.Get(owner).ModelId4);
+                Assert.Equal(DamageReceipts(battle), DamageReceipts(skippedBattle));
+            }
+
+            (string? Target, int Amount)[] DamageReceipts(BattleSession branch) => branch.Events.Skip(finisherStartedAt)
+                .Where(entry => entry is { Kind: "Damage", ActorId: Caster }).Select(entry => (entry.TargetId, entry.Amount)).ToArray();
 
             void ObserveEntrance()
             {
-                if (scene is null || entranceSamples == entranceSampleOffsets.Length ||
+                if (verifyActions ||
                     process.Graphics.OriginalEffect is not { RequestedEffect: 205, ReturnedDescriptor: > 0 } || process.Memory.ScriptedEffects is not { } core)
                 {
                     return;
@@ -256,7 +311,11 @@ public sealed class InstalledBrothersFormTests(ITestOutputHelper output)
                 }
                 firstEntranceSample ??= process.Graphics.Callback;
                 long offset = process.Graphics.Callback - firstEntranceSample.Value;
-                if (offset < entranceSampleOffsets[entranceSamples])
+                if (offset == 84 && !gestureReveal.ContainsKey(variant))
+                {
+                    gestureReveal.Add(variant, InstalledBrothersGestureProof.Capture(process));
+                }
+                if (scene is null || entranceSamples == entranceSampleOffsets.Length || offset < entranceSampleOffsets[entranceSamples])
                 {
                     return;
                 }
@@ -266,6 +325,11 @@ public sealed class InstalledBrothersFormTests(ITestOutputHelper output)
         }
 
         Assert.Equal(new[] { "minotaur", "sacred" }, tested.Order().ToArray());
+        if (!verifyActions)
+        {
+            Assert.Equal(new[] { "minotaur", "sacred" }, gestureReveal.Keys.Order().ToArray());
+            InstalledBrothersGestureProof.AssertSwitched(gestureReveal["minotaur"], gestureReveal["sacred"]);
+        }
     }
 
     private static ImmutableArray<BattleGuardianFormResources> ReadFormPackage(BattleAssets assets)
@@ -273,6 +337,26 @@ public sealed class InstalledBrothersFormTests(ITestOutputHelper output)
         string path = Path.Combine(AppContext.BaseDirectory, "BundledMods", "Memoria", "Guardian Forms", "gameplay", "gf-forms.json");
         GuardianFormModDocument package = GuardianFormMods.Parse(File.ReadAllBytes(path));
         return package.Variants.Select(variant => assets.ReadGuardianFormResources(variant.Profile, variant.Actions.Add(variant.Profile.Finisher))).ToImmutableArray();
+    }
+
+    private static void SeedEnteringPoison(BattleSession battle, BattleCombatant caster)
+    {
+        const BindingFlags instance = BindingFlags.Instance | BindingFlags.NonPublic;
+        ImmutableDictionary<string, NativeBattleStatusMirror> mirrors = battle.CaptureForContinuation().LogicalContinuation!.PartyReadyStatuses!;
+        caster.NativeStatus0 |= PoisonMask;
+        typeof(BattleSession).GetMethod("RefreshNativePresentationStatus", instance)!.Invoke(battle, [caster]);
+        NativeBattleStatusMirror poisoned = caster.NativePresentationStatus;
+        typeof(BattleSession).GetField("expandedPartyReadyStatusMirrors", instance)!.SetValue(battle, mirrors.SetItem(Caster, poisoned));
+        Assert.Equal((int)PoisonMask, poisoned.Saved!.Value & PoisonMask);
+    }
+
+    private static void AssertPoisonClearedAtLanding(BattleSession battle)
+    {
+        BattleSnapshot continuation = battle.CaptureForContinuation();
+        NativeBattleStatusSnapshot status = Assert.Single(continuation.Combatants, actor => actor.Id == Caster).NativeStatus!;
+        Assert.Equal(0, status.Saved & PoisonMask);
+        Assert.Equal(0, status.Presentation.Saved!.Value & PoisonMask);
+        Assert.Equal(0, continuation.LogicalContinuation!.PartyReadyStatuses![Caster].Saved!.Value & PoisonMask);
     }
 
     private static void PrepareParty(GameSession session, int guardian)
