@@ -23,7 +23,7 @@ public sealed partial class BattlePresentationProcess
         {
             return graphics;
         }
-        bool active = facts is { Phase: BattleGuardianFormPhase.Active, Form: { } owner } && owner.Actor == presentation.Actor && owner.InvocationId == presentation.InvocationId;
+        bool active = facts is { Phase: BattleGuardianFormPhase.Active, Form: { } owner } && owner.Actor == presentation.Actor && owner.InvocationId == presentation.InvocationId && owner.VariantId == presentation.VariantId;
         if (!active)
         {
             return graphics;

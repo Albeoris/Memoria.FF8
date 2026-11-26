@@ -83,9 +83,13 @@ public sealed partial class BattlePresentationProcess
 
     private NativeBattleGraphicsResource? ReadStandingPresentationModelResource(NativeBattleGraphicsState graphics, BattleModelOwner owner)
     {
-        if (graphics.GuardianFormPresentation is { Actor: var caster } && caster == owner && graphics.ActorModels.Get(owner).ModelId4 == 77)
+        if (graphics.GuardianFormPresentation is { } form && form.Actor == owner && graphics.ActorModels.Get(owner).ModelId4 == form.BodyModelId)
         {
-            return GuardianFormResources(2).VisualResource;
+            return GuardianFormResources(form.GuardianForceId, form.VariantId).VisualResource;
+        }
+        if (graphics.GuardianFormPresentation is { Companion: { } companion } brothers && companion == owner)
+        {
+            return BrothersCompanionResource(brothers).VisualResource;
         }
         return ReadLimitPresentationBinding(owner)?.Resource ?? ReadOriginalPresentationModelResource(owner);
     }

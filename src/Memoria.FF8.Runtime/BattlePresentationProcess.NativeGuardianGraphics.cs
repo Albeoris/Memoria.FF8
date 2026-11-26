@@ -5,7 +5,8 @@ public sealed partial class BattlePresentationProcess
     /// <summary>50B2A0: the descriptor owns the phase; this context retains only the original action globals.</summary>
     private (NativeBattleGraphicsState Graphics, byte Phase, bool Complete) PollNativeGuardianGraphics(NativeBattleGraphicsState graphics, NativeBattleActionGraphicsState context, byte phase)
     {
-        if (hostedFrameServices?.GuardianForm is { Finishing: true, Form: { } form } && nativeActionPackets.ReadHeader(context.Header) is { Command: 254, Effect: 201 } finisherHeader && finisherHeader.Source == form.Actor)
+        if (hostedFrameServices?.GuardianForm is { Finishing: true, Form: { } form } && nativeActionPackets.ReadHeader(context.Header) is { Command: 254 } finisherHeader && finisherHeader.Source == form.Actor &&
+            graphics.GuardianFormPresentation is { } visual && finisherHeader.Effect == visual.CinematicEffect)
         {
             return PollGuardianFormFinisherGraphics(graphics, context, phase);
         }

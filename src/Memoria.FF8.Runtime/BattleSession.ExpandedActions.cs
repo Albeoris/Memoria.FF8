@@ -37,8 +37,9 @@ public sealed partial class BattleSession
     private void StartExpandedAction(BattleCombatant actor, BattleAttackCommand command)
     {
         command = RevalidateSmartAttack(actor, command);
-        if (command.HasGuardianFormAction && GetGuardianForm(actor.Id) is null)
+        if (command.HasGuardianFormAction && (GetGuardianForm(actor.Id) is not { } form || command.GuardianFormAction is { } action && ReadGuardianFormBinding(form, action).RequiresGrounded && HasNativeFloat(NativeBattleStatusBits(actor))))
         {
+            RefundCancelledNativeItem(command);
             actor.IsBusy = false;
             return;
         }
@@ -59,6 +60,7 @@ public sealed partial class BattleSession
         {
             command = PrepareIndependentGuardianItem(actor, command);
         }
+        command = PrepareGuardianFormTurn(actor, command);
         ActiveAction = NativeCommandPresentation(command);
         BeginNativeBattleActionPause();
         string name = command.NativeGraphic is not null ? "Native graphical effect" : command.NativeAction?.Name ?? ActionName(command.Ability, command.ActionId);
@@ -94,7 +96,7 @@ public sealed partial class BattleSession
         BattleCombatant[] recipients = ExpandedActionTargets(actor, command.TargetId, command.Ability, command.ActionId, command.TargetRequest, graphicAction ?? command.NativeAction);
         bool silencedMagic = (command.Ability == BattleAbility.Magic || command.NativeAction?.Command == 2) && (NativeSavedStatusBits(actor) & 0x10) != 0;
         if (!CanExecuteExpandedAction(actor, command.NativeAiCallbackStage, command.TargetRequest) && !CanNativeSupportCommandAct(actor, command.NativePlayerReaction) ||
-            !CanExecuteMagicReservation(actor, new(command.ActorId, command.TargetId, command.TargetRequest, command.Ability, command.ActionId) { MagicReservationId = command.MagicReservationId }, admitSilencedInvocation: true) || graphicAction is null && recipients.Length == 0)
+            !CanExecuteMagicReservation(actor, new(command.ActorId, command.TargetId, command.TargetRequest, command.Ability, command.ActionId) { MagicReservationId = command.MagicReservationId, GuardianFormAction = command.GuardianFormAction }, admitSilencedInvocation: true) || graphicAction is null && recipients.Length == 0)
         {
             if (silencedMagic && (command.FreeNativeMagic && HasNativeAngelWing(actor) || command.TargetRequest.Eligibility == BattleTargetEligibility.CompelledAction) && CanNativeBattleActorAct(actor))
             {
@@ -461,7 +463,7 @@ public sealed partial class BattleSession
         }
         if (command.GuardianFormLearnedAbility is int ability)
         {
-            return ResolveGuardianFormLearnedAction(actor, FindGuardianFormLearnedBinding(2, ability));
+            return ResolveGuardianFormLearnedAction(actor, FindGuardianFormLearnedBinding(LearnedCommandGuardian(actor, command.NativeQueuedCommand), ability), command.NativeAction);
         }
         if (command.Ability == BattleAbility.Attack)
         {

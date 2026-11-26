@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
 using Memoria.FF8.GameUi;
+using Memoria.FF8.Mods;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8;
@@ -21,12 +22,18 @@ internal sealed partial class GameWorld
     }
 
     private BattleAssets? battleAssets;
+    private GuardianFormMods? standaloneGuardianForms;
     private LiveMenuCatalog? battleCatalog;
     private BattleSession? battle;
 
     public BattleSession? Battle => battle;
     public BattleRewardSummary? LastBattleRewards { get; private set; }
     public BattleAssets BattleResources => battleAssets ??= new BattleAssets(assets.GameDirectory, resources, modelOverrides);
+
+    private ImmutableArray<BattleGuardianFormResources> ReadGuardianFormResources()
+    {
+        return modelOverrides is GameResourceHost host ? host.GuardianForms.Resources : (standaloneGuardianForms ??= InstalledGuardianForms.Read(assets, modelOverrides)).Resources;
+    }
 
     public BattleRewardSummary PreviewBattleRewards()
     {
@@ -285,7 +292,7 @@ internal sealed partial class GameWorld
             SelphieCardSlots = session.State.GameplayPreferences.SelphieCardSlots,
             DrawOncePerSpell = session.State.GameplayPreferences.DrawOncePerSpell,
             GuardianFormsEnabled = restoredDefinition?.GuardianFormsEnabled ?? session.State.GameplayPreferences.GuardianFormsEnabled,
-            GuardianFormResources = (restoredDefinition?.GuardianFormsEnabled ?? session.State.GameplayPreferences.GuardianFormsEnabled) ? [BattleResources.ReadIfritGuardianFormResources()] : [],
+            GuardianFormResources = restoredDefinition?.GuardianFormResources ?? (session.State.GameplayPreferences.GuardianFormsEnabled ? ReadGuardianFormResources() : []),
             NativeSavedOptions = (session.State.InputConfiguration ?? assets.ReadNewGameInputConfiguration()).Options,
             NativeScanNames = new Dictionary<byte, int> { [0x30] = 0, [0x34] = 1, [0x50] = GameNames.GrieverSubject }.ToDictionary(pair => pair.Key, pair => Albeoris.Games.FF8.TextEncoding.FF8Encoding.CreateEuropean(Albeoris.Games.FF8.TextEncoding.FF8TextLanguage.EN).GetBytes(Events.Scene.Names.GetValueOrDefault(pair.Value) ?? GameNames.DefaultName(pair.Value)).Append((byte)0).ToArray()),
             NativeScanActorNames = combatants.Where(actor => actor.IsPlayer).Concat(replacementCandidates.Values).DistinctBy(actor => actor.Id).ToDictionary(actor => actor.Id, actor => EncodeScanName24(actor.Name)),
@@ -427,7 +434,7 @@ internal sealed partial class GameWorld
     internal BattleDefinition BindExpandedEnemyLevels(BattleDefinition definition)
     {
         if (!definition.Combatants.Any(actor => actor.IsPlayer && actor.NativeCommands.Any(binding => binding.Command is 33 or 34)) &&
-            !HasIfritCommand(definition, 33) && !HasIfritCommand(definition, 34))
+            !HasGuardianFormCommand(definition, 33) && !HasGuardianFormCommand(definition, 34))
         {
             return definition;
         }
@@ -445,7 +452,7 @@ internal sealed partial class GameWorld
     private BattleDefinition BindExpandedEnemySpecials(BattleDefinition definition)
     {
         if (!definition.Combatants.Any(actor => actor.IsPlayer && actor.NativeCommands.Any(binding => binding.Command is 7 or 29)) &&
-            !HasIfritCommand(definition, 7) && !HasIfritCommand(definition, 29))
+            !HasGuardianFormCommand(definition, 7) && !HasGuardianFormCommand(definition, 29))
         {
             return definition;
         }
@@ -482,9 +489,10 @@ internal sealed partial class GameWorld
         };
     }
 
-    private static bool HasIfritCommand(BattleDefinition definition, byte command)
+    private static bool HasGuardianFormCommand(BattleDefinition definition, byte command)
     {
-        return definition.GuardianFormsEnabled && BattleGuardianFormProfiles.HasLearnedCommand(definition.MagicVitals, 2, command);
+        return definition.GuardianFormsEnabled && definition.GuardianFormResources.Any(resource =>
+            BattleGuardianFormProfiles.HasLearnedCommand(definition.MagicVitals, resource.GuardianForceId, command));
     }
 
     public BattleCombatantDefinition[] CreateBattleParty()

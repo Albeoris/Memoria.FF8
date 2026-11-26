@@ -8,9 +8,9 @@ public sealed partial class BattleSession
     private bool HasExpandedHostedGuardianFormEntry => (expandedPresentationProcess is not null || stagingExpandedHostedGuardianForms) &&
         guardianForms?.Values.Any(form => form.Phase == BattleGuardianFormPhase.Entering) == true;
 
-    private HostedGuardianFormVisualOwner GuardianFormVisualOwner(BattleCombatant actor, long invocation, int guardianForceId)
+    private HostedGuardianFormVisualOwner GuardianFormVisualOwner(BattleCombatant actor, long invocation, int guardianForceId, string variantId)
     {
-        return new(CreatePresentationModelOwner(actor) as BattlePartyActorModel ?? throw new InvalidDataException("GF form requires its current party owner."), actor.Id, invocation, guardianForceId);
+        return new(CreatePresentationModelOwner(actor) as BattlePartyActorModel ?? throw new InvalidDataException("GF form requires its current party owner."), actor.Id, invocation, guardianForceId, variantId);
     }
 
     private HostedGuardianFormFrameFacts CaptureExpandedHostedGuardianFormFacts()
@@ -20,7 +20,7 @@ public sealed partial class BattleSession
         {
             return new(null, null, hasAction, false);
         }
-        HostedGuardianFormVisualOwner owner = GuardianFormVisualOwner(GetActor(form.ActorId), form.InvocationId, form.GuardianForceId);
+        HostedGuardianFormVisualOwner owner = GuardianFormVisualOwner(GetActor(form.ActorId), form.InvocationId, form.GuardianForceId, GuardianFormResources(form).VariantId);
         bool finishing = expandedHostedEvent is { LogicallyComplete: false, Command.GuardianFormInvocation: { Mode: GuardianFormInvocationMode.FinisherWithoutEntry } invocation } hosted &&
             hosted.Command.ActorId == form.ActorId && invocation.Id == form.InvocationId && invocation.GuardianForceId == form.GuardianForceId &&
             ReferenceEquals(hosted.ActivePresentation, ActiveAction);
@@ -35,14 +35,33 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Hosted form entry requires its exact completed charge and logical invocation.");
         }
-        HostedGuardianFormVisualOwner owner = GuardianFormVisualOwner(actor, form.InvocationId, form.GuardianForceId);
         BattleSnapshot before = Capture();
         BattleSession candidate = CreateExpandedHostedFormCandidate(before);
+        BattleGuardianFormResources[] variants = candidate.GuardianFormVariants(form.GuardianForceId);
+        int index = variants.Length == 1 ? 0 : candidate.SelectGuardianFormVariant(variants.Length);
+        string variantId = variants[index].VariantId;
+        HostedGuardianFormVisualOwner owner = GuardianFormVisualOwner(actor, form.InvocationId, form.GuardianForceId, variantId);
         candidate.ReleaseGuardianForceCharge(candidate.GetActor(actor.Id));
-        candidate.guardianForms![actor.Id] = form with { Phase = BattleGuardianFormPhase.Entering };
+        candidate.guardianForms![actor.Id] = form with { Phase = BattleGuardianFormPhase.Entering, VariantId = variantId };
         candidate.BeginNativeBattleActionPause();
         PreparedHostedGuardianFormChange visual = process.PrepareGuardianFormChange(new(owner, Entering: true, candidate.CaptureExpandedHostedGuardianFormFacts()));
         PublishExpandedHostedFormCandidate(process, before, candidate, visual);
+    }
+
+    private int SelectGuardianFormVariant(int count)
+    {
+        if (count is < 2 or > 256)
+        {
+            throw new InvalidDataException("A GF can select between two and 256 distinct variants.");
+        }
+        int exclusiveLimit = 256 - 256 % count;
+        int roll;
+        do
+        {
+            roll = NextRandomByte();
+        }
+        while (roll >= exclusiveLimit);
+        return roll % count;
     }
 
     private void StageExpandedHostedGuardianFormReturn(BattleCombatant actor, BattleGuardianFormState form)
@@ -51,7 +70,7 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("A hosted form cannot stage two visual returns.");
         }
-        stagedExpandedHostedGuardianForm = new(GuardianFormVisualOwner(actor, form.InvocationId, form.GuardianForceId), Entering: false, CaptureExpandedHostedGuardianFormFacts());
+        stagedExpandedHostedGuardianForm = new(GuardianFormVisualOwner(actor, form.InvocationId, form.GuardianForceId, GuardianFormResources(form).VariantId), Entering: false, CaptureExpandedHostedGuardianFormFacts());
     }
 
     private void ReturnExpandedHostedGuardianForm(BattlePresentationProcess process, BattleCombatant actor, bool terminal)
@@ -69,7 +88,7 @@ public sealed partial class BattleSession
         NativeBattleGuardianFormPresentation visual = RequireHostedGuardianFormVisualOwner(process.Graphics, owner);
         if (visual.Phase != 3 || visual.Mode != GuardianFormInvocationMode.EntryOnly ||
             GetGuardianForm(owner.ActorId) is not { Phase: BattleGuardianFormPhase.Entering } form || form.InvocationId != owner.InvocationId ||
-            form.GuardianForceId != owner.GuardianForceId || expandedHostedEvent is not null || ActiveAction is not null)
+            form.GuardianForceId != owner.GuardianForceId || GuardianFormResources(form).VariantId != owner.VariantId || expandedHostedEvent is not null || ActiveAction is not null)
         {
             throw new InvalidDataException("Hosted form landing did not match its current entering invocation.");
         }

@@ -7,6 +7,11 @@ public static class NativeBattleCinematicActorSelector64
 {
     public static NativeBattleWaterExecutionFrame Execute(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, BattleModelOwner source, NativeBattleModelAliases aliases)
     {
+        return Execute(frame, program, source, aliases, null);
+    }
+
+    internal static NativeBattleWaterExecutionFrame Execute(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, BattleModelOwner source, NativeBattleModelAliases aliases, Func<NativeBattleModelSlot, BattleModelOwner?>? actorForOperand)
+    {
         ushort instruction = frame.ReadTemporaryWord(0x14A);
         NativeBattleCinematicInstructionLayout layout = new(instruction);
         if (layout.Opcode != 0x64)
@@ -21,7 +26,7 @@ public static class NativeBattleCinematicActorSelector64
         else if (layout.ReadsLiteralActor)
         {
             NativeBattleModelSlot slot = NativeBattleModelSlot.Decode(NativeBattleScriptedCommandReads.Program(frame, program, 2, 1)[0]);
-            frame = aliases.ReadAuthoredOperandOrOriginalCell(slot) is { } bound
+            frame = (actorForOperand?.Invoke(slot) ?? aliases.ReadAuthoredOperandOrOriginalCell(slot)) is { } bound
                 ? NativeBattleCinematicActorAccess.WriteSlotActor(frame, bound, aliases)
                 : NativeBattleCinematicActorAccess.WriteSlotOriginalCell(frame, slot);
             return NativeBattleScriptedCommandReads.Advance(frame, 4);

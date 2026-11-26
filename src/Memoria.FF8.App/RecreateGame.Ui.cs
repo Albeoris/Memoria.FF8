@@ -310,6 +310,7 @@ internal sealed partial class RecreateGame
             liveMenuCatalog.FindItemOverride = FindInventoryItemOverride;
             liveMenuCatalog.InterfaceLanguage = () => resourceHost?.EffectiveContentLanguage;
             liveMenuCatalog.FindAbilityDescriptionOverride = (ability, language) => resourceHost?.GuardianRules.Description(ability, language);
+            liveMenuCatalog.FindGuardianForm = guardianForce => resourceHost?.GuardianForms.SupportsGuardianForce(guardianForce) == true;
             nativeRefinementDefinitions = assets.ReadNativeRefinementDefinitions();
         }
     }

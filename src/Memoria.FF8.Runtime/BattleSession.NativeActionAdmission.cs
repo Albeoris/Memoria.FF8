@@ -161,9 +161,9 @@ public sealed partial class BattleSession
     private byte ResolveNativeDispatchSequence(BattleCombatant actor, byte command, byte supplied, ushort action)
     {
         byte sequence = supplied;
-        if (actor.GuardianFormVitals is not null && command is 1 or 12 && GetGuardianForm(actor.Id) is { } form)
+        if (actor.GuardianFormVitals is not null && command is 1 or 12 or 28 && GetGuardianForm(actor.Id) is { } form)
         {
-            sequence = ReadGuardianFormBinding(form, BattleGuardianFormAction.Attack).Sequence;
+            sequence = GetGuardianFormPhysicalBinding(form).Sequence;
         }
         if (actor.IsPlayer && actor.GuardianFormVitals is null)
         {

@@ -1,14 +1,12 @@
 using System.Collections.Immutable;
-using System.Diagnostics;
 
 namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattlePresentationProcess
 {
-
-    private BattleGuardianFormResources GuardianFormResources(int guardianForceId)
+    private BattleGuardianFormResources GuardianFormResources(int guardianForceId, string variantId)
     {
-        return resources.GuardianFormResources.SingleOrDefault(form => form.GuardianForceId == guardianForceId)
+        return resources.GuardianFormResources.SingleOrDefault(form => form.GuardianForceId == guardianForceId && form.VariantId == variantId)
             ?? throw new NotSupportedException($"Guardian Form {guardianForceId} requires its matching visual resources.");
     }
 
@@ -32,22 +30,34 @@ public sealed partial class BattlePresentationProcess
         return sources.DistinctBy(source => (source.ModelId, source.Linked, source.Selector)).ToImmutableArray();
     }
 
-    private void PrepareGuardianFormPresentation(BattlePartyActorModel caster, int guardianForceId)
+    private ushort ReadGuardianFormCinematic(BattleGuardianFormResources resource)
     {
-        if (guardianForceId != 2 || NativeGraphics is not { GuardianFormPresentation: null } graphics || !graphics.ActorModels.Contains(caster) || NativeCamera is null || NativeStage is null)
+        BattleGuardianFormDefinition profile = BattleGuardianFormProfiles.ProfileFor(resource);
+        ushort effect = profile.Finisher.NativeIdentity?.EffectId ?? resources.GuardianCinematics.GetValueOrDefault(profile.Finisher.ResourceActionId);
+        if (!NativeBattleGuardianFormPresentation.SupportsBody(effect, profile.ModelId))
         {
-            throw new NotSupportedException("Ifrit transformation requires its native player presentation and camera/stage owners.");
+            throw new NotSupportedException("The guardian form requires its installed transformation cinematic.");
         }
-        BattleGuardianFormResources formResources = GuardianFormResources(guardianForceId);
+        return effect;
+    }
+
+    private void PrepareGuardianFormPresentation(HostedGuardianFormVisualOwner owner)
+    {
+        if (NativeGraphics is not { GuardianFormPresentation: null } graphics || !graphics.ActorModels.Contains(owner.Actor) || NativeCamera is null || NativeStage is null)
+        {
+            throw new NotSupportedException("Guardian transformation requires its native player presentation and camera/stage owners.");
+        }
+        BattleGuardianFormResources formResources = GuardianFormResources(owner.GuardianForceId, owner.VariantId);
         formResources.VisualResource.Validate();
         if (formResources.VisualResource.PoseSource is null || formResources.VisualResource.ModelLoadSources is not { IsDefaultOrEmpty: false })
         {
-            throw new NotSupportedException("Ifrit transformation requires its original persistent model and pose resources.");
+            throw new NotSupportedException("Guardian transformation requires its original persistent model and pose resources.");
         }
-        NativeBattleOriginalEffectState selected = NativeBattleEffectResourceResolver.MaterializeSelected(NativeBattleOriginalEffects.Select(201, this.resources.NativeEffectCatalog), nativeEffectResourceResolver);
+        ushort effect = ReadGuardianFormCinematic(formResources);
+        NativeBattleOriginalEffectState selected = NativeBattleEffectResourceResolver.MaterializeSelected(NativeBattleOriginalEffects.Select(effect, this.resources.NativeEffectCatalog), nativeEffectResourceResolver);
         if (selected.Binding.CinematicResources is null || selected.Binding.ScriptedInitializationDirectories is null || NativeBattleEffectInitializerPolicy.Assets(selected.Binding).Length != 2)
         {
-            throw new NotSupportedException("Ifrit transformation requires both original cinematic resources and their initialization directories.");
+            throw new NotSupportedException("Guardian transformation requires both original cinematic resources and their initialization directories.");
         }
     }
 
@@ -56,16 +66,27 @@ public sealed partial class BattlePresentationProcess
         NativeBattleGraphicsState graphics = RequireNativeGraphics();
         if (graphics.GuardianFormPresentation is { } existing)
         {
-            if (existing.Actor == owner.Actor && existing.ActorId == owner.ActorId && existing.InvocationId == owner.InvocationId)
+            if (existing.Actor == owner.Actor && existing.ActorId == owner.ActorId && existing.InvocationId == owner.InvocationId && existing.GuardianForceId == owner.GuardianForceId && existing.VariantId == owner.VariantId)
             {
                 return;
             }
             throw new InvalidOperationException("Another GF presentation owns the battle scene.");
         }
         BattlePartyActorModel caster = owner.Actor;
-        NativeBattleGuardianFormPresentation presentation = new(owner.ActorId, owner.InvocationId, GuardianFormInvocationMode.EntryOnly, caster, 0, graphics.ActorModels.Get(caster), NativeCamera ?? throw new NotSupportedException("GF entry requires the native camera owner."), NativeStage ?? throw new NotSupportedException("GF entry requires the native stage owner."), CaptureGuardianFormVisibility(graphics.ActorModels), graphics.Flags) { UnboundVisibility = graphics.NativeBindings.CaptureUnboundVisibility(), HumanFocalLength = NativeCamera.FocalLength ?? throw new NotSupportedException("GF entry requires the current human camera focal length.") };
+        BattleGuardianFormResources resource = GuardianFormResources(owner.GuardianForceId, owner.VariantId);
+        NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("GF entry requires the native camera owner.");
+        NativeBattleStageState stage = NativeStage ?? throw new NotSupportedException("GF entry requires the native stage owner.");
+        NativeBattleGuardianFormPresentation presentation = new(owner.ActorId, owner.InvocationId, GuardianFormInvocationMode.EntryOnly, caster, 0, graphics.ActorModels.Get(caster), camera, stage, CaptureGuardianFormVisibility(graphics.ActorModels), graphics.Flags)
+        {
+            GuardianForceId = owner.GuardianForceId,
+            VariantId = owner.VariantId,
+            CinematicEffect = ReadGuardianFormCinematic(resource),
+            BodyModelId = checked((byte)(16 + BattleGuardianFormProfiles.ProfileFor(resource).ModelId)),
+            UnboundVisibility = graphics.NativeBindings.CaptureUnboundVisibility(),
+            HumanFocalLength = camera.FocalLength ?? throw new NotSupportedException("GF entry requires the current human camera focal length.")
+        };
         presentation.Validate();
-        graphics = BeginNativeOriginalEffect(graphics, 201);
+        graphics = BeginNativeOriginalEffect(graphics, presentation.CinematicEffect);
         foreach (BattleModelEntry<BattlePartyModelOwner> entry in graphics.ActorModels.Party.Entries)
         {
             NativeBattleGraphicsModel model = entry.State;
@@ -76,14 +97,18 @@ public sealed partial class BattlePresentationProcess
             graphics = graphics with { ActorModels = graphics.ActorModels.Set(entry.Owner, model with { Flags0 = (ushort)(model.Flags0 | 8), Flags2 = (ushort)((model.Flags2 ?? 0) | 4) }) };
         }
         NativeGraphics = graphics with { GuardianFormPresentation = presentation, Flags = graphics.Flags | 0x10 };
-        QueueNativeModelResource507080(NativeGraphics, 77, caster);
+        QueueNativeModelResource507080(NativeGraphics, presentation.BodyModelId, caster);
     }
 
     private void ReturnGuardianFormPresentation(HostedGuardianFormVisualOwner owner, HostedGuardianFormFrameFacts? facts = null, Action<string>? stageStopSounds = null)
     {
-        if (NativeGraphics is not { GuardianFormPresentation: { } presentation } graphics || presentation.Actor != owner.Actor || presentation.ActorId != owner.ActorId || presentation.InvocationId != owner.InvocationId)
+        if (NativeGraphics is not { GuardianFormPresentation: { } presentation } graphics || presentation.Actor != owner.Actor || presentation.ActorId != owner.ActorId || presentation.InvocationId != owner.InvocationId || presentation.GuardianForceId != owner.GuardianForceId || presentation.VariantId != owner.VariantId)
         {
             return;
+        }
+        if (presentation.Companion is { } companion)
+        {
+            ReleaseBrothersCompanionTexture(companion);
         }
         bool ownsCinematic = presentation.Phase < 3 || presentation.Mode == GuardianFormInvocationMode.FinisherWithoutEntry;
         if (ownsCinematic)
@@ -97,11 +122,11 @@ public sealed partial class BattlePresentationProcess
         }
         if (HasBattleEntry)
         {
-            CancelGuardianFormModelLoad(graphics, presentation.Actor);
+            CancelGuardianFormModelLoad(graphics, presentation.Actor, presentation.BodyModelId);
         }
         NativeBattleGraphicsModel body = graphics.ActorModels.Get(presentation.Actor);
-        if (body.TextureResourceIndex is int row && NativeModelTextureCache is { } cache && cache.Rows[row] is { Kind: 3, ModelId: 77 } &&
-            (body.ModelId4 == 77 || HasBattleEntry && cache.PresentationActors?.GetValueOrDefault(row) == presentation.Actor))
+        if (body.TextureResourceIndex is int row && NativeModelTextureCache is { } cache && cache.Rows[row] is { Kind: 3, ModelId: var loadedId } && loadedId == presentation.BodyModelId &&
+            (body.ModelId4 == presentation.BodyModelId || HasBattleEntry && cache.PresentationActors?.GetValueOrDefault(row) == presentation.Actor))
         {
             (NativeModelCpuResources, NativeFileStaging) = NativeBattleModelEnemyHeap.Release(NativeModelCpuResources!, NativeFileStaging!, cache, row);
             NativeModelTextureCache = cache.Release5080D0(row);
@@ -109,7 +134,7 @@ public sealed partial class BattlePresentationProcess
         BattleActorModels models = graphics.ActorModels.Set(presentation.Actor, presentation.HumanModel with { Flags8 = body.Flags8, StatusTimers = body.StatusTimers });
         graphics = graphics with { ActorModels = models, Flags = ownsCinematic ? presentation.GraphicsFlags : graphics.Flags, GuardianFormPresentation = null, GuardianFormHumanFocalToRestore = ownsCinematic ? null : presentation.HumanFocalLength };
         graphics = FrameGuardianFormIdleCamera(graphics, facts);
-        NativeGraphics = ownsCinematic ? StopGuardianFormCinematic(graphics, stageStopSounds) : graphics;
+        NativeGraphics = ownsCinematic ? StopGuardianFormCinematic(graphics, presentation.CinematicEffect, stageStopSounds) : graphics;
     }
 
     private static ImmutableDictionary<BattleModelOwner, NativeBattleGuardianModelVisibility> CaptureGuardianFormVisibility(BattleActorModels models)
@@ -134,7 +159,7 @@ public sealed partial class BattlePresentationProcess
 
     internal bool CanSkipAttachedGuardianFormFinisher => HasBattleEntry && HostedActiveActionToken is not null && NativeGraphics?.GuardianFormPresentation is { Mode: GuardianFormInvocationMode.FinisherWithoutEntry, Phase: 5, SkipRequested: false };
 
-    internal bool SkippingAttachedGuardianFormFinisher => HasBattleEntry && NativeGraphics?.GuardianFormPresentation is { Mode: GuardianFormInvocationMode.FinisherWithoutEntry, Phase: 5, SkipRequested: true } && !NativeBattleIfritContinuation.HasReachedFinale(RequireWaterMemory().ScriptedEffects!);
+    internal bool SkippingAttachedGuardianFormFinisher => HasBattleEntry && NativeGraphics?.GuardianFormPresentation is { Mode: GuardianFormInvocationMode.FinisherWithoutEntry, Phase: 5, SkipRequested: true } && NativeGraphics.OriginalEffect is { ReturnedDescriptor: not 0 } effect && !NativeBattleGuardianAnimationFinale.HasReachedFinale(effect, RequireWaterMemory());
 
     private void SettleGuardianFormSkipBoost()
     {
@@ -167,13 +192,13 @@ public sealed partial class BattlePresentationProcess
 
     private (NativeBattleGraphicsState Graphics, byte Phase, bool Complete) PollGuardianFormFinisherGraphics(NativeBattleGraphicsState graphics, NativeBattleActionGraphicsState context, byte phase)
     {
-        NativeBattleGuardianFormPresentation presentation = graphics.GuardianFormPresentation ?? throw new InvalidDataException("Ifrit finisher has no current presentation invocation.");
+        NativeBattleGuardianFormPresentation presentation = graphics.GuardianFormPresentation ?? throw new InvalidDataException("Guardian finisher has no current presentation invocation.");
         if (phase == 0)
         {
             presentation = presentation with { Mode = GuardianFormInvocationMode.FinisherWithoutEntry, Phase = 4, Camera = NativeCamera!, Stage = NativeStage!, ModelVisibility = CaptureGuardianFormVisibility(graphics.ActorModels), UnboundVisibility = graphics.NativeBindings.CaptureUnboundVisibility(), GraphicsFlags = graphics.Flags };
             graphics = graphics with { GuardianFormPresentation = presentation };
             NativeGraphics = graphics;
-            graphics = BeginNativeOriginalEffect(graphics, 201);
+            graphics = BeginNativeOriginalEffect(graphics, presentation.CinematicEffect);
             graphics = PrepareNativeOriginalEffectParameters(graphics, context);
             return (graphics, 1, false);
         }
@@ -195,7 +220,7 @@ public sealed partial class BattlePresentationProcess
             NativeCamera = NativeCamera! with { ForceCamera = true };
             graphics = EnterNativeCinematic(graphics);
             NativeEffectMemory = RequireWaterMemory().AssignReturnedTask(graphics.OriginalEffect!);
-            graphics = RegisterNativeGuardianBoost(graphics, checked((ushort)(64 + 2)));
+            graphics = RegisterNativeGuardianBoost(graphics, nativeActionPackets.ReadHeader(context.Header).Action);
             NativeGraphics = graphics;
             if (presentation.SkipRequested)
             {
@@ -212,14 +237,15 @@ public sealed partial class BattlePresentationProcess
         return (graphics with { Flags = graphics.Flags & ~0x10u }, phase, true);
     }
 
-    private NativeBattleGraphicsState StopGuardianFormCinematic(NativeBattleGraphicsState graphics, Action<string>? stageStopSounds = null)
+    private NativeBattleGraphicsState StopGuardianFormCinematic(NativeBattleGraphicsState graphics, int cinematicEffect, Action<string>? stageStopSounds = null)
     {
+        uint cinematicLoadCallback = NativeBattleCinematicProfile.ForEffect(cinematicEffect).LoadCallback;
         if (NativeFileIo is { } io)
         {
-            int cancelled = io.Rows.Count(row => row.SchedulerCallback != 0 && row.CompletionCallback == 0xB2BB40);
+            int cancelled = io.Rows.Count(row => row.SchedulerCallback != 0 && row.CompletionCallback == cinematicLoadCallback);
             if (cancelled > 0)
             {
-                NativeFileIo = io with { Rows = io.Rows.Select(row => row.SchedulerCallback != 0 && row.CompletionCallback == 0xB2BB40 ? row with { SchedulerCallback = 0, Status = 0 } : row).ToImmutableArray(), ActiveCount = checked((short)(io.ActiveCount!.Value - cancelled)) };
+                NativeFileIo = io with { Rows = io.Rows.Select(row => row.SchedulerCallback != 0 && row.CompletionCallback == cinematicLoadCallback ? row with { SchedulerCallback = 0, Status = 0 } : row).ToImmutableArray(), ActiveCount = checked((short)(io.ActiveCount!.Value - cancelled)) };
             }
         }
         if (NativeEffectMemory is { } memory)
@@ -238,16 +264,12 @@ public sealed partial class BattlePresentationProcess
         {
             stageStopSounds("GF presentation releases its sound voices.");
         }
-        return graphics with { OriginalEffect = graphics.OriginalEffect is { Binding.Effect: 201 } effect ? effect with { ReturnedDescriptor = 0, Pools = [] } : graphics.OriginalEffect, PrimitiveFrame = graphics.PrimitiveFrame is { } primitive ? primitive with { Pending = NativeBattleLogicalOrdering.Clear(), LastCommands = [] } : null };
+        return graphics with { OriginalEffect = graphics.OriginalEffect is { Binding.Effect: var activeEffect } effect && activeEffect == cinematicEffect ? effect with { ReturnedDescriptor = 0, Pools = [] } : graphics.OriginalEffect, PrimitiveFrame = graphics.PrimitiveFrame is { } primitive ? primitive with { Pending = NativeBattleLogicalOrdering.Clear(), LastCommands = [] } : null };
     }
 
-
-
-
-
-    private void CancelGuardianFormModelLoad(NativeBattleGraphicsState graphics, BattleModelOwner owner)
+    private void CancelGuardianFormModelLoad(NativeBattleGraphicsState graphics, BattleModelOwner owner, byte bodyModelId)
     {
-        if (NativeModelLoader?.Task is { Callback: 0x507120, ModelId: 77 } loader && loader.Owner == owner)
+        if (NativeModelLoader?.Task is { Callback: 0x507120, ModelId: var loadingId } loader && loadingId == bodyModelId && loader.Owner == owner)
         {
             if (loader.EnemyResourceIndex is int reserved && NativeModelTextureCache is { } cache && graphics.ActorModels.Get(owner).TextureResourceIndex != reserved)
             {
@@ -282,9 +304,9 @@ public sealed partial class BattlePresentationProcess
             {
                 return graphics;
             }
-            NativeBattleGraphicsResource resource = GuardianFormResources(2).VisualResource;
+            NativeBattleGraphicsResource resource = GuardianFormResources(presentation.GuardianForceId, presentation.VariantId).VisualResource;
             NativeBattlePoseSource source = resource.PoseSource!;
-            NativeBattleGraphicsModel loaded = graphics.ActorModels.Get(presentation.Actor) with { ModelId4 = 77, SequenceState = new() { Pose = 0, PoseFrame114 = 1, PoseLimit115 = resource.AnimationFrames[0], DecodedPose = source.Sample(0, 1, 0) }, CurrentBodyBoneMatrices = null };
+            NativeBattleGraphicsModel loaded = graphics.ActorModels.Get(presentation.Actor) with { ModelId4 = presentation.BodyModelId, SequenceState = new() { Pose = 0, PoseFrame114 = 1, PoseLimit115 = resource.AnimationFrames[0], DecodedPose = source.Sample(0, 1, 0) }, CurrentBodyBoneMatrices = null };
             loaded = NativeBattleBodyBoneMatrices.Publish508C90(loaded, source);
             graphics = graphics with { ActorModels = graphics.ActorModels.Set(presentation.Actor, loaded) };
             NativeGraphics = graphics;
@@ -296,9 +318,9 @@ public sealed partial class BattlePresentationProcess
             NativeEffectMemory = RequireWaterMemory().AssignReturnedTask(graphics.OriginalEffect!);
             return graphics with { GuardianFormPresentation = presentation with { Phase = 1 } };
         }
-        if (presentation.Phase == 1 && ReachedIfritLandingBoundary())
+        if (presentation.Phase == 1 && ReachedGuardianFormLandingBoundary(presentation))
         {
-            graphics = StopGuardianFormCinematic(graphics);
+            graphics = StopGuardianFormCinematic(graphics, presentation.CinematicEffect);
             NativeCamera = presentation.Camera;
             NativeStage = presentation.Stage;
             graphics = graphics with { GuardianFormPresentation = presentation with { Phase = 2 } };
@@ -309,11 +331,11 @@ public sealed partial class BattlePresentationProcess
             {
                 return graphics;
             }
-            NativeBattleGraphicsResource resource = GuardianFormResources(2).VisualResource;
+            NativeBattleGraphicsResource resource = GuardianFormResources(presentation.GuardianForceId, presentation.VariantId).VisualResource;
             NativeBattlePoseSource pose = resource.PoseSource ?? throw new InvalidDataException("GF form visual requires its original pose source.");
             short scale = unchecked((short)(System.Buffers.Binary.BinaryPrimitives.ReadInt16LittleEndian(pose.Skeleton.AsSpan().Slice(2)) * 4));
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(loading.Actor);
-            model = model with { ModelId4 = 77, Flags0 = (ushort)(model.Flags0 & ~0xC), Flags2 = (ushort)(model.Flags2!.Value & ~4), CurrentBodyBoneMatrices = null, LinkedModel = null, LinkedTransform = null, HasLinkedModelRing140 = false, Rotation12 = 0, Rotation14 = 0, Rotation16 = 0, Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, scale), SequenceState = new(), SequenceByte145 = 0, Sequence = 1, ResourceFlags44 = 1 };
+            model = model with { ModelId4 = presentation.BodyModelId, Flags0 = (ushort)(model.Flags0 & ~0xC), Flags2 = (ushort)(model.Flags2!.Value & ~4), CurrentBodyBoneMatrices = null, LinkedModel = null, LinkedTransform = null, HasLinkedModelRing140 = false, Rotation12 = 0, Rotation14 = 0, Rotation16 = 0, Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, scale), SequenceState = new(), SequenceByte145 = 0, Sequence = 1, ResourceFlags44 = 1 };
             NativeBattleSequenceStep initializedPose = NativeBattleSequenceMachine.Advance(loading.Actor, model, resource, new(NativeEntryAdvantage, 0)
             {
                 OriginalResource = resource,
@@ -338,14 +360,24 @@ public sealed partial class BattlePresentationProcess
         return graphics;
     }
 
-    private bool ReachedIfritLandingBoundary()
+    private bool ReachedGuardianFormLandingBoundary(NativeBattleGuardianFormPresentation presentation)
     {
         NativeBattleEffectMemory memory = RequireWaterMemory();
+        return presentation.CinematicEffect == 205 ? ReachedGuardianFormInstruction(memory, BrothersEntranceEnd) : ReachedIfritLandingBoundary();
+    }
+
+    private bool ReachedIfritLandingBoundary()
+    {
+        return ReachedGuardianFormInstruction(RequireWaterMemory(), NativeBattleIfritContinuation.LandingInstructionOffset);
+    }
+
+    private static bool ReachedGuardianFormInstruction(NativeBattleEffectMemory memory, int offset)
+    {
         NativeBattleScriptedEffectMemory core = memory.ScriptedEffects!;
         uint manager = System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(core.Read(0x27973EC, 4));
         uint bank = System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(core.Read(manager + 0x90, 4));
         uint resource = System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(core.Read(0x2798A68, 4));
         uint pc = System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(memory.Arena!.Read(checked((int)(bank - NativeBattleEffectNodeMemory.ArenaAddress)), 4));
-        return pc == resource + NativeBattleIfritContinuation.LandingInstructionOffset;
+        return pc == resource + offset;
     }
 }

@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattlePresentationProcess
 {
-    internal sealed record HostedGuardianFormVisualOwner(BattlePartyActorModel Actor, string ActorId, long InvocationId, int GuardianForceId);
+    internal sealed record HostedGuardianFormVisualOwner(BattlePartyActorModel Actor, string ActorId, long InvocationId, int GuardianForceId, string VariantId = "ifrit");
     internal sealed record HostedGuardianFormFrameFacts(HostedGuardianFormVisualOwner? Form, BattleGuardianFormPhase? Phase, bool HasAction, bool Finishing);
     internal sealed record HostedGuardianFormVisualChange(HostedGuardianFormVisualOwner Owner, bool Entering, HostedGuardianFormFrameFacts Facts);
     internal sealed record PreparedHostedGuardianFormChange(BattlePresentationProcess Owner, long Epoch, BattlePresentationNativeState Original, BattlePresentationNativeState Replacement, HostedModelRegistry? Registry, BattlePresentationProcess Staged, ImmutableArray<string> StopSounds);
@@ -29,7 +29,7 @@ public sealed partial class BattlePresentationProcess
         {
             throw new InvalidDataException("Hosted form admission requires its current party model.");
         }
-        PrepareGuardianFormPresentation(owner.Actor, owner.GuardianForceId);
+        PrepareGuardianFormPresentation(owner);
         (ReadOriginalPresentationModelResource(owner.Actor) ?? throw new InvalidDataException("Hosted form admission requires its original human resource.")).Validate();
     }
 
@@ -90,7 +90,7 @@ public sealed partial class BattlePresentationProcess
 
     internal static NativeBattleGuardianFormPresentation RequireHostedGuardianFormVisualOwner(NativeBattleGraphicsState graphics, HostedGuardianFormVisualOwner owner)
     {
-        if (graphics.GuardianFormPresentation is not { } visual || visual.Actor != owner.Actor || visual.ActorId != owner.ActorId || visual.InvocationId != owner.InvocationId)
+        if (graphics.GuardianFormPresentation is not { } visual || visual.Actor != owner.Actor || visual.ActorId != owner.ActorId || visual.InvocationId != owner.InvocationId || visual.GuardianForceId != owner.GuardianForceId || visual.VariantId != owner.VariantId)
         {
             throw new InvalidDataException("The hosted form transition does not own the current transformation.");
         }

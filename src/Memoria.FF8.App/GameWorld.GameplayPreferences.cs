@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
 
@@ -96,7 +97,12 @@ internal sealed partial class GameWorld
     internal static BattleSession CreateLiveBattleSession(BattleDefinition definition, GameplayPreferences preferences, GameAssets game, BattleAssets assets, BattleEncounter? encounter = null)
     {
         preferences.Validate();
-        BattleSession active = new(definition with { LimitOncePerTurn = preferences.LimitOncePerTurn, SelphieCardSlots = preferences.SelphieCardSlots, DrawOncePerSpell = preferences.DrawOncePerSpell, GuardianFormsEnabled = preferences.GuardianFormsEnabled, Tuning = preferences.Tuning, GuardianFormResources = preferences.GuardianFormsEnabled ? definition.GuardianFormResources : [] }, preferences.AtbMode);
+        ImmutableArray<BattleGuardianFormResources> forms = preferences.GuardianFormsEnabled ? definition.GuardianFormResources : [];
+        if (preferences.GuardianFormsEnabled && !definition.GuardianFormsEnabled && forms.IsDefaultOrEmpty)
+        {
+            forms = InstalledGuardianForms.Read(game).Resources;
+        }
+        BattleSession active = new(definition with { LimitOncePerTurn = preferences.LimitOncePerTurn, SelphieCardSlots = preferences.SelphieCardSlots, DrawOncePerSpell = preferences.DrawOncePerSpell, GuardianFormsEnabled = preferences.GuardianFormsEnabled, Tuning = preferences.Tuning, GuardianFormResources = forms }, preferences.AtbMode);
         active.SetDifficulty(preferences.Difficulty);
         active.SetGunbladeMode(preferences.GunbladeMode);
         return InstalledBattlePresentation.Attach(active, game, assets, encounter);

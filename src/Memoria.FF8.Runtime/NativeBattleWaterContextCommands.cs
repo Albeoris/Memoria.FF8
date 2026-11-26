@@ -17,7 +17,7 @@ public sealed record NativeBattleWaterContextServices(
 {
     internal BattleActionHeaderReference RequireCombatHeader(NativeBattleWaterExecutionFrame frame)
     {
-        return ReadCurrentHeader(frame) ?? throw new InvalidDataException("Presentation-only Ifrit cannot apply offensive contacts before its landing handoff.");
+        return ReadCurrentHeader(frame) ?? throw new InvalidDataException("Presentation-only guardian entrance cannot apply offensive contacts before its landing handoff.");
     }
 }
 

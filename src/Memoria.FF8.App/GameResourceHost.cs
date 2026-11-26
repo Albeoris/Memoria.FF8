@@ -74,6 +74,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
     public ModRuntime Mods { get; }
     public GuardianForceAbilityMods GuardianForceMods { get; private set; } = GuardianForceAbilityMods.Empty;
     public GuardianForceRules GuardianRules { get; private set; } = GuardianForceRules.Empty;
+    public GuardianFormMods GuardianForms { get; private set; } = GuardianFormMods.Empty;
     public Func<GuardianForceAbilityMods, ModCatalogSnapshot, ModPreparationResult>? PrepareGuardianForcePublication { get; set; }
     public EncounterMods EncounterMods { get; private set; } = EncounterMods.Empty;
     public Func<EncounterMods, ModCatalogSnapshot, IReadOnlyList<EncodedResource>, ModPreparationResult>? PrepareEncounterPublication { get; set; }
@@ -354,6 +355,10 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         {
             return new ModPreparationResult(false, Diagnostics: guardianRuleDiagnostics);
         }
+        if (!GuardianFormMods.TryPrepare(catalog, () => new BattleAssets(gameDirectory, dataCandidate, modelMods), out GuardianFormMods guardianForms, out IReadOnlyList<ModDiagnostic> guardianFormDiagnostics))
+        {
+            return ModPreparationResult.RejectPackagePayloads(guardianFormDiagnostics);
+        }
         ModPreparationResult guardianPublication = PrepareGuardianForcePublication?.Invoke(guardianMods, catalog) ?? ModPreparationResult.Accepted;
         if (!guardianPublication.Success)
         {
@@ -378,6 +383,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         usable.AddRange(nativeTextures.Variants.Select(variant => variant.PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
         usable.AddRange(localization!.Layers.Select(layer => layer.PackageId));
         usable.AddRange(guardianMods.Layers.Select(layer => layer.PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
+        usable.AddRange(guardianForms.PackageIds);
         usable.AddRange(encounterMods.Layers.Select(layer => layer.PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
         usable.AddRange(modelMods.Variants.Select(variant => variant.PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
         usable.AddRange(springMods.PackageIds);
@@ -496,6 +502,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
                 CommittedLocalizations = localization;
                 GuardianForceMods = guardianMods;
                 GuardianRules = guardianRules;
+                GuardianForms = guardianForms;
                 EncounterMods = encounterMods;
                 SceneMods = sceneMods;
                 modelPublication = new(modelMods, springMods);

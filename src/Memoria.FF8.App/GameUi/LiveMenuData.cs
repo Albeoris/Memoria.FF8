@@ -209,7 +209,7 @@ public static class LiveMenuData
                     BattleNativePlayerStatRules? projectedRules = catalog is null ? null : projection.Rules(row);
                     uint passiveFlags = projectedRules?.NativeStatusPassiveFlags ?? 0;
                     int basicCommand = (passiveFlags & 1) != 0 ? 12 : 1;
-                    bool supportsSummon = native.Junction.GuardianForceAssignments.Any(id => NativeAbilityMenuMetadata.SupportsSummon(id, state.GameplayPreferences.GuardianFormsEnabled)) && vitals.JunctionLearnedAbilities(row).Contains(21);
+                    bool supportsSummon = native.Junction.GuardianForceAssignments.Any(id => NativeAbilityMenuMetadata.SupportsSummon(id, state.GameplayPreferences.GuardianFormsEnabled, catalog?.FindGuardianForm)) && vitals.JunctionLearnedAbilities(row).Contains(21);
                     character.Commands.Add(catalog?.CommandName(basicCommand) ?? Text("fallback.command.attack", "Attack"));
                     for (int slot = 0; slot < 4; slot++)
                     {
@@ -356,7 +356,7 @@ public static class LiveMenuData
                     continue;
                 }
                 int ownerRow = Enumerable.Range(0, vitals.Records.Length).FirstOrDefault(row => (vitals.Records[row].Junction.GuardianForces & (1 << id)) != 0, -1);
-                string AbilityName(int ability, string original, string key) => NativeAbilityMenuMetadata.CommandName(ability, catalog?.AbilityName(ability) ?? Format(key, original, ability), NativeAbilityMenuMetadata.SupportsSummon(id, state.GameplayPreferences.GuardianFormsEnabled), Text);
+                string AbilityName(int ability, string original, string key) => NativeAbilityMenuMetadata.CommandName(ability, catalog?.AbilityName(ability) ?? Format(key, original, ability), NativeAbilityMenuMetadata.SupportsSummon(id, state.GameplayPreferences.GuardianFormsEnabled, catalog?.FindGuardianForm), Text);
                 MenuGuardianForce guardianForce = new()
                 {
                     Id = $"gf-{id}",
@@ -626,6 +626,8 @@ public static class LiveMenuData
 /// <summary>Original text metadata only. No font, texture or rendered original menu asset is loaded.</summary>
 public sealed partial class LiveMenuCatalog
 {
+    internal Func<int, bool>? FindGuardianForm { get; set; }
+
     internal string StatRulesFingerprint { get; }
     private readonly KernelData kernel;
     private readonly ITextTermSource terms;

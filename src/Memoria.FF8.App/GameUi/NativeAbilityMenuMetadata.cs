@@ -5,7 +5,10 @@ namespace Memoria.FF8.GameUi;
 
 public static class NativeAbilityMenuMetadata
 {
-    internal static bool SupportsSummon(int guardianForce, bool enabled) => enabled && BattleGuardianFormProfiles.Find(guardianForce) is not null;
+    internal static bool SupportsSummon(int guardianForce, bool enabled, Func<int, bool>? hasProfile = null)
+    {
+        return enabled && (hasProfile?.Invoke(guardianForce) ?? BattleGuardianFormProfiles.Find(guardianForce) is not null);
+    }
 
     internal static string CommandName(int ability, string name, bool supportsSummon, Func<string, string, string>? localize = null)
     {

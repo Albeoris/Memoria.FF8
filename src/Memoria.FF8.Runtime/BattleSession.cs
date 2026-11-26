@@ -226,7 +226,9 @@ public sealed partial class BattleSession
 
     private bool HasPendingTurn => nativeScriptState.WaitCounters.Length != 0 || QueuedActions.Count != 0 || ActiveAction is not null || nativeTimedAction is not null || NativeScriptAllocationPending || HasPendingExpandedDoom || HasPendingPartyReplacement;
 
-    private bool HasGuardianForceTimeBoundary => guardianForceCasts.Values.Any(cast => cast.RemainingTicks == 0 || (byId[cast.ActorId].NativeStatus1 & 0x80000000) == 0);
+    private bool HasExpiredGuardianForm => guardianForms?.Values.Any(form => form is { Phase: BattleGuardianFormPhase.Active, RemainingTicks: 0 }) == true;
+
+    private bool HasGuardianForceTimeBoundary => HasExpiredGuardianForm || guardianForceCasts.Values.Any(cast => cast.RemainingTicks == 0 || (byId[cast.ActorId].NativeStatus1 & 0x80000000) == 0);
 
     private bool ExpandedTimedLimitOwnsInput => nativeShotProcesses.Count != 0 || nativeRenzokukenProcesses.Count != 0 || nativeDuelProcesses.Count != 0;
 
@@ -279,7 +281,7 @@ public sealed partial class BattleSession
                 }
             }
         }
-        if (WaitingForTurnBasedDecision && !HasPendingTurn && !combatants.Any(actor => actor.IsReady && (!actor.IsPlayer || RequiresNativeCompelledCommand(actor))))
+        if (WaitingForTurnBasedDecision && !HasExpiredGuardianForm && !HasPendingTurn && !combatants.Any(actor => actor.IsReady && (!actor.IsPlayer || RequiresNativeCompelledCommand(actor))))
         {
             DispatchNativeScriptTasks();
             CompleteBattleIfNeeded();
@@ -1352,7 +1354,7 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Queued expanded commands prepare their special action at impact.");
             }
-            ValidateSavedAction(command.ActorId, command.TargetId, busy, command.Ability, command.ActionId, !command.MagicCasts.IsDefaultOrEmpty || command.SmartAttack is not null, command.NativeAction, command.TargetRequest, command.NativeGraphic, command.NativeRenzokuken, command.NativePlayerReaction, duel: command.NativeDuel, slots: command.NativeSlots, nativeQueuedCommand: command.NativeQueuedCommand, aiCallbackStage: command.NativeAiCallbackStage, limitCallback: command.NativeLimitCallback, guardianFormLearnedAbility: command.GuardianFormLearnedAbility);
+            ValidateSavedAction(command.ActorId, command.TargetId, busy, command.Ability, command.ActionId, !command.MagicCasts.IsDefaultOrEmpty || command.SmartAttack is not null, command.NativeAction, command.TargetRequest, command.NativeGraphic, command.NativeRenzokuken, command.NativePlayerReaction, duel: command.NativeDuel, slots: command.NativeSlots, nativeQueuedCommand: command.NativeQueuedCommand, aiCallbackStage: command.NativeAiCallbackStage, limitCallback: command.NativeLimitCallback, guardianFormLearnedAbility: command.GuardianFormLearnedAbility, guardianFormAction: command.GuardianFormAction);
             ValidateNativeActionInventory(byId[command.ActorId], command.Ability, command.NativeAction, command.ReservedNativeItemSlot, command.FreeNativeMagic);
             actions.Enqueue(command);
         }
@@ -1372,7 +1374,7 @@ public sealed partial class BattleSession
                 throw new InvalidDataException("Invalid battle action admission state.");
             }
             bool committedFormReturn = IsRetainedGuardianFormReturn(action);
-            ValidateSavedAction(action.ActorId, action.TargetId, busy, action.Ability, action.ActionId, !action.MagicCasts.IsDefaultOrEmpty || action.Phase == BattleActionPhase.Recovery, action.NativeAction, action.TargetRequest, action.NativeGraphic, action.NativeRenzokuken, reaction: action.NativePlayerReaction, duel: action.NativeDuel, slots: action.NativeSlots, nativeQueuedCommand: action.NativeQueuedCommand, aiCallbackStage: action.NativeAiCallbackStage, limitCallback: action.NativeLimitCallback, guardianFormLearnedAbility: action.GuardianFormLearnedAbility, committedFormReturn: committedFormReturn);
+            ValidateSavedAction(action.ActorId, action.TargetId, busy, action.Ability, action.ActionId, !action.MagicCasts.IsDefaultOrEmpty || action.Phase == BattleActionPhase.Recovery, action.NativeAction, action.TargetRequest, action.NativeGraphic, action.NativeRenzokuken, reaction: action.NativePlayerReaction, duel: action.NativeDuel, slots: action.NativeSlots, nativeQueuedCommand: action.NativeQueuedCommand, aiCallbackStage: action.NativeAiCallbackStage, limitCallback: action.NativeLimitCallback, guardianFormLearnedAbility: action.GuardianFormLearnedAbility, guardianFormAction: action.GuardianFormAction, committedFormReturn: committedFormReturn);
             ValidateIndependentGuardianInvocation(byId[action.ActorId], action);
             if (action.NativeSpecial is not null)
             {
@@ -1480,7 +1482,7 @@ public sealed partial class BattleSession
         ValidateOriginalMaximumHitPoints(snapshot);
     }
 
-    private void ValidateSavedAction(string actorId, string targetId, HashSet<string> busy, BattleAbility ability, int actionId, bool allowDefeatedTarget, BattleNativeAction? nativeAction, BattleTargetRequest targetRequest, BattleNativeGraphicCommand? graphic = null, BattleNativeRenzokukenInvocation? renzokuken = null, BattleNativePlayerReaction? reaction = null, BattleNativeDuelInvocation? duel = null, BattleNativeSlotsRoll? slots = null, byte? nativeQueuedCommand = null, byte? aiCallbackStage = null, NativeLimitCallback? limitCallback = null, int? guardianFormLearnedAbility = null, bool committedFormReturn = false)
+    private void ValidateSavedAction(string actorId, string targetId, HashSet<string> busy, BattleAbility ability, int actionId, bool allowDefeatedTarget, BattleNativeAction? nativeAction, BattleTargetRequest targetRequest, BattleNativeGraphicCommand? graphic = null, BattleNativeRenzokukenInvocation? renzokuken = null, BattleNativePlayerReaction? reaction = null, BattleNativeDuelInvocation? duel = null, BattleNativeSlotsRoll? slots = null, byte? nativeQueuedCommand = null, byte? aiCallbackStage = null, NativeLimitCallback? limitCallback = null, int? guardianFormLearnedAbility = null, BattleGuardianFormAction? guardianFormAction = null, bool committedFormReturn = false)
     {
         BattleCombatant actor = GetActor(actorId);
         BattleCombatant target = GetActor(targetId);
@@ -1532,10 +1534,13 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Saved native action lacks its exact installed command/action metadata.");
         }
-        BattleNativeCommandBinding? learnedBinding = guardianFormLearnedAbility is int learned ? FindGuardianFormLearnedBinding(2, learned) : null;
+        BattleNativeCommandBinding? learnedBinding = guardianFormLearnedAbility is int learned ? FindGuardianFormLearnedBinding(LearnedCommandGuardian(actor, nativeQueuedCommand), learned) : null;
         if (nativeAction is not null)
         {
-            BattleNativeAction installed = nativeAction.PresentationOnly ? ValidateEncounterSummonControl(actor, targetId, ability, actionId, targetRequest) : nativeAction is { Command: 241, ActionId: 65530 or 65532 } ? ValidateNativeDuelControl241(actor, nativeAction) : FindNativeCommandAction(actor, nativeAction.Command, nativeAction.ActionId, nativeAction.CrisisLevel, learnedBinding);
+            BattleNativeAction installed = guardianFormAction is { } formAction && GetGuardianForm(actorId) is { } form
+                ? ResolveGuardianFormAction(form, ReadGuardianFormBinding(form, formAction)).NativeAction!
+                : learnedBinding is not null ? ResolveGuardianFormLearnedAction(actor, learnedBinding, nativeAction).NativeAction!
+                : nativeAction.PresentationOnly ? ValidateEncounterSummonControl(actor, targetId, ability, actionId, targetRequest) : nativeAction is { Command: 241, ActionId: 65530 or 65532 } ? ValidateNativeDuelControl241(actor, nativeAction) : FindNativeCommandAction(actor, nativeAction.Command, nativeAction.ActionId, nativeAction.CrisisLevel, learnedBinding);
             if (!System.Text.Json.JsonElement.DeepEquals(System.Text.Json.JsonSerializer.SerializeToElement(installed), System.Text.Json.JsonSerializer.SerializeToElement(nativeAction)))
             {
                 throw new InvalidDataException("Queued native action differs from its installed kernel contract.");

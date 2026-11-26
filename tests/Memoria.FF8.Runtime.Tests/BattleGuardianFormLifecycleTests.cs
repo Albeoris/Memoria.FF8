@@ -326,6 +326,55 @@ public sealed class BattleGuardianFormLifecycleTests
     }
 
     [Theory]
+    [InlineData((byte)0, true)]
+    [InlineData((byte)1, false)]
+    public void LandingRechecksExistingNegativeStatusesOnceAndPersistsRemoval(byte rngPhase, bool retainsDoom)
+    {
+        BattleSnapshot snapshot = Active().Capture();
+        BattleGuardianFormState form = Assert.Single(snapshot.GuardianForms!.Forms);
+        BattleGuardianFormResources resources = Assert.Single(snapshot.Definition.GuardianFormResources);
+        resources = resources with { StatusResistances = resources.StatusResistances.SetItem(10, 200).SetItem(17, 200).SetItem(18, 150) };
+        BattleCombatantSnapshot actor = snapshot.Combatants[0];
+        NativeBattleStatusSnapshot statuses = actor.NativeStatus!;
+        short[] timers = statuses.Timers.ToArray();
+        timers[2] = timers[5] = timers[10] = 20;
+        const ushort poisonAndBlind = 0xA;
+        const uint protect = 1 << 5;
+        const uint doom = 1 << 10;
+        snapshot.Combatants[0] = actor with { NativeStatus = statuses with { Saved = poisonAndBlind, Battle = protect | doom | 1u << 2 | 1u << 9, Timers = timers } };
+        BattleSession battle = RoundTrip(snapshot with
+        {
+            Definition = snapshot.Definition with { GuardianFormResources = [resources] },
+            GuardianForms = snapshot.GuardianForms with { Forms = [form with { Phase = BattleGuardianFormPhase.Entering, EntryCompleted = false, RemainingTicks = 0 }] },
+            Random = NativeBattleRandomState.ForecastPhase(rngPhase)
+        });
+        NativeBattleRandomState random = battle.Capture().Random!.Draw(out _).Draw(out _);
+        Assert.Equal(true, RunLogicalStep(battle, "ActivateGuardianFormEntry", "actor", form.InvocationId));
+        BattleSnapshot landed = battle.Capture();
+        statuses = landed.Combatants[0].NativeStatus!;
+        Assert.Equal(8, statuses.Saved & 0x7F);
+        Assert.Equal(protect | (retainsDoom ? doom : 0), statuses.Battle);
+        Assert.Equal(-1111, statuses.Timers[2]);
+        Assert.Equal(20, statuses.Timers[5]);
+        Assert.Equal(retainsDoom ? 20 : -1111, statuses.Timers[10]);
+        Assert.Equal(statuses.Saved, statuses.Presentation!.Saved);
+        Assert.Equal(statuses.Battle, statuses.Presentation.Battle);
+        Assert.Equal(random.Lane, landed.Random!.Lane);
+        Assert.Equal(random.Indexes.ToArray(), landed.Random.Indexes.ToArray());
+
+        battle = RoundTrip(landed);
+        Assert.Equal(false, RunLogicalStep(battle, "ActivateGuardianFormEntry", "actor", form.InvocationId));
+        RunLogicalStep(battle, "ReturnGuardianForm", Actor(battle), false);
+        BattleSnapshot returned = battle.Capture();
+        NativeBattleStatusSnapshot afterReturn = returned.Combatants[0].NativeStatus!;
+        Assert.Equal(statuses.Saved & 0x7F, afterReturn.Saved & 0x7F);
+        Assert.Equal(statuses.Battle, afterReturn.Battle);
+        Assert.Equal(statuses.Timers, afterReturn.Timers);
+        Assert.Equal(random.Lane, returned.Random!.Lane);
+        Assert.Equal(random.Indexes.ToArray(), returned.Random.Indexes.ToArray());
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public void NativePoisonConsumerUsesPrototypeImmunityOnlyWhileTransformed(bool transformed)

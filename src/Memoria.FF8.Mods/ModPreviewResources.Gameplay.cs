@@ -39,6 +39,10 @@ public static partial class ModPreviewResources
             {
                 return new(path, "Gameplay", "Guardian Forces", "Ability costs, descriptions and summon limits");
             }
+            if (path.Equals(GuardianFormMods.PayloadPath, StringComparison.OrdinalIgnoreCase))
+            {
+                return new(path, "Gameplay", "Guardian Forces", "Transformations");
+            }
             if (IsFf7EnemyDocument(path))
             {
                 return new(path, "Gameplay", "FFVII enemies", name);
@@ -99,11 +103,33 @@ public static partial class ModPreviewResources
         {
             return CompareGuardianRules(catalog, profile);
         }
+        if (file.RelativePath.Equals(GuardianFormMods.PayloadPath, StringComparison.OrdinalIgnoreCase))
+        {
+            return CompareGuardianForms(file);
+        }
         if (IsFf7EnemyDocument(file.RelativePath))
         {
             return CompareFf7EnemyChanges(catalog, file, profile, cancellationToken);
         }
         return IsFieldLightingDocument(file.RelativePath) ? CompareFieldLighting(catalog, file) : null;
+    }
+
+    private static ModPreviewComparison CompareGuardianForms(ModFile file)
+    {
+        GuardianFormModDocument document = GuardianFormMods.Parse(file.ReadBytes());
+        string[] variants = document.Variants.Select(variant =>
+        {
+            BattleGuardianFormDefinition profile = variant.Profile;
+            Dictionary<BattleGuardianFormAction, string> names = variant.Actions.Add(profile.Finisher).ToDictionary(action => action.Action, action => action.Name);
+            string[] tiers = profile.Tiers.Select(tier =>
+            {
+                string commands = string.Join(", ", tier.Actions.Select(action => names[action]));
+                string automaticHeal = tier.HealBeforeAttack is { } heal ? $" · {names[heal]} before attacking" : string.Empty;
+                return $"Lv {tier.Level} · {commands}{automaticHeal}";
+            }).ToArray();
+            return profile.Name + "\n" + string.Join("\n", tiers);
+        }).ToArray();
+        return new(new("Guardian Force battle summons."), new("Enable GF Transformations to use these forms in battle.\n\n" + string.Join("\n\n", variants)));
     }
 
     private static ModPreviewComparison CompareLevelBonuses()

@@ -584,19 +584,20 @@ internal sealed partial class RecreateGame
 
     private void StartDebugBattle(BattleDefinition definition, BattleAtbMode mode)
     {
+        UiPreferences preferences = ReadCurrentUiPreferences();
+        practiceBattleGameAssets ??= new GameAssets(options.GameDirectory, resources: resourceHost?.Resources, modelOverrides: resourceHost);
         definition = definition with
         {
-            LimitOncePerTurn = ReadCurrentUiPreferences().LimitOncePerTurn,
-            SelphieCardSlots = ReadCurrentUiPreferences().SelphieCardSlots,
-            DrawOncePerSpell = ReadCurrentUiPreferences().DrawOncePerSpell,
+            LimitOncePerTurn = preferences.LimitOncePerTurn,
+            SelphieCardSlots = preferences.SelphieCardSlots,
+            DrawOncePerSpell = preferences.DrawOncePerSpell,
             Tuning = world?.ReadGameplayTuning() ?? (resourceHost?.GameplayPolicy ?? GameplayTuningPolicy.Empty).Apply(session.State.GameplayPreferences.Tuning),
-            GuardianFormsEnabled = ReadCurrentUiPreferences().GuardianFormsEnabled,
-            GuardianFormResources = ReadCurrentUiPreferences().GuardianFormsEnabled ? [PresentationBattleResources.ReadIfritGuardianFormResources()] : []
+            GuardianFormsEnabled = preferences.GuardianFormsEnabled,
+            GuardianFormResources = preferences.GuardianFormsEnabled ? InstalledGuardianForms.Read(practiceBattleGameAssets, resourceHost).Resources : []
         };
-        practiceBattleGameAssets ??= new GameAssets(options.GameDirectory, resources: resourceHost?.Resources, modelOverrides: resourceHost);
         BattleSession next = InstalledBattlePractice.Create(definition, mode, practiceBattleGameAssets, PresentationBattleResources);
-        next.SetDifficulty(ReadCurrentUiPreferences().Difficulty);
-        next.SetGunbladeMode(ReadCurrentUiPreferences().GunbladeMode);
+        next.SetDifficulty(preferences.Difficulty);
+        next.SetGunbladeMode(preferences.GunbladeMode);
         debugBattle = next;
         battleDebug = null;
         gameMenus?.Close();

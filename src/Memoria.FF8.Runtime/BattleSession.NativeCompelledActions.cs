@@ -57,7 +57,9 @@ public sealed partial class BattleSession
             RefundNativeReservedItem(previousSlot, original.NativeAction?.ActionId ?? original.ActionId);
         }
         BattleCombatant target = ResolveBattleTargets(prepared.Targets, sampleRandom: false).FirstOrDefault() ?? actor;
-        BattleNativeAction? native = prepared.Command == 1 ? actor.NativeAttack : FindNativeCommandAction(actor, prepared.Command, prepared.ActionId);
+        BattleNativeAction? native = prepared.GuardianFormBinding is { } formBinding && GetGuardianForm(actor.Id) is { } form
+            ? ResolveGuardianFormAction(form, formBinding).NativeAction
+            : prepared.Command == 1 ? actor.NativeAttack : FindNativeCommandAction(actor, prepared.Command, prepared.ActionId);
         BattleAbility ability = prepared.GuardianFormBinding?.Source == BattleGuardianFormActionSource.Magic ? BattleAbility.Magic : prepared.Command is 1 or 12 ? BattleAbility.Attack : BattleAbility.EnemyAbility;
         return new BattleAttackCommand(actor.Id, target.Id, prepared.Targets, ability, prepared.ActionId)
         {
@@ -80,9 +82,13 @@ public sealed partial class BattleSession
         uint battleStatus = NativeBattleStatusBits(actor);
         if (GetGuardianForm(actor.Id) is { Phase: BattleGuardianFormPhase.Active, RemainingTicks: > 0 } form && RequiresNativeCompelledCommand(actor))
         {
-            BattleGuardianFormActionBinding binding = (battleStatus & 0x2000000) != 0 ? GetGuardianFormSpellBinding(form) : GetGuardianFormPhysicalBinding(form);
+            BattleGuardianFormActionBinding? binding = (battleStatus & 0x2000000) != 0 ? GetGuardianFormSpellBinding(form) : GetGuardianFormPhysicalBinding(form);
+            if (binding is null)
+            {
+                return null;
+            }
             BattleNativeAction native = ResolveGuardianFormAction(form, binding).NativeAction!;
-            BattleTargetRequest formTargets = binding.Source == BattleGuardianFormActionSource.Physical ? PickAiSide((battleStatus & 0x4000) != 0 ? BattleSide.Allies : BattleSide.Enemies).Request : SelectNativeCompelledTargets(native.TargetFlags ?? throw new InvalidDataException("GF compelled spell lacks its installed targeting flags."), true);
+            BattleTargetRequest formTargets = binding.Target == BattleGuardianFormTarget.SingleEnemy || binding.Source == BattleGuardianFormActionSource.Physical ? PickAiSide((battleStatus & 0x4000) != 0 ? BattleSide.Allies : BattleSide.Enemies).Request : SelectNativeCompelledTargets(native.TargetFlags ?? throw new InvalidDataException("GF compelled spell lacks its installed targeting flags."), true);
             return new(native.Command, native.ActionId, formTargets, binding.Cost == BattleGuardianFormActionCost.Innate) { GuardianFormBinding = binding };
         }
         if (HasNativeAngelWing(actor))

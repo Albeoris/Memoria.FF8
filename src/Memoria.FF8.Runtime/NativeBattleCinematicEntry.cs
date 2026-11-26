@@ -12,7 +12,16 @@ public static class NativeBattleCinematicEntry
 
     public static NativeBattleCinematicEntryStep InitializeIfritPresentation(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleScriptedInitializationDirectories directories, NativeBattleWaterInitializationInputs inputs)
     {
-        return InitializeCore(NativeBattleCinematicProfile.ForEffect(201), memory, effect, directories, inputs, true);
+        return InitializePresentation(NativeBattleCinematicProfile.ForEffect(201), memory, effect, directories, inputs);
+    }
+
+    internal static NativeBattleCinematicEntryStep InitializePresentation(NativeBattleCinematicProfile profile, NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleScriptedInitializationDirectories directories, NativeBattleWaterInitializationInputs inputs)
+    {
+        if (profile.Effect is not (201 or 205))
+        {
+            throw new InvalidDataException("Only installed transformation cinematics allow contact-free entry.");
+        }
+        return InitializeCore(profile, memory, effect, directories, inputs, true);
     }
 
     private static NativeBattleCinematicEntryStep InitializeCore(NativeBattleCinematicProfile profile, NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleScriptedInitializationDirectories directories, NativeBattleWaterInitializationInputs inputs, bool presentationOnly)

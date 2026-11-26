@@ -351,7 +351,7 @@ internal sealed partial class BattleHudElement : UiElement
         BattleGuardianForceCast? cast = session.GuardianForceCasts.FirstOrDefault(cast => cast.ActorId == actor.Id);
         BattleGuardianFormState? form = session.GetGuardianForm(actor.Id);
         int? guardian = cast?.Command.ActionId ?? form?.GuardianForceId;
-        string name = guardian is int id ? controller.GuardianForceDisplayName(id) : actor.Name;
+        string name = session.ReadGuardianFormDisplayName(actor.Id) ?? (guardian is int id ? controller.GuardianForceDisplayName(id) : actor.Name);
         return new(cast, form, name, session.ReadDisplayedVital(actor.Id, cast?.Command.ActionId), session.ReadStatusPresentation(actor.Id));
     }
 

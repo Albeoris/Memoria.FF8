@@ -5,6 +5,53 @@ namespace Memoria.FF8.Assets;
 
 public sealed partial class BattleAssets
 {
+    public BattleGuardianFormResources ReadGuardianFormResources(BattleGuardianFormDefinition profile, ImmutableArray<BattleGuardianFormActionBinding> actions)
+    {
+        NativeBattleGraphicsResource visual = ReadEnemyNativeGraphicsResource(profile.ModelId);
+        if (!visual.Contains(profile.SupportSequence))
+        {
+            throw new InvalidDataException($"GF form '{profile.VariantId}' requires model {profile.ModelId} to provide support sequence {profile.SupportSequence}.");
+        }
+        NativeBattleAiDefinition? prototype = null;
+        foreach (BattleGuardianFormActionBinding binding in actions)
+        {
+            BattleNativeAction native = binding.ResolveNativeAction(NativeActions);
+            if (binding.Terminal && !NativeBattleGuardianFormPresentation.SupportsBody(native.MagicId, profile.ModelId))
+            {
+                throw new NotSupportedException($"GF form '{profile.VariantId}' has no supported presentation for native effect {native.MagicId} with model {profile.ModelId}.");
+            }
+            if (binding.Target == BattleGuardianFormTarget.Native && native.TargetFlags is null && binding.Source != BattleGuardianFormActionSource.Physical)
+            {
+                throw new InvalidDataException($"GF form '{profile.VariantId}' action '{binding.Name}' requires an explicit target selector.");
+            }
+            if (!binding.Terminal && !visual.Contains(binding.Sequence))
+            {
+                throw new InvalidDataException($"GF form '{profile.VariantId}' action '{binding.Name}' requires model {profile.ModelId} to provide sequence {binding.Sequence}.");
+            }
+            if (binding.RequirePrototypeBinding)
+            {
+                prototype ??= ReadEnemyAi(profile.ModelId, 1);
+                if (!prototype.Abilities.Any(ability => ability.Command == binding.Command && ability.Id == binding.ResourceActionId && ability.Sequence == binding.Sequence))
+                {
+                    throw new InvalidDataException($"GF form '{profile.VariantId}' action '{binding.Name}' differs from the native model's action binding.");
+                }
+            }
+        }
+        BattleGuardianFormAction basic = profile.TierAtLevel(1).CompelledPhysical ?? throw new InvalidDataException($"GF form '{profile.VariantId}' requires a base physical action.");
+        BattleGuardianFormActionBinding attack = actions.Single(binding => binding.Action == basic);
+        BattleNativeAction physical = attack.ResolveNativeAction(NativeActions);
+        return new(profile.GuardianForceId, physical, attack.Sequence, visual)
+        {
+            VariantId = profile.VariantId,
+            Profile = profile,
+            DisplayName = profile.UseInstalledModelName ? ReadEnemyName(profile.ModelId) : profile.UseGuardianForceName ? null : profile.Name,
+            InnateBindings = actions,
+            CommandBindings = ReadGuardianFormCommandBindings(),
+            ElementDefenses = ReadEnemyNativeStats(profile.ModelId).ElementDefenses.Select(value => (int)value).ToImmutableArray(),
+            StatusResistances = ReadEnemyNativeStatusData(profile.ModelId).Resistances
+        };
+    }
+
     public BattleGuardianFormResources ReadIfritGuardianFormResources()
     {
         BattleGuardianFormDefinition profile = BattleGuardianFormProfiles.Find(2) ?? throw new NotSupportedException("Ifrit's Guardian Force form profile is unavailable.");

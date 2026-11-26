@@ -9,7 +9,7 @@ public sealed partial class BattlePresentationProcess
     private BattleModelOwner? GuardianFormEntryCaster(NativeBattleGraphicsState graphics)
     {
         return hostedGuardianFormMode == GuardianFormInvocationMode.EntryOnly ? presentationSourceOwner :
-            graphics.GuardianFormPresentation is { Mode: GuardianFormInvocationMode.EntryOnly, Phase: < 3 } form && graphics.OriginalEffect?.Binding.Effect == 201 ? form.Actor : null;
+            graphics.GuardianFormPresentation is { Mode: GuardianFormInvocationMode.EntryOnly, Phase: < 3 } form && graphics.OriginalEffect?.Binding.Effect == form.CinematicEffect ? form.Actor : null;
     }
 
     private NativeBattleGraphicsState EnterNativeCinematic(NativeBattleGraphicsState graphics)
@@ -23,14 +23,15 @@ public sealed partial class BattlePresentationProcess
         {
             throw new NotSupportedException("Native cinematic requires both complete executed initializer resources.");
         }
-        NativeBattleWaterResetCaptureInputs selection = CaptureCinematicAction(graphics, effect.Parameters, entryCaster, 0);
+        graphics = StartBrothersCompanion(graphics);
+        NativeBattleWaterResetCaptureInputs selection = CaptureCinematicAction(WithBrothersCompanionModel(graphics), effect.Parameters, entryCaster, 0);
         if (selection.Contacts.IsEmpty)
         {
             throw new NotSupportedException("Native cinematic entry requires its first actual contact actor.");
         }
         byte repeat = selection.Header is { } reference ? nativeActionPackets.ReadHeader(reference).ReadRepeatModeMinusOne() : (byte)1;
         NativeBattleWaterInitializationInputs inputs = new(Resource(0, profile.File0Publication), Resource(1, profile.File1Publication), NativeBattleWater222Controller.CreateTemporaryFrame(WaterTemporaryAddress), WaterParametersAddress, profile.InitializationAddress, selection, repeat);
-        NativeBattleCinematicEntryStep initialized = entryCaster is null ? NativeBattleCinematicEntry.Initialize(profile, RequireWaterMemory(), effect, directories, inputs) : NativeBattleCinematicEntry.InitializeIfritPresentation(RequireWaterMemory(), effect, directories, inputs);
+        NativeBattleCinematicEntryStep initialized = entryCaster is null ? NativeBattleCinematicEntry.Initialize(profile, RequireWaterMemory(), effect, directories, inputs) : NativeBattleCinematicEntry.InitializePresentation(profile, RequireWaterMemory(), effect, directories, inputs);
         NativeEffectMemory = initialized.Memory;
         if (effect.Binding.Effect == 18)
         {
@@ -53,6 +54,7 @@ public sealed partial class BattlePresentationProcess
             effect = effect with { PresentationPackets = [] };
             graphics = graphics with { OriginalEffect = effect };
         }
+        graphics = WithBrothersCompanionModel(graphics);
         NativeBattleEffectParameters? outputParameters = effect.Parameters;
         BattleModelOwner? entryCaster = GuardianFormEntryCaster(graphics);
         NativeBattleCinematicResources resources = effect.Binding.CinematicResources ?? throw new NotSupportedException("Native cinematic requires its authenticated cinematic tables and resources.");
@@ -71,11 +73,17 @@ public sealed partial class BattlePresentationProcess
         {
             if (entryCaster is not null)
             {
-                throw new InvalidDataException("Presentation-only Ifrit entrance reached an offensive contact before its landing handoff.");
+                throw new InvalidDataException("Presentation-only guardian entrance reached an offensive contact before its landing handoff.");
             }
             NativeEffectMemory = RequireWaterMemory() with { Arena = current.Arena, ScriptedEffects = current.Core };
             ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-            graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(occurrence)] });
+            BattleForeignEnemyModel? companion = graphics.GuardianFormPresentation?.Companion;
+            NativeBattleGraphicsModel? companionModel = companion is not null && graphics.ActorModels.TryGet(companion, out NativeBattleGraphicsModel? model) ? model : null;
+            graphics = ConsumeNativeGraphicsContacts(WithoutBrothersCompanionModel(graphics) with { PendingContacts = [nativeActionPackets.ReadContact(occurrence)] });
+            if (companion is not null && companionModel is not null)
+            {
+                graphics = graphics with { ActorModels = graphics.ActorModels.Add(companion, companionModel) };
+            }
             graphics = graphics with { PendingContacts = pending };
             return current with { Arena = RequireWaterMemory().Arena!, Core = RequireWaterMemory().ScriptedEffects! };
         }, current =>
@@ -88,10 +96,11 @@ public sealed partial class BattlePresentationProcess
             NativeStage = stage with { Groups = stage.Groups.SetItem(index, stage.Groups[index] with { ColorDepth = depth, ColorFlags = color }) };
             return current;
         }, current => ReadCinematicHeader(current, effect.Parameters, entryCaster), () => nativeActionPackets, () => CaptureScriptAuthoredOperands(graphics, entryCaster ?? effect.Parameters?.Source), graphics.Effects.StorageContract);
-        NativeBattleScriptedCallbackServices services = new(ReadInstruction, ExecuteInstruction, UpdateSlot, DrawSlots, ClearOrderingTable, PublishFocal) { ReadCurrentFocal = _ => NativeCamera?.FocalLength ?? throw new NotSupportedException("Native cinematic requires its current scratch focal WORD after script execution.") };
         NativeBattleGuardianFormPresentation? continuation = graphics.GuardianFormPresentation;
+        bool brothersFinisher = effect.Binding.Effect == 205 && continuation is { Mode: GuardianFormInvocationMode.FinisherWithoutEntry };
+        NativeBattleScriptedCallbackServices services = new(ReadInstruction, ExecuteInstruction, UpdateSlot, DrawSlots, ClearOrderingTable, PublishFocal) { ReadCurrentFocal = _ => NativeCamera?.FocalLength ?? throw new NotSupportedException("Native cinematic requires its current scratch focal WORD after script execution.") };
         bool attachedContinuation = continuation is { Mode: GuardianFormInvocationMode.FinisherWithoutEntry, Phase: 4 } &&
-            hostedFrameServices?.GuardianForm is { Finishing: true, Form: { } form } && form.Actor == continuation.Actor && form.InvocationId == continuation.InvocationId;
+            hostedFrameServices?.GuardianForm is { Finishing: true, Form: { } form } && form.Actor == continuation.Actor && form.InvocationId == continuation.InvocationId && form.VariantId == continuation.VariantId;
         bool hostedContinuation = hostedGuardianFormMode == GuardianFormInvocationMode.FinisherWithoutEntry && !hostedGuardianFormContinued;
         if (effect.Binding.Effect == 201 && (attachedContinuation || hostedContinuation))
         {
@@ -112,6 +121,11 @@ public sealed partial class BattlePresentationProcess
             }
             NativeGraphics = graphics;
         }
+        if (effect.Binding.Effect == 205 && attachedContinuation)
+        {
+            graphics = graphics with { GuardianFormPresentation = continuation! with { Phase = 5 } };
+            NativeGraphics = graphics;
+        }
         NativeBattleCinematicFrame advanced = NativeBattleCinematicController.Advance(profile, new(RequireWaterMemory(), effect, nativeCrtRandom ?? throw new NotSupportedException("Native cinematic callback requires its retained CRT state.")), input, services, WaterTemporaryAddress, RequireWaterMemory);
         NativeEffectMemory = advanced.Memory;
         nativeCrtRandom = advanced.Random;
@@ -128,6 +142,7 @@ public sealed partial class BattlePresentationProcess
         {
             result = result with { PresentationPackets = graphics.OriginalEffect!.PresentationPackets };
         }
+        graphics = WithoutBrothersCompanionModel(graphics);
         return graphics with { OriginalEffect = result };
 
         NativeBattleWaterInitializationResource CurrentResource(int index, uint publication)
@@ -261,6 +276,10 @@ public sealed partial class BattlePresentationProcess
                 return copyFrame;
             }
             uint pc = CoreDword(current, 0x2797450);
+            if (profile.Effect == 205 && entryCaster is not null && pc == CoreDword(current, 0x2798A68) + BrothersEntranceEnd)
+            {
+                return current.WriteTemporaryWord(0x13E, SlotWord(current, 0xC8));
+            }
             uint selectedHandler;
             try
             {
@@ -379,7 +398,7 @@ public sealed partial class BattlePresentationProcess
                 case 0x140:
                     return NativeBattleCinematicEntityPosition.WaitScaledBySlot140(current, program);
                 case 0x64:
-                    return NativeBattleCinematicActorSelector64.Execute(current, program, entryCaster ?? (effect.Parameters ?? throw new InvalidDataException("Cinematic actor selection requires its action source.")).Source, context.CaptureAliases());
+                    return NativeBattleCinematicActorSelector64.Execute(current, program, entryCaster ?? (effect.Parameters ?? throw new InvalidDataException("Cinematic actor selection requires its action source.")).Source, context.CaptureAliases(), graphics.GuardianFormPresentation?.Companion is not null && profile.Effect == 258 ? slot => SelectBrothersCompanionOperand(graphics, slot) : null);
                 case 0x66:
                     NativeBattleEffectMemory cameraMemory = RequireWaterMemory();
                     NativeBattleScriptedColorRegisters cameraRegisters = cameraMemory.ScriptedColorRegisters ?? throw new NotSupportedException("Native camera-relative matrix requires retained packed input registers.");
@@ -457,6 +476,11 @@ public sealed partial class BattlePresentationProcess
                 case 0x9C:
                     return NativeBattleWaterChildCommands.Execute9C(current, program, bank, checked(current.TemporaryFrame.Address + 0x100), UpdateSlot, context.CaptureAliases);
                 case 0x5D:
+                    if (profile.Effect == 205 && entryCaster is not null && pc == CoreDword(current, 0x2798A68) + 0x29E)
+                    {
+                        // The original selected per-recipient child lifts targets and later owns damage contact.
+                        return NativeBattleScriptedCommandReads.Advance(current, 4);
+                    }
                     return NativeBattleWaterChildCommands.Execute5D(current, program, bank, checked(current.TemporaryFrame.Address + 0x100), UpdateSlot, context.CaptureAliases());
                 case 0x70:
                     return NativeBattleCinematicProfileHeight70.Execute(current, program, new(ResolveCurrentNode, (frame, address) => BinaryPrimitives.ReadInt16LittleEndian(frame.Arena.Read(ArenaOffset(address, 2), 2)), UpdateSlot));
@@ -523,7 +547,16 @@ public sealed partial class BattlePresentationProcess
                     {
                         current = WriteCoreWord(current, header + 2, control.HeaderFlagsWord2);
                     }
-                    return control.YieldWait is ushort wait ? current.WriteTemporaryWord(0x13E, wait) : current;
+                    if (control.YieldWait is ushort wait)
+                    {
+                        if (brothersFinisher && opcode == 9 && IsBrothersRitualWait(current, pc))
+                        {
+                            // Keep one callback for each original rendezvous and its dependent IO.
+                            wait = 0x80;
+                        }
+                        current = current.WriteTemporaryWord(0x13E, wait);
+                    }
+                    return current;
                 case 0x21:
                 case 0x7D:
                     return NativeBattleWaterWorkCommands.Execute(current, program, RequireWaterMemory().MagicTextureBufferAddress1D99A88);
@@ -538,6 +571,14 @@ public sealed partial class BattlePresentationProcess
                     PublishNativeModuleSound((RequireWaterMemory().SummonStream ?? throw new NotSupportedException("Native cinematic volume requires its retained summon stream number.")).Play5018C0(128, (uint)(current.ReadTemporaryWord(0x14A) >> 9)));
                     return NativeBattleScriptedCommandReads.Advance(current, 2);
                 case 0x3F:
+                    if (profile.Effect == 205 && entryCaster is not null && graphics.GuardianFormPresentation is { BodyModelId: SacredBody })
+                    {
+                        return RegisterBrothersEntranceModel(current, program, resources, ModelServices(0));
+                    }
+                    if (brothersFinisher && continuation!.BodyModelId == MinotaurBody && pc - CoreDword(current, 0x2798A68) is 0x16D8 or 0x16E8)
+                    {
+                        return RegisterBrothersFinisherBody(current, program, resources, ModelServices(0));
+                    }
                     return NativeBattleCinematicModel.Register(current, program, ModelServices(0));
                 case 0x37:
                     return NativeBattleScriptedMotionReset.Execute(current, bank, UpdateSlot);
@@ -804,6 +845,10 @@ public sealed partial class BattlePresentationProcess
                     if (selectedHandler != 0xAFB630)
                     {
                         return current;
+                    }
+                    if (entryCaster is not null)
+                    {
+                        return NativeBattleScriptedCommandReads.Advance(current, 4);
                     }
                     ushort? encounter = this.resources.EncounterId is int sourceEncounter ? checked((ushort)sourceEncounter) : presentationSourceResource is not null ? null : throw new NotSupportedException("Native encounter correction requires its current source encounter.");
                     return NativeBattleBrothersTargetCommand.Execute(current, program, new(encounter, () => RequireWaterMemory().ScriptedTarget2796D40 ?? throw new NotSupportedException("Native Brothers target branch requires its retained2796D40 byte."), value => NativeEffectMemory = RequireWaterMemory() with { ScriptedTarget2796D40 = value }, () => graphics.NativeBindings.DecodeLiteral(3, graphics.ActorModels), graphics.ActorModels.Get, context));
@@ -1185,7 +1230,8 @@ public sealed partial class BattlePresentationProcess
                     uint model = BinaryPrimitives.ReadUInt32LittleEndian(ReadSlot(frame, 0xBC, 4));
                     byte shapeIndex = frame.Arena.Read(ArenaOffset(unchecked(model + 8), 1), 1)[0];
                     uint shape = NativeBattleWaterShapeSelection.ResolveCinematic(frame, resources, shapeIndex).Selected;
-                    var drawn = selectedDrawHandler == 0xAF5810 ? DrawNativeCinematicBrothersModel3(frame, assets[1].Data.Length, ModelServices(shape), graphics) : DrawNativeCinematicModel(frame, assets[1].Data.Length, ModelServices(shape), graphics);
+                    bool hideBrother = brothersFinisher && (shapeIndex == MinotaurRitualShape || shapeIndex == SacredRitualShape && (CoreWord(frame, CoreDword(frame, 0x279744C) + 2) & 0x0E00) == 0);
+                    var drawn = selectedDrawHandler == 0xAF5810 ? DrawNativeCinematicBrothersModel3(frame, assets[1].Data.Length, ModelServices(shape), graphics, hideBrother) : DrawNativeCinematicModel(frame, assets[1].Data.Length, ModelServices(shape), graphics);
                     graphics = drawn.Graphics;
                     return drawn.Frame;
                 }
@@ -1213,6 +1259,10 @@ public sealed partial class BattlePresentationProcess
                 return selectedShape;
             }, (frame, animationAddress) =>
             {
+                if (profile.Effect == 205 && entryCaster is not null && graphics.GuardianFormPresentation is { BodyModelId: SacredBody })
+                {
+                    selectedShape = ReadBrothersEntrancePoseOwner(frame, resources, selectedShape, animationAddress);
+                }
                 uint extent = BinaryPrimitives.ReadUInt32LittleEndian(frame.Arena.Read(ArenaOffset(selectedShape, 4), 4));
                 uint relative = unchecked(animationAddress - selectedShape);
                 NativeBattleWaterScriptProgram owner = Program(frame, selectedShape);
@@ -1299,13 +1349,13 @@ public sealed partial class BattlePresentationProcess
             RequireKnownIdentity(offset, 0, 1);
             return positioning.AsSpan(offset, length).ToArray();
         }
-        throw new InvalidDataException("Presentation-only Ifrit read leaves its owned positioning inputs.");
+        throw new InvalidDataException("Presentation-only guardian read leaves its owned positioning inputs.");
 
         void RequireKnownIdentity(int offset, int identityOffset, int identityLength)
         {
             if (!hasOriginal && length > 0 && offset < identityOffset + identityLength && identityOffset < offset + length)
             {
-                throw new NotSupportedException("Ifrit positioning read reached a model identity with no original raw alias.");
+                throw new NotSupportedException("Guardian positioning read reached a model identity with no original raw alias.");
             }
         }
     }

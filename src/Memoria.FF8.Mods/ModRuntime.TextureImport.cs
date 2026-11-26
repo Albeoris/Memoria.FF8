@@ -104,7 +104,7 @@ public sealed partial class ModRuntime
                     diagnostics = Array.AsReadOnly(new[] { new ModDiagnostic("texture-import-incompatible", "This package contains gameplay or unsupported contributions for the selected edition. Choose a separate texture-only native package.", candidatePackage.Id) });
                     return TextureImportApplyResult.Failed;
                 }
-                candidatePackage = candidatePackage with { TextureContentOnly = textureContentOnly, MoviePresentationOnly = moviePresentationOnly };
+                candidatePackage = candidatePackage with { TextureContentOnly = textureContentOnly, MoviePresentationOnly = moviePresentationOnly, GuardianFormContentOnly = GuardianFormMods.IsGuardianFormContentOnly(contributions) };
                 List<ModPackage> packages = catalog.Packages.Where(package => !package.Id.Equals(candidatePackage.Id, StringComparison.OrdinalIgnoreCase)).Append(candidatePackage with { Status = ModEffectiveStatus.Active }).ToList();
                 List<ModFile> files = catalog.Files.Where(file => !file.PackageId.Equals(candidatePackage.Id, StringComparison.OrdinalIgnoreCase) || !replaced.Contains(file.RelativePath)).ToList();
                 foreach (TextureModOutput output in transaction.FrozenFiles)

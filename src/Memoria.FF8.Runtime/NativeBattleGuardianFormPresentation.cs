@@ -7,14 +7,32 @@ public readonly record struct NativeBattleGuardianModelVisibility(ushort Flags0,
 
 public sealed record NativeBattleGuardianFormPresentation(string ActorId, long InvocationId, GuardianFormInvocationMode Mode, BattlePartyActorModel Actor, byte Phase, NativeBattleGraphicsModel HumanModel, NativeBattleCameraState Camera, NativeBattleStageState Stage, ImmutableDictionary<BattleModelOwner, NativeBattleGuardianModelVisibility> ModelVisibility, uint GraphicsFlags)
 {
+    public int GuardianForceId { get; init; } = 2;
+    public string VariantId { get; init; } = "ifrit";
+    public byte BodyModelId { get; init; } = 77;
+    public ushort CinematicEffect { get; init; } = 201;
+    internal BattleForeignEnemyModel? Companion { get; init; }
+    internal NativeBattleModelTextureBinding? CompanionTexture { get; init; }
+    internal int CompanionAge { get; init; }
     public bool SkipRequested { get; init; }
     internal ImmutableDictionary<NativeBattleModelSlot, NativeBattleGuardianModelVisibility> UnboundVisibility { get; init; } = ImmutableDictionary<NativeBattleModelSlot, NativeBattleGuardianModelVisibility>.Empty;
     public short HumanFocalLength { get; init; }
     public bool IdleCameraRestorePending { get; init; }
 
+    public static bool SupportsBody(ushort cinematicEffect, int modelId)
+    {
+        return (cinematicEffect, modelId) is (201, 61) or (205, 62 or 63);
+    }
+
+    public static bool SupportsActionParticipants(int effect, IEnumerable<int> modelIds)
+    {
+        ArgumentNullException.ThrowIfNull(modelIds);
+        return effect == 258 ? modelIds.Order().SequenceEqual([62, 63]) : !modelIds.Any();
+    }
+
     public void Validate()
     {
-        if (string.IsNullOrWhiteSpace(ActorId) || InvocationId <= 0 || !Enum.IsDefined(Mode) || Mode == GuardianFormInvocationMode.FullClassic || Actor is null || Actor.Actor.ActorId != ActorId || Phase > 5 || HumanModel is null || HumanFocalLength <= 0 || ModelVisibility is null || !ModelVisibility.ContainsKey(Actor))
+        if (string.IsNullOrWhiteSpace(ActorId) || InvocationId <= 0 || !Enum.IsDefined(Mode) || Mode == GuardianFormInvocationMode.FullClassic || Actor is null || Actor.Actor.ActorId != ActorId || Phase > 5 || GuardianForceId < 0 || !SupportsBody(CinematicEffect, BodyModelId - 16) || string.IsNullOrWhiteSpace(VariantId) || HumanModel is null || HumanFocalLength <= 0 || ModelVisibility is null || !ModelVisibility.ContainsKey(Actor))
         {
             throw new InvalidDataException("Saved GF presentation has an invalid invocation or restoration owner.");
         }

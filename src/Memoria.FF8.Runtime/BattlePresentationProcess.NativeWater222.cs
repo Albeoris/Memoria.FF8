@@ -290,7 +290,7 @@ public sealed partial class BattlePresentationProcess
         {
             if (relativeIndex != 0)
             {
-                throw new InvalidDataException("Presentation-only Ifrit has no subsequent combat header.");
+                throw new InvalidDataException("Presentation-only guardian entrance has no subsequent combat header.");
             }
             uint? originalHeader = graphics.NativeBindings.TryEncodeExactActor(positioning, graphics.ActorModels, out _) ? WaterHeadersAddress : null;
             return new(positioning, null, originalHeader, positioning, [positioning], graphics.ActorModels, graphics.NativeBindings, graphics.Effects.StorageContract);

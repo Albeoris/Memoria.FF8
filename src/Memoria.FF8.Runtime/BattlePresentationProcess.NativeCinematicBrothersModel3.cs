@@ -4,20 +4,15 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattlePresentationProcess
 {
-    private (NativeBattleWaterExecutionFrame Frame, NativeBattleGraphicsState Graphics) DrawNativeCinematicBrothersModel3(NativeBattleWaterExecutionFrame frame, int resourceLength, NativeBattleCinematicModelServices modelServices, NativeBattleGraphicsState graphics)
+    private (NativeBattleWaterExecutionFrame Frame, NativeBattleGraphicsState Graphics) DrawNativeCinematicBrothersModel3(NativeBattleWaterExecutionFrame frame, int resourceLength, NativeBattleCinematicModelServices modelServices, NativeBattleGraphicsState graphics, bool hideModel = false)
     {
+        if (hideModel)
+        {
+            return (PrepareModel(frame), graphics);
+        }
         NativeBattleCinematicBrothersModelServices services = new(current =>
         {
-            var primary = DrawNativeCinematicModel(current, resourceLength, modelServices, graphics, active =>
-            {
-                NativeBattleWaterSlotBank bank = NativeBattleWaterInstructionDispatcher.CurrentBank(active, resourceLength);
-                active = NativeBattleCinematicModelRefresh89.PrepareBasis(active, (selected, selector) => NativeBattleWaterMatrixCommands.ResolveB65520(selected, bank, selector)).Frame;
-                if (CoreDword(active, 0x27973B8) != unchecked(active.TemporaryFrame.Address + 0x100))
-                {
-                    throw new NotSupportedException("Native Brothers model advance requires its current callback pause binding.");
-                }
-                return NativeBattleCinematicModel.PrepareDraw(active, modelServices);
-            });
+            var primary = DrawNativeCinematicModel(current, resourceLength, modelServices, graphics, PrepareModel);
             graphics = primary.Graphics;
             return primary.Frame;
         }, (current, selector) =>
@@ -48,5 +43,16 @@ public sealed partial class BattlePresentationProcess
         NativeBattleWaterSlotBank visualBank = NativeBattleWaterInstructionDispatcher.CurrentBank(frame, resourceLength);
         services = services with { PilotIdentity = NativeBattleCinematicVisualIdentity.Identity(graphics.OriginalEffect!.Binding.Effect, frame, visualBank, NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, visualBank)) };
         return (NativeBattleCinematicBrothersModel3.Draw(frame, services), graphics);
+
+        NativeBattleWaterExecutionFrame PrepareModel(NativeBattleWaterExecutionFrame current)
+        {
+            NativeBattleWaterSlotBank bank = NativeBattleWaterInstructionDispatcher.CurrentBank(current, resourceLength);
+            current = NativeBattleCinematicModelRefresh89.PrepareBasis(current, (selected, selector) => NativeBattleWaterMatrixCommands.ResolveB65520(selected, bank, selector)).Frame;
+            if (CoreDword(current, 0x27973B8) != unchecked(current.TemporaryFrame.Address + 0x100))
+            {
+                throw new NotSupportedException("Native Brothers model advance requires its current callback pause binding.");
+            }
+            return NativeBattleCinematicModel.PrepareDraw(current, modelServices);
+        }
     }
 }

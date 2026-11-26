@@ -16,10 +16,12 @@ public sealed class ExpandedHostedGuardianFormTests
         Run((world, battle, process, actor, owner) =>
         {
             int begin = battle.Events.Count;
+            int modelCount = process.Graphics.ActorModels.Roster.Count;
             Enter(world, battle, process, actor, owner, queueAnotherAlly: true);
             Assert.DoesNotContain(battle.Events.Skip(begin), entry => entry.Kind == "EffectContact" && entry.ActorId == Caster);
             Assert.Equal((byte)77, process.Graphics.ActorModels.Get(owner).ModelId4);
             Assert.True(battle.Combatants.Count(IsLivingEnemy) >= 7);
+            Assert.Equal(modelCount, process.Graphics.ActorModels.Roster.Count);
             Assert.Equal(BattleGuardianFormPhase.Active, battle.GetGuardianForm(Caster)!.Phase);
 
             int fireStock = actor.MagicStocks.FirstOrDefault(stock => stock.Id == 1)?.Count ?? 0;
@@ -161,8 +163,11 @@ public sealed class ExpandedHostedGuardianFormTests
             byte[][] scripts = enemy.NativeAi!.Scripts;
             byte[] originalTurn = scripts[1];
             scripts[1] = [4, checked((byte)actor.ModelId), 12, checked((byte)attackSlot), 0];
-            MethodInfo queue = typeof(BattleSession).GetMethod("QueueExpandedAiCallback", BindingFlags.Instance | BindingFlags.NonPublic)!;
-            queue.Invoke(battle, [enemy, 1, null]);
+            NativeBattleAiAbility ability = enemy.NativeAi.Abilities[16 * enemy.NativeAi.LevelBand + attackSlot];
+            BattleNativeAction native = battle.ReadDefinition().NativeActions.Single(action => action.Command == ability.Command && action.ActionId == ability.Id);
+            BattleDiagnosticEnemyAbility selection = new(enemy.ModelId, Assert.IsType<int>(enemy.SceneSlot), enemy.NativeAi.LevelBand, attackSlot, ability.Command, ability.Id, ability.Sequence, TargetSelector: null) { UseTurnScript = true };
+            enemy.Atb = BattleSession.AtbMaximum;
+            battle.SubmitDiagnosticEnemyAbility(enemy.Id, selection, native.MagicId);
             BattleSnapshot boundary = battle.Capture();
             BattleSession continuation = BattleSession.Restore(boundary);
             Assert.Equal(BattleGuardianFormPhase.Active, continuation.GetGuardianForm(Caster)!.Phase);
@@ -190,6 +195,24 @@ public sealed class ExpandedHostedGuardianFormTests
             var forces = Assert.IsType<Dictionary<int, BattleGuardianForceVital>>(forcesField.GetValue(battle));
             forces[Ifrit] = forces[Ifrit] with { HitPoints = forces[Ifrit].MaximumHitPoints };
             Enter(world, battle, process, actor, owner);
+        });
+    }
+
+    [Fact]
+    public void TurnBasedExpirySchedulesFinisherWhileTheFormActorIsReady()
+    {
+        Run((world, battle, process, actor, owner) =>
+        {
+            Enter(world, battle, process, actor, owner);
+            Ready(world, battle, actor);
+            Assert.Equal(BattleAtbMode.TurnBased, battle.Mode);
+            FieldInfo field = typeof(BattleSession).GetField("guardianForms", BindingFlags.Instance | BindingFlags.NonPublic)!;
+            var forms = Assert.IsType<Dictionary<string, BattleGuardianFormState>>(field.GetValue(battle));
+            forms[Caster] = forms[Caster] with { RemainingTicks = 0 };
+            Assert.False(battle.CanChoosePlayerCommand(Caster));
+            world.ApplyBattleInput(new(BattleInputKind.Tick));
+            Assert.Equal(BattleGuardianFormPhase.Finishing, battle.GetGuardianForm(Caster)?.Phase);
+            Assert.True(battle.GetGuardianForm(Caster)!.FinisherAdmitted);
         });
     }
 
@@ -246,7 +269,10 @@ public sealed class ExpandedHostedGuardianFormTests
         {
             ExpandedBattleInstalledEntry.Prepare(world, session, current => ExpandedBattleGuardianTests.PrepareParty(current, learnedBoost: true, guardianId: Ifrit), additionalEnemies: additionalEnemies);
             world.ConfigureGameplayPreferences(session.State.GameplayPreferences with { GuardianFormsEnabled = true });
-            BattleSession battle = ExpandedBattleInstalledEntry.Start(world);
+            world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.TurnBased, NativeSeed: ExpandedBattleInstalledEntry.Seed));
+            BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
+            battle.ConfigureDiagnosticScheduling(holdEnemyCommands: true);
+            ExpandedBattleInstalledEntry.WaitForEntry(world, battle);
             BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
             BattleCombatant actor = Assert.Single(battle.Combatants, actor => actor.Id == Caster);
             BattleModelOwner owner = battle.ReadPresentationModelOwner(Caster);
@@ -296,7 +322,7 @@ public sealed class ExpandedHostedGuardianFormTests
                 {
                     BattleCombatant other = battle.Combatants.First(value => value.IsPlayer && value.Id != Caster && !value.IsBusy && value.IsAlive);
                     other.Atb = BattleSession.AtbMaximum;
-                    world.ApplyBattleInput(new(BattleInputKind.Attack, ActorId: other.Id, TargetId: LivingEnemy(battle).Id));
+                    world.ApplyBattleInput(new(BattleInputKind.Attack, ActorId: other.Id, TargetId: battle.Combatants.First(IsLivingEnemy).Id));
                     Assert.Contains(battle.QueuedActions, command => command.ActorId == other.Id);
                     Assert.Equal(0, battle.AdvanceTurn());
                     queued = true;

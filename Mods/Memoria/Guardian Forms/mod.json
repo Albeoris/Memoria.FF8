@@ -1,0 +1,8 @@
+{
+  "id": "memoria-guardian-forms",
+  "name": "Guardian Forms",
+  "package": "Memoria",
+  "description": {
+    "en": "Adds optional battle transformations for Ifrit and Brothers when GF Transformations is enabled."
+  }
+}

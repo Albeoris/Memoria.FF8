@@ -11,6 +11,8 @@ public sealed class BattlePresentationResources
         ReadCinematicModelOperands = readCinematicModelOperands;
         SourceGrouping = new(source);
         GuardianFormResources = source.GuardianFormResources;
+        GuardianCinematics = source.ActionDefinitions.Where(action => action.Ability == BattleAbility.GuardianForce && action.NativeAction is not null)
+            .ToImmutableDictionary(action => action.Id, action => action.NativeAction!.MagicId);
         NativeDefensiveResources = source.NativeDefensiveResources;
         NativeActionCameraRules = source.NativeActionCameraRules;
         GuardianBoost = source.ActionDefinitions.Where(action => action.Ability == BattleAbility.GuardianForce &&
@@ -72,6 +74,7 @@ public sealed class BattlePresentationResources
     internal BattleSourceGrouping SourceGrouping { get; }
     internal Func<NativeBattleEffectBinding, NativeBattleCinematicModelOperands>? ReadCinematicModelOperands { get; }
     internal ImmutableArray<BattleGuardianFormResources> GuardianFormResources { get; }
+    internal ImmutableDictionary<int, ushort> GuardianCinematics { get; }
     internal ImmutableArray<NativeBattleDefensiveResource> NativeDefensiveResources { get; }
     internal NativeBattleActionCameraRules? NativeActionCameraRules { get; }
     internal ImmutableDictionary<ushort, (byte First, byte Second, bool Enabled)> GuardianBoost { get; }

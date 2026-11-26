@@ -471,6 +471,11 @@ public sealed partial class BattleSession
         {
             throw new NotSupportedException($"Native battle AI status {status} lies outside its WORD/DWORD banks.");
         }
+        // Original anti-GF AI queries status 47 on the human model before selecting its target.
+        if (status == 47 && actor.GuardianFormVitals is not null)
+        {
+            return true;
+        }
         return status < 16 ? (NativeSavedStatusBits(actor) & (1u << status)) != 0 : (NativeBattleStatusBits(actor) & (1u << (status - 16))) != 0;
     }
 

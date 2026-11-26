@@ -48,9 +48,13 @@ public sealed class InstalledIfritFormCommandTests
             BattleGuardianFormCommand darkside = Assert.Single(learned, command => command.LearnedAbilityId == DarksideAbility);
             Assert.True(darkside.Action.Available);
             Assert.Equal((byte)28, darkside.NativeCommand);
-            BattleNativeAction weaponAction = Assert.IsType<BattleNativeAction>(darkside.Action.NativeAction);
-            Assert.Equal(caster.ModelId, weaponAction.CharacterId);
-            Assert.Equal(caster.WeaponId, weaponAction.KernelIndex);
+            BattleNativeAction bodyStrike = Assert.IsType<BattleNativeAction>(darkside.Action.NativeAction);
+            Assert.Equal(3, bodyStrike.KernelSection);
+            Assert.Equal(59, bodyStrike.KernelIndex);
+            Assert.Equal((byte)20, bodyStrike.Power);
+            Assert.Equal((byte)0, bodyStrike.Element);
+            Assert.Equal((ushort)0, bodyStrike.Statuses0);
+            Assert.Equal(0u, bodyStrike.Statuses1);
             Assert.DoesNotContain(caster.NativeCommands, command => command.Command == darkside.NativeCommand);
             IReadOnlyList<BattleCombatant> targets = battle.GetGuardianFormCommandTargets(casterId, darkside.Id);
             BattleCombatant target = targets.Last(candidate => !candidate.IsPlayer);
@@ -205,6 +209,32 @@ public sealed class InstalledIfritFormCommandTests
     }
 
     [Fact]
+    public void InstalledIfritCanUseFireBreathOncePerInvocation()
+    {
+        RunInForm(100, (world, battle, caster, _) =>
+        {
+            var breath = Assert.Single(battle.GetGuardianFormCommands(CasterId), row => row.Id == (int)BattleGuardianFormAction.FireBreath);
+            Assert.True(breath.Action.Available);
+            Assert.True(breath.Action.AllTargets);
+            var native = Assert.IsType<BattleNativeAction>(breath.Action.NativeAction);
+            Assert.Equal((byte)70, native.Power);
+            Assert.Equal((ushort)230, native.MagicId);
+            Assert.Equal((byte)1, native.Element);
+            var targets = battle.GetGuardianFormCommandTargets(CasterId, breath.Id);
+            var events = RunAction(world, battle, breath, targets.First(), command =>
+            {
+                Assert.Equal((byte)11, command.NativeSequence);
+                Assert.Equal(native, command.NativeAction);
+                Assert.Contains(BattleGuardianFormAction.FireBreath, battle.GetGuardianForm(CasterId)!.UsedActions);
+            });
+            Assert.Contains(events, entry => entry.Kind == "EffectContact" && entry.ActorId == caster.Id);
+            Assert.False(battle.GetGuardianFormCommands(CasterId).Single(row => row.Id == breath.Id).Action.Available);
+            BattleSession fork = battle.ForkForContinuation();
+            Assert.Contains(BattleGuardianFormAction.FireBreath, fork.GetGuardianForm(CasterId)!.UsedActions);
+        });
+    }
+
+    [Fact]
     public void Installed_Ifrit_at_level_100_dispatches_innate_Flare_without_magic_stock()
     {
         RunInForm(100, (world, battle, caster, _) =>
@@ -242,7 +272,7 @@ public sealed class InstalledIfritFormCommandTests
             hud.SelectParty(CasterId);
             Assert.Equal(CasterId, hud.SelectedActor?.Id);
             IReadOnlyList<BattleGuardianFormCommand> commands = battle.GetGuardianFormCommands(CasterId);
-            Assert.Equal(17, commands.Count);
+            Assert.Equal(18, commands.Count);
             Assert.Equal(13, commands.Count(command => command.LearnedAbilityId.HasValue));
             byte[] hiddenCommands = [4, 6, 2, 3, MiniMogCommand]; // Item, Draw, Magic, GF, MiniMog
             var learned = vitals.GuardianForceAbilities(Ifrit).Where(ability => ability.Learned).Select(ability => ability.Ability).ToHashSet();
@@ -253,7 +283,7 @@ public sealed class InstalledIfritFormCommandTests
                 Assert.DoesNotContain(commands, row => row.NativeCommand == hidden);
             }
             string[] labels = hud.ChoiceLabels.ToArray();
-            Assert.Equal(17, labels.Length);
+            Assert.Equal(18, labels.Length);
             UiView view = hud.BuildView();
             view.Resize(960, 672);
             UiTheme theme = new();
@@ -261,7 +291,7 @@ public sealed class InstalledIfritFormCommandTests
             view.Draw(canvas, theme);
             var rows = canvas.TextDraws.Where(draw => labels.Contains(draw.Text)).ToArray();
             Assert.Equal(labels, rows.Select(row => row.Text));
-            Assert.Equal(new[] { 6, 6, 5 }, rows.GroupBy(row => row.Bounds.X).Select(column => column.Count()));
+            Assert.Equal(new[] { 6, 6, 6 }, rows.GroupBy(row => row.Bounds.X).Select(column => column.Count()));
             Assert.Equal(6, rows.Select(row => row.Bounds.Y).Distinct().Count());
             Assert.Equal(rows[4].Bounds.Y, rows[16].Bounds.Y);
             Assert.True(rows[16].Bounds.X > rows[11].Bounds.X);
@@ -280,13 +310,9 @@ public sealed class InstalledIfritFormCommandTests
             view.Key(UiKey.Right);
             Assert.Equal(11, hud.ChoiceIndex);
             view.Key(UiKey.Right);
-            Assert.Equal(16, hud.ChoiceIndex);
-            view.Pointer(rows[16].Bounds.X + 1, rows[11].Bounds.Y + 1, false);
-            view.Pointer(rows[16].Bounds.X + 1, rows[11].Bounds.Y + 1, true);
-            Assert.Equal(16, hud.ChoiceIndex);
-            Assert.False(hud.SelectingTarget);
+            Assert.Equal(17, hud.ChoiceIndex);
 
-            int choice = Enumerable.Range(12, 5).Last(index => commands[index].LearnedAbilityId.HasValue && commands[index].Action.Available);
+            int choice = Enumerable.Range(12, 6).Last(index => commands[index].LearnedAbilityId.HasValue && commands[index].Action.Available);
             BattleGuardianFormCommand selected = commands[choice];
             UiRect cell = rows[choice].Bounds;
             view.Pointer(cell.X + 1, cell.Y + 1, false);
@@ -343,6 +369,11 @@ public sealed class InstalledIfritFormCommandTests
         }
         Assert.Equal(BattleGuardianFormPhase.Active, battle.GetGuardianForm(casterId)?.Phase);
         Assert.Equal(humanStats, (caster.Level, caster.Attack, caster.Magic));
+        BattleActionDefinition classicSummon = Assert.Single(battle.ActionDefinitions, action => action.Ability == BattleAbility.GuardianForce && action.Id == Ifrit);
+        BattleActionDefinition finisher = battle.GetGuardianFormActionDefinition(casterId, BattleGuardianFormAction.HellFire);
+        Assert.Same(classicSummon.NativeAction, finisher.NativeAction);
+        Assert.Equal(classicSummon.Statuses, finisher.Statuses);
+        Assert.Equal(classicSummon with { Statuses = finisher.Statuses }, finisher);
         Ready(world, battle, casterId);
         verify(world, battle, caster, session.State.CharacterVitals!);
     }

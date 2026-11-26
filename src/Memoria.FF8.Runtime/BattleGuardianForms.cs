@@ -20,7 +20,18 @@ public enum BattleGuardianFormAction
     HeavyStrike,
     Fira,
     Firaga,
-    Flare
+    Flare,
+    FireBreath,
+    SacredAttack,
+    SacredHeavyStrike,
+    SacredMend,
+    MinotaurAttack,
+    MinotaurMend,
+    MinotaurMower,
+    MinotaurHeavyMower,
+    MadCowSpecial,
+    BrotherlyLove,
+    SacredMasterStrike
 }
 
 public sealed record BattleGuardianFormCommand(int Id, BattleActionDefinition Action, int? LearnedAbilityId = null, byte? NativeCommand = null, byte? TargetFlags = null)
@@ -35,7 +46,8 @@ public enum BattleGuardianFormActionSource
 {
     Physical,
     Magic,
-    GuardianForce
+    GuardianForce,
+    Native
 }
 
 public enum BattleGuardianFormActionCost
@@ -44,30 +56,110 @@ public enum BattleGuardianFormActionCost
     Innate
 }
 
-public sealed record BattleGuardianFormActionBinding(BattleGuardianFormAction Action, string Name, BattleGuardianFormActionSource Source, int ResourceActionId, byte Sequence, BattleGuardianFormActionCost Cost = BattleGuardianFormActionCost.Native, bool Terminal = false);
+public enum BattleGuardianFormActionRole
+{
+    Attack,
+    Spell,
+    Recovery,
+    Special,
+    Finisher
+}
 
-public sealed record BattleGuardianFormDefinition(string ProfileId, int GuardianForceId, int ModelId, int LifetimeTicks, BattleGuardianFormAdjustments Adjustments, BattleGuardianFormActionBinding Finisher);
+public enum BattleGuardianFormTarget
+{
+    Native,
+    SingleEnemy,
+    Self,
+    AllEnemies
+}
+
+public sealed record BattleGuardianFormActionBinding(BattleGuardianFormAction Action, string Name, BattleGuardianFormActionSource Source, int ResourceActionId, byte Sequence, BattleGuardianFormActionCost Cost = BattleGuardianFormActionCost.Native, bool Terminal = false)
+{
+    public BattleGuardianFormActionRole Role { get; init; }
+    public BattleGuardianFormTarget Target { get; init; }
+    public bool OncePerInvocation { get; init; }
+    public bool RequiresGrounded { get; init; }
+    public bool RequiresFullAtb { get; init; }
+    public int? Power { get; init; }
+    public byte? NativeCommand { get; init; }
+    public byte? NativeCrisisLevel { get; init; }
+    public BattleGuardianFormNativeIdentity? NativeIdentity { get; init; }
+    public bool RequirePrototypeBinding { get; init; }
+    public ImmutableArray<string> PresentedModels { get; init; } = [];
+
+    [JsonIgnore]
+    public byte Command => Source switch
+    {
+        BattleGuardianFormActionSource.Physical => 8,
+        BattleGuardianFormActionSource.Native => NativeCommand ?? 8,
+        BattleGuardianFormActionSource.Magic => 2,
+        BattleGuardianFormActionSource.GuardianForce => 254,
+        _ => throw new InvalidDataException("Unrecognized GF form action source.")
+    };
+
+    public BattleNativeAction ResolveNativeAction(IEnumerable<BattleNativeAction> actions)
+    {
+        BattleNativeAction[] matches = actions.Where(action => action.Command == Command && action.CrisisLevel == NativeCrisisLevel &&
+            (Source == BattleGuardianFormActionSource.GuardianForce ? action.KernelSection == 2 && action.KernelIndex == ResourceActionId : action.ActionId == ResourceActionId)).ToArray();
+        if (matches is not [var native] || Source == BattleGuardianFormActionSource.Physical && !native.UsesPhysicalDamageFormula ||
+            NativeIdentity is { } identity && (native.AttackType != identity.AttackType || native.Power != identity.Power || native.MagicId != identity.EffectId || native.Element != identity.Element))
+        {
+            throw new InvalidDataException($"GF form action '{Name}' requires a matching installed native action ({Command}/{ResourceActionId}).");
+        }
+        return native;
+    }
+}
+
+public sealed record BattleGuardianFormNativeIdentity(byte AttackType, byte Power, ushort EffectId, byte Element);
+
+public sealed record BattleGuardianFormTier(int Level, ImmutableArray<BattleGuardianFormAction> Actions, BattleGuardianFormAction? HealBeforeAttack = null)
+{
+    public BattleGuardianFormAction? CompelledPhysical { get; init; }
+    public BattleGuardianFormAction? CompelledSpell { get; init; }
+}
+
+public sealed record BattleGuardianFormDefinition(string ProfileId, int GuardianForceId, int ModelId, int LifetimeTicks, BattleGuardianFormAdjustments Adjustments, BattleGuardianFormActionBinding Finisher)
+{
+    public string VariantId { get; init; } = "ifrit";
+    public string Name { get; init; } = "Ifrit";
+    public bool UseInstalledModelName { get; init; }
+    public bool UseGuardianForceName { get; init; }
+    public byte SupportSequence { get; init; } = 11;
+    public ImmutableArray<BattleGuardianFormTier> Tiers { get; init; } = [];
+
+    public BattleGuardianFormTier TierAtLevel(int level)
+    {
+        return Tiers.Last(tier => tier.Level <= level);
+    }
+}
 
 public static class BattleGuardianFormProfiles
 {
-    private static readonly BattleGuardianFormDefinition Ifrit = new("ifrit-v1", 2, 61, 900, new(), new(BattleGuardianFormAction.HellFire, "Hell Fire", BattleGuardianFormActionSource.GuardianForce, 2, 14, Terminal: true));
-    private static readonly ImmutableArray<(int Level, ImmutableArray<BattleGuardianFormAction> Actions)> IfritProgression =
-    [
-        (1, [BattleGuardianFormAction.Attack, BattleGuardianFormAction.Fire, BattleGuardianFormAction.HellFire]),
-        (15, [BattleGuardianFormAction.HeavyStrike, BattleGuardianFormAction.Fire, BattleGuardianFormAction.HellFire]),
-        (30, [BattleGuardianFormAction.HeavyStrike, BattleGuardianFormAction.Fira, BattleGuardianFormAction.HellFire]),
-        (70, [BattleGuardianFormAction.HeavyStrike, BattleGuardianFormAction.Firaga, BattleGuardianFormAction.HellFire]),
-        (100, [BattleGuardianFormAction.HeavyStrike, BattleGuardianFormAction.Firaga, BattleGuardianFormAction.Flare, BattleGuardianFormAction.HellFire])
-    ];
+    private static readonly BattleGuardianFormDefinition Ifrit = new("ifrit-v1", 2, 61, 900, new(), new(BattleGuardianFormAction.HellFire, "Hell Fire", BattleGuardianFormActionSource.GuardianForce, 2, 14, Terminal: true) { Role = BattleGuardianFormActionRole.Finisher, Target = BattleGuardianFormTarget.AllEnemies })
+    {
+        Tiers =
+        [
+            new(1, [BattleGuardianFormAction.Attack, BattleGuardianFormAction.Fire, BattleGuardianFormAction.HellFire]) { CompelledPhysical = BattleGuardianFormAction.Attack, CompelledSpell = BattleGuardianFormAction.Fire },
+            new(15, [BattleGuardianFormAction.HeavyStrike, BattleGuardianFormAction.Fire, BattleGuardianFormAction.HellFire]) { CompelledPhysical = BattleGuardianFormAction.HeavyStrike, CompelledSpell = BattleGuardianFormAction.Fire },
+            new(30, [BattleGuardianFormAction.HeavyStrike, BattleGuardianFormAction.Fira, BattleGuardianFormAction.HellFire]) { CompelledPhysical = BattleGuardianFormAction.HeavyStrike, CompelledSpell = BattleGuardianFormAction.Fira },
+            new(70, [BattleGuardianFormAction.HeavyStrike, BattleGuardianFormAction.Firaga, BattleGuardianFormAction.HellFire]) { CompelledPhysical = BattleGuardianFormAction.HeavyStrike, CompelledSpell = BattleGuardianFormAction.Firaga },
+            new(100, [BattleGuardianFormAction.HeavyStrike, BattleGuardianFormAction.Firaga, BattleGuardianFormAction.Flare, BattleGuardianFormAction.HellFire]) { CompelledPhysical = BattleGuardianFormAction.HeavyStrike, CompelledSpell = BattleGuardianFormAction.Firaga }
+        ]
+    };
 
     public static BattleGuardianFormDefinition? Find(int guardianForceId)
     {
         return guardianForceId == Ifrit.GuardianForceId ? Ifrit : null;
     }
 
-    internal static ImmutableArray<BattleGuardianFormAction> ActionsAtLevel(int level)
+    public static BattleGuardianFormDefinition ProfileFor(BattleGuardianFormResources resources)
     {
-        return IfritProgression.Last(tier => tier.Level <= level).Actions;
+        BattleGuardianFormDefinition profile = resources.Profile ?? Ifrit;
+        if (profile.GuardianForceId != resources.GuardianForceId || profile.VariantId != resources.VariantId)
+        {
+            throw new InvalidDataException("GF form resources differ from their profile identity.");
+        }
+        return profile;
     }
 
     public static bool HasLearnedCommand(NativeCharacterVitals? vitals, int guardianForceId, byte command)
@@ -94,16 +186,17 @@ public static class BattleGuardianFormProfiles
 
     public static ImmutableArray<BattleGuardianFormActionBinding> BindIfritInnateActions(BattleGuardianFormActionBinding attack, BattleGuardianFormActionBinding fire, BattleGuardianFormActionBinding? heavy)
     {
+        fire = fire with { Role = BattleGuardianFormActionRole.Spell };
         ImmutableArray<BattleGuardianFormActionBinding> bindings =
         [
-            attack,
+            attack with { Target = BattleGuardianFormTarget.SingleEnemy },
             fire,
             fire with { Action = BattleGuardianFormAction.Fira, Name = "Fira", ResourceActionId = 2 },
             fire with { Action = BattleGuardianFormAction.Firaga, Name = "Firaga", ResourceActionId = 3 },
             fire with { Action = BattleGuardianFormAction.Flare, Name = "Flare", ResourceActionId = 15 },
             Ifrit.Finisher
         ];
-        return heavy is null ? bindings : bindings.Add(heavy);
+        return heavy is null ? bindings : bindings.Add(heavy with { Target = BattleGuardianFormTarget.SingleEnemy });
     }
 
     internal static BattleDefinition RestoreLegacyResources(BattleDefinition definition)
@@ -140,6 +233,10 @@ public sealed record BattleGuardianFormAbilityBands(byte MediumLevel, byte HighL
 /// <summary>Installed actions, presentation and prototype defenses prepared only for an enabled battle.</summary>
 public sealed record BattleGuardianFormResources(int GuardianForceId, BattleNativeAction PhysicalAction, byte PhysicalSequence, NativeBattleGraphicsResource VisualResource)
 {
+    public string VariantId { get; init; } = "ifrit";
+    public BattleGuardianFormDefinition? Profile { get; init; }
+    public string? DisplayName { get; init; }
+
     // Kept for reading standalone saves from the original form implementation.
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public BattleGuardianFormAbilityBands? AbilityBands { get; init; }
@@ -155,11 +252,23 @@ public sealed record BattleGuardianFormInvocation(long Id, int GuardianForceId, 
 
 public sealed record BattleGuardianFormState(string ActorId, int GuardianForceId, string ProfileId, BattleGuardianFormPhase Phase, long InvocationId, int RemainingTicks)
 {
+    public string? VariantId { get; init; }
+    public ImmutableArray<BattleGuardianFormAction> UsedActions { get; init; } = [];
     public bool EntryCompleted { get; init; }
     public bool FinisherAdmitted { get; init; }
 }
 
 public sealed record BattleGuardianFormsSnapshot(bool Enabled, long LastInvocationId, ImmutableArray<BattleGuardianFormState> Forms);
+
+public sealed partial class BattleSession
+{
+    public string? ReadGuardianFormDisplayName(string actorId)
+    {
+        return GetGuardianForm(actorId) is { VariantId: string variantId } state
+            ? definition.GuardianFormResources.FirstOrDefault(resource => resource.GuardianForceId == state.GuardianForceId && resource.VariantId == variantId)?.DisplayName
+            : null;
+    }
+}
 
 /// <summary>A view of the canonical GF row, never an independently writable HP copy.</summary>
 internal sealed class BattleGuardianFormVitalOwner(Func<BattleGuardianForceVital> read, Action<int> write, BattleGuardianFormAdjustments adjustments, BattleGuardianFormResources resources)

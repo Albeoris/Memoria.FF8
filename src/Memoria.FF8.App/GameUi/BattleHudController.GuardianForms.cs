@@ -39,7 +39,7 @@ public sealed partial class BattleHudController
         {
             BattleGuardianFormAction.Attack => SystemText("battle.ui.guardianformcommandlabel.attack", definition.Name),
             BattleGuardianFormAction.HeavyStrike => SystemText("battle.ui.guardianformcommandlabel.heavy.strike", definition.Name),
-            BattleGuardianFormAction.HellFire => ChoiceLabel(definition with { Name = definition.NativeAction?.Name ?? "Hell Fire", DisplayName = null }),
+            _ when definition.Ability == BattleAbility.GuardianForce => ChoiceLabel(definition with { Name = definition.NativeAction?.Name ?? definition.Name, DisplayName = null }),
             _ => ChoiceLabel(definition)
         };
     }

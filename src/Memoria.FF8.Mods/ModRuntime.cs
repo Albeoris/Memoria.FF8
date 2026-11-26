@@ -287,7 +287,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
             {
                 return new(false, lockReason);
             }
-            if (!isCompatible(package.Format) && !package.LocalizationOnly && !package.TextureContentOnly && !package.MoviePresentationOnly && !package.FieldScenePresentationOnly && !package.FieldSpringPresentationOnly || enabled && package.Status == ModEffectiveStatus.IncompatibleEdition)
+            if (!isCompatible(package.Format) && !package.LocalizationOnly && !package.TextureContentOnly && !package.MoviePresentationOnly && !package.FieldScenePresentationOnly && !package.FieldSpringPresentationOnly && !package.GuardianFormContentOnly || enabled && package.Status == ModEffectiveStatus.IncompatibleEdition)
             {
                 return new(false, $"{package.Name} is incompatible with the selected game-data edition.");
             }
@@ -975,11 +975,12 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 }
                 bool textureContentOnly = format == ModFormat.Memoria && TexturePackageCompatibility.IsTextureContentOnly(packageFiles.Select(file => file.Relative), hasLocalization);
                 bool moviePresentationOnly = format == ModFormat.Memoria && !textureContentOnly && TexturePackageCompatibility.IsMoviePresentationOnly(packageFiles.Select(file => file.Relative), hasLocalization);
+                bool guardianFormContentOnly = format == ModFormat.Memoria && GuardianFormMods.IsGuardianFormContentOnly(packageFiles.Select(file => file.Relative));
                 bool fieldScenePresentationOnly = hasFieldScene3D && packageFiles.All(file => file.Relative.StartsWith("scene3d/", StringComparison.OrdinalIgnoreCase) ||
                     hasLighting && file.Relative.StartsWith("lighting/", StringComparison.OrdinalIgnoreCase) || file.Relative.Equals("mod.ini", StringComparison.OrdinalIgnoreCase) || file.Relative.Equals(NativeModDescriptor.FileName, StringComparison.OrdinalIgnoreCase));
                 bool fieldSpringPresentationOnly = format == ModFormat.Memoria && packageFiles.Any(file => FieldSpringBoneMods.IsSpringDocumentPath(file.Relative)) &&
                     packageFiles.All(file => FieldSpringBoneMods.IsSpringDocumentPath(file.Relative) || FieldSpringBoneMods.IsObsoleteSpringDocumentPath(file.Relative) || file.Relative.Equals("mod.ini", StringComparison.OrdinalIgnoreCase) || file.Relative.Equals(NativeModDescriptor.FileName, StringComparison.OrdinalIgnoreCase) || file.Relative.Equals("README.md", StringComparison.OrdinalIgnoreCase));
-                bool compatible = ((native?.Official is not null && nativeError is null) || isCompatible(format) || localizationOnly || textureContentOnly || moviePresentationOnly || fieldScenePresentationOnly || fieldSpringPresentationOnly) && nativeError is null && descriptorFailure is null;
+                bool compatible = ((native?.Official is not null && nativeError is null) || isCompatible(format) || localizationOnly || textureContentOnly || moviePresentationOnly || fieldScenePresentationOnly || fieldSpringPresentationOnly || guardianFormContentOnly) && nativeError is null && descriptorFailure is null;
                 ModEffectiveStatus status = !compatible ? ModEffectiveStatus.IncompatibleEdition : !requested ? ModEffectiveStatus.Disabled : ModEffectiveStatus.Active;
                 identities.Add($"{id}\0{root}\0{explicitEnabled}\0{requested}\0{compatible}\0{priority}");
                 Dictionary<string, string> normalizedPaths = new(StringComparer.OrdinalIgnoreCase);
@@ -1031,7 +1032,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 {
                     status = ModEffectiveStatus.NoUsableEntries;
                 }
-                packages.Add(new(id, descriptor?.Name ?? native?.Official?.Name ?? name, format, explicitEnabled, requested, status, root) { IsBundled = format == ModFormat.Memoria && (bundledRoot is not null || modRoot == bundledModsRoot), Official = native?.Official, OfficialAvailable = native?.Installed == true, Descriptor = descriptor, Priority = priority, HasLocalization = hasLocalization, HasLighting = hasLighting, HasFieldScene3D = hasFieldScene3D, FieldScenePresentationOnly = fieldScenePresentationOnly, FieldSpringPresentationOnly = fieldSpringPresentationOnly, LocalizationOnly = localizationOnly, TextureContentOnly = textureContentOnly, MoviePresentationOnly = moviePresentationOnly });
+                packages.Add(new(id, descriptor?.Name ?? native?.Official?.Name ?? name, format, explicitEnabled, requested, status, root) { IsBundled = format == ModFormat.Memoria && (bundledRoot is not null || modRoot == bundledModsRoot), Official = native?.Official, OfficialAvailable = native?.Installed == true, Descriptor = descriptor, Priority = priority, HasLocalization = hasLocalization, HasLighting = hasLighting, HasFieldScene3D = hasFieldScene3D, FieldScenePresentationOnly = fieldScenePresentationOnly, FieldSpringPresentationOnly = fieldSpringPresentationOnly, LocalizationOnly = localizationOnly, TextureContentOnly = textureContentOnly, MoviePresentationOnly = moviePresentationOnly, GuardianFormContentOnly = guardianFormContentOnly });
 
                 void TrackPackageFiles(PackageTextureLayouts textureLayouts)
                 {

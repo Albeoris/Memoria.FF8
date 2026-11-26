@@ -129,7 +129,8 @@ public sealed partial class BattleSession
     private void PrepareExpandedHostedAftercare(BattleCombatant actor, BattleActionPresentation original)
     {
         byte? actionCommand = original.ExpandedAiCallback is not null ? nativeActionScratch.Command : original.NativeQueuedCommand ?? original.NativeAction?.Command;
-        if ((NativeSavedStatusBits(actor) & 1) == 0 && actionCommand is 28 or 243)
+        // A form can defeat its own GF by targeting itself. Its Darkside cost belongs to that GF's HP pool.
+        if ((NativeSavedStatusBits(actor) & 1) == 0 && actionCommand is 28 or 243 && (!original.HasGuardianFormAction || actor.GuardianFormVitals is not null))
         {
             StageExpandedHostedInternalContact(actor, 6);
         }

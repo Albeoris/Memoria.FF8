@@ -25,6 +25,7 @@ public sealed partial class BattlePresentationProcess
             }
             //500900: descriptor/callback listAA4, then published effect listAA8, then model listA94, then camera5033E0.
             phaseTiming.Advance(NativeBattleTimedPhase.RequestsAndEffects);
+            graphics = RetireBrothersCompanion(graphics);
             graphics = AdvanceNativeGraphicsRequests(graphics);
             flags = graphics.Flags;
             graphics = AdvanceNativeAuxiliary(graphics);
@@ -51,6 +52,7 @@ public sealed partial class BattlePresentationProcess
             {
                 phaseTiming.Advance(NativeBattleTimedPhase.Models);
                 graphics = AdvanceNativeLoadedModels(graphics, flags, services);
+                graphics = DrawBrothersCompanion(graphics);
                 phaseTiming.Advance(NativeBattleTimedPhase.StageAndProducerCommit);
                 graphics = AdvanceNativeStage506C30(graphics);
                 graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame! with { Pending = ordering.Freeze() } };

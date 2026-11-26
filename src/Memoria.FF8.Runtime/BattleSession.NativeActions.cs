@@ -34,11 +34,12 @@ public sealed partial class BattleSession
         }
         if (command is 1 or 12 or 28 && id == 0)
         {
-            if (command is 1 or 12 && GetGuardianForm(actor.Id) is { EntryCompleted: true } form)
+            if (GetGuardianForm(actor.Id) is { EntryCompleted: true } form)
             {
-                BattleGuardianFormActionBinding formBinding = ReadGuardianFormBinding(form, BattleGuardianFormAction.Attack);
+                BattleGuardianFormActionBinding formBinding = GetGuardianFormPhysicalBinding(form);
                 BattleNativeAction physical = ResolveGuardianFormAction(form, formBinding).NativeAction!;
-                return physical with { Command = command, DispatchCommand = command, ActionId = id, Name = "Attack" };
+                BattleNativeCommandBinding? formCommand = learnedBinding ?? actor.NativeCommands.FirstOrDefault(candidate => candidate.Command == command);
+                return physical with { Command = command, DispatchCommand = command, ActionId = id, TargetFlags = formCommand?.TargetFlags ?? physical.TargetFlags, Name = formCommand?.Name ?? formBinding.Name };
             }
             BattleNativeAction attack = actor.NativeAttack ?? throw new NotSupportedException("Native physical command requires its character-owned equipped weapon and junction metadata.");
             BattleNativeCommandBinding? binding = learnedBinding ?? actor.NativeCommands.FirstOrDefault(binding => binding.Command == command);
@@ -495,6 +496,11 @@ public sealed partial class BattleSession
         damage = Math.Clamp(damage, -maximum, damageLimit);
         SetNativeContactDamage(damage);
         FinalizeNativeContactPresentation();
+        if (damage > 0 && recipient.GuardianFormVitals is not null && native is { Command: 8, KernelSection: 3, KernelIndex: 335, ActionId: 335 })
+        {
+            // Original anti-GF contact keeps its fixed-damage presentation while defeating the bound GF.
+            damage = Math.Max(damage, recipient.CurrentHp);
+        }
         bool deathStatus = (NativeSavedStatusBits(recipient) & 1) != 0 && recipient.CurrentHp > 0;
         if (deathStatus)
         {

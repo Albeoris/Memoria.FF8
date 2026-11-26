@@ -162,6 +162,10 @@ public sealed partial class BattleSession
 
     private bool SupportsExpandedOrdinaryCommand(BattleNativeAction action, bool guardianForm = false)
     {
+        if (guardianForm && action is { Command: 28, DispatchCommand: 28, ActionId: 0, KernelSection: 3, TargetFlags: byte formTargets })
+        {
+            return (formTargets & 0x31) == 0x10 && action.UsesPhysicalDamageFormula && ExpandedBattleActionRules.SupportsContacts(action);
+        }
         if (action is { Command: 28, DispatchCommand: 28, ActionId: 0, KernelSection: 4, CharacterId: not null, MagicId: 0, HitCount: 1, AttackFlags: 0, TargetFlags: byte weaponTargets })
         {
             // The hosted event tail applies the fixed HP cost for this weapon invocation.

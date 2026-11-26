@@ -30,6 +30,7 @@ Start with [installation and first launch](players/getting-started.md), then use
 | [File replacements](modding/file-replacements.md) | Junction packages and the movie AVI/CAM replacement boundary. |
 | [Status mods and Memoria settings](modding/behaviors.md) | Native status definitions, editable percentages and mod priority. |
 | [GF ability payload](modding/gf-abilities.md) | Declarative gameplay patches, guards, ordering and producer dependencies. |
+| [GF form payload](modding/gf-forms.md) | Native model and action bindings, level progression, and form package compatibility. |
 | [Encounter documents](modding/encounters.md) | Atomic semantic encounter patches, stable identities, dependencies and runtime capability boundaries. |
 | [FFVII enemy extensions](modding/ff7-enemy-extensions.md) | ID-bound deltas for FFVII growth, English Scan prose, Draw and reward policies. |
 | [Native field mods](modding/field-mods.md) | Scene configuration, the bundled Cid fix and Scene inspector. |

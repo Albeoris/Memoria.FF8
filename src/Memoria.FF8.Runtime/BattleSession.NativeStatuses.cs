@@ -60,12 +60,12 @@ public sealed partial class BattleSession
         snapshot.Resistances.CopyTo(actor.MutableNativeStatusResistances, 0);
     }
 
-    private static void RemoveNativeStatuses(BattleCombatant recipient, ushort savedMask, uint battleMask)
+    private static void RemoveNativeStatuses(BattleCombatant recipient, ushort savedMask, uint battleMask, bool preservePermanent = true)
     {
         //48F140 preserves timed bits whose sentinel marks a permanent installed effect.
         for (int bit = 0; bit < 14; bit++)
         {
-            if ((recipient.NativeStatus1 & (1u << bit)) != 0 && recipient.NativeStatusTimers[bit] == -1111)
+            if (preservePermanent && (recipient.NativeStatus1 & (1u << bit)) != 0 && recipient.NativeStatusTimers[bit] == -1111)
             {
                 battleMask &= ~(1u << bit);
             }
