@@ -14,6 +14,9 @@ internal sealed class GameConfirmationOverlay : IDisposable
     private string cancelText = "Cancel";
     private string acceptText = "Continue";
     private string scrollHint = "Up / Down: scroll review";
+    private List<string> bodyLines = [];
+    private (float Size, float Width, string Family)? bodyLayout;
+    private float bodyLineHeight;
     private float scroll;
     private float maximumScroll;
     private bool acceptSelected;
@@ -44,6 +47,8 @@ internal sealed class GameConfirmationOverlay : IDisposable
         cancelText = request.CancelText;
         acceptText = request.AcceptText;
         scrollHint = request.ScrollHint;
+        bodyLayout = null;
+        bodyLines.Clear();
         scroll = 0;
         maximumScroll = 0;
         acceptSelected = false;
@@ -116,11 +121,14 @@ internal sealed class GameConfirmationOverlay : IDisposable
     {
         TaskCompletionSource<bool>? pending = completion;
         completion = null;
+        message = "";
+        bodyLines.Clear();
+        bodyLayout = null;
         cancellation.Dispose();
         pending?.TrySetResult(accepted);
     }
 
-    internal void Draw(IUiCanvas canvas, UiTheme theme, UiRect viewport, string family)
+    internal void Draw(IUiCanvas canvas, UiTheme theme, UiRect viewport, string family, bool useNativeFonts = false)
     {
         if (!IsOpen)
         {
@@ -139,19 +147,7 @@ internal sealed class GameConfirmationOverlay : IDisposable
         canvas.Line(panel.Right, panel.Y, panel.Right, panel.Bottom, theme.BorderLight, scale);
         canvas.Text(title, 25 * scale, new UiRect(panel.X + padding, panel.Y + padding, panel.Width - padding * 2, 40 * scale), theme.Foreground, family);
         UiRect body = new(panel.X + padding, panel.Y + 76 * scale, panel.Width - padding * 2, panel.Height - 166 * scale);
-        UiSize measured = canvas.MeasureText(message, 20 * scale, body.Width, family);
-        float contentHeight = Math.Max(body.Height, measured.Height + 8 * scale);
-        maximumScroll = Math.Max(0, contentHeight - body.Height);
-        scroll = Math.Clamp(scroll, 0, maximumScroll);
-        canvas.PushClip(body);
-        try
-        {
-            canvas.Text(message, 20 * scale, new UiRect(body.X, body.Y - scroll, body.Width, contentHeight), theme.Foreground, family, UiAlignment.Start, UiTextFlow.Wrap);
-        }
-        finally
-        {
-            canvas.PopClip();
-        }
+        DrawBody(canvas, theme.Foreground, body, family, scale, useNativeFonts);
         if (maximumScroll > 0)
         {
             canvas.Text(scrollHint, 13 * scale, new UiRect(body.X, body.Bottom + 6 * scale, body.Width, 20 * scale), theme.Muted, family);
@@ -162,6 +158,54 @@ internal sealed class GameConfirmationOverlay : IDisposable
         theme.Selection(canvas, acceptSelected ? acceptBounds : cancelBounds);
         canvas.Text(cancelText, 21 * scale, cancelBounds.Inset(5 * scale), theme.Foreground, family);
         canvas.Text(acceptText, 21 * scale, acceptBounds.Inset(5 * scale), theme.Foreground, family);
+    }
+
+    private void DrawBody(IUiCanvas canvas, UiColor color, UiRect body, string family, float scale, bool useNativeFonts)
+    {
+        if (body.IsEmpty || message.Length == 0)
+        {
+            maximumScroll = 0;
+            return;
+        }
+
+        float size = 20 * scale;
+        var layout = (size, body.Width, family);
+        if (!useNativeFonts && bodyLayout != layout)
+        {
+            using PortableTextShaper shaper = PortableTextRasterizer.CreateMeasurer(size, family);
+            bodyLines = PortableTextRasterizer.Wrap(message, shaper.Measure, body.Width);
+            bodyLineHeight = shaper.LineHeight;
+            bodyLayout = layout;
+        }
+
+        float textHeight = useNativeFonts ? canvas.MeasureText(message, size, body.Width, family).Height : bodyLines.Count * bodyLineHeight;
+        float contentHeight = Math.Max(body.Height, textHeight + 8 * scale);
+        maximumScroll = contentHeight - body.Height;
+        scroll = Math.Clamp(scroll, 0, maximumScroll);
+        canvas.PushClip(body);
+        try
+        {
+            if (useNativeFonts)
+            {
+                // Native font rendering already clips individual glyphs from an atlas.
+                canvas.Text(message, size, new UiRect(body.X, body.Y - scroll, body.Width, contentHeight), color, family, UiAlignment.Start, UiTextFlow.Wrap);
+                return;
+            }
+
+            // Draw visible rows separately so each raster stays the size of one line.
+            const float shadowOffset = 2;
+            int first = Math.Max(0, (int)MathF.Floor((scroll - shadowOffset) / bodyLineHeight));
+            int end = Math.Min(bodyLines.Count, (int)MathF.Ceiling((scroll + body.Height) / bodyLineHeight));
+            for (int index = first; index < end; index++)
+            {
+                float y = body.Y + index * bodyLineHeight - scroll;
+                canvas.Text(bodyLines[index], size, new UiRect(body.X, y, body.Width, bodyLineHeight + shadowOffset), color, family, UiAlignment.Start, UiTextFlow.Wrap);
+            }
+        }
+        finally
+        {
+            canvas.PopClip();
+        }
     }
 
     public void Dispose()

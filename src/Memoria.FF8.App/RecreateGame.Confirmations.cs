@@ -58,7 +58,7 @@ internal sealed partial class RecreateGame
     {
         if (uiCanvas is not null)
         {
-            confirmationOverlay.Draw(uiCanvas, uiTheme, new UiRect(bounds.X, bounds.Y, bounds.Width, bounds.Height), uiPreferences.UiFontFamily);
+            confirmationOverlay.Draw(uiCanvas, uiTheme, new UiRect(bounds.X, bounds.Y, bounds.Width, bounds.Height), uiPreferences.UiFontFamily, uiCanvas.UseNativeFonts && uiCanvas.NativeFont is not null);
         }
     }
 

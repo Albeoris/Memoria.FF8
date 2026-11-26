@@ -99,7 +99,7 @@ internal sealed partial class RecreateGame
     {
         if (uiCanvas is not null)
         {
-            windowCloseConfirmation.Draw(uiCanvas, uiTheme, new(bounds.X, bounds.Y, bounds.Width, bounds.Height), uiPreferences.UiFontFamily);
+            windowCloseConfirmation.Draw(uiCanvas, uiTheme, new(bounds.X, bounds.Y, bounds.Width, bounds.Height), uiPreferences.UiFontFamily, uiCanvas.UseNativeFonts && uiCanvas.NativeFont is not null);
         }
     }
 }
