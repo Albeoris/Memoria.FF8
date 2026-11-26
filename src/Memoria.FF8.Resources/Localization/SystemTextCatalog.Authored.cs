@@ -555,6 +555,9 @@ public static partial class SystemTextCatalog
         defaults["model.variant.disabled"] = "{0} (disabled)";
         defaults["model.variant.original"] = "Original";
         defaults["model.variant.resolved"] = "Resolved";
+        defaults["model.variant.set.default"] = "Set {0} as default";
+        defaults["model.variant.is.default"] = "{0} is the default";
+        defaults["model.variant.save.failed"] = "Could not save the default variant. {0}";
         defaults["mods.authoringhelp"] = "Create GF ability contributions or translation projects.";
         defaults["mods.authoringtitle"] = "Gameplay and localization";
         defaults["mods.create"] = "Create Mods";

@@ -54,10 +54,11 @@ internal sealed partial class ModelBrowserElement : UiElement
         }
         if (controller.Mode == ModelBrowserMode.Commands)
         {
-            theme.Panel(canvas, new UiRect(252, 236, 456, 166));
+            theme.Panel(canvas, new UiRect(252, 236, 456, 214));
             Label(canvas, controller.SystemText("inspector.ui.modelbrowserelement.drawself.model.commands", "MODEL COMMANDS"), 19, new UiRect(270, 250, 420, 30), theme.Foreground);
             Button(canvas, theme, CommandBounds(0), controller.SystemText("inspector.ui.modelbrowserelement.drawself.export.to.blender", "Export to Blender"), controller.CommandIndex == 0);
             Button(canvas, theme, CommandBounds(1), controller.SystemText("inspector.ui.modelbrowserelement.drawself.import.from.blender.as.mod", "Import from Blender (as mod)"), controller.CommandIndex == 1);
+            Button(canvas, theme, CommandBounds(ModelBrowserController.DefaultVariantCommand), controller.DefaultVariantCommandText, controller.CommandIndex == ModelBrowserController.DefaultVariantCommand);
         }
     }
 
@@ -131,7 +132,7 @@ internal sealed partial class ModelBrowserElement : UiElement
         }
         if (controller.Mode == ModelBrowserMode.Commands)
         {
-            for (int index = 0; index < 2; index++)
+            for (int index = 0; index < ModelBrowserController.CommandCount; index++)
             {
                 if (CommandBounds(index).Contains(x, y))
                 {

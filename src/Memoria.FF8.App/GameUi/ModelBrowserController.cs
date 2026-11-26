@@ -25,18 +25,27 @@ public sealed partial class ModelBrowserController
     internal string FormatSystemText(string id, string original, params object?[] arguments) => Memoria.FF8.Resources.Localization.SystemTextCatalog.Format(SystemText(id, original), original, arguments);
 
     public const int RowsPerPage = 12;
+    internal const int CommandCount = 3;
+    internal const int DefaultVariantCommand = 2;
     private readonly Action close;
     private readonly Action<ModelBrowserEntry, ModelBrowserVariant> export;
     private readonly Action<ModelBrowserEntry, ModelBrowserVariant> import;
+    private readonly Action<string>? saveDefaultVariant;
+    private readonly Func<string, string, bool>? packageProvidesModel;
     private readonly UiView view;
     private ModelBrowserEntry[] catalog = [];
     private ModelBrowserEntry[] entries = [];
+    private string defaultVariantId;
+    private string? previewVariantId;
 
-    public ModelBrowserController(IEnumerable<ModelBrowserEntry> entries, Action close, Action<ModelBrowserEntry, ModelBrowserVariant> export, Action<ModelBrowserEntry, ModelBrowserVariant> import)
+    public ModelBrowserController(IEnumerable<ModelBrowserEntry> entries, Action close, Action<ModelBrowserEntry, ModelBrowserVariant> export, Action<ModelBrowserEntry, ModelBrowserVariant> import, string? defaultVariantId = null, Action<string>? saveDefaultVariant = null, Func<string, string, bool>? packageProvidesModel = null)
     {
         this.close = close;
         this.export = export;
         this.import = import;
+        this.defaultVariantId = string.IsNullOrWhiteSpace(defaultVariantId) ? "original" : defaultVariantId;
+        this.saveDefaultVariant = saveDefaultVariant;
+        this.packageProvidesModel = packageProvidesModel;
         view = new UiView(new ModelBrowserElement(this)) { DesignWidth = 960, DesignHeight = 672, Cancel = Cancel };
         Refresh(entries);
         view.Resize(960, 672);
@@ -52,6 +61,10 @@ public sealed partial class ModelBrowserController
     public int PageCount => Math.Max(1, (entries.Length + RowsPerPage - 1) / RowsPerPage);
     public ModelBrowserMode Mode { get; private set; }
     public int CommandIndex { get; private set; }
+    internal bool CurrentVariantIsDefault => string.Equals(CurrentVariant?.Id, defaultVariantId, StringComparison.OrdinalIgnoreCase);
+    internal string DefaultVariantCommandText => CurrentVariantIsDefault
+        ? FormatSystemText("model.variant.is.default", "{0} is the default", CurrentVariant?.DisplayName)
+        : FormatSystemText("model.variant.set.default", "Set {0} as default", CurrentVariant?.DisplayName);
     public string Search { get; private set; } = "";
     public bool SearchFocused { get; private set; }
     public ModelPreviewCamera Camera { get; } = new();
@@ -100,10 +113,14 @@ public sealed partial class ModelBrowserController
     public void Refresh(IEnumerable<ModelBrowserEntry> source)
     {
         string? selected = Selected?.Id;
-        string? variant = CurrentVariant?.Id;
         catalog = source.ToArray();
         Filter(selected);
-        VariantIndex = Math.Max(0, Selected?.Variants.ToList().FindIndex(item => item.Id == variant) ?? 0);
+        int preview = FindVariant(previewVariantId);
+        if (preview < 0)
+        {
+            previewVariantId = null;
+        }
+        VariantIndex = preview >= 0 ? preview : DefaultVariantIndex();
     }
 
     public void SetSearch(string search)
@@ -209,15 +226,43 @@ public sealed partial class ModelBrowserController
     private void ResetModel()
     {
         CloseAssetPanel();
-        VariantIndex = 0;
+        previewVariantId = null;
+        VariantIndex = DefaultVariantIndex();
         Camera.Reset();
         Message = "";
+    }
+
+    private int FindVariant(string? id)
+    {
+        if (id is not null && Selected is { } entry)
+        {
+            for (int index = 0; index < entry.Variants.Count; index++)
+            {
+                if (entry.Variants[index].Id.Equals(id, StringComparison.OrdinalIgnoreCase))
+                {
+                    return index;
+                }
+            }
+        }
+        return -1;
+    }
+
+    private int DefaultVariantIndex()
+    {
+        int preferred = FindVariant(defaultVariantId);
+        if (preferred >= 0 && (defaultVariantId is "original" or "resolved" || packageProvidesModel?.Invoke(Selected!.Id, defaultVariantId) != false))
+        {
+            return preferred;
+        }
+        int resolved = FindVariant("resolved");
+        return resolved >= 0 ? resolved : Math.Max(0, FindVariant("original"));
     }
 
     public void SelectVariant(int index)
     {
         CloseAssetPanel();
         VariantIndex = Math.Clamp(index, 0, Math.Max(0, (Selected?.Variants.Count ?? 0) - 1));
+        previewVariantId = CurrentVariant?.Id;
     }
 
     public void CycleVariant()
@@ -349,8 +394,27 @@ public sealed partial class ModelBrowserController
 
     public void ExecuteCommand(int index)
     {
-        if (Mode != ModelBrowserMode.Commands || Selected is not { } entry || CurrentVariant is not { } variant || index is < 0 or > 1)
+        if (Mode != ModelBrowserMode.Commands || Selected is not { } entry || CurrentVariant is not { } variant || index is < 0 or >= CommandCount)
         {
+            return;
+        }
+        if (index == DefaultVariantCommand)
+        {
+            if (!CurrentVariantIsDefault)
+            {
+                try
+                {
+                    saveDefaultVariant?.Invoke(variant.Id);
+                    defaultVariantId = variant.Id;
+                    previewVariantId = variant.Id;
+                    CommandIndex = index;
+                }
+                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+                {
+                    Mode = ModelBrowserMode.Viewer;
+                    SetMessage(() => FormatSystemText("model.variant.save.failed", "Could not save the default variant. {0}", exception.Message));
+                }
+            }
             return;
         }
         Mode = ModelBrowserMode.Viewer;
@@ -402,7 +466,7 @@ public sealed partial class ModelBrowserController
         {
             if (input is MenuInput.Up or MenuInput.Down)
             {
-                CommandIndex = 1 - CommandIndex;
+                CommandIndex = (CommandIndex + (input == MenuInput.Up ? CommandCount - 1 : 1)) % CommandCount;
             }
             else if (input == MenuInput.Confirm)
             {

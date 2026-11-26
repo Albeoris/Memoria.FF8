@@ -104,6 +104,71 @@ public sealed class ModelBrowserTests
     }
 
     [Fact]
+    public void Default_variant_command_persists_across_reopen_and_temporary_previews()
+    {
+        string path = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllText(path, "{}");
+            ModelBrowserEntry model = Entry("one") with { Variants = [new("original", "Original"), new("resolved", "Resolved")] };
+            UiPreferences preferences = UiPreferences.Load(path);
+            void SaveDefault(string id)
+            {
+                preferences = preferences with { ModelBrowserDefaultVariant = id };
+                preferences.Save(path);
+            }
+
+            ModelBrowserController browser = new([], () => { }, (_, _) => { }, (_, _) => { }, preferences.ModelBrowserDefaultVariant, SaveDefault);
+            browser.Refresh([model]);
+            Assert.Equal("original", browser.CurrentVariant?.Id);
+            browser.OpenViewer();
+            browser.CycleVariant();
+            browser.OpenCommands();
+            Assert.Equal("Set Resolved as default", browser.DefaultVariantCommandText);
+            browser.Navigate(MenuInput.Up);
+            browser.Navigate(MenuInput.Confirm);
+            Assert.Equal("Resolved is the default", browser.DefaultVariantCommandText);
+            browser.Cancel();
+            browser.CycleVariant();
+            browser.Refresh([model]);
+            Assert.Equal("original", browser.CurrentVariant?.Id);
+
+            UiPreferences restored = UiPreferences.Load(path);
+            ModelBrowserController reopened = new([], () => { }, (_, _) => { }, (_, _) => { }, restored.ModelBrowserDefaultVariant, SaveDefault);
+            reopened.Refresh([model]);
+            Assert.Equal("resolved", reopened.CurrentVariant?.Id);
+            reopened.OpenViewer();
+            reopened.CycleVariant();
+            reopened.OpenCommands();
+            Click(reopened.BuildView(), 350, 400);
+            Assert.Equal("Original is the default", reopened.DefaultVariantCommandText);
+            Assert.Equal("original", UiPreferences.Load(path).ModelBrowserDefaultVariant);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void Default_package_falls_back_to_resolved_only_for_models_it_does_not_provide()
+    {
+        ModelBrowserVariant[] variants = [new("original", "Original"), new("mod", "Example mod"), new("resolved", "Resolved")];
+        ModelBrowserEntry first = Entry("one") with { Variants = variants };
+        ModelBrowserEntry second = Entry("two") with { Variants = variants };
+        ModelBrowserController browser = new([first, second], () => { }, (_, _) => { }, (_, _) => { }, "mod", packageProvidesModel: (model, package) => model == "one" && package == "mod");
+        Assert.Equal("mod", browser.CurrentVariant?.Id);
+        browser.Select(1);
+        Assert.Equal("resolved", browser.CurrentVariant?.Id);
+        browser.Select(0);
+        Assert.Equal("mod", browser.CurrentVariant?.Id);
+        browser.Refresh([first with { Variants = [variants[0], variants[2]] }, second]);
+        Assert.Equal("resolved", browser.CurrentVariant?.Id);
+        browser.Refresh([first, second]);
+        Assert.Equal("mod", browser.CurrentVariant?.Id);
+    }
+
+    [Fact]
     public void Refresh_preserves_entry_and_variant_identity_when_order_changes()
     {
         ModelBrowserEntry one = Entry("one");

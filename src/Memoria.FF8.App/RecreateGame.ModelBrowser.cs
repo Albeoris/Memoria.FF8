@@ -35,7 +35,8 @@ internal sealed partial class RecreateGame
             return;
         }
         gameMenus?.Close();
-        modelBrowser = new([], CloseModelBrowser, ExportBrowserModel, ImportBrowserModel);
+        modelBrowser = new([], CloseModelBrowser, ExportBrowserModel, ImportBrowserModel, uiPreferences.ModelBrowserDefaultVariant, SaveModelBrowserDefaultVariant,
+            (modelId, packageId) => browserInstalledModelMods.Variants.Any(variant => variant.Bank == "embedded" && variant.ModelId.Equals(modelId, StringComparison.OrdinalIgnoreCase) && variant.PackageId.Equals(packageId, StringComparison.OrdinalIgnoreCase)));
         modelBrowser.LocalizeText = LocalizeUiText;
         modelBrowser.SoundRequested += sound => fieldAudio?.PlayUiSound(sound);
         UpdateModelBrowserHints();
@@ -63,6 +64,13 @@ internal sealed partial class RecreateGame
             modelBrowser.SetMessage(exception.Message);
         }
         SynchronizeUiMoviePause();
+    }
+
+    private void SaveModelBrowserDefaultVariant(string variantId)
+    {
+        UiPreferences updated = uiPreferences with { ModelBrowserDefaultVariant = variantId };
+        updated.Save(UiPreferencesPath);
+        uiPreferences = updated;
     }
 
     private void CloseModelBrowser()

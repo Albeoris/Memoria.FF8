@@ -24,6 +24,8 @@ In the viewer:
 
 On-screen hints follow the current keyboard/controller bindings. Preview animation loops independently of gameplay; opening the browser pauses game simulation.
 
+To choose a starting variant, select it in the viewer and open **Commands → Set … as default**. The preference applies across models and game restarts. Cycling **Variant** only changes the preview. If the default package has no replacement for the selected model, the browser starts that model on **Resolved**. To restore the initial behavior, select **Original** and choose **Set Original as default**.
+
 ## Export
 
 **Export to Blender** opens the asset selection panel before the Windows save dialog, where you can choose any destination folder. Objects select geometry; Clips select independent skeletal tracks. Selecting a clip does not select its mesh. Required rigs, materials and textures are dependencies. A clip-only file retains editable rigs without geometry.

@@ -103,6 +103,7 @@ internal sealed record UiPreferences
     public bool RareCardMarkers { get; init; }
     public TripleTriadSettings TripleTriad { get; init; } = new();
     public bool CursorMemory { get; init; }
+    public string ModelBrowserDefaultVariant { get; init; } = "original";
     public int FieldMessageSpeed { get; init; } = 3;
 
     public (int Width, int Height) WindowSize(LaunchOptions options)
