@@ -61,6 +61,9 @@ public sealed class GuardianForcePassiveMenuTests
     }
 
     [Theory]
+    [InlineData(78, true, true)]
+    [InlineData(78, false, true)]
+    [InlineData(78, true, false)]
     [InlineData(79, true, true)]
     [InlineData(79, false, true)]
     [InlineData(79, true, false)]
@@ -70,6 +73,9 @@ public sealed class GuardianForcePassiveMenuTests
     [InlineData(81, true, true)]
     [InlineData(81, false, true)]
     [InlineData(81, true, false)]
+    [InlineData(82, true, true)]
+    [InlineData(82, false, true)]
+    [InlineData(82, true, false)]
     public void CardBindingAndSemanticRowShareTheExplicitToggle(int ability, bool enabled, bool available)
     {
         MenuData data = new();
@@ -99,12 +105,15 @@ public sealed class GuardianForcePassiveMenuTests
         Assert.Equal(action, Assert.Single(actions));
     }
 
-    [Fact]
-    public void CardBindingLeavesUnlearnedPassiveAsAnApTarget()
+    [Theory]
+    [InlineData("78", "Alert")]
+    [InlineData("79", "Move-Find")]
+    [InlineData("82", "Rare Item")]
+    public void CardBindingLeavesUnlearnedPassiveAsAnApTarget(string ability, string name)
     {
         MenuData data = new();
         MenuGuardianForce gf = new() { Id = "gf-5", Name = "GF" };
-        gf.LearningChoices.Add(new MenuAbilityChoice("79", "Move-Find", false, 1, 40) { IsPassive = true });
+        gf.LearningChoices.Add(new MenuAbilityChoice(ability, name, false, 1, 40) { IsPassive = true });
         data.GuardianForces.Add(gf);
         List<MenuAction> actions = [];
         MenuController menu = new(() => data, actions.Add);
@@ -119,7 +128,8 @@ public sealed class GuardianForcePassiveMenuTests
     }
 
     [Theory]
-    [InlineData("78", "gf-0")]
+    [InlineData("77", "gf-0")]
+    [InlineData("83", "gf-0")]
     [InlineData("79", "gf-16")]
     [InlineData("79", "character-0")]
     public void PassiveProjectionRejectsUnsupportedOrLostIdentities(string ability, string owner)
@@ -128,9 +138,11 @@ public sealed class GuardianForcePassiveMenuTests
     }
 
     [Theory]
+    [InlineData(78)]
     [InlineData(79)]
     [InlineData(80)]
     [InlineData(81)]
+    [InlineData(82)]
     public void LiveToggleSurvivesSnapshotReloadAndIsAbsentFromJunctionChoices(int ability)
     {
         Assert.SkipUnless(Directory.Exists(TestResources.GameDirectory), "Installed native menu resources are required.");

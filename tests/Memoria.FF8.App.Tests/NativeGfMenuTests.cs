@@ -244,7 +244,7 @@ public sealed class NativeGfMenuTests
     }
 
     [Theory]
-    [InlineData(PlayerActionKind.JunctionGuardianForce, 8, "0", null)]
+    [InlineData(PlayerActionKind.JunctionGuardianForce, NativeCharacterVitals.ExtendedRecordCount, "0", null)]
     [InlineData(PlayerActionKind.SetJunctionCommand, 0, "20", 3)]
     [InlineData(PlayerActionKind.SetJunctionAbility, 0, "39", null)]
     [InlineData(PlayerActionKind.SelectGuardianForceLearning, 16, "20", null)]

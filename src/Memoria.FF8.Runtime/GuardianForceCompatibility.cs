@@ -84,6 +84,8 @@ public sealed partial record NativeCharacterVitals
                 }
                 result.GuardianForces[id] = gf with
                 {
+                    AlertDisabled = gf.AlertDisabled && (projection!.LearnedBank.Has(78) || !gf.LearnedBank.Has(78)),
+                    RareItemDisabled = gf.RareItemDisabled && (projection!.LearnedBank.Has(82) || !gf.LearnedBank.Has(82)),
                     MoveFindDisabled = gf.MoveFindDisabled && (projection!.LearnedBank.Has(79) || !gf.LearnedBank.Has(79)),
                     EncHalfDisabled = gf.EncHalfDisabled && (projection!.LearnedBank.Has(80) || !gf.LearnedBank.Has(80)),
                     EncNoneDisabled = gf.EncNoneDisabled && (projection!.LearnedBank.Has(81) || !gf.LearnedBank.Has(81)),
@@ -182,13 +184,14 @@ public sealed partial class GameSession
             return state;
         }
         NativeCharacterVitals normalized = source.NormalizeGuardianForceCompatibility();
+        if (!ReferenceEquals(source, normalized) && (state.Battle is not null || state.PendingBattleEncounter is not null))
+        {
+            throw new InvalidDataException("Externally changed GF progression must be recovered at a standalone checkpoint outside battle.");
+        }
+        normalized = normalized.WithoutPartyAbilityJunctions();
         if (ReferenceEquals(source, normalized))
         {
             return state;
-        }
-        if (state.Battle is not null || state.PendingBattleEncounter is not null)
-        {
-            throw new InvalidDataException("Externally changed GF progression must be recovered at a standalone checkpoint outside battle.");
         }
         static JsonElement? Update(JsonElement? checkpoint, NativeCharacterVitals vitals)
         {

@@ -45,7 +45,7 @@ public sealed record GameplaySaveCharacters
     {
         ArgumentNullException.ThrowIfNull(source);
         source.Validate();
-        source = GameplaySaveGuardianForceAdapter.PrepareCapture(source, out GameplaySaveGuardianForceRecovery? recovery);
+        source = GameplaySaveGuardianForceAdapter.PrepareCapture(source.WithoutPartyAbilityJunctions(), out GameplaySaveGuardianForceRecovery? recovery);
         GameplaySaveCharacters result = new()
         {
             Records = source.Records.Select(record => record.WithBonusSources(record.Growth.Sources)).ToArray(),
@@ -101,7 +101,7 @@ public sealed record GameplaySaveCharacters
             GuardianForceCompatibilityDiagnostics = []
         };
         ImmutableArray<GuardianForceProgression?> recovery = detached.PendingGuardianForceRecovery?.Restore(installed.MenuDefinitions.AbilityPoints.Length) ?? [];
-        return GameplaySaveGuardianForceAdapter.Restore(result, installed, detached.GuardianForces) with { GuardianForceRecoveryProgression = recovery };
+        return GameplaySaveGuardianForceAdapter.Restore(result.WithoutPartyAbilityJunctions(), installed, detached.GuardianForces) with { GuardianForceRecoveryProgression = recovery };
     }
 
     public void Validate()
@@ -158,6 +158,10 @@ public sealed record GameplaySaveGuardianForce([property: JsonRequired] uint Exp
     public bool EncHalfDisabled { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool EncNoneDisabled { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool AlertDisabled { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool RareItemDisabled { get; init; }
     public NativeGuardianForceOpaqueBytes? OpaqueSavedValues { get; init; }
     public GuardianForceProgression? Progression { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -167,12 +171,12 @@ public sealed record GameplaySaveGuardianForce([property: JsonRequired] uint Exp
 
     internal static GameplaySaveGuardianForce Capture(NativeGuardianForceVital source)
     {
-        return new(source.Experience, source.Flags, source.HitPoints, source.LearnedBank, source.AbilityProgress, source.Learning, source.ForgottenAbilities) { MoveFindDisabled = source.MoveFindDisabled, EncHalfDisabled = source.EncHalfDisabled, EncNoneDisabled = source.EncNoneDisabled, OpaqueSavedValues = source.NativeOpaqueBytes, Progression = source.Progression, KillCount = source.KillCount, DeathCount = source.DeathCount };
+        return new(source.Experience, source.Flags, source.HitPoints, source.LearnedBank, source.AbilityProgress, source.Learning, source.ForgottenAbilities) { MoveFindDisabled = source.MoveFindDisabled, EncHalfDisabled = source.EncHalfDisabled, EncNoneDisabled = source.EncNoneDisabled, AlertDisabled = source.AlertDisabled, RareItemDisabled = source.RareItemDisabled, OpaqueSavedValues = source.NativeOpaqueBytes, Progression = source.Progression, KillCount = source.KillCount, DeathCount = source.DeathCount };
     }
 
     internal NativeGuardianForceVital Restore()
     {
-        return new(Experience, Flags, HitPoints, LearnedBank, null, AbilityProgress, Learning, ForgottenAbilities) { MoveFindDisabled = MoveFindDisabled, EncHalfDisabled = EncHalfDisabled, EncNoneDisabled = EncNoneDisabled, NativeOpaqueBytes = OpaqueSavedValues, Progression = Progression, KillCount = KillCount, DeathCount = DeathCount };
+        return new(Experience, Flags, HitPoints, LearnedBank, null, AbilityProgress, Learning, ForgottenAbilities) { MoveFindDisabled = MoveFindDisabled, EncHalfDisabled = EncHalfDisabled, EncNoneDisabled = EncNoneDisabled, AlertDisabled = AlertDisabled, RareItemDisabled = RareItemDisabled, NativeOpaqueBytes = OpaqueSavedValues, Progression = Progression, KillCount = KillCount, DeathCount = DeathCount };
     }
 
     public void Validate()

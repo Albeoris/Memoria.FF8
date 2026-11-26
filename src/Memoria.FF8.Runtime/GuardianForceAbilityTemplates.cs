@@ -25,7 +25,7 @@ public sealed partial record NativeCharacterVitals
             for (int id = 0; id < 16; id++)
             {
                 NativeGuardianForceVital gf = GuardianForces[id];
-                if (gf.MoveFindDisabled || gf.EncHalfDisabled || gf.EncNoneDisabled || GuardianForceAbilities(id).Count(entry => entry.Learned) > 22)
+                if (gf.AlertDisabled || gf.MoveFindDisabled || gf.EncHalfDisabled || gf.EncNoneDisabled || gf.RareItemDisabled || GuardianForceAbilities(id).Count(entry => entry.Learned) > 22)
                 {
                     return true;
                 }
@@ -126,9 +126,11 @@ public sealed partial record NativeCharacterVitals
         }
         GuardianForces[id] = gf with
         {
+            AlertDisabled = gf.AlertDisabled && !newlyLearned.Contains(78),
             MoveFindDisabled = gf.MoveFindDisabled && !newlyLearned.Contains(79),
             EncHalfDisabled = gf.EncHalfDisabled && !newlyLearned.Contains(80),
             EncNoneDisabled = gf.EncNoneDisabled && !newlyLearned.Contains(81),
+            RareItemDisabled = gf.RareItemDisabled && !newlyLearned.Contains(82),
             Progression = new(initialize, ledger.Values.Select(entry => entry with { Active = templates.Any(template => template.Ability == entry.Ability) || entry.ItemTaught }).OrderBy(entry => entry.Ability).ToImmutableArray())
         };
         GuardianForces[id] = SynchronizeGuardianForce(id);
@@ -260,6 +262,8 @@ public sealed partial record NativeCharacterVitals
         ImmutableArray<GuardianForceAbilityProgress> ledger = gf.Progression.Abilities.Where(entry => entry.Ability != ability).Append(new GuardianForceAbilityProgress(ability, true, previous?.EarnedPoints ?? 0, ItemTaught: true)).OrderBy(entry => entry.Ability).ToImmutableArray();
         result.GuardianForces[id] = gf with
         {
+            AlertDisabled = gf.AlertDisabled && (ability != 78 || previous is { Learned: true, Forgotten: false }),
+            RareItemDisabled = gf.RareItemDisabled && (ability != 82 || previous is { Learned: true, Forgotten: false }),
             MoveFindDisabled = gf.MoveFindDisabled && (ability != 79 || previous is { Learned: true, Forgotten: false }),
             EncHalfDisabled = gf.EncHalfDisabled && (ability != 80 || previous is { Learned: true, Forgotten: false }),
             EncNoneDisabled = gf.EncNoneDisabled && (ability != 81 || previous is { Learned: true, Forgotten: false }),

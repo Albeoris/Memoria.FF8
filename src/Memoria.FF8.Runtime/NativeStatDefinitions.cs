@@ -25,6 +25,10 @@ public sealed record NativeGuardianForceVital([property: JsonRequired] uint Expe
     public bool EncHalfDisabled { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool EncNoneDisabled { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool AlertDisabled { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool RareItemDisabled { get; init; }
     public NativeGuardianForceOpaqueBytes? NativeOpaqueBytes { get; init; }
     public GuardianForceProgression? Progression { get; init; }
     public GuardianForceCompatibilityProjection? LastProjection { get; init; }

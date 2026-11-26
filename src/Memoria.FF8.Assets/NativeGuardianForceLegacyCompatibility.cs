@@ -58,6 +58,10 @@ public static class NativeGuardianForceLegacyCompatibility
             ImmutableArray<NativeGuardianForceLearningRule> targetRules = targetSource.MenuDefinitions.Learning[id];
             NativeGuardianForceVital gf = current.GuardianForces[id];
             void Loss(int? ability, string kind, string detail, string textId, params int[] arguments) => losses.Add(new(id, ability, kind, $"GF {id}: {detail}") { DescriptionId = textId, DescriptionArguments = [id, .. arguments] });
+            if (gf.AlertDisabled)
+            {
+                Loss(78, "Passive", "the disabled Alert preference cannot be retained in an original FFVIII save.", "passive-alert");
+            }
             if (gf.MoveFindDisabled)
             {
                 Loss(79, "Passive", "the disabled Move-Find preference cannot be retained in an original FFVIII save.", "passive");
@@ -69,6 +73,10 @@ public static class NativeGuardianForceLegacyCompatibility
             if (gf.EncNoneDisabled)
             {
                 Loss(81, "Passive", "the disabled Enc-None preference cannot be retained in an original FFVIII save.", "passive-enc-none");
+            }
+            if (gf.RareItemDisabled)
+            {
+                Loss(82, "Passive", "the disabled Rare Item preference cannot be retained in an original FFVIII save.", "passive-rare-item");
             }
             if (!sourceRules.SequenceEqual(targetRules) || !current.MenuDefinitions.Templates.IsDefault && !current.ResolveGuardianForceTemplates()[id].SequenceEqual(targetSource.ResolveGuardianForceTemplates()[id]))
             {
@@ -87,9 +95,11 @@ public static class NativeGuardianForceLegacyCompatibility
                     ForgottenAbilities = initial.ForgottenAbilities,
                     Progression = null,
                     LastProjection = null,
+                    AlertDisabled = false,
                     MoveFindDisabled = false,
                     EncHalfDisabled = false,
-                    EncNoneDisabled = false
+                    EncNoneDisabled = false,
+                    RareItemDisabled = false
                 };
                 continue;
             }
@@ -181,9 +191,11 @@ public static class NativeGuardianForceLegacyCompatibility
                 LearnedBank = new(low, high),
                 Progression = null,
                 LastProjection = null,
+                AlertDisabled = false,
                 MoveFindDisabled = false,
                 EncHalfDisabled = false,
-                EncNoneDisabled = false
+                EncNoneDisabled = false,
+                RareItemDisabled = false
             };
             projected.GuardianForces[id] = next;
             Dictionary<int, bool> available = learned.Take(22).ToDictionary(ability => ability, _ => true);

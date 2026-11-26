@@ -79,7 +79,7 @@ public sealed class BattleRosterCapabilityTests
     }
 
     [Fact]
-    public void FourthMembersAlertAndRareItemFollowSelectedPartyRows()
+    public void GuardianForceAlertAndRareItemApplyRegardlessOfAdmittedPartyRows()
     {
         string directory = TestResources.GameDirectory;
         using GameAssets assets = new(directory);
@@ -90,6 +90,14 @@ public sealed class BattleRosterCapabilityTests
         ExpandedBattleEntryAdmissionTests.SelectFourAllies(world, session);
         NativeCharacterVitals vitals = session.State.CharacterVitals!.DeepCopy().WithBattleParty([0, 1, 2, 3], 4);
         vitals.Records[3] = vitals.Records[3] with { Junction = vitals.Records[3].Junction with { Abilities = 78u | (82u << 8) } };
+        session.SetCharacterVitals(vitals);
+        Assert.Equal(0u, session.State.CharacterVitals!.Records[3].Junction.Abilities);
+        Assert.Equal(0, session.State.CharacterVitals.GetEncounterAbilityFlags() & 3);
+
+        const int gf = 15;
+        vitals = session.State.CharacterVitals.AcquireGuardianForce(gf)
+            .TeachGuardianForceAbility(gf, 78)
+            .TeachGuardianForceAbility(gf, 82);
         session.SetCharacterVitals(vitals);
 
         BattleDefinition admitted = world.CreateEncounterBattle(87, 4);
@@ -105,47 +113,29 @@ public sealed class BattleRosterCapabilityTests
         session.SetCharacterVitals(vitals.WithBattleParty([0, 1, 2], 4));
         BattleDefinition removed = world.CreateEncounterBattle(87, 4);
         Assert.DoesNotContain(removed.Combatants, actor => actor.IsPlayer && actor.MagicRecordId == 3);
-        Assert.Equal(0, Assert.IsType<NativeBattleEntryInput>(removed.NativeEntry).EncounterAbilityFlags & 3);
-        Assert.False(removed.RareItem);
+        Assert.Equal(3, Assert.IsType<NativeBattleEntryInput>(removed.NativeEntry).EncounterAbilityFlags & 3);
+        Assert.True(removed.RareItem);
+
+        session.SetCharacterVitals(session.State.CharacterVitals!
+            .SetGuardianForcePassiveAbilityEnabled(gf, 78, false)
+            .SetGuardianForcePassiveAbilityEnabled(gf, 82, false));
+        BattleDefinition disabled = world.CreateEncounterBattle(87, 4);
+        Assert.Equal(0, Assert.IsType<NativeBattleEntryInput>(disabled.NativeEntry).EncounterAbilityFlags & 3);
+        Assert.False(disabled.RareItem);
 
         NativeBattleRandomState random = Enumerable.Range(0, 256).Select(seed => NativeBattleRandomState.Initialize((byte)seed)).First(state =>
         {
             state.Draw(out byte roll);
             return roll >= 236;
         });
-        BattleSession protectedEntry = ResolveControlledEncounter(admitted, random);
-        BattleSession unprotectedEntry = ResolveControlledEncounter(removed, random);
-        Assert.Equal((byte)0, protectedEntry.NativeEntryAdvantage);
-        Assert.Contains(unprotectedEntry.NativeEntryAdvantage, new byte?[] { 1, 2 });
-        Assert.Equal(4, Assert.Single(protectedEntry.NativeRewardItems).Id);
-        Assert.InRange(Assert.Single(unprotectedEntry.NativeRewardItems).Id, 1, 3);
-    }
+        NativeBattleRandomState protectedRandom = random;
+        NativeBattleRandomState unprotectedRandom = random;
+        NativeBattleEntryEnemy[] enemies = [new(0, 0)];
+        Assert.Equal((byte)0, NativeBattleEntryRules.ResolveExpanded(0, admitted.NativeEntry!.EncounterAbilityFlags, enemies, ref protectedRandom));
+        Assert.Contains(NativeBattleEntryRules.ResolveExpanded(0, disabled.NativeEntry!.EncounterAbilityFlags, enemies, ref unprotectedRandom), new byte[] { 1, 2 });
 
-    private static BattleSession ResolveControlledEncounter(BattleDefinition entry, NativeBattleRandomState random)
-    {
-        BattleEnemyRewardDefinition rewards = new(0, 0, 20, 30, 255, false, 255, [.. Enumerable.Range(0, 12).Select(index => new BattleStock(index % 4 + 1, 1))]);
-        BattleSession battle = new(new()
-        {
-            NativeEntry = new(0, entry.NativeEntry!.EncounterAbilityFlags),
-            InitialRandom = random,
-            RareItem = entry.RareItem,
-            Tuning = new() { RareItem = new() { First = 0, Second = 0, Third = 0, Fourth = 100 } },
-            NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(),
-            NativeCommandSequences = NativeBattleCommandSequenceFixture.Values,
-            Combatants =
-            [
-                new() { Id = "party-0", Name = "Party", IsPlayer = true, Attack = 100, NativePlayerStatRules = entry.Combatants[0].NativePlayerStatRules, NativeKillCount = 0 },
-                new() { Id = "enemy", Name = "Enemy", Level = 4, MaximumHp = 1, CurrentHp = 1, Information254 = 0, RewardSlot = 0, Rewards = rewards }
-            ]
-        }, BattleAtbMode.TurnBased);
-        battle.Combatants[0].Atb = BattleSession.AtbMaximum;
-        battle.Combatants[1].Atb = 0;
-        GameWorld.ExecuteBattleCommand(battle, new(BattleInputKind.Attack, ActorId: "party-0", TargetId: "enemy") { ForcePhysical = true });
-        for (int frame = 0; frame < 250 && battle.EnemyDefeats.Count == 0; frame++)
-        {
-            battle.Tick();
-        }
-        Assert.Single(battle.EnemyDefeats);
-        return battle;
+        RareItemProbabilities rareWeights = new() { First = 0, Second = 0, Third = 0, Fourth = 100 };
+        Assert.Equal((sbyte)3, BattleEnemyRewardDefinition.SelectDropSlot(0, admitted.RareItem, rareWeights));
+        Assert.Equal((sbyte)0, BattleEnemyRewardDefinition.SelectDropSlot(0, disabled.RareItem, rareWeights));
     }
 }

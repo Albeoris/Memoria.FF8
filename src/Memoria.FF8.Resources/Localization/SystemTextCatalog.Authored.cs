@@ -664,13 +664,16 @@ public static partial class SystemTextCatalog
         defaults["save.gf-export.loss.equipped-junction"] = "Character {0}: unavailable magic junction slot {1} is cleared.";
         defaults["save.gf-export.loss.equipped-passive"] = "Character {0}: unavailable passive {1} is cleared.";
         defaults["save.gf-export.loss.learning"] = "GF {0}: learning selection {1} is invalid in the target and is cleared.";
+        defaults["save.gf-export.loss.passive-alert"] = "GF {0}: the disabled Alert preference cannot be retained in an original FFVIII save.";
         defaults["save.gf-export.loss.passive-enc-half"] = "GF {0}: the disabled Enc-Half preference cannot be retained in an original FFVIII save.";
         defaults["save.gf-export.loss.passive-enc-none"] = "GF {0}: the disabled Enc-None preference cannot be retained in an original FFVIII save.";
+        defaults["save.gf-export.loss.passive-rare-item"] = "GF {0}: the disabled Rare Item preference cannot be retained in an original FFVIII save.";
         defaults["save.gf-export.loss.passive"] = "GF {0}: the disabled Move-Find preference cannot be retained in an original FFVIII save.";
         defaults["save.gf-export.loss.progress-clamped"] = "GF {0}: ability {1} AP {2} is clamped to the target byte range.";
         defaults["save.gf-export.loss.progress-missing"] = "GF {0}: ability {1} has no target learning slot; AP {2} and forgotten state cannot be preserved.";
         defaults["save.gf-export.loss.remap"] = "GF {0}: ability {1} AP/forgotten state maps from slot {2} to {3}.";
         defaults["save.gf-export.loss.unknown"] = "GF {0}: unmapped high forgotten bits cannot be retained after learning structure changes.";
+        defaults["save.gf-export.native-passives"] = "In the original game, equip learned party abilities in character ability slots to activate them.";
         defaults["save.gf-export.title"] = "Original FFVIII GF conversion";
         defaults["save.location.unavailable"] = "Unavailable";
         defaults["save.open.memoriadestination"] = "MemoriaDestination";
@@ -737,7 +740,7 @@ public static partial class SystemTextCatalog
         defaults["screen.ability-recipes.title"] = "Ability \u00B7 Recipes";
         defaults["screen.ability-refine.help"] = "Choose recipe batches for the selected character stock.";
         defaults["screen.ability-refine.title"] = "Ability \u00B7 Refine Quantity";
-        defaults["screen.ability.help"] = "Refine items, magic and cards with learned menu abilities.";
+        defaults["screen.ability.help"] = "Toggle learned GF party abilities or refine items, magic and cards.";
         defaults["screen.ability.title"] = "Ability";
         defaults["screen.autoplay-replace-confirm.help"] = "Starting or replaying automatic play replaces the current game. Unsaved progress will be lost.";
         defaults["screen.autoplay-replace-confirm.title"] = "Replace the current session?";
@@ -2181,7 +2184,7 @@ public static partial class SystemTextCatalog
         defaults["ui.register.details.cast.previews.an.action.without.combat.effects"] = "Cast previews an action without combat effects.";
         defaults["ui.register.details.character.pages.show.the.selected.party.member"] = "Character pages show the selected party member.";
         defaults["ui.register.details.character.template"] = "Character: {0}";
-        defaults["ui.register.details.choose.a.refinement.ability"] = "Choose a refinement ability.";
+        defaults["ui.register.details.choose.an.ability"] = "Choose an ability.";
         defaults["ui.register.details.choose.a.target.for.the.fixture.action.preview"] = "Choose a target for the fixture action preview.";
         defaults["ui.register.details.choose.an.ability.learning.target.in.learn"] = "Choose an ability learning target in Learn.";
         defaults["ui.register.details.command"] = "Command: {0}";

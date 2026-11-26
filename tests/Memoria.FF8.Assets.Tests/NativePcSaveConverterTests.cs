@@ -305,15 +305,19 @@ public sealed partial class NativePcSaveConverterTests
     }
 
     [Theory]
+    [InlineData(78)]
     [InlineData(79)]
     [InlineData(80)]
     [InlineData(81)]
+    [InlineData(82)]
     public void DisabledPassiveRequiresReviewedExportAndPreservesTheLivePreference(int ability)
     {
         GameState state = Defaults();
         NativeCharacterVitals vitals = state.CharacterVitals!.DeepCopy();
         vitals.GuardianForces[3] = ability switch
         {
+            78 => vitals.GuardianForces[3] with { AlertDisabled = true },
+            82 => vitals.GuardianForces[3] with { RareItemDisabled = true },
             79 => vitals.GuardianForces[3] with { MoveFindDisabled = true },
             80 => vitals.GuardianForces[3] with { EncHalfDisabled = true },
             81 => vitals.GuardianForces[3] with { EncNoneDisabled = true },
@@ -322,10 +326,14 @@ public sealed partial class NativePcSaveConverterTests
         GameState active = state with { CharacterVitals = vitals };
         NativeGuardianForceLegacyExportPlan plan = NativeGuardianForceLegacyCompatibility.Analyze(active, state.CharacterVitals);
         Assert.Contains(plan.Losses, loss => loss.GuardianForce == 3 && loss.Ability == ability && loss.Kind == "Passive");
-        Assert.False(plan.ProjectedState.CharacterVitals!.GuardianForces[3].MoveFindDisabled);
+        Assert.False(plan.ProjectedState.CharacterVitals!.GuardianForces[3].AlertDisabled);
+        Assert.False(plan.ProjectedState.CharacterVitals.GuardianForces[3].RareItemDisabled);
+        Assert.False(plan.ProjectedState.CharacterVitals.GuardianForces[3].MoveFindDisabled);
         Assert.False(plan.ProjectedState.CharacterVitals.GuardianForces[3].EncHalfDisabled);
         Assert.False(plan.ProjectedState.CharacterVitals.GuardianForces[3].EncNoneDisabled);
         Assert.True(active.CharacterVitals!.GuardianForceRequiresMemoriaFormat);
+        Assert.Equal(ability == 78, active.CharacterVitals.GuardianForces[3].AlertDisabled);
+        Assert.Equal(ability == 82, active.CharacterVitals.GuardianForces[3].RareItemDisabled);
         Assert.Equal(ability == 79, active.CharacterVitals.GuardianForces[3].MoveFindDisabled);
         Assert.Equal(ability == 80, active.CharacterVitals.GuardianForces[3].EncHalfDisabled);
         Assert.Equal(ability == 81, active.CharacterVitals.GuardianForces[3].EncNoneDisabled);

@@ -10,27 +10,16 @@ public sealed partial record NativeCharacterVitals
         return ability is >= 20 and < 39 ? MenuDefinitions.CommandAbilityCommands[ability - 20] : (byte)0;
     }
 
-    /// <summary>Combines equipped party abilities with the party-wide GF passive abilities.</summary>
-    public byte GetEncounterAbilityFlags(IReadOnlyList<byte>? battleRows = null)
+    /// <summary>Projects learned and enabled party abilities from living, acquired GFs.</summary>
+    public byte GetEncounterAbilityFlags()
     {
         Validate();
         byte flags = 0;
-        foreach (byte row in (battleRows ?? CombatParty).Where(row => row != byte.MaxValue))
+        for (int ability = FirstPartyAbility; ability <= LastPartyAbility; ability++)
         {
-            for (int slot = 0; slot < 4; slot++)
+            if (HasLivingGuardianForceWithPassive(ability))
             {
-                byte ability = (byte)(Records[row].Junction.Abilities >> (8 * slot));
-                if (ability is >= 78 and < 83 && !IsGuardianForcePassiveAbility(ability))
-                {
-                    flags |= MenuDefinitions.PartyAbilityFlags[ability - 78];
-                }
-            }
-        }
-        for (int ability = 79; ability <= 81; ability++)
-        {
-            if (HasActivePassiveAbility(ability))
-            {
-                flags |= MenuDefinitions.PartyAbilityFlags[ability - 78];
+                flags |= MenuDefinitions.PartyAbilityFlags[ability - FirstPartyAbility];
             }
         }
         return flags;
@@ -153,6 +142,8 @@ public sealed partial record NativeCharacterVitals
         ledger[index] = ledger[index] with { EarnedPoints = earned, Learned = earned >= target.RequiredPoints };
         result.GuardianForces[id] = gf with
         {
+            AlertDisabled = gf.AlertDisabled && (target.Ability != 78 || !ledger[index].Learned),
+            RareItemDisabled = gf.RareItemDisabled && (target.Ability != 82 || !ledger[index].Learned),
             MoveFindDisabled = gf.MoveFindDisabled && (target.Ability != 79 || !ledger[index].Learned),
             EncHalfDisabled = gf.EncHalfDisabled && (target.Ability != 80 || !ledger[index].Learned),
             EncNoneDisabled = gf.EncNoneDisabled && (target.Ability != 81 || !ledger[index].Learned),

@@ -212,7 +212,7 @@ internal sealed partial class GameWorld
             RequireEnemyStatisticsContract(placement);
         }
         byte[] admittedParty = expandedParty ?? nativeParty;
-        byte encounterAbilities = entryVitals.GetEncounterAbilityFlags(admittedParty);
+        byte encounterAbilities = entryVitals.GetEncounterAbilityFlags();
         List<BattleCombatantDefinition> combatants = [.. CreateBattleParty(entryVitals, admittedParty)];
         ImmutableDictionary<byte, BattleCombatantDefinition> replacementCandidates = ImmutableDictionary<byte, BattleCombatantDefinition>.Empty;
         if (effectPreviewRequest is null && encounterId == 511 && encounter.Id == encounterId)

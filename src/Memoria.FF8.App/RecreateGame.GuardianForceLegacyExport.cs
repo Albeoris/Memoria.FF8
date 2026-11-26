@@ -68,8 +68,10 @@ internal static class GuardianForceLegacyExportReview
         return loss.DescriptionId switch
         {
             "attribution" => SystemText("save.gf-export.loss.attribution", "GF mod-layer identities, save-local contributions and their attribution cannot be retained in an original FFVIII save."),
+            "passive-alert" => FormatSystemText("save.gf-export.loss.passive-alert", "GF {0}: the disabled Alert preference cannot be retained in an original FFVIII save.", arguments),
             "passive-enc-half" => FormatSystemText("save.gf-export.loss.passive-enc-half", "GF {0}: the disabled Enc-Half preference cannot be retained in an original FFVIII save.", arguments),
             "passive-enc-none" => FormatSystemText("save.gf-export.loss.passive-enc-none", "GF {0}: the disabled Enc-None preference cannot be retained in an original FFVIII save.", arguments),
+            "passive-rare-item" => FormatSystemText("save.gf-export.loss.passive-rare-item", "GF {0}: the disabled Rare Item preference cannot be retained in an original FFVIII save.", arguments),
             "passive" => FormatSystemText("save.gf-export.loss.passive", "GF {0}: the disabled Move-Find preference cannot be retained in an original FFVIII save.", arguments),
             "configuration" => FormatSystemText("save.gf-export.loss.configuration", "GF {0}: authored learning order, entries or conditions revert to the target game's definitions.", arguments),
             "unknown" => FormatSystemText("save.gf-export.loss.unknown", "GF {0}: unmapped high forgotten bits cannot be retained after learning structure changes.", arguments),
@@ -91,6 +93,7 @@ internal static class GuardianForceLegacyExportReview
     {
         string SystemText(string id, string original) => Memoria.FF8.Resources.Localization.SystemTextCatalog.Translate(localizeText, id, original);
         string explanation = SystemText("save.gf-export.explanation", "Original FFVIII saves use the target game's GF definitions. Review every change below. The active Memoria game keeps its full GF configuration and progression.");
-        return ModelBrowserDialogs.ShowConfirmationAsync(new GameConfirmationRequest(explanation + "\n\n" + string.Join("\n\n", plan.Losses.Select(loss => LossText(loss, localizeText))), SystemText("save.gf-export.title", "Original FFVIII GF conversion"), SystemText("save.gf-export.cancel", "Cancel"), SystemText("save.gf-export.export", "Export this copy"), SystemText("model.dialog.scroll-review", "Up / Down: scroll review")));
+        string nativePassives = SystemText("save.gf-export.native-passives", "In the original game, equip learned party abilities in character ability slots to activate them.");
+        return ModelBrowserDialogs.ShowConfirmationAsync(new GameConfirmationRequest(explanation + "\n\n" + nativePassives + "\n\n" + string.Join("\n\n", plan.Losses.Select(loss => LossText(loss, localizeText))), SystemText("save.gf-export.title", "Original FFVIII GF conversion"), SystemText("save.gf-export.cancel", "Cancel"), SystemText("save.gf-export.export", "Export this copy"), SystemText("model.dialog.scroll-review", "Up / Down: scroll review")));
     }
 }

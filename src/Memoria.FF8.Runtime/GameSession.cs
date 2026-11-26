@@ -516,7 +516,7 @@ public sealed partial class GameSession : IEventServices
 
     public void SetCharacterVitals(NativeCharacterVitals vitals)
     {
-        vitals = vitals.NormalizeGuardianForceCompatibility();
+        vitals = vitals.NormalizeGuardianForceCompatibility().WithoutPartyAbilityJunctions();
         vitals.Validate();
         ValidateLiveEventMemoryOwners(State with { CharacterVitals = vitals }, State.EventMemory);
         State = State with { CharacterVitals = vitals.DeepCopy(), SavedBattleFlags = SynchronizeSavedBattleFlags(vitals) };

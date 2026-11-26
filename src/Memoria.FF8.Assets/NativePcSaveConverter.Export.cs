@@ -71,7 +71,7 @@ public static partial class NativePcSaveConverter
             throw new NotSupportedException("Completed games and New Game+ rules require Memoria format. Choose a Memoria destination to preserve them.");
         }
         ArgumentNullException.ThrowIfNull(state);
-        if (state.CharacterVitals?.GuardianForces.Any(gf => gf.MoveFindDisabled || gf.EncHalfDisabled || gf.EncNoneDisabled) == true)
+        if (state.CharacterVitals?.GuardianForces.Any(gf => gf.AlertDisabled || gf.MoveFindDisabled || gf.EncHalfDisabled || gf.EncNoneDisabled || gf.RareItemDisabled) == true)
         {
             throw new NotSupportedException("Original FF8 export requires a reviewed GF conversion to discard disabled passive ability preferences.");
         }
