@@ -63,7 +63,7 @@ public sealed class NativeSavedBattleFlagTests
         Assert.Equal((byte)0xFD, battle.NativeScriptState.SavedBattleFlagsAfter);
         Assert.Equal(new uint[] { 1, 1 }, battle.Capture().NativeAiVariables!.Take(2));
         string snapshot = JsonSerializer.Serialize(battle.Capture());
-        Assert.Equal(snapshot, JsonSerializer.Serialize(BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(snapshot)!).Capture()));
+        Assert.Equal(snapshot, JsonSerializer.Serialize(battle.ForkForContinuation().Capture()));
         BattleSnapshot tampered = battle.Capture() with { NativeScriptState = battle.NativeScriptState with { SavedBattleFlagsBefore = 0xF6, SavedBattleFlagsAfter = 0xFC } };
         Assert.Throws<InvalidDataException>(() => BattleSession.Restore(tampered));
     }
@@ -79,7 +79,7 @@ public sealed class NativeSavedBattleFlagTests
         byte[] initial = [54, 2, 18, 0, 0, 3, 0, 3, 0, 15, 96, 1, 2, 18, 0, 3, 1, 0, 3, 0, 15, 97, 1, 0];
         NativeBattleAiDefinition ai = new([initial, [0], [0], [0], [0]], Enumerable.Repeat(new NativeBattleAiAbility(0, 0, 0), 48).ToArray(), 0, []);
         BattleSession battle = new(new BattleDefinition { NativeSavedBattleFlags = 0xF7, NativeSavedBattleFlagsKnownMask = knownMask, Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy", NativeAi = ai }] }, BattleAtbMode.Normal);
-        battle.Tick();
+        NativeBattleLogicalTestFixture.RunNativeAi(battle, battle.Combatants[1], 0);
         return battle;
     }
 }

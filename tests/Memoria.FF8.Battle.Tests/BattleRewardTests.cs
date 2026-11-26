@@ -13,13 +13,13 @@ public sealed class BattleRewardTests
         {
             NativeBattleAiDefinition ai = new([init, [0], [0], [0], [0]], Enumerable.Repeat(new NativeBattleAiAbility(0, 0, 0), 48).ToArray(), 0, []);
             BattleSession battle = new(new() { NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(), Combatants = [new() { Id = "party-0", Name = "Party", IsPlayer = true }, new() { Id = "enemy-0", Name = "Enemy", NativeAi = ai }] }, BattleAtbMode.Normal);
-            battle.Tick();
+            NativeBattleLogicalTestFixture.RunNativeAi(battle, battle.Combatants[1], 0);
             return battle;
         }
         BattleSession battle = Create([56, 1, 56, 0, 56, 1, 0]);
         Assert.Equal(new BattleStock[] { new(1, 1), new(0, 1), new(1, 1) }, battle.NativeRewardItems);
         BattleSnapshot snapshot = battle.Capture();
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(snapshot))!);
+        BattleSession restored = battle.ForkForContinuation();
         Assert.Equal(battle.NativeRewardItems, restored.NativeRewardItems);
         Assert.Throws<InvalidDataException>(() => BattleSession.Restore(snapshot with { NativeRewardItems = null }));
         Assert.Throws<NotSupportedException>(() => Create(Enumerable.Repeat(new byte[] { 56, 1 }, 25).SelectMany(pair => pair).Append((byte)0).ToArray()));

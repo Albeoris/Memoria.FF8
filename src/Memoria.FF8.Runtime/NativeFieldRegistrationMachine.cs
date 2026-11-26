@@ -7,7 +7,10 @@ public sealed record NativeFieldRetainedActor(int ObjectId, int ModelId, int Fir
 public sealed record NativeFieldRetainedPresentation(int ObjectId, byte Animation, ushort? Frame, bool AutoAnimation, byte BaseAnimation, bool Visible, byte RendererMode, short RootTranslationZ, byte Red, byte Green, byte Blue, bool AdditionalControlDisabled, bool PrimitiveTransparency, uint EyeMode)
 {
     public byte? EyeBlinkParameter611 { get; init; }
+    public NativeFieldEyeBlinkPhase? EyeBlinkPhase { get; init; }
 }
+
+public sealed record NativeFieldEyeBlinkPhase(short Period, byte Countdown, byte Frame, byte Reload, bool Waiting);
 
 public sealed record NativeBattleFieldResourceReloadResult(NativeBattleRetainedMemory Memory, NativeCrtRandomState? CrtRandomBefore, NativeCrtRandomState? CrtRandomAfter);
 public sealed record NativeFieldRegisteredTexture(byte Mode, short X, short Y, short WidthWords, short Height, short PaletteX, short PaletteY, ushort TexturePage, ushort Clut)

@@ -228,7 +228,7 @@ public sealed class GameplayPreferencesTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Saved_battle_guardian_forms_option_must_match_its_save_owner(bool enabled)
+    public void Saved_battle_guardian_forms_option_checks_its_save_owner_and_admits_legacy_empty_resources(bool enabled)
     {
         BattleSession battle = new(new BattleDefinition
         {
@@ -237,12 +237,23 @@ public sealed class GameplayPreferencesTests
         }, BattleAtbMode.TurnBased);
         GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();
+        session.SetBattle(battle.Capture());
         GameState state = session.State with
         {
-            GameplayPreferences = new GameplayPreferences { GuardianFormsEnabled = !enabled },
-            Battle = battle.Capture()
+            GameplayPreferences = new GameplayPreferences { GuardianFormsEnabled = !enabled }
         };
-        Assert.Contains("battle GF Transformations option differs", Assert.Throws<InvalidDataException>(() => new GameSession(state)).Message);
+        if (enabled)
+        {
+            Assert.Contains("battle GF Transformations option differs", Assert.Throws<InvalidDataException>(() => new GameSession(state)).Message);
+        }
+        else
+        {
+            GameSession restored = new(state);
+            Assert.True(restored.State.GameplayPreferences.GuardianFormsEnabled);
+            BattleSnapshot restoredBattle = Assert.IsType<BattleSnapshot>(restored.State.Battle);
+            Assert.False(restoredBattle.Definition.GuardianFormsEnabled);
+            Assert.Empty(restoredBattle.Definition.GuardianFormResources);
+        }
     }
 
     [Theory]

@@ -73,7 +73,11 @@ public sealed partial class EventEngine
             {
                 continue;
             }
-            if (eyes is { Mode: 0x80000, BoundModelId: null, BackendHighNibble114: null, Patch: null } && actor.NativeAnimationHeader?.BoundModelId is null && actor.NativeEyeBlinkParameter611 is not null && program!.NativeObjects.Take(program.NativeActorCount).Contains(actor.ObjectId))
+            // Animation models can bind before the graphics process registers their eye banks.
+            bool hasUnregisteredDefaultBlink = scene is { NativeFieldRegistration: null, NativeEyeProcess: null } && actor.NativeEyeBlinkParameter611 == 128;
+            if (eyes is { Mode: 0x80000, BoundModelId: null, BackendHighNibble114: null, Patch: null } && actor.NativeEyeBlinkParameter611 is not null &&
+                (actor.NativeAnimationHeader?.BoundModelId is null || hasUnregisteredDefaultBlink) &&
+                program!.NativeObjects.Take(program.NativeActorCount).Contains(actor.ObjectId))
             {
                 continue;
             }

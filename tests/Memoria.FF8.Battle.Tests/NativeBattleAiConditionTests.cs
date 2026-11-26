@@ -54,17 +54,19 @@ public sealed class NativeBattleAiConditionTests
     [Theory]
     [InlineData(201)]
     [InlineData(44)]
-    public void GroupStatusHonorsTheOriginalFourEnemySlots(int selector)
+    public void GroupStatusIncludesTheAllocatedEnemyBeyondOriginalSlots(int selector)
     {
         BattleSession battle = Create(selector, 0, 0, Party("party", 0), Enemy("one", 28), Enemy("two", 28), Enemy("three", 28), Enemy("four", 28), Enemy("outside", 28) with { NativeStatus0 = 1, CurrentHp = 0 });
-        Assert.Equal(0u, battle.Capture().NativeAiVariables![0]);
+        Assert.Null(battle.Combatants.Single(actor => actor.Id == "outside").NativeActorIndex);
+        Assert.Equal(1u, battle.Capture().NativeAiVariables![0]);
     }
 
     [Fact]
-    public void ModelPresenceUsesTheSameNativeSlotBoundary()
+    public void LivingModelPresenceIncludesTheAllocatedEnemyBeyondOriginalSlots()
     {
-        BattleSession battle = CreateConditionWithOwner(1, 9, 200, 0, 44, Party("party", 0), Enemy("one", 1), Enemy("two", 1), Enemy("three", 1), Enemy("four", 1));
-        Assert.Equal(0u, battle.Capture().NativeAiVariables![0]);
+        BattleSession battle = CreateConditionWithOwner(1, 9, 200, 0, 44, Party("party", 0), Enemy("one", 1), Enemy("two", 1), Enemy("three", 1), Enemy("outside", 28));
+        Assert.Null(battle.Combatants.Single(actor => actor.Id == "outside").NativeActorIndex);
+        Assert.Equal(1u, battle.Capture().NativeAiVariables![0]);
     }
 
     [Theory]
@@ -114,9 +116,23 @@ public sealed class NativeBattleAiConditionTests
         // IF (8 bytes), SET shared96=1 (3 bytes), STOP; false branches skip exactly the SET.
         byte[] initial = [2, (byte)subject, (byte)selector, (byte)comparison, (byte)status, (byte)(status >> 8), 3, 0, 15, 96, 1, 0];
         NativeBattleAiDefinition ai = new([initial, [0], [0], [0], [0]], Enumerable.Repeat(new NativeBattleAiAbility(0, 0, 0), 48).ToArray(), 0, []);
-        //The interpreter must occupy an actual0..6 slot even when the queried synthetic actors extend beyond the native group.
-        BattleSession battle = new(new() { EncounterId = 40, Combatants = [Enemy("owner", model) with { NativeAi = ai }, .. others] }, BattleAtbMode.Normal);
-        battle.Tick();
+        BattleCombatantDefinition[] actors = [Enemy("owner", model) with { NativeAi = ai }, .. others];
+        bool authored = actors.Any(actor => !actor.InitialActive);
+        if (authored)
+        {
+            NativeBattleEnemyLevel level = new(100, 20, 5, 20, 5, 10, Enumerable.Repeat(800, 8).ToArray(), [], [], 0);
+            NativeBattleEnemyTemplate template = new(1, Enumerable.Repeat(level, 101).ToArray()) { Information254 = 0 };
+            int sceneSlot = 0;
+            for (int i = 0; i < actors.Length; i++)
+            {
+                if (!actors[i].IsPlayer)
+                {
+                    actors[i] = actors[i] with { SceneSlot = sceneSlot++, NativeTemplate = template };
+                }
+            }
+        }
+        BattleSession battle = new(new() { EncounterId = 40, Combatants = actors, UsesOriginalEnemySlots = authored }, BattleAtbMode.Normal);
+        NativeBattleLogicalTestFixture.RunNativeAi(battle, battle.Combatants[0], 0);
         return battle;
     }
 

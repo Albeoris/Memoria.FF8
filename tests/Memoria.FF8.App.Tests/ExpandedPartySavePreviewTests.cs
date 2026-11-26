@@ -66,22 +66,25 @@ public sealed class ExpandedPartySavePreviewTests
         try
         {
             PlayerSaveMenu menu = OpenBrowser(directory);
-            menu.SelectSlot(4);
+            const int expandedSlot = 6;
+            menu.SelectSlot(expandedSlot);
+            Assert.Equal(11, menu.Entries.Single(entry => entry.Slot == expandedSlot).PartyPortraits.Count);
             bool checkedExpandedRow = false;
             UiView view = PlayerSaveView.Build(menu, "Transfer", "Bank / Page");
             view.Resize(1280, 720);
             view.Draw(new BattleUiTests.TestCanvas(), new UiTheme());
             Assert.InRange(menu.PageCapacity, 1, PlayerSaveMenu.EntriesPerPage - 1);
-            Assert.Equal("save-slot-4", view.FocusedElement?.Id);
+            Assert.Equal($"save-slot-{expandedSlot}", view.FocusedElement?.Id);
             int expandedCapacity = menu.PageCapacity;
             CheckVisibleSlots();
+            Assert.True(checkedExpandedRow);
             menu.RequestPage(1);
             int nextSlot = menu.SelectedSlot;
+            Assert.Equal(expandedSlot + expandedCapacity, nextSlot);
             view = PlayerSaveView.Build(menu, "Transfer", "Bank / Page");
             view.Resize(1280, 720);
             view.Draw(new BattleUiTests.TestCanvas(), new UiTheme());
             CheckVisibleSlots();
-            Assert.True(checkedExpandedRow);
             Assert.Equal(expandedCapacity, menu.PageCapacity);
             Assert.Equal($"save-slot-{nextSlot}", view.FocusedElement?.Id);
 
@@ -150,17 +153,21 @@ public sealed class ExpandedPartySavePreviewTests
         int[] sizes = [3, 4, 3, 4, 5, 11];
         for (int slot = 1; slot <= 12; slot++)
         {
+            string path = store.GetPath(slot);
             byte[] metadata = JsonSerializer.SerializeToUtf8Bytes(new SaveSummary(SceneKind.Field, 106, "Balamb Garden", null, Identities[..sizes[(slot - 1) % sizes.Length]], null, null, null));
-            using BinaryWriter writer = new(File.Create(store.GetPath(slot)), Encoding.UTF8);
             byte[] payload = [0];
-            writer.Write("MFF8SAVE"u8);
-            writer.Write(1);
-            writer.Write(metadata.Length);
-            writer.Write((long)payload.Length);
-            writer.Write(SHA256.HashData(metadata));
-            writer.Write(SHA256.HashData(payload));
-            writer.Write(metadata);
-            writer.Write(payload);
+            using (BinaryWriter writer = new(File.Create(path), Encoding.UTF8))
+            {
+                writer.Write("MFF8SAVE"u8);
+                writer.Write(1);
+                writer.Write(metadata.Length);
+                writer.Write((long)payload.Length);
+                writer.Write(SHA256.HashData(metadata));
+                writer.Write(SHA256.HashData(payload));
+                writer.Write(metadata);
+                writer.Write(payload);
+            }
+            File.SetLastWriteTimeUtc(path, new DateTime(2026, 11, 14, 15, 0, 0, DateTimeKind.Utc).AddMinutes(-slot));
         }
         PlayerSaveMenu menu = new(store);
         menu.Open(PlayerSaveMenuMode.Load);

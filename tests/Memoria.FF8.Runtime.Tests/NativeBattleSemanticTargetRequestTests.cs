@@ -77,7 +77,7 @@ public sealed class NativeBattleSemanticTargetRequestTests
         };
         const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
         typeof(BattleSession).GetMethod("BeginNativeReactionBatch", flags)!.Invoke(battle, null);
-        object produced = typeof(BattleSession).GetMethod("ProduceNativeInstalledContacts", flags)!.Invoke(battle, [caster, target, command, action, null])!;
+        object produced = typeof(BattleSession).GetMethod("ProduceNativeInstalledContacts", flags)!.Invoke(battle, [caster, target, command, action, null, null])!;
 
         int count = (int)produced.GetType().GetProperty("PublishedCount")!.GetValue(produced)!;
         var contacts = (ImmutableArray<NativeBattleContactPacket>)produced.GetType().GetProperty("Contacts")!.GetValue(produced)!;

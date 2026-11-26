@@ -70,6 +70,6 @@ public sealed class NativeGunbladeContactDamageTests
         BattleNativeAction native = new(command, 0, -1, -1) { MagicId = 0, AttackType = 10, Power = 20, HitCount = 1, AttackFlags = 0, TargetFlags = 0, PowerModifier = 0, LevelModifier = 0, DamagePresentation = sequence, Element = 0, ElementPercent = 0, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = 255, Critical = 0, RawRecord = [], SupplementalRecord = [] };
         BattleActionPresentation presentation = new(actor.Id, target.Id, BattleActionPhase.Windup, new BattleTargetRequest(new BattleTargetSelection.Explicit([target.IsPlayer ? new BattlePartyActorReference(target.Id) : new BattleEnemyActorReference(target.Id)]), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.None), BattleAbility.Attack, 0) { NativeAction = native, NativeQueuedCommand = command, GunbladeTriggerTiming = timing };
         BattleActionDefinition action = new(BattleAbility.Attack, 0, "Trigger contact", BattleActionEffect.Native, 20, false) { NativeAction = native };
-        return (NativeBattleContactPacket)typeof(BattleSession).GetMethod("ResolveInstalledNativeHitWithContact", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, [actor, target, presentation, action, native, (byte)255, false, null])!;
+        return (NativeBattleContactPacket)typeof(BattleSession).GetMethod("ResolveInstalledNativeHitWithContact", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, [actor, target, presentation, action, native, null, false])!;
     }
 }

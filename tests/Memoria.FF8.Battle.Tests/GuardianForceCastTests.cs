@@ -204,16 +204,16 @@ public sealed class GuardianForceCastTests
         BattleDefinition definition = original with { Combatants = original.Combatants.Select(actor => actor.IsPlayer ? actor with { NativeCombatantFlags = actor.NativeCombatantFlags | 0x400 } : actor).ToArray() };
         BattleSession session = new(definition, BattleAtbMode.Normal);
         session.QueueAction("player", "enemy", BattleAbility.GuardianForce, 0);
-        session.Tick();
+        NativeBattleLogicalTestFixture.DispatchGuardianForceCasts(session);
         Assert.Equal((ushort)40, Assert.Single(session.GuardianForceCasts).RemainingTicks);
         BattleSnapshot pending = session.Capture();
         BattleSession restored = BattleSession.Restore(pending);
-        restored.Tick();
+        NativeBattleLogicalTestFixture.DispatchGuardianForceCasts(restored);
         Assert.Equal((ushort)40, Assert.Single(restored.GuardianForceCasts).RemainingTicks);
         BattleCombatantSnapshot player = pending.Combatants[0];
         pending = pending with { Combatants = [player with { NativeParticipant = player.NativeParticipant! with { NativeCombatantFlags = player.NativeParticipant.NativeCombatantFlags!.Value & ~0x400u } }, .. pending.Combatants.Skip(1)] };
         BattleSession resumed = BattleSession.Restore(pending);
-        resumed.Tick();
+        NativeBattleLogicalTestFixture.DispatchGuardianForceCasts(resumed);
         Assert.Equal((ushort)38, Assert.Single(resumed.GuardianForceCasts).RemainingTicks);
     }
 
@@ -230,7 +230,8 @@ public sealed class GuardianForceCastTests
             Combatants = [player with { NativeParticipant = player.NativeParticipant! with { NativeCombatantFlags = player.NativeParticipant.NativeCombatantFlags!.Value | 0x400u } }, .. pending.Combatants.Skip(1)]
         };
         BattleSession restored = BattleSession.Restore(pending);
-        restored.Tick();
+        NativeBattleLogicalTestFixture.DispatchGuardianForceCasts(restored);
+        NativeBattleLogicalTestFixture.DispatchExpandedGuardianForceCharges(restored);
         Assert.Empty(restored.GuardianForceCasts);
         Assert.Equal((byte)255, restored.Capture().NativeScriptState.Tasks.Tail);
         Assert.False(restored.Combatants[0].IsBusy);
@@ -278,12 +279,12 @@ public sealed class GuardianForceCastTests
         BattleSession session = Create(compatibility: 350, statuses: statuses);
         session.QueueAction("player", "enemy", BattleAbility.GuardianForce, 0);
         Assert.Equal((ushort)40, Assert.Single(session.GuardianForceCasts).InitialTicks);
-        session.Tick();
+        NativeBattleLogicalTestFixture.DispatchGuardianForceCasts(session);
         Assert.Equal((ushort)(40 - decrement), Assert.Single(session.GuardianForceCasts).RemainingTicks);
         Assert.True(session.Combatants[0].IsBusy);
         BattleSession restored = BattleSession.Restore(session.Capture());
-        session.Tick();
-        restored.Tick();
+        NativeBattleLogicalTestFixture.DispatchGuardianForceCasts(session);
+        NativeBattleLogicalTestFixture.DispatchGuardianForceCasts(restored);
         Assert.Equal(JsonSerializer.Serialize(session.Capture()), JsonSerializer.Serialize(restored.Capture()));
     }
 
@@ -315,7 +316,8 @@ public sealed class GuardianForceCastTests
         BattleSnapshot initial = Create().Capture();
         BattleDefinition definition = initial.Definition with { Combatants = initial.Definition.Combatants.Select(actor => actor with { GuardianForceCompatibility = null }).ToArray() };
         BattleSession session = new(definition, BattleAtbMode.Normal);
-        Assert.Throws<NotSupportedException>(() => session.QueueAction("player", "enemy", BattleAbility.GuardianForce, 0));
+        Assert.False(session.CanSelectExpandedGuardianForce("player", 0));
+        Assert.Throws<InvalidOperationException>(() => session.QueueAction("player", "enemy", BattleAbility.GuardianForce, 0));
         Assert.True(session.Combatants[0].IsReady);
         Assert.Empty(session.GuardianForceCasts);
         Assert.Empty(session.QueuedActions);
@@ -383,7 +385,7 @@ public sealed class GuardianForceCastTests
         BattleDefinition original = Create().Capture().Definition;
         BattleDefinition definition = original with { GuardianForces = [new(0, 1000, 300, false)], Combatants = original.Combatants.Select(actor => actor.IsPlayer ? actor : actor with { NativeAi = ai }).ToArray() };
         BattleSession session = new(definition, BattleAtbMode.Normal);
-        session.Tick();
+        NativeBattleLogicalTestFixture.RunNativeAi(session, session.Combatants[1], 0);
         BattleGuardianForceVital acquired = Assert.Single(session.GuardianForces);
         Assert.True(acquired.Acquired);
         Assert.Equal((ushort)1000, acquired.HitPoints);

@@ -1,5 +1,4 @@
 using System.Collections.Immutable;
-using System.Reflection;
 using Memoria.FF8.Tests;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -89,13 +88,10 @@ public sealed class NativeBattleExpandedActionHeaderTests
         BattleSession native = Fixture(expanded: false);
         BattleSession expanded = Fixture();
         BattleActionPresentation command = Magic(ally);
-        BattleCombatant actor = native.Combatants.Single(actor => actor.Id == command.ActorId);
-        MethodInfo build = typeof(BattleSession).GetMethod("BuildNativeActionHeaderPreparation", BindingFlags.NonPublic | BindingFlags.Instance)!;
+        NativeBattleActionHeaderPreparation expected = new(new BattlePartyActorModel(new(command.ActorId)), 2, NativeBattleCommandSequenceFixture.Values[2], -1, 1, 2, new(0x47E970, 1, "Fire"));
 
-        NativeBattleActionHeaderPreparation original = Assert.IsType<NativeBattleActionHeaderPreparation>(build.Invoke(native, [actor, command, Fire, false, false]));
-
-        Assert.Equal(original, expanded.BuildExpandedActionHeaderPreparation(command, Fire));
-        Assert.Throws<InvalidOperationException>(() => native.BuildExpandedActionHeaderPreparation(command, Fire));
+        Assert.Equal(expected, native.BuildExpandedActionHeaderPreparation(command, Fire));
+        Assert.Equal(expected, expanded.BuildExpandedActionHeaderPreparation(command, Fire));
     }
 
     private static BattleActionPresentation Magic(int ally) => new($"ally-{ally}", "enemy-0", BattleActionPhase.Windup, Request(new BattleEnemyActorReference("enemy-0")), BattleAbility.Magic, 1) { NativeSequence = 3 };

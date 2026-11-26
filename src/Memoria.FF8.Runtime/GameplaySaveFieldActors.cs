@@ -81,6 +81,10 @@ public sealed record GameplaySaveFieldActor([property: JsonRequired] int ObjectI
         {
             throw new InvalidDataException("Gameplay actor face words or limits are invalid.");
         }
+        if (Appearance.EyeBlinkPhase is { } blink && (Appearance.EyeMode != 0x80000 || blink.Frame == 0))
+        {
+            throw new InvalidDataException("Gameplay eye phase requires a valid frame in automatic blink mode.");
+        }
         Animation.Validate();
         AnimationBackup?.Validate();
     }
@@ -97,6 +101,9 @@ public sealed record GameplaySaveActorControl([property: JsonRequired] bool Talk
 public sealed record GameplaySaveActorAppearance([property: JsonRequired] bool Visible, [property: JsonRequired] bool AdditionalControlDisabled, [property: JsonRequired] bool PrimitiveTransparency, [property: JsonRequired] byte? RendererMode, [property: JsonRequired] byte? BlinkParameter, [property: JsonRequired] uint? EyeMode, [property: JsonRequired] GameplaySaveActorVector? PolygonColor, [property: JsonRequired] int GetaParameter, [property: JsonRequired] byte ShadeLevel, [property: JsonRequired] byte[]? ShadowRadii)
 {
     public bool? ModelAdditionalControlDisabled { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeFieldEyeBlinkPhase? EyeBlinkPhase { get; init; }
 }
 
 [Flags]

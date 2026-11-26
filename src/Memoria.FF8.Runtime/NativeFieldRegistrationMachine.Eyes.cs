@@ -2,6 +2,25 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeFieldRegistrationMachine
 {
+    public static NativeFieldEyeBlinkPhase? CaptureBlinkPhase(NativeFieldRegistrationState state, NativeBattleRetainedMemory retained, int objectId)
+    {
+        NativeFieldRegisteredInstance? instance = state.Instances.SingleOrDefault(item => item.ObjectId == objectId);
+        if (instance is not { ModelId: >= 0 })
+        {
+            return null;
+        }
+        using NativeFieldRegistrationMemory memory = new(retained.FileStaging!, state.MemoryLayout.MemoryStart, state.MemoryLayout.MemoryEnd);
+        uint address = instance.Address;
+        int mode = memory.Read8(address + 114) & 0xF0;
+        if (mode is not (0x10 or 0x80))
+        {
+            return null;
+        }
+        NativeFieldResourceCursor resource = ResolveResource(memory, state.Resources.Single(item => item.ModelId == instance.ModelId));
+        NativeFieldResourceCursor eyes = memory.ReadPointer(resource + 20);
+        return new(memory.ReadSigned16(eyes + 10), memory.Read8(address + 102), memory.Read8(address + 103), memory.Read8(address + 116), mode == 0x80);
+    }
+
     public static NativeBattleFieldResourceReloadResult SetEyes532340(NativeFieldRegistrationState state, NativeBattleRetainedMemory retained, int objectId, uint mode, byte? blinkParameter, NativeCrtRandomState? crtRandom)
     {
         state.Validate(retained);

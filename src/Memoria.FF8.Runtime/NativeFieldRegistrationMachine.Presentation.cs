@@ -36,7 +36,11 @@ public static partial class NativeFieldRegistrationMachine
             }
             if (instance.ModelId >= 0 && actor.EyeMode != 0)
             {
-                RestoreEyes(context, address, ResolveResource(memory, state.Resources.Single(resource => resource.ModelId == instance.ModelId)), actor.EyeMode, actor.EyeBlinkParameter611, ref random);
+                NativeFieldResourceCursor eyeResource = ResolveResource(memory, state.Resources.Single(resource => resource.ModelId == instance.ModelId));
+                if (actor.EyeBlinkPhase is not { } blink || !TryRestoreBlinkPhase(context, address, eyeResource, blink))
+                {
+                    RestoreEyes(context, address, eyeResource, actor.EyeMode, actor.EyeBlinkParameter611, ref random);
+                }
             }
             memory.Write8(address + 96, actor.Visible ? (byte)0 : (byte)1);
             memory.Write16(address + 98, unchecked((ushort)actor.RootTranslationZ));
@@ -109,6 +113,27 @@ public static partial class NativeFieldRegistrationMachine
         memory.Write16(instance + 80, 0);
         memory.Write32(instance + 120, uint.MaxValue);
         memory.Write16(instance + 124, ushort.MaxValue);
+    }
+
+    private static bool TryRestoreBlinkPhase(Context context, uint instance, NativeFieldResourceCursor resource, NativeFieldEyeBlinkPhase phase)
+    {
+        NativeFieldRegistrationMemory memory = context.Memory;
+        if ((memory.Read8(resource + 95) & 1) == 0)
+        {
+            return false;
+        }
+        NativeFieldResourceCursor eyes = memory.ReadPointer(resource + 20);
+        if (phase.Frame == 0 || phase.Frame > memory.Read8(eyes + 5))
+        {
+            return false;
+        }
+        memory.Write16(eyes + 10, unchecked((ushort)phase.Period));
+        memory.Write8(instance + 102, phase.Countdown);
+        memory.Write8(instance + 103, phase.Frame);
+        memory.Write8(instance + 114, (byte)(memory.Read8(instance + 114) & 15 | (phase.Waiting ? 0x80 : 0x10)));
+        memory.Write8(instance + 116, phase.Reload);
+        CopyEyeRectangle(context, eyes, eyes + 8 + 4u * phase.Frame, phase.Frame == 1);
+        return true;
     }
 
     private static void RestoreEyes(Context context, uint instance, NativeFieldResourceCursor resource, uint mode, byte? blinkParameter, ref NativeCrtRandomState? random)

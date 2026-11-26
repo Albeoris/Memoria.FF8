@@ -152,11 +152,29 @@ public sealed class GameSessionFieldMemoryTests
         Assert.Equal((byte)31, second.Memory.FileStaging!.ReadByte(Address));
         Assert.Equal((byte)31, working.FileStaging.ReadByte(Address));
         NativeBattleRetainedMemory handoff = session.CaptureNativeFieldMemory()!;
-        BattleSession battle = new(new BattleDefinition
+        BattleDefinition definition = new()
         {
             NativeRetainedMemory = handoff,
-            Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }]
-        }, BattleAtbMode.Normal);
+            NativeClockRules = new(10),
+            NativeBattleSpeed = 2,
+            StageId = 0,
+            NativeStageSource = new(0, [], [], new("stage", [])) { PhysicalSource = new(1, 0, []) },
+            NativeStageCameraBank = new([]),
+            NativeEntryWaveFile = new(0, "entry", []),
+            NativeMusicProcess = new(new(1, null, null, null, 0, null), 0, null),
+            NativeGlobalSoundProcess = NativeGlobalSoundProcess.FromBufferlessColdProcess(),
+            NativeGlobalRandom = new(123),
+            Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy", SceneSlot = 0, Information246 = 0 }]
+        };
+        NativeBattleGraphicsResource model = new([0, 0])
+        {
+            AnimationFrames = [1],
+            ModelLoadSources = [new(0, false, 0, 1, "body", [])]
+        };
+        NativeBattleGraphicsDefinition graphics = NativeBattleHostedTestFixture.CreateGraphicsDefinition(
+            new("party", 0, model) { InitialPosition = new(0, 0, 0) },
+            new("enemy", 16, model) { InitialPosition = new(0, 0, 0) });
+        BattleSession battle = NativeBattleTypedFixture.CreateBattle(definition, BattleAtbMode.Normal, NativeBattleHostedTestFixture.PrimitiveExecutionGraphics(graphics));
         session.SetLiveBattle(battle);
         battle.Presentation!.NativeFileStaging!.Write(Address, [33, 0, 0, 0]);
         Assert.Equal((byte)31, handoff.FileStaging!.ReadByte(Address));

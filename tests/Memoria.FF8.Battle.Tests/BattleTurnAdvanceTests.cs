@@ -116,8 +116,7 @@ public sealed class BattleTurnAdvanceTests
     [Fact]
     public void AcceptedPlayerAttackCancelsThePendingPass()
     {
-        BattleSession battle = Create([0]);
-        battle.AdvanceTurn();
+        BattleSession battle = RestorePendingPass();
         Assert.NotNull(battle.Capture().TurnAdvance);
 
         battle.QueueAttack("player", "enemy");
@@ -130,18 +129,13 @@ public sealed class BattleTurnAdvanceTests
     [Fact]
     public void LeavingTurnBasedModeCancelsThePassEvenWhenReturningBeforeTheNextTick()
     {
-        BattleSession battle = Create([0]);
-        battle.AdvanceTurn();
+        BattleSession battle = RestorePendingPass();
         Assert.NotNull(battle.Capture().TurnAdvance);
 
         battle.SetMode(BattleAtbMode.Normal);
         battle.SetMode(BattleAtbMode.TurnBased);
 
         Assert.Null(battle.Capture().TurnAdvance);
-        for (int frame = 0; frame < 8; frame++)
-        {
-            battle.Tick();
-        }
         Assert.False(battle.Combatants[1].IsReady);
     }
 
@@ -174,8 +168,7 @@ public sealed class BattleTurnAdvanceTests
     [Fact]
     public void RestoreRejectsANegativePendingPassBudget()
     {
-        BattleSession battle = Create([0]);
-        battle.AdvanceTurn();
+        BattleSession battle = RestorePendingPass();
         BattleSnapshot snapshot = battle.Capture();
         Assert.NotNull(snapshot.TurnAdvance);
 
@@ -210,6 +203,14 @@ public sealed class BattleTurnAdvanceTests
         Assert.Null(battle.Capture().TurnAdvance);
         Assert.Equal(allyAtb, battle.Combatants[1].Atb);
         Assert.True(battle.Combatants[0].IsReady);
+    }
+
+    private static BattleSession RestorePendingPass()
+    {
+        BattleSession battle = Create(null);
+        battle.Combatants[2].Atb = BattleSession.AtbMaximum;
+        BattleSnapshot snapshot = battle.Capture() with { TurnAdvance = new(["enemy"], ["player"], 100) };
+        return BattleSession.Restore(snapshot);
     }
 
     private static BattleSession Create(byte[]? turnScript, int allySpeed = 100, bool enemyPoisoned = false)

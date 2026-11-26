@@ -480,7 +480,7 @@ public sealed class TripleTriadRematchInventoryTests
             int encoded = operation.Parameter != 0 || operation.Opcode == Jsm.Opcode.PSHN_L ? (int)operation.Opcode << 24 | operation.Parameter & 0xFFFFFF : (int)operation.Opcode;
             BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(18 + index * 4), encoded);
         }
-        world.Events.LoadField(fieldId, bytes, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+        world.Events.LoadField(fieldId, bytes, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En, restoringCheckpoint: session.State.EventState is not null);
         if (session.State.EventState is { } snapshot)
         {
             world.Events.Restore(snapshot);

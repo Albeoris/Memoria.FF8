@@ -53,11 +53,14 @@ public sealed partial class EventEngine
             savedBackup = savedPhase with { End = null, UseResourceLastPose = true };
         }
         NativeDisplayOffsetState? offset = actor.NativeDisplayOffset;
+        NativeFieldEyeBlinkPhase? eyeBlink = actor.NativeEyes?.Mode == 0x80000 && Scene.NativeFieldRegistration is { } registration && Scene.NativeEyeProcess is { } eyeProcess
+            ? NativeFieldRegistrationMachine.CaptureBlinkPhase(registration, ReadCurrentNativeEyeProcess(eyeProcess).Memory, actor.ObjectId)
+            : null;
         return new(actor.ObjectId, actor.Label,
             new(actor.ModelId, actor.CharacterId, actor.Active),
             new(new(actor.X, actor.Y, actor.Z), ReadNativeScriptPosition(actor) is { } raw ? new(raw.X, raw.Y, raw.Z) : null, actor.WalkmeshTriangle, actor.Direction, actor.DisplayOffset, actor.RootTranslationZ),
             new(actor.TalkEnabled, actor.PushEnabled, actor.CollisionEnabled, actor.NativeSavedCollisionDisabled16, actor.TalkRadius, actor.PushRadius, actor.MovementSpeed, actor.NativeMovementBaseSpeed, actor.NativeMovementAccelerationTarget, actor.MovementDirectionLimit, actor.MovementFlags, actor.MovementIgnoresWalkmesh, actor.NativeMovementCompletion542, actor.NativeLandingTriangle508, actor.NativeTurnAccumulator474, actor.NativeMovementGroundContact600, actor.NativeTurnMode580, actor.NativeMotionAuthority?.MovementDirection, actor.NativeMotionAuthority?.FacingHold, actor.NativePartyFlags?.AutoAnimation4, actor.NativePartyFlags?.DetachedFollow64, actor.NativeCardChallenge),
-            new(actor.Visible, actor.AdditionalControlDisabled, actor.PrimitiveTransparencyEnabled, actor.NativeRendererMode599, actor.NativeEyeBlinkParameter611, actor.NativeEyes?.Mode, actor.PolygonColor, actor.GetaParameter, checked((byte)actor.ShadeLevel), CaptureGameplayShadowRadii(actor)) { ModelAdditionalControlDisabled = actor.ResolvedModelAdditionalControlDisabled },
+            new(actor.Visible, actor.AdditionalControlDisabled, actor.PrimitiveTransparencyEnabled, actor.NativeRendererMode599, actor.NativeEyeBlinkParameter611, actor.NativeEyes?.Mode, actor.PolygonColor, actor.GetaParameter, checked((byte)actor.ShadeLevel), CaptureGameplayShadowRadii(actor)) { ModelAdditionalControlDisabled = actor.ResolvedModelAdditionalControlDisabled, EyeBlinkPhase = eyeBlink },
             animation, savedBackup,
             new(actor.FaceFirstAngle, actor.FaceSecondAngle, actor.FaceElapsed, actor.FaceLimits, actor.FacePendingBaseline, actor.FacePitchTarget, actor.FaceYawTarget, actor.FaceDuration, actor.FaceProgress, actor.FaceTargetPoint, actor.FirstControlRotation) { Returning = actor.FaceReturning },
             new(actor.LineStart, actor.LineEnd, actor.LineEnabled, actor.DoorLineEnabled, actor.LineContact, actor.DoorLineContact, actor.NativeLineFacingDirection, actor.NativeLineFacingContact) { ContactVersion = actor.NativeLineContactVersion, CrossingPending = actor.NativeLineCrossingPending, EntryPending = actor.DoorLineEntryPending },
@@ -293,8 +296,12 @@ public sealed partial class EventEngine
             {
                 // Older logical saves recorded zero before the allocated automatic default was represented.
                 int model = actor.NativeAnimationHeader!.BoundModelId!.Value;
-                NativeFieldEyeDefinition? definition = model < 0 ? null : ReadNativeEyes?.Invoke(model) ?? throw new NotSupportedException("Logical blink restoration requires the selected current model eye bank.");
-                actor.NativeEyes = new(1, 0x80000, model, definition?.Bank.Length > 0 ? (byte)0x10 : null, null);
+                NativeFieldEyeDefinition? definition = model < 0 ? null : ReadNativeEyes?.Invoke(model);
+                if (model >= 0 && definition is null && (ReadNativeEyes is not null || Scene.NativeFieldRegistration is not null || value.Appearance.BlinkParameter != 128))
+                {
+                    throw new NotSupportedException("Logical blink restoration requires the selected current model eye bank.");
+                }
+                actor.NativeEyes = new(1, 0x80000, model >= 0 && definition is null ? null : model, definition?.Bank.Length > 0 ? (byte)0x10 : null, null);
             }
         }
         if (Scene.NativeFieldRegistration is { } registration && Scene.NativeEyeProcess is { } process)
@@ -304,10 +311,20 @@ public sealed partial class EventEngine
                 ActorState actor = actors[id];
                 Vector3 color = actor.PolygonColor ?? throw new NotSupportedException("Logical model restoration requires the saved polygon color.");
                 NativeActorAnimationHeader header = RequireNativeAnimationHeader(actor);
-                return new NativeFieldRetainedPresentation(id, header.AnimationId, header.Frame, actor.NativePartyFlags!.AutoAnimation4, checked((byte)actor.BaseAnimationId), actor.Visible, actor.NativeRendererMode599!.Value, actor.RootTranslationZ, (byte)color.X, (byte)color.Y, (byte)color.Z, actor.ResolvedModelAdditionalControlDisabled, actor.PrimitiveTransparencyEnabled, actor.NativeEyes!.Mode) { EyeBlinkParameter611 = actor.NativeEyeBlinkParameter611 };
+                return new NativeFieldRetainedPresentation(id, header.AnimationId, header.Frame, actor.NativePartyFlags!.AutoAnimation4, checked((byte)actor.BaseAnimationId), actor.Visible, actor.NativeRendererMode599!.Value, actor.RootTranslationZ, (byte)color.X, (byte)color.Y, (byte)color.Z, actor.ResolvedModelAdditionalControlDisabled, actor.PrimitiveTransparencyEnabled, actor.NativeEyes!.Mode) { EyeBlinkParameter611 = actor.NativeEyeBlinkParameter611, EyeBlinkPhase = saved.Actors[id].Appearance.EyeBlinkPhase };
             }).ToArray();
             NativeBattleFieldResourceReloadResult rebuilt = NativeFieldRegistrationMachine.RestoreRetainedPresentation(registration, process.Memory, presentation, process.CrtRandom);
-            PublishNativeFieldEyeProcess(new(1, rebuilt.Memory, rebuilt.CrtRandomAfter));
+            // Rebuilding blink presentation samples throwaway draws. The saved process owns the live CRT cursor.
+            PublishNativeFieldEyeProcess(new(1, rebuilt.Memory, process.CrtRandom));
+            foreach (NativeFieldRegisteredInstance instance in registration.Instances)
+            {
+                ActorState actor = actors[instance.ObjectId];
+                if (actor.NativeEyes is { Mode: 0x80000, BackendHighNibble114: not null } eyes)
+                {
+                    byte backend = (byte)(rebuilt.Memory.FileStaging!.Read(instance.Address + 114, 1)[0] & 0xF0);
+                    actor.NativeEyes = eyes with { BackendHighNibble114 = backend };
+                }
+            }
         }
     }
 

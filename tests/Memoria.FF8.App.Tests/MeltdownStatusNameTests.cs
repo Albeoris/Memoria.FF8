@@ -20,7 +20,7 @@ public sealed class MeltdownStatusNameTests
         ResourceService resources = new(source);
         resources.Prepare(null, textAliases: new Dictionary<string, LocalizedTextAlias> { [StatusKey] = new(MagicKey, "Meltdown") }).Commit();
         BattleSession battle = Battle(0x1000000);
-        BattleHudController hud = new(battle, (_, _) => { }, () => { }, () => { });
+        BattleHudController hud = new(battle, (_, _) => { }, () => { }, () => { }, readPresentationUi: BattleHudTestPresentation.Visible);
         hud.ConfigureLocalization(new(resources));
         string before = JsonSerializer.Serialize(battle.Capture());
         Assert.Contains("Meltdown", Draw(hud));
@@ -37,7 +37,7 @@ public sealed class MeltdownStatusNameTests
     [Fact]
     public void UnrelatedBitTwentyTwoDoesNotShowTheMeltdownStatusLabel()
     {
-        BattleHudController hud = new(Battle(0x400000), (_, _) => { }, () => { }, () => { });
+        BattleHudController hud = new(Battle(0x400000), (_, _) => { }, () => { }, () => { }, readPresentationUi: BattleHudTestPresentation.Visible);
         Assert.DoesNotContain("Vit 0", Draw(hud));
         Assert.DoesNotContain("Meltdown", Draw(hud));
     }

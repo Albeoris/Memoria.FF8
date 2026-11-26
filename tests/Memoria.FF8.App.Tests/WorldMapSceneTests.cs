@@ -89,8 +89,12 @@ public sealed class WorldMapSceneTests
         using var replay = new WorldMapScene(replaySession, GameDirectory());
         Assert.Equal(3, replay.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: 1, Frames: 3)).FramesAdvanced);
         Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.State), JsonSerializer.SerializeToElement(replaySession.State)));
-        Assert.False(scene.Apply(new PlayerAction(PlayerActionKind.Confirm)).Accepted);
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(session.ExamTimer));
+        PlayerActionResult confirm = scene.Apply(new PlayerAction(PlayerActionKind.Confirm));
+        Assert.True(confirm.Accepted);
+        Assert.Equal(1, confirm.FramesAdvanced);
+        Assert.Equal(confirm, replay.Apply(new PlayerAction(PlayerActionKind.Confirm)));
+        Assert.Equal(JsonSerializer.Serialize(expected.AdvanceCallbacks(NativeTimerCallbackKind.World, 1)), JsonSerializer.Serialize(session.ExamTimer));
+        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.State), JsonSerializer.SerializeToElement(replaySession.State)));
     }
 
     [Fact]
@@ -169,7 +173,7 @@ public sealed class WorldMapSceneTests
             using var resumed = new WorldMapScene(resumedSession, directory);
             Assert.Equal(JsonSerializer.Serialize(original.State), JsonSerializer.Serialize(resumed.State));
             Assert.Equal(originalSession.State.WorldArrival, resumedSession.State.WorldArrival);
-            Assert.Empty(resumedSession.State.Variables);
+            Assert.Equal(originalSession.State.Variables.OrderBy(pair => pair.Key), resumedSession.State.Variables.OrderBy(pair => pair.Key));
 
             var next = new PlayerAction(PlayerActionKind.Move, Vertical: -1, Frames: 2);
             Assert.Equal(original.Apply(next), resumed.Apply(next));

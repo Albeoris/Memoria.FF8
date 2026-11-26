@@ -135,7 +135,7 @@ public sealed class NativeBattleIncomingMulticastTests
         BattleActionPresentation command = new(caster.Id, recipient.Id, BattleActionPhase.Windup, NativeBattleTargetRequestAdapter.Decode(1, BattleTargetEligibility.SavedStatus, BattleTargetReplacement.UseCurrentBattlePolicy, samplesOriginalSlots: true), BattleAbility.EnemyAbility, 1) { NativeAction = native, NativeQueuedCommand = 8 };
         BattleActionDefinition action = new(BattleAbility.EnemyAbility, 1, "Incoming action", BattleActionEffect.Native, 20, false) { NativeAction = native };
         typeof(BattleSession).GetMethod("BeginNativeReactionBatch", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(battle, null);
-        object produced = typeof(BattleSession).GetMethod("ProduceNativeInstalledContacts", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(battle, [caster, recipient, command, action, null])!;
+        object produced = typeof(BattleSession).GetMethod("ProduceNativeInstalledContacts", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(battle, [caster, recipient, command, action, null, null])!;
         return (ImmutableArray<NativeBattleContactPacket>)produced.GetType().GetProperty("Contacts")!.GetValue(produced)!;
     }
 

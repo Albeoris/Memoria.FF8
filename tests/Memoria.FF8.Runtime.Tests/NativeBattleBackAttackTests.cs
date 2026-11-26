@@ -60,11 +60,11 @@ public sealed class NativeBattleBackAttackTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Cleared_rear_state_and_the_next_hit_survive_json_restore(bool playerTarget)
+    public void Cleared_rear_state_and_the_next_hit_survive_a_private_fork(bool playerTarget)
     {
         BattleSession session = Create(playerTarget, true);
         Resolve(session, Action(0));
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(session.Capture()))!);
+        BattleSession restored = session.ForkForContinuation();
         Assert.Equal(0u, Target(restored).NativeStatus1 & 0x800000u);
 
         NativeBattleContactPacket originalNext = Resolve(session, Action(0));
@@ -102,6 +102,6 @@ public sealed class NativeBattleBackAttackTests
         BattleActionPresentation presentation = new(actor.Id, target.Id, BattleActionPhase.Windup, new BattleTargetRequest(new BattleTargetSelection.Explicit([target.IsPlayer ? new BattlePartyActorReference(target.Id) : new BattleEnemyActorReference(target.Id)]), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.None), BattleAbility.Attack, 0) { NativeAction = native, NativeQueuedCommand = native.Command };
         BattleActionDefinition action = new(BattleAbility.Attack, 0, "Contact", BattleActionEffect.Native, 20, false) { NativeAction = native };
         typeof(BattleSession).GetMethod("BeginNativeReactionBatch", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, []);
-        return (NativeBattleContactPacket)typeof(BattleSession).GetMethod("ResolveInstalledNativeHitWithContact", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, [actor, target, presentation, action, native, (byte)255, false, null])!;
+        return (NativeBattleContactPacket)typeof(BattleSession).GetMethod("ResolveInstalledNativeHitWithContact", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, [actor, target, presentation, action, native, null, false])!;
     }
 }
