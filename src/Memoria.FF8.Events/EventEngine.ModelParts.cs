@@ -167,10 +167,10 @@ public sealed partial class EventEngine
         NativeFieldModelPartsState bank = Scene.ModelParts ?? throw new NotSupportedException("Visible native model rendering requires its executed registration and skin callback.");
         NativeFieldModelInstance instance = bank.Instances.SingleOrDefault(item => item.ObjectId == objectId) ?? throw new NotSupportedException("Visible native actor has no retained model instance.");
         NativeModelPartDraw draw = bank.Draws.GetValueOrDefault(objectId) ?? throw new NotSupportedException("Visible native model has no executed skin sample; base geometry is not a replacement.");
-        if (draw.Frame != Frame || draw.ModelId != instance.ModelId || actors[objectId].ModelId != instance.ModelId)
+        // SETMODEL writes actor WORD536. It does not rebind the registered resource.
+        if (draw.Frame != Frame || draw.ModelId != instance.ModelId || actors[objectId].RenderModelId != instance.ModelId)
         {
-            //51D8F0 writes actor WORD536 only; it does not rebind531980's retained resource pointer.
-            throw new NotSupportedException("Visible native model requires its current callback sample and retained resource identity; a later SETMODEL is not a new registration.");
+            throw new NotSupportedException("Visible native model requires its current callback sample and retained resource identity.");
         }
         NativeModelPartsDefinition definition = ReadNativeModelParts?.Invoke(instance.ModelId) ?? throw new NotSupportedException("Model presentation requires its registered model definition.");
         return draw.SampleState.Step(definition).SkinTranslations;

@@ -209,6 +209,7 @@ public sealed partial class GameAssets
         bool matchesOpen = true;
         bool matchesClosed = true;
         int originalDifferences = 0;
+        bool outsideCopyMatches = true;
         int openDifferences = 0;
         int closedDifferences = 0;
         for (int y = 0; y < original.Height; y++)
@@ -219,13 +220,15 @@ public sealed partial class GameAssets
                 ushort expectedOpen = BinaryPrimitives.ReadUInt16LittleEndian(original.Words.AsSpan(offset));
                 ushort expectedOriginal = expectedOpen;
                 ushort expectedClosed = expectedOpen;
-                if (x >= open.DestinationXWords && x < open.DestinationXWords + open.WidthWords && y >= open.DestinationY && y < open.DestinationY + open.Height)
+                bool inCopy = x >= open.DestinationXWords && x < open.DestinationXWords + open.WidthWords && y >= open.DestinationY && y < open.DestinationY + open.Height;
+                if (inCopy)
                 {
                     int copiedOffset = ((y - open.DestinationY) * open.WidthWords + x - open.DestinationXWords) * 2;
                     expectedOpen = BinaryPrimitives.ReadUInt16LittleEndian(open.Words.AsSpan(copiedOffset));
                     expectedClosed = BinaryPrimitives.ReadUInt16LittleEndian(closed.Words.AsSpan(copiedOffset));
                 }
                 ushort actual = textures.ReadVramWord(texture.X + x, texture.Y + y);
+                outsideCopyMatches &= inCopy || actual == expectedOriginal;
                 originalDifferences += actual == expectedOriginal ? 0 : 1;
                 openDifferences += actual == expectedOpen ? 0 : 1;
                 closedDifferences += actual == expectedClosed ? 0 : 1;
@@ -238,6 +241,27 @@ public sealed partial class GameAssets
         if (originalDifferences == 0 && !matchesClosed)
         {
             return null;
+        }
+        if (!matchesOpen && !matchesClosed && outsideCopyMatches)
+        {
+            // The native blink callback walks every frame in the original eye table.
+            for (int frame = 2; frame < eyes.Bank[5]; frame++)
+            {
+                NativeEyeCopy copy = eyes.CopyFrame(frame);
+                bool matches = true;
+                for (int y = 0; y < copy.Height && matches; y++)
+                {
+                    for (int x = 0; x < copy.WidthWords; x++)
+                    {
+                        ushort expected = BinaryPrimitives.ReadUInt16LittleEndian(copy.Words.AsSpan((y * copy.WidthWords + x) * 2));
+                        matches &= textures.ReadVramWord(texture.X + copy.DestinationXWords + x, texture.Y + copy.DestinationY + y) == expected;
+                    }
+                }
+                if (matches)
+                {
+                    return FieldEyeMaterial.FrameVariant(frame);
+                }
+            }
         }
         if (matchesOpen == matchesClosed)
         {
@@ -254,7 +278,7 @@ public sealed partial class GameAssets
         string layout = model.TextureResourceName is null ? "classic-model" : "classic-field-model";
         ResourceKey owner = new($"field/{fieldName}/chara.one");
         bool nativeVariants = FieldEyeMaterial.HasNativeVariants(model);
-        Func<IReadOnlyDictionary<string, PixelImage>>? variantFactory = nativeVariants ? FieldEyeMaterial.VariantFactory(model.NativeEyes!, model.Textures[0]) : null;
+        Func<IReadOnlyDictionary<string, PixelImage>>? variantFactory = nativeVariants ? FieldEyeMaterial.VariantFactory(model.NativeEyes!, model.Textures[0], requestedVariants?[0]) : null;
         Func<PixelImage, string, PixelImage>? projector = nativeVariants ? FieldEyeMaterial.VariantProjector(model.NativeEyes!) : null;
         AssetHandle<TextureValue>[] handles = model.Textures.Select((image, ordinal) => textureScope.Register(new TextureKey(owner, $"{prefix}/{ordinal}"), image, layout, revision: revision, nativeAlias: revision.HasValue ? new(owner, $"{prefix.Replace("/registered", "", StringComparison.Ordinal)}/{ordinal}", 0, 0, 0, image.Width, image.Height, image.Width, image.Height) : null, nativePage: pages?[ordinal], nativeSheet: NativeFieldModelTextureSheets.Address(model, ordinal), requestedVariant: requestedVariants?[ordinal], sourceDescriptor: model.TextureSourceDescriptor, nativeVariants: ordinal == 0 ? variantFactory : null, projectNativeVariant: ordinal == 0 ? projector : null, originalForAuthoring: revision.HasValue ? RegisteredOriginalFactory(resources, new(owner, $"{prefix.Replace("/registered", "", StringComparison.Ordinal)}/{ordinal}")) : null)!).ToArray();
         return model with { Textures = new ResourceTextureList(handles) };

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Runtime.CompilerServices;
 using Albeoris.Games.FF8.Imaging;
 using Memoria.FF8.Runtime;
@@ -51,17 +52,34 @@ public static class FieldEyeMaterial
         return new Dictionary<string, PixelImage> { ["eyes-open"] = selected.Open, ["eyes-closed"] = selected.Closed };
     }
 
-    internal static Func<IReadOnlyDictionary<string, PixelImage>> VariantFactory(NativeFieldEyeDefinition eyes, PixelImage image) => () => NativeVariants(eyes, image);
+    private const string FramePrefix = "eyes-frame-";
+
+    internal static string FrameVariant(int frame) => FramePrefix + frame.ToString(CultureInfo.InvariantCulture);
+
+    internal static Func<IReadOnlyDictionary<string, PixelImage>> VariantFactory(NativeFieldEyeDefinition eyes, PixelImage image, string? requested = null) => () =>
+    {
+        IReadOnlyDictionary<string, PixelImage> variants = NativeVariants(eyes, image);
+        if (requested?.StartsWith(FramePrefix, StringComparison.Ordinal) != true)
+        {
+            return variants;
+        }
+        return new Dictionary<string, PixelImage>(variants) { [requested] = Project(eyes, image, requested) };
+    };
     internal static Func<PixelImage, string, PixelImage> VariantProjector(NativeFieldEyeDefinition eyes) => (image, variant) => Project(eyes, image, variant);
 
     /// <summary>Projects the existing native bank copy onto an edited complete image without advancing the eye process.</summary>
     public static PixelImage Project(NativeFieldEyeDefinition eyes, PixelImage source, string variant)
     {
-        if (variant is not ("eyes-open" or "eyes-closed") || eyes.Texture is not { Depth: 1 } texture)
+        if (eyes.Texture is not { Depth: 1 } texture)
         {
             throw new NotSupportedException("The requested eye variant has no proved complete 8bpp source copy.");
         }
-        NativeEyeCopy copy = eyes.Copy(variant == "eyes-closed") ?? throw new NotSupportedException("The requested eye bank is absent.");
+        NativeEyeCopy copy = variant switch
+        {
+            "eyes-open" or "eyes-closed" => eyes.Copy(variant == "eyes-closed") ?? throw new NotSupportedException("The requested eye bank is absent."),
+            _ when variant.StartsWith(FramePrefix, StringComparison.Ordinal) && int.TryParse(variant.AsSpan(FramePrefix.Length), NumberStyles.None, CultureInfo.InvariantCulture, out int frame) && frame > 1 && eyes.Bank.Length > 5 && frame < eyes.Bank[5] => eyes.CopyFrame(frame),
+            _ => throw new NotSupportedException("The requested eye variant has no proved complete 8bpp source copy.")
+        };
         int logicalWidth = texture.WidthWords * 2;
         int logicalHeight = texture.Height;
         if ((long)source.Width * logicalHeight != (long)source.Height * logicalWidth)

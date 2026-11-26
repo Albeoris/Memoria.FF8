@@ -166,13 +166,6 @@ internal static partial class Program
         changedModel.Step();
         changedModel.Step();
         Require(changedModel.Scene.ModelParts!.Instances[0].ModelId == 13 && changedModel.Actors[0].ModelId == 14, "SETMODEL silently replaced the retained native instance registration.");
-        try
-        {
-            changedModel.GetNativeModelPartTranslations(0);
-            throw new InvalidOperationException("Later SETMODEL silently reused a different retained resource skin sample.");
-        }
-        catch (NotSupportedException)
-        {
-        }
+        Require(changedModel.Actors[0].RenderModelId == 13 && changedModel.GetNativeModelPartTranslations(0) is not null, "Draw projection must use the registered resource after the script updates the model word.");
     }
 }

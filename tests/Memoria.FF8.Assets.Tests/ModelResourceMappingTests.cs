@@ -135,6 +135,30 @@ public sealed class ModelResourceMappingTests
         Assert.Throws<NotSupportedException>(() => GameAssets.ReadClassicFieldModelVariant(model, resource, textures));
     }
 
+    [Fact]
+    public void ClassicEyeProjectionRecognizesAnIntermediateNativeBlinkFrame()
+    {
+        byte[] bank = new byte[24];
+        bank[2] = 8;
+        bank[3] = 2;
+        bank[4] = 1;
+        bank[5] = 3;
+        bank[12] = 2;
+        bank[16] = 4;
+        bank[20] = 6;
+        NativeFieldEyeDefinition eyes = new(new string('A', 64), 0, 0, bank, new(1, 4, 1, [4, 0, 3, 0, 2, 0, 1, 0]));
+        FieldModel model = Field() with { NativeEyes = eyes };
+        NativeFieldRegisteredResource resource = new(0, 0, 0, 0, 0, 0, new string('A', 64), 0, [new(1, 32, 10, 4, 1, 0, 0, 0, 0)]);
+        NativeBattleEffectTextureState textures = NativeBattleEffectTextureState.FromColdProcess().Upload45BD30(32, 10, 4, 1, eyes.Texture!.Words);
+        textures = textures.EnqueueCopy505EB0(34, 10, 1, 1, 32, 10).Drain505D20().State;
+        string variant = Assert.IsType<string>(GameAssets.ReadClassicFieldModelVariant(model, resource, textures));
+        PixelImage image = new(8, 1, Enumerable.Range(0, 8).Select(x => new Rgba32((byte)x, 0, 0, 255)).ToArray());
+        PixelImage projected = FieldEyeMaterial.Project(eyes, image, variant);
+        Assert.Equal(image[4, 0], projected[0, 0]);
+        Assert.Equal(image[5, 0], projected[1, 0]);
+        Assert.Equal(image[2, 0], projected[2, 0]);
+    }
+
     private static FieldModel Field() => new("d000", [new(-1, 0)], [new(Vector3.Zero, 0, 0)], [], [new PixelImage(1, 1)], [new([new(Vector3.Zero, [Vector3.Zero])])])
     {
         TextureRegions = [new(CanvasWidth: 1, CanvasHeight: 1)],
