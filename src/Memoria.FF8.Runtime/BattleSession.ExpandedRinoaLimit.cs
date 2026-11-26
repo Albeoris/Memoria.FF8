@@ -43,9 +43,11 @@ public sealed partial class BattleSession
 
     private BattleCombatant? SelectExpandedCombineTarget(BattleActionDefinition action)
     {
-        byte flags = action.NativeAction!.TargetFlags!.Value;
+        BattleNativeAction native = action.NativeAction!;
+        byte flags = native.TargetFlags!.Value;
+        bool requiresInvincibilityRecipient = LimitsInvincibility && GrantsInvincibility(native);
         BattleSide side = (flags & 0x40) == 0 ? BattleSide.Allies : BattleSide.Enemies;
-        BattleCombatant[] candidates = Roster(side).Where(candidate => !candidate.Untargetable && HasValidTargetLifeState(action, candidate)).ToArray();
+        BattleCombatant[] candidates = Roster(side).Where(candidate => !candidate.Untargetable && HasValidTargetLifeState(action, candidate) && (!requiresInvincibilityRecipient || CanReceiveInvincibility(candidate, native))).ToArray();
         if (candidates.Length == 0)
         {
             return null;

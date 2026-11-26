@@ -156,6 +156,7 @@ public sealed record BattleDefinition
     public EncounterCompiledDefinition? EncounterMod { get; init; }
     public bool GuardianFormsEnabled { get; init; }
     public bool LimitOncePerTurn { get; init; }
+    public bool InvincibilityOncePerBattle { get; init; }
     public bool SelphieCardSlots { get; init; }
     public bool DrawOncePerSpell { get; init; }
     public ImmutableArray<BattleGuardianFormResources> GuardianFormResources { get; init; } = [];
@@ -369,6 +370,7 @@ public sealed record BattleCombatantSnapshot(string Id, int CurrentHp, int Atb)
 {
     public byte[] DrawnMagicIds { get; init; } = [];
     public byte? LimitTurnCrisis { get; init; }
+    public bool ReceivedInvincibility { get; init; }
     public NativeBattleAtbState? NativeAtb { get; init; }
     public ushort[]? GuardianForceCompatibility { get; init; }
     public NativeBattleStatusSnapshot? NativeStatus { get; init; }
@@ -489,6 +491,7 @@ public sealed partial class BattleCombatant
     internal BattleCombatantDefinition SourceDefinition => definition;
     internal ushort NativeStatus0 { get; set; }
     internal uint NativeStatus1 { get; set; }
+    internal bool ReceivedInvincibility { get; set; }
     internal short[] NativeStatusTimers { get; } = Enumerable.Repeat((short)-1111, 14).ToArray();
     internal byte[] MutableNativeStatusResistances { get; private set; }
 

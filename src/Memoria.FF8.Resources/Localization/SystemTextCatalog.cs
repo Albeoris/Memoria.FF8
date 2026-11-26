@@ -116,6 +116,7 @@ public static partial class SystemTextCatalog
             ["setting.native-sound"] = "Sound",
             ["setting.native-controller"] = "Controller",
             ["setting.native-atb"] = "ATB",
+            ["setting.invincibility-once-per-battle"] = "Invincibility once per battle",
             ["setting.limit-once-per-turn"] = "Limit once per turn",
             ["setting.selphie-card-slots"] = "Selphie card Slots",
             ["setting.card-mod-once"] = "Card Mod once",

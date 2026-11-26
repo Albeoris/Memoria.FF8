@@ -85,6 +85,7 @@ internal sealed record UiPreferences
 
     public BattleDifficulty Difficulty { get; init; } = BattleDifficulty.Normal;
     public bool LimitOncePerTurn { get; init; }
+    public bool InvincibilityOncePerBattle { get; init; }
     public bool SelphieCardSlots { get; init; }
     public int BattleAllyCount { get; init; }
     public int AdditionalEnemies { get; init; }
@@ -425,6 +426,15 @@ internal sealed record UiPreferences
                 _ => throw new ArgumentException("GF Transformations requires On or Off.")
             };
         }
+        if (key == "Invincibility once per battle")
+        {
+            return value switch
+            {
+                "On" => this with { InvincibilityOncePerBattle = true },
+                "Off" => this with { InvincibilityOncePerBattle = false },
+                _ => throw new ArgumentException("Invincibility once per battle requires On or Off.")
+            };
+        }
         if (key == "Limit once per turn")
         {
             return value switch
@@ -537,7 +547,7 @@ internal sealed record UiPreferences
 
     public UiPreferences WithInstallationSetting(string key, string value, bool activeGame, bool allowDifficultyChange = false)
     {
-        if (activeGame && key is "Weapon magazine required" or "Weapon upgrade order" or "Card Mod once" or "Draw once per spell" or "Limit once per turn" or "Selphie card Slots" or "Difficulty" or "Battle ATB mode" or "Gunblade trigger" or "Battle policy" or "Random encounters" or "GF Transformations" or "Battle roster size" or "Additional enemies")
+        if (activeGame && key is "Weapon magazine required" or "Weapon upgrade order" or "Card Mod once" or "Draw once per spell" or "Limit once per turn" or "Invincibility once per battle" or "Selphie card Slots" or "Difficulty" or "Battle ATB mode" or "Gunblade trigger" or "Battle policy" or "Random encounters" or "GF Transformations" or "Battle roster size" or "Additional enemies")
         {
             return this;
         }

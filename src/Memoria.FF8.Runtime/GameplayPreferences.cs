@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
@@ -29,8 +30,9 @@ public sealed class NewGameOption
 }
 
 /// <summary>Recreation gameplay choices owned by one standalone save, separate from native FF8 configuration.</summary>
-public sealed record GameplayPreferences
+public sealed record GameplayPreferences : IJsonOnDeserializing, IJsonOnDeserialized
 {
+    private bool? invincibilityOncePerBattle = false;
     public const int MaximumAdditionalEnemies = 10;
 
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
@@ -54,6 +56,12 @@ public sealed record GameplayPreferences
 
     [NewGameOption("Limit once per turn")]
     public bool LimitOncePerTurn { get; init; }
+    [NewGameOption("Invincibility once per battle")]
+    public bool InvincibilityOncePerBattle
+    {
+        get => invincibilityOncePerBattle == true;
+        init => invincibilityOncePerBattle = value;
+    }
     [NewGameOption("Selphie card Slots")]
     public bool SelphieCardSlots { get; init; }
     [NewGameOption("Draw once per spell")]
@@ -89,6 +97,11 @@ public sealed record GameplayPreferences
         }
         return normalized;
     }
+
+    // Legacy saves can omit the rule, including inside completed-game and New Game Plus data.
+    void IJsonOnDeserializing.OnDeserializing() => invincibilityOncePerBattle = null;
+
+    void IJsonOnDeserialized.OnDeserialized() => invincibilityOncePerBattle ??= Difficulty == BattleDifficulty.Hardcore;
 
     public void Validate()
     {

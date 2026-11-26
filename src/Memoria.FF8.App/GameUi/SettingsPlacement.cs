@@ -39,7 +39,7 @@ internal static class SettingsPlacement
             ["World movement speed", "Field movement speed", "Battle speed", "Fast-forward multiplier"]),
         ["config-chocobo"] = new("Chocobo World", "Choose a reward provider; acquired rewards remain recorded when switching modes.", ["Chocobo World"]),
         ["config-combat"] = new("Combat", "Rules for this game; Title sets new-game defaults.",
-            ["Difficulty", "Battle ATB mode", "Battle roster size", "Additional enemies", "Limit once per turn", "Selphie card Slots", "Gunblade trigger"]),
+            ["Difficulty", "Battle ATB mode", "Battle roster size", "Additional enemies", "Limit once per turn", "Selphie card Slots", "Gunblade trigger", "Invincibility once per battle"]),
         ["config-magic"] = new("Magic and Guardian Forces", "Changes can require review or remain pending until a safe boundary. Save the game to retain game rules.",
             ["Draw once per spell", "Shared magic stock", "Infinite magic", "GF Transformations"]),
         ["config-triple-triad"] = new("Triple Triad", "Rules apply to this game; Title sets new-game defaults. Rare-card markers are shared across saves.",
@@ -76,6 +76,7 @@ internal static class SettingsPlacement
             ["Autosave interval"] = "autosave-interval",
             ["Cursor"] = "cursor-memory",
             ["ATB"] = "native-atb",
+            ["Invincibility once per battle"] = "invincibility-once-per-battle",
             ["Limit once per turn"] = "limit-once-per-turn",
             ["Selphie card Slots"] = "selphie-card-slots",
             ["Card Mod once"] = "card-mod-once",
@@ -148,7 +149,7 @@ internal static class SettingsPlacement
             {
                 _ when UiPreferences.TripleTriadSettingKeys.Contains(setting.Id) => "Game / Title default",
                 "Shared magic stock" or "Infinite magic" => "Game / Title session",
-                "Chocobo World" or "Weapon magazine required" or "Weapon upgrade order" or "Card Mod once" or "Draw once per spell" or "Limit once per turn" or "Selphie card Slots" or "Difficulty" or "Battle ATB mode" or "Battle roster size" or "Additional enemies" or "GF Transformations" or "Gunblade trigger" or "Battle policy" or "Random encounters" => "Game / Title default",
+                "Chocobo World" or "Weapon magazine required" or "Weapon upgrade order" or "Card Mod once" or "Draw once per spell" or "Limit once per turn" or "Invincibility once per battle" or "Selphie card Slots" or "Difficulty" or "Battle ATB mode" or "Battle roster size" or "Additional enemies" or "GF Transformations" or "Gunblade trigger" or "Battle policy" or "Random encounters" => "Game / Title default",
                 _ => audience is SettingsAudience.Excluded or SettingsAudience.Fixture ? "Fixture" : "Global"
             };
             string target = setting.Id switch
@@ -176,6 +177,7 @@ internal static class SettingsPlacement
                 "Autosave on location entry" => "UiPreferences.AutoSaveOnLocationEntry",
                 "Autosave interval" => "UiPreferences.AutoSaveIntervalMinutes",
                 "Cursor" => "UiPreferences.CursorMemory",
+                "Invincibility once per battle" => "GameplayPreferences.InvincibilityOncePerBattle",
                 "Limit once per turn" => "GameplayPreferences.LimitOncePerTurn",
                 "Selphie card Slots" => "GameplayPreferences.SelphieCardSlots",
                 "Card Mod once" => "GameplayPreferences.CardModOnce",

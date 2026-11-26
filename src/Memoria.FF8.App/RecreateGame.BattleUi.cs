@@ -589,6 +589,7 @@ internal sealed partial class RecreateGame
         definition = definition with
         {
             LimitOncePerTurn = preferences.LimitOncePerTurn,
+            InvincibilityOncePerBattle = preferences.InvincibilityOncePerBattle,
             SelphieCardSlots = preferences.SelphieCardSlots,
             DrawOncePerSpell = preferences.DrawOncePerSpell,
             Tuning = world?.ReadGameplayTuning() ?? (resourceHost?.GameplayPolicy ?? GameplayTuningPolicy.Empty).Apply(session.State.GameplayPreferences.Tuning),

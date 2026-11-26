@@ -19,8 +19,18 @@ public sealed partial class BattleSession
         {
             NativeLimitProgress progress = definition.LimitProgress ?? throw new NotSupportedException("Combine requires the actual saved Angelo learned flags.");
             progress.Validate();
-            ushort id = NativeBattleLimitRules.AngeloActionId(crisis, (byte)(progress.AngeloFlags >> 4));
-            yield return FindInstalledNativeAction(19, id) with { Name = limit.InvocationChoices[0].Name };
+            byte learned = (byte)(progress.AngeloFlags >> 4);
+            ushort id = NativeBattleLimitRules.AngeloActionId(crisis, learned);
+            BattleNativeAction? finisher = FindInstalledNativeAction(19, id);
+            if (IsUnavailableInvincibilityFinisher(finisher))
+            {
+                learned = (byte)(learned & ~(1 << id));
+                finisher = (learned & ((1 << crisis) - 1)) != 0 ? FindInstalledNativeAction(19, NativeBattleLimitRules.AngeloActionId(crisis, learned)) : null;
+            }
+            if (finisher is not null)
+            {
+                yield return finisher with { Name = limit.InvocationChoices[0].Name };
+            }
         }
         if ((actor.ActiveNativeLimitFamily is null or BattleLimitFamily.AngelWing) && (flags & 0x20) != 0 && HasExpandedAngelWing(actor))
         {
@@ -34,7 +44,7 @@ public sealed partial class BattleSession
         return NativeBattleLimitRules.IsFixedAllyTarget(targetFlags) ? actor : selected;
     }
 
-    private BattleTargetRequest CreatePlayerTargetRequest(BattleCombatant actor, BattleCombatant target, byte targetFlags)
+    private BattleTargetRequest CreatePlayerTargetRequest(BattleCombatant actor, BattleCombatant target, byte targetFlags, BattleTargetReplacement replacement = BattleTargetReplacement.UseCurrentBattlePolicy)
     {
         BattleCombatant selected = NativePlayerSelectedTarget(actor, target, targetFlags);
 
@@ -50,7 +60,7 @@ public sealed partial class BattleSession
         {
             selection = new BattleTargetSelection.RandomOnSide(selected.Side);
         }
-        return new(selection, BattleTargetEligibility.Living, (targetFlags & 1) != 0, BattleTargetReplacement.UseCurrentBattlePolicy);
+        return new(selection, BattleTargetEligibility.Living, (targetFlags & 1) != 0, replacement);
     }
 
     private BattleTargetRequest CreateAutomaticTargetRequest(byte targetFlags) => CreateAutomaticTargetRequest(targetFlags, out _);

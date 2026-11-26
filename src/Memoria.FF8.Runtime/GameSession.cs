@@ -840,6 +840,14 @@ public sealed partial class GameSession : IEventServices
             throw new InvalidDataException("Saved pending Draw once per spell preference cannot change during a battle.");
         }
         state.PendingGameplayPreferences?.Validate();
+        if (state.Battle is { Definition: { } invincibilityDefinition } && invincibilityDefinition.InvincibilityOncePerBattle != state.GameplayPreferences.InvincibilityOncePerBattle)
+        {
+            throw new InvalidDataException("Battle invincibility rule differs from the saved gameplay preferences.");
+        }
+        if ((state.Battle is not null || state.PendingBattleEncounter is not null) && state.PendingGameplayPreferences is { } pendingInvincibility && pendingInvincibility.InvincibilityOncePerBattle != state.GameplayPreferences.InvincibilityOncePerBattle)
+        {
+            throw new InvalidDataException("The invincibility rule cannot change during an active or pending battle.");
+        }
         if (state.Battle is { Definition: { } limitDefinition } && limitDefinition.LimitOncePerTurn != state.GameplayPreferences.LimitOncePerTurn)
         {
             throw new InvalidDataException("Battle Limit policy differs from the saved gameplay preference.");

@@ -20,7 +20,7 @@ public sealed partial class BattleSession
         return actor.NativeStatusResistances[index];
     }
 
-    private static void SetNativeAiStatus(BattleCombatant actor, int status, int value)
+    private void SetNativeAiStatus(BattleCombatant actor, int status, int value)
     {
         if (status is < 0 or >= 48)
         {
@@ -34,6 +34,14 @@ public sealed partial class BattleSession
         else
         {
             uint mask = 1u << (status - 16);
+            if (mask == InvincibilityStatus && value == 1 && actor.IsPlayer && (actor.NativeStatus1 & mask) == 0)
+            {
+                if (HasUsedInvincibility(actor))
+                {
+                    return;
+                }
+                actor.ReceivedInvincibility = true;
+            }
             actor.NativeStatus1 = value == 1 ? actor.NativeStatus1 | mask : actor.NativeStatus1 & ~mask;
         }
     }

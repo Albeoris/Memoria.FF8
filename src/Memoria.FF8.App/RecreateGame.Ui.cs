@@ -212,6 +212,8 @@ internal sealed partial class RecreateGame
         data.ChocoboWorldUnavailableReason = newGamePlusDraft is null ? ChocoboWorldBoundaryUnavailableReason : null;
         data.SupportedActions.Add("config:Chocobo World");
         data.SupportedActions.UnionWith(["config:Shared magic stock", "config:Infinite magic", "attack-mode"]);
+        data.Settings["Invincibility once per battle"] = ReadCurrentUiPreferences().InvincibilityOncePerBattle ? "On" : "Off";
+        data.SupportedActions.Add("config:Invincibility once per battle");
         data.Settings["Limit once per turn"] = ReadCurrentUiPreferences().LimitOncePerTurn ? "On" : "Off";
         data.SupportedActions.Add("config:Limit once per turn");
         data.Settings["Selphie card Slots"] = ReadCurrentUiPreferences().SelphieCardSlots ? "On" : "Off";
@@ -233,6 +235,7 @@ internal sealed partial class RecreateGame
         data.Settings["Gunblade trigger"] = ReadCurrentUiPreferences().GunbladeMode.ToString();
         data.Settings["GF Transformations"] = ReadCurrentUiPreferences().GuardianFormsEnabled ? "On" : "Off";
         data.GuardianFormsPreferenceLocked = ActiveBattle is not null || session.HasActiveBattle || session.State.PendingBattleEncounter is not null;
+        data.InvincibilityOncePerBattlePreferenceLocked = data.GuardianFormsPreferenceLocked;
         data.LimitOncePerTurnPreferenceLocked = data.GuardianFormsPreferenceLocked;
         data.SelphieCardSlotsPreferenceLocked = data.GuardianFormsPreferenceLocked;
         data.DrawOncePerSpellPreferenceLocked = data.GuardianFormsPreferenceLocked;
@@ -599,6 +602,7 @@ internal sealed partial class RecreateGame
             WeaponUpgradeOrder = gameplay.WeaponUpgradeOrder,
             CardModOnce = gameplay.CardModOnce,
             LimitOncePerTurn = gameplay.LimitOncePerTurn,
+            InvincibilityOncePerBattle = gameplay.InvincibilityOncePerBattle,
             SelphieCardSlots = gameplay.SelphieCardSlots,
             DrawOncePerSpell = gameplay.DrawOncePerSpell,
             Difficulty = gameplay.Difficulty,
@@ -614,6 +618,10 @@ internal sealed partial class RecreateGame
         if (key == "Draw once per spell" && (ActiveBattle is not null || session.HasActiveBattle || session.State.PendingBattleEncounter is not null) && preferences.DrawOncePerSpell != session.State.GameplayPreferences.DrawOncePerSpell)
         {
             throw new InvalidOperationException("Draw once per spell cannot change until the battle ends.");
+        }
+        if (key == "Invincibility once per battle" && (ActiveBattle is not null || session.HasActiveBattle || session.State.PendingBattleEncounter is not null) && preferences.InvincibilityOncePerBattle != session.State.GameplayPreferences.InvincibilityOncePerBattle)
+        {
+            throw new InvalidOperationException("Invincibility once per battle cannot change until the battle ends.");
         }
         if (key == "Limit once per turn" && (ActiveBattle is not null || session.HasActiveBattle || session.State.PendingBattleEncounter is not null) && preferences.LimitOncePerTurn != session.State.GameplayPreferences.LimitOncePerTurn)
         {
@@ -639,7 +647,7 @@ internal sealed partial class RecreateGame
                 world.ApplyBattleInput(new BattleInput(BattleInputKind.ConfigureEncounters, RandomEncounters: preferences.RandomEncounters));
             }
         }
-        if (session.State.Scene != SceneKind.Title && (UiPreferences.TripleTriadSettingKeys.Contains(key) || key is "Weapon magazine required" or "Weapon upgrade order" or "Card Mod once" or "Draw once per spell" or "Limit once per turn" or "Selphie card Slots" or "Difficulty" or "Battle ATB mode" or "Gunblade trigger" or "GF Transformations" or "Battle roster size" or "Additional enemies"))
+        if (session.State.Scene != SceneKind.Title && (UiPreferences.TripleTriadSettingKeys.Contains(key) || key is "Weapon magazine required" or "Weapon upgrade order" or "Card Mod once" or "Draw once per spell" or "Limit once per turn" or "Invincibility once per battle" or "Selphie card Slots" or "Difficulty" or "Battle ATB mode" or "Gunblade trigger" or "GF Transformations" or "Battle roster size" or "Additional enemies"))
         {
             world ??= CreateWorld();
             GameplayPreferences current = session.State.PendingGameplayPreferences ?? session.State.GameplayPreferences;
@@ -651,6 +659,7 @@ internal sealed partial class RecreateGame
                 WeaponUpgradeOrder = preferences.WeaponUpgradeOrder,
                 CardModOnce = preferences.CardModOnce,
                 LimitOncePerTurn = preferences.LimitOncePerTurn,
+                InvincibilityOncePerBattle = preferences.InvincibilityOncePerBattle,
                 SelphieCardSlots = preferences.SelphieCardSlots,
                 DrawOncePerSpell = preferences.DrawOncePerSpell,
                 Difficulty = preferences.Difficulty,

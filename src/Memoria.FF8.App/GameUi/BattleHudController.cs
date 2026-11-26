@@ -188,9 +188,11 @@ public sealed partial class BattleHudController
             }
             BattleActionDefinition? action = SelectedCommand == BattleAbility.Attack ? null : SelectedAction;
             BattleCombatant? caster = SelectedActor;
-            return session.Combatants.Where(target => action is null ? target.IsActive && !target.Untargetable && target.IsAlive : caster is not null && BattleSession.IsValidSelectedActionTarget(caster, action, target)).ToArray();
+            return session.Combatants.Where(target => action is null ? target.IsActive && !target.Untargetable && target.IsAlive : caster is not null && (BattleSession.IsValidSelectedActionTarget(caster, action, target) || BattleSession.IsInvincibilityItem(action) && action.Allies && target is { IsPlayer: true, IsActive: true })).ToArray();
         }
     }
+
+    internal bool IsTargetUnavailable(BattleCombatant target) => SelectedCommand == BattleAbility.Item && SelectedAction is { } action && BattleSession.IsInvincibilityItem(action) && !session.CanReceiveInvincibility(target, action.NativeAction!);
 
     private bool SelectingBothSides(BattleActionDefinition? action)
     {
@@ -563,6 +565,11 @@ public sealed partial class BattleHudController
             return;
         }
         BattleCombatant? actionTarget = finishMagicTargets ? session.Combatants.FirstOrDefault(candidate => candidate.Id == selectedMagicTargets[0]) : SelectingNativeSlots ? actor : SelectedTarget;
+        if (SelectedCommand == BattleAbility.Item && SelectedAction is { } item && BattleSession.IsInvincibilityItem(item) && (actionTarget is null || !session.CanUseInvincibilityItem(actor, item, actionTarget)))
+        {
+            SoundRequested?.Invoke(MenuSound.Error);
+            return;
+        }
         if (actionTarget is not BattleCombatant target)
         {
             return;

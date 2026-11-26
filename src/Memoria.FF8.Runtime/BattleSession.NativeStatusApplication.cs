@@ -65,7 +65,8 @@ public sealed partial class BattleSession
     private bool TryApplyNativeStatus(BattleCombatant recipient, int resistanceIndex, uint mask, bool battle, int attack, int defense, byte chance, bool revival)
     {
         uint current = battle ? NativeBattleStatusBits(recipient) : NativeSavedStatusBits(recipient);
-        if ((current & mask) != 0)
+        bool invincibility = battle && mask == InvincibilityStatus;
+        if ((current & mask) != 0 || invincibility && HasUsedInvincibility(recipient))
         {
             return false;
         }
@@ -77,7 +78,7 @@ public sealed partial class BattleSession
         uint statuses = NativeBattleStatusBits(recipient);
         if (battle)
         {
-            if ((mask & 0x800) != 0 && (!recipient.IsPlayer) || (saved & 0x40) != 0 && (mask & 0x400) != 0 || (statuses & 0x2000000) != 0 && (mask & 0x4000) != 0)
+            if (invincibility && !recipient.IsPlayer || (saved & 0x40) != 0 && (mask & 0x400) != 0 || (statuses & 0x2000000) != 0 && (mask & 0x4000) != 0)
             {
                 return false;
             }
@@ -92,6 +93,7 @@ public sealed partial class BattleSession
                 recipient.NativeStatusTimers[bit] = unchecked((short)(4 * (rules.BattleSpeed + 1) * rules.Durations[bit]));
             }
             recipient.NativeStatus1 |= mask;
+            recipient.ReceivedInvincibility |= invincibility;
         }
         else
         {

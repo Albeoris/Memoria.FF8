@@ -514,7 +514,7 @@ internal sealed partial class BattleHudElement : UiElement
             try
             {
                 float font = 24 * Scale * controller.TextScale;
-                canvas.Text(names[index], font, text, theme.Foreground, UiAlignment.Start, measured ? UiTextFlow.Wrap : UiTextFlow.SingleLine);
+                canvas.Text(names[index], font, text, controller.IsTargetUnavailable(actor) ? theme.Muted : theme.Foreground, UiAlignment.Start, measured ? UiTextFlow.Wrap : UiTextFlow.SingleLine);
             }
             finally
             {

@@ -160,6 +160,7 @@ public sealed partial class MenuController
             "Cursor" => preferences.CursorMemory ? "Memory" : "Initial",
             "Field message" => preferences.FieldMessageSpeed.ToString(),
             "Vibration" => CurrentControls.VibrationEnabled ? "On" : "Off",
+            "Invincibility once per battle" => preferences.InvincibilityOncePerBattle ? "On" : "Off",
             "Limit once per turn" => preferences.LimitOncePerTurn ? "On" : "Off",
             "Selphie card Slots" => preferences.SelphieCardSlots ? "On" : "Off",
             "Card Mod once" => preferences.CardModOnce ? "On" : "Off",

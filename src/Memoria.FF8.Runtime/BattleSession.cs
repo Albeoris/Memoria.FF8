@@ -161,6 +161,7 @@ public sealed partial class BattleSession
     {
         ExpandedEnemyLevelProfile? enemyLevels = source.IsPlayer ? null : definition.ExpandedEnemyLevels?.GetValueOrDefault(source.ModelId);
         BattleCombatant actor = new(source, enemyLevels);
+        actor.ReceivedInvincibility = actor.IsPlayer && (NativeBattleStatusBits(actor) & InvincibilityStatus) != 0;
         InitializeNativeAtb(actor);
         return actor;
     }
@@ -426,7 +427,7 @@ public sealed partial class BattleSession
             NativeExamTimer = NativeExamTimer,
             Outcome = Outcome,
             DebugOutcome = DebugOutcome,
-            Combatants = combatants.Select(actor => new BattleCombatantSnapshot(actor.Id, actor.HumanHitPoints, actor.Atb) { NativeAtb = actor.NativeAtb, LimitTurnCrisis = actor.LimitTurnCrisis, GuardianForceCompatibility = actor.GuardianForceCompatibility?.ToArray(), NativeMagicInventory = actor.NativeMagicInventory.ToArray(), NativeDrawSlots = actor.NativeDrawSlots.ToArray(), DrawnMagicIds = actor.DrawnMagicIds.ToArray(), NativeParticipant = CaptureNativeParticipant(actor), NativeStatus = CaptureNativeStatus(actor) }).ToArray(),
+            Combatants = combatants.Select(actor => new BattleCombatantSnapshot(actor.Id, actor.HumanHitPoints, actor.Atb) { NativeAtb = actor.NativeAtb, LimitTurnCrisis = actor.LimitTurnCrisis, ReceivedInvincibility = actor.ReceivedInvincibility, GuardianForceCompatibility = actor.GuardianForceCompatibility?.ToArray(), NativeMagicInventory = actor.NativeMagicInventory.ToArray(), NativeDrawSlots = actor.NativeDrawSlots.ToArray(), DrawnMagicIds = actor.DrawnMagicIds.ToArray(), NativeParticipant = CaptureNativeParticipant(actor), NativeStatus = CaptureNativeStatus(actor) }).ToArray(),
             NativeAllocations = CaptureNativeAllocations(),
             PartyOccupancyChanges = PartyOccupancyChanges,
             PendingPartyReplacements = pendingPartyReplacements,
@@ -1305,6 +1306,7 @@ public sealed partial class BattleSession
                 throw new InvalidDataException("Saved turn Limit result has invalid character ownership or crisis level.");
             }
             actor.LimitTurnCrisis = saved.LimitTurnCrisis;
+            actor.ReceivedInvincibility = saved.ReceivedInvincibility || actor.IsPlayer && (NativeBattleStatusBits(actor) & InvincibilityStatus) != 0;
             ValidateStocks(saved.MagicStocks, 32);
         }
         ValidateRestoredRoster(snapshot);
@@ -1572,7 +1574,7 @@ public sealed partial class BattleSession
         bool formEntry = ability == BattleAbility.GuardianForce && actorId == targetId && GetGuardianForm(actorId) is { Phase: BattleGuardianFormPhase.Charging };
         bool validTargetSide = native || formEntry || ability == BattleAbility.Attack || (ability == BattleAbility.Draw ? actor.IsPlayer != target.IsPlayer : CanSelectEitherTargetSide(FindAction(ability, actionId)) || (actor.IsPlayer == target.IsPlayer) == FindAction(ability, actionId).Allies);
         bool unique = busy.Add(actorId);
-        bool validTarget = renzokuken is not null || graphic is not null || allowDefeatedTarget || ActionHasValidTarget(targetRequest, graphic);
+        bool validTarget = renzokuken is not null || graphic is not null || allowDefeatedTarget || FindInvincibilityItem(ability, actionId) is not null || ActionHasValidTarget(targetRequest, graphic);
         if (ability == BattleAbility.GuardianForce && !allowDefeatedTarget)
         {
             validTarget = ExpandedActionTargets(actor, targetId, ability, actionId, targetRequest).Length != 0;
@@ -1688,6 +1690,7 @@ public sealed partial class BattleSession
                 actor.Atb = replacement.Atb;
             }
             actor.LimitTurnCrisis = replacement.LimitTurnCrisis;
+            actor.ReceivedInvincibility = replacement.ReceivedInvincibility;
             actor.IsBusy = replacement.IsBusy;
             actor.RestoreMagicInventory(replacement.NativeMagicInventory);
             actor.RestoreDrawnMagic(replacement.DrawnMagicIds.ToArray());

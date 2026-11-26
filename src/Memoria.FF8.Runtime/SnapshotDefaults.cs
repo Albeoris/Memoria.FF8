@@ -36,6 +36,7 @@ internal static class SnapshotDefaults
             throw new InvalidDataException("Enabled magic rules require their saved magic-system owner.");
         }
         modified |= CompleteSelphieCardSlots(saved);
+        modified |= CompleteBattleRule(saved, nameof(GameplayPreferences.InvincibilityOncePerBattle));
         modified |= CompleteTripleTriadSettings(saved, options);
         modified |= PreserveHistoricalWorldGlobals(saved);
         // Execution snapshots require their saved counters and matching retained-memory copies verbatim.
@@ -123,22 +124,24 @@ internal static class SnapshotDefaults
         return modified;
     }
 
-    internal static bool CompleteSelphieCardSlots(JsonObject saved)
+    internal static bool CompleteSelphieCardSlots(JsonObject saved) => CompleteBattleRule(saved, nameof(GameplayPreferences.SelphieCardSlots));
+
+    private static bool CompleteBattleRule(JsonObject saved, string key)
     {
         bool modified = false;
         foreach (string owner in new[] { "GameplayPreferences", "PendingGameplayPreferences" })
         {
-            if (saved[owner] is JsonObject preferences && !preferences.ContainsKey("SelphieCardSlots"))
+            if (saved[owner] is JsonObject preferences && !preferences.ContainsKey(key))
             {
                 JsonNode? difficulty = preferences["Difficulty"];
                 bool hardcore = difficulty is JsonValue value && (value.TryGetValue(out int number) && number == (int)BattleDifficulty.Hardcore || value.TryGetValue(out string? name) && name == nameof(BattleDifficulty.Hardcore));
-                preferences["SelphieCardSlots"] = hardcore;
+                preferences[key] = hardcore;
                 modified = true;
             }
         }
-        if (saved["Battle"] is JsonObject battle && battle["Definition"] is JsonObject definition && !definition.ContainsKey("SelphieCardSlots"))
+        if (saved["Battle"] is JsonObject battle && battle["Definition"] is JsonObject definition && !definition.ContainsKey(key))
         {
-            definition["SelphieCardSlots"] = saved["GameplayPreferences"]?["SelphieCardSlots"]?.DeepClone() ?? JsonValue.Create(false);
+            definition[key] = saved["GameplayPreferences"]?[key]?.DeepClone() ?? JsonValue.Create(false);
             modified = true;
         }
         return modified;

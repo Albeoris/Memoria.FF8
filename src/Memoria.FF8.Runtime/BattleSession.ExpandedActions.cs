@@ -50,7 +50,7 @@ public sealed partial class BattleSession
             return;
         }
         if (!CanExecuteExpandedAction(actor, command.NativeAiCallbackStage, command.TargetRequest) && !CanNativeSupportCommandAct(actor, command.NativePlayerReaction) ||
-            !CanExecuteMagicReservation(actor, command) || command.NativeGraphic is null && command.MagicCasts.IsDefaultOrEmpty && !IsShotCallback(command.NativeLimitCallback) && ExpandedActionTargets(actor, command.TargetId, command.Ability, command.ActionId, command.TargetRequest, command.NativeAction).Length == 0)
+            !CanExecuteMagicReservation(actor, command) || command.NativeGraphic is null && command.MagicCasts.IsDefaultOrEmpty && !IsShotCallback(command.NativeLimitCallback) && ResolveExpandedExecutionTargets(actor, command.TargetId, command.Ability, command.ActionId, command.TargetRequest, command.NativeAction).Length == 0)
         {
             RefundCancelledNativeItem(command);
             actor.IsBusy = false;
@@ -93,7 +93,7 @@ public sealed partial class BattleSession
             return;
         }
         BattleNativeAction? graphicAction = command.NativeGraphic is { } graphic ? NativeGraphicContactAction(actor, graphic.MagicId) : null;
-        BattleCombatant[] recipients = ExpandedActionTargets(actor, command.TargetId, command.Ability, command.ActionId, command.TargetRequest, graphicAction ?? command.NativeAction);
+        BattleCombatant[] recipients = ResolveExpandedExecutionTargets(actor, command.TargetId, command.Ability, command.ActionId, command.TargetRequest, graphicAction ?? command.NativeAction);
         bool silencedMagic = (command.Ability == BattleAbility.Magic || command.NativeAction?.Command == 2) && (NativeSavedStatusBits(actor) & 0x10) != 0;
         if (!CanExecuteExpandedAction(actor, command.NativeAiCallbackStage, command.TargetRequest) && !CanNativeSupportCommandAct(actor, command.NativePlayerReaction) ||
             !CanExecuteMagicReservation(actor, new(command.ActorId, command.TargetId, command.TargetRequest, command.Ability, command.ActionId) { MagicReservationId = command.MagicReservationId, GuardianFormAction = command.GuardianFormAction }, admitSilencedInvocation: true) || graphicAction is null && recipients.Length == 0)
@@ -478,6 +478,20 @@ public sealed partial class BattleSession
             BattleAbility.LimitBreak when command.NativeAction is { } limit => ExpandedLimitDefinition(actor, limit),
             _ => FindAction(command.Ability, command.ActionId)
         };
+    }
+
+    private BattleCombatant[] ResolveExpandedExecutionTargets(BattleCombatant actor, string targetId, BattleAbility ability, int actionId, BattleTargetRequest request, BattleNativeAction? native)
+    {
+        if (FindInvincibilityItem(ability, actionId) is { } item)
+        {
+            return InvincibilityItemTargets(request, item);
+        }
+        BattleCombatant[] recipients = ExpandedActionTargets(actor, targetId, ability, actionId, request, native);
+        if (ability == BattleAbility.LimitBreak && native is { Command: 19 } && LimitsInvincibility && GrantsInvincibility(native))
+        {
+            return recipients.Where(target => CanReceiveInvincibility(target, native)).ToArray();
+        }
+        return recipients;
     }
 
     private BattleCombatant[] ExpandedActionTargets(BattleCombatant actor, string targetId, BattleAbility ability, int actionId, BattleTargetRequest request, BattleNativeAction? native = null)

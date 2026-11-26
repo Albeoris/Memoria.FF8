@@ -180,6 +180,7 @@ public sealed partial class BattleSession
         actor.RestoreDrawSlots(initial.NativeDrawSlots.ToArray());
         ReprojectNativePlayerStatistics(actor);
         RestoreNativeStatus(actor, CaptureNativeStatus(initial));
+        actor.ReceivedInvincibility |= initial.ReceivedInvincibility;
         actor.IsBusy = false;
         actor.LimitTurnCrisis = null;
     }

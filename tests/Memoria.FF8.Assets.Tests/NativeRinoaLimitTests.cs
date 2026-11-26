@@ -97,7 +97,28 @@ public sealed class NativeRinoaLimitTests
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
     }
 
-    private static BattleSession CreateBattle(BattleAssets assets, byte savedFlags, byte angeloFlags, bool expanded = false)
+    [Theory]
+    [InlineData(false, (ushort)2)]
+    [InlineData(true, (ushort)0)]
+    public void Combine_skips_Invincible_Moon_only_when_the_rule_is_enabled_and_every_ally_used_it(bool enabled, ushort fallback)
+    {
+        using BattleAssets assets = InstalledAssets();
+        BattleSession initial = CreateBattle(assets, 0, 0x50, invincibilityOncePerBattle: enabled);
+        BattleSnapshot saved = initial.Capture();
+        BattleCombatantSnapshot[] combatants = saved.Combatants.Select(actor => actor with { ReceivedInvincibility = actor.Id == "rinoa" }).ToArray();
+        BattleSession battle = BattleSession.Restore(saved with { Combatants = combatants });
+        Assert.Equal((ushort)2, Assert.Single(battle.GetNativePlayerActionChoices("rinoa", true)).NativeAction!.ActionId);
+
+        combatants[1] = combatants[1] with { ReceivedInvincibility = true };
+        battle = BattleSession.Restore(saved with { Combatants = combatants });
+        Assert.Equal(fallback, Assert.Single(battle.GetNativePlayerActionChoices("rinoa", true)).NativeAction!.ActionId);
+        if (enabled)
+        {
+            Assert.Throws<InvalidOperationException>(() => battle.QueueNativePlayerCommand("rinoa", "ally", 19, 2));
+        }
+    }
+
+    private static BattleSession CreateBattle(BattleAssets assets, byte savedFlags, byte angeloFlags, bool expanded = false, bool invincibilityOncePerBattle = false)
     {
         NativeLimitProgress progress = new(new string('A', 64), 0, 0, angeloFlags, 0, Enumerable.Repeat((byte)0, 8).ToImmutableArray());
         BattleCombatantDefinition rinoa = new() { Id = "rinoa", Name = "Rinoa", IsPlayer = true, ModelId = 4, InitialAtb = BattleSession.AtbMaximum, NativeLimit = assets.ReadNativeLimitDefinition(4), Attack = 40, Magic = 40, NativeStatusResistances = new byte[40] };
@@ -108,6 +129,7 @@ public sealed class NativeRinoaLimitTests
             : [rinoa, ally, enemy];
         BattleSession battle = new(new BattleDefinition
         {
+            InvincibilityOncePerBattle = invincibilityOncePerBattle,
             NativeCommandSequences = NativeBattleCommandSequenceFixture.Values, NativeActions = assets.NativeActions.ToArray(),
             NativeSavedBattleFlags = savedFlags, NativeSavedBattleFlagsKnownMask = 255, LimitProgress = progress, NativeLimitsDisabled = false,
             NativeStatusRules = expanded ? assets.ReadNativeStatusRules(0) : null,

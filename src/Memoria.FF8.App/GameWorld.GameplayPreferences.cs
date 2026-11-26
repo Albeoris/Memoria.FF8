@@ -68,6 +68,10 @@ internal sealed partial class GameWorld
         {
             throw new InvalidOperationException("Draw once per spell cannot change until the battle ends.");
         }
+        if (battle is not null && preferences.InvincibilityOncePerBattle != session.State.GameplayPreferences.InvincibilityOncePerBattle)
+        {
+            throw new InvalidOperationException("Invincibility once per battle cannot change until the battle ends.");
+        }
         if (battle is not null && preferences.LimitOncePerTurn != session.State.GameplayPreferences.LimitOncePerTurn)
         {
             throw new InvalidOperationException("Limit once per turn cannot change until the battle ends.");
@@ -102,7 +106,7 @@ internal sealed partial class GameWorld
         {
             forms = InstalledGuardianForms.Read(game).Resources;
         }
-        BattleSession active = new(definition with { LimitOncePerTurn = preferences.LimitOncePerTurn, SelphieCardSlots = preferences.SelphieCardSlots, DrawOncePerSpell = preferences.DrawOncePerSpell, GuardianFormsEnabled = preferences.GuardianFormsEnabled, Tuning = preferences.Tuning, GuardianFormResources = forms }, preferences.AtbMode);
+        BattleSession active = new(definition with { LimitOncePerTurn = preferences.LimitOncePerTurn, InvincibilityOncePerBattle = preferences.InvincibilityOncePerBattle, SelphieCardSlots = preferences.SelphieCardSlots, DrawOncePerSpell = preferences.DrawOncePerSpell, GuardianFormsEnabled = preferences.GuardianFormsEnabled, Tuning = preferences.Tuning, GuardianFormResources = forms }, preferences.AtbMode);
         active.SetDifficulty(preferences.Difficulty);
         active.SetGunbladeMode(preferences.GunbladeMode);
         return InstalledBattlePresentation.Attach(active, game, assets, encounter);

@@ -133,6 +133,10 @@ public sealed partial class GameSession
         {
             throw new InvalidOperationException("Draw once per spell cannot change until the battle ends.");
         }
+        if (preferences.InvincibilityOncePerBattle != State.GameplayPreferences.InvincibilityOncePerBattle && (HasActiveBattle || State.PendingBattleEncounter is not null))
+        {
+            throw new InvalidOperationException("Invincibility once per battle cannot change until the battle ends.");
+        }
         if (preferences.LimitOncePerTurn != State.GameplayPreferences.LimitOncePerTurn && (HasActiveBattle || State.PendingBattleEncounter is not null))
         {
             throw new InvalidOperationException("Limit once per turn cannot change until the battle ends.");

@@ -22,6 +22,7 @@ public sealed class MenuData
     public bool SharedMagicStock { get; set; }
     public int PartyCapacity { get; set; } = 3;
     public BattlePartySelectionRestriction PartyRestriction { get; set; }
+    public bool InvincibilityOncePerBattlePreferenceLocked { get; set; }
     public bool LimitOncePerTurnPreferenceLocked { get; set; }
     public bool SelphieCardSlotsPreferenceLocked { get; set; }
     public bool DrawOncePerSpellPreferenceLocked { get; set; }
