@@ -98,6 +98,39 @@ public sealed class TonberryTests
         Assert.Equal(1, cache.CalculationCount);
     }
 
+    [Theory]
+    [InlineData("classic-world-texl")]
+    [InlineData("tonberry-classic-page")]
+    public void SparseRecognitionMatchesAProjectedPaletteAndTransparentPadding(string layout)
+    {
+        PixelImage original = new(113, 149);
+        for (int i = 0; i < original.Pixels.Length; i++)
+        {
+            original.Pixels[i] = new Rgba32((byte)i, (byte)(i >> 2), (byte)(i >> 5), (byte)(i >> 8));
+        }
+        original[0, 0] = new Rgba32(0, 0, 0, 128);
+        PixelImage expanded = layout == "classic-world-texl" ? NativePaletteImage(original) : original;
+        PixelImage canvas = new(256, 256);
+        for (int y = 0; y < original.Height; y++)
+        {
+            expanded.Pixels.AsSpan(y * original.Width, original.Width).CopyTo(canvas.Pixels.AsSpan(y * canvas.Width, original.Width));
+        }
+        TonberrySignatures expected = TonberrySignatures.Calculate(canvas);
+        TextureBuildContext context = new(new(new("world/texl.obj"), "texl/0"), Classic, 1, layout, 1, 1, () => original, new TextureSourceRegion());
+        ModFile[][] tables =
+        [
+            [Table("hash1map.csv", $"exists_13,{expected.Primary}")],
+            [Table("collisions.csv", $"exists_13,{expected.Primary}"), Table("hash2map.csv", $"exists_13,{expected.Secondary}")],
+            [Table("objmap.csv", $"exists_13,{expected.ObjectTop}")],
+            [Table("objmap.csv", $"exists_13,{expected.ObjectBottom}")]
+        ];
+        foreach (ModFile[] recognition in tables)
+        {
+            TonberryTextureResolver resolver = Assert.IsType<TonberryTextureResolver>(TonberryTextureResolver.Create(Classic, Catalog([.. recognition, Image("textures/ex/exists/exists_13.png")]), out _));
+            Assert.Contains("exists_13.png", Assert.IsType<TextureReplacement>(resolver.Resolve(context)).Provenance);
+        }
+    }
+
     [Fact]
     public void InstalledUnchangedHorizonPackMatchesNativeFloorExpandedClassicTexl()
     {

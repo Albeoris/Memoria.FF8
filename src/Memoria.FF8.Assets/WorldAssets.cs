@@ -35,13 +35,14 @@ public sealed partial class WorldAssets : IDisposable
     public const int Columns = 32;
     public const int Rows = 24;
     private readonly IResourceSource? ownedSource;
-    private readonly ResourceContent terrain;
+    private Stream? terrain;
     private readonly byte[] wmset;
     private readonly int[] sections;
     private readonly WorldMapLocations mapLocations;
     private readonly Dictionary<(int, int), WorldSegment> segments = [];
     private readonly Dictionary<(int, int), PixelImage> textures = [];
     private readonly Dictionary<(int, int), AssetHandle<TextureValue>> textureHandles = [];
+    private readonly Dictionary<int, (TimImage Tim, TextureSourceAddress? Alias)> terrainTextureSources = [];
     private readonly ResourceService resources;
     private readonly ResourceKey worldSettingsKey;
     private readonly AssetTextureScope textureScope;
@@ -70,13 +71,12 @@ public sealed partial class WorldAssets : IDisposable
         textureScope = new AssetTextureScope(resources);
         try
         {
-            terrain = resources.Get(new ResourceKey("world/wmx.obj"));
-            using (Stream terrainSource = terrain.OpenRead())
+            // Archive providers can materialize the whole WMX when opened. Keep that
+            // snapshot for the random segment reads made over this world's lifetime.
+            terrain = resources.Get(new ResourceKey("world/wmx.obj")).OpenRead();
+            if (!terrain.CanSeek || terrain.Length != 835L * SegmentBytes)
             {
-                if (!terrainSource.CanSeek || terrainSource.Length != 835L * SegmentBytes)
-                {
-                    throw new InvalidDataException("Unexpected WMX segment count.");
-                }
+                throw new InvalidDataException("Unexpected WMX segment count.");
             }
             wmset = resources.Read(worldSettingsKey);
             sections = WorldAssetReader.ReadSections(wmset);
@@ -86,6 +86,7 @@ public sealed partial class WorldAssets : IDisposable
         }
         catch
         {
+            terrain?.Dispose();
             textureScope.Dispose();
             ownedSource?.Dispose();
             throw;
@@ -154,6 +155,7 @@ public sealed partial class WorldAssets : IDisposable
 
     public WorldSegment GetSegment(int mapId, IReadOnlyDictionary<int, int>? replacements = null)
     {
+        ObjectDisposedException.ThrowIf(terrain is null, this);
         ArgumentOutOfRangeException.ThrowIfNegative(mapId);
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(mapId, Columns * Rows);
         int sourceId = replacements?.GetValueOrDefault(mapId, mapId) ?? mapId;
@@ -161,14 +163,19 @@ public sealed partial class WorldAssets : IDisposable
         {
             ArgumentOutOfRangeException.ThrowIfNegative(sourceId);
             ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(sourceId, 835);
-            using Stream source = terrain.OpenRead();
-            source.Seek((long)sourceId * SegmentBytes, SeekOrigin.Begin);
-            byte[] bytes = new byte[SegmentBytes];
-            source.ReadExactly(bytes);
-            segment = WorldAssetReader.ReadSegment(bytes, mapId, sourceId);
+            segment = WorldAssetReader.ReadSegment(ReadTerrainSegment(sourceId), mapId, sourceId);
             segments.Add((mapId, sourceId), segment);
         }
         return segment;
+    }
+
+    private byte[] ReadTerrainSegment(int sourceId)
+    {
+        Stream source = terrain ?? throw new ObjectDisposedException(nameof(WorldAssets));
+        source.Seek((long)sourceId * SegmentBytes, SeekOrigin.Begin);
+        byte[] bytes = new byte[SegmentBytes];
+        source.ReadExactly(bytes);
+        return bytes;
     }
 
     public WorldGround? FindGround(float x, float z, IReadOnlyDictionary<int, int>? replacements = null, float? nearHeight = null)
@@ -236,15 +243,21 @@ public sealed partial class WorldAssets : IDisposable
         int sourcePage = SelectTerrainTexturePage(triangle.TexturePage, replacementMask);
         if (!textures.TryGetValue((sourcePage, triangle.Palette), out PixelImage? image))
         {
-            texl ??= Read("texl.obj");
-            TimImage tim = WorldAssetReader.ReadTim(texl, sourcePage * 0x12800).Image;
+            if (!terrainTextureSources.TryGetValue(sourcePage, out var source))
+            {
+                texl ??= Read("texl.obj");
+                TimImage page = WorldAssetReader.ReadTim(texl, sourcePage * 0x12800).Image;
+                source = (page, ReadTerrainTextureAlias(triangle.TexturePage, page, replacementMask));
+                terrainTextureSources.Add(sourcePage, source);
+            }
+            TimImage tim = source.Tim;
             image = tim.Decode(triangle.Palette);
-            textures.Add((sourcePage, triangle.Palette), image);
-            AssetHandle<TextureValue>? handle = textureScope.Register(new TextureKey(new ResourceKey("world/texl.obj"), $"texl/{sourcePage}", triangle.Palette), image, "classic-world-texl", new TextureSourceRegion(tim.X, tim.Y, tim.PixelMode == TimPixelMode.Indexed4 ? 4 : 8), palette => tim.Decode(palette), tim.Palettes.Count, nativeAlias: ReadTerrainTextureAlias(triangle.TexturePage, tim, replacementMask));
+            AssetHandle<TextureValue>? handle = textureScope.Register(new TextureKey(new ResourceKey("world/texl.obj"), $"texl/{sourcePage}", triangle.Palette), image, "classic-world-texl", new TextureSourceRegion(tim.X, tim.Y, tim.PixelMode == TimPixelMode.Indexed4 ? 4 : 8), tim.Decode, tim.Palettes.Count, nativeAlias: source.Alias);
             if (handle is not null)
             {
                 textureHandles.Add((sourcePage, triangle.Palette), handle);
             }
+            textures.Add((sourcePage, triangle.Palette), image);
         }
         return textureHandles.TryGetValue((sourcePage, triangle.Palette), out AssetHandle<TextureValue>? current) ? current.Value.Image : image;
     }
@@ -283,6 +296,9 @@ public sealed partial class WorldAssets : IDisposable
 
     public void Dispose()
     {
+        Stream? terrainSource = terrain;
+        terrain = null;
+        terrainSource?.Dispose();
         textureScope.Dispose();
         ownedSource?.Dispose();
     }

@@ -30,14 +30,14 @@ public sealed class TonberryRecognitionCache
         }
     }
 
-    internal TonberrySignatures Get(TextureBuildContext context, Func<PixelImage> projection)
+    internal TonberrySignatures Get(TextureBuildContext context, Func<TonberrySignatures> calculate)
     {
         lock (sync)
         {
             var key = (context.Source.Id, context.Key, context.Revision, context.Layout, context.Region);
             if (!entries.TryGetValue(key, out TonberrySignatures? signatures))
             {
-                signatures = TonberrySignatures.Calculate(projection());
+                signatures = calculate();
                 if (entries.Count >= 1024)
                 {
                     entries.Clear();
@@ -101,7 +101,7 @@ public sealed class TonberryTextureResolver : ITextureReplacementResolver
         {
             return ResolveRoadRegion(context);
         }
-        TonberrySignatures signatures = recognition.Get(context, () => Project(context));
+        TonberrySignatures signatures = recognition.Get(context, () => CalculateSignatures(context));
         TonberryRule? rule = tables.Match(signatures);
         if (rule is null)
         {
@@ -131,35 +131,30 @@ public sealed class TonberryTextureResolver : ITextureReplacementResolver
         }
     }
 
-    private static PixelImage Project(TextureBuildContext context)
+    private static TonberrySignatures CalculateSignatures(TextureBuildContext context)
     {
         PixelImage image = context.Original;
         int width = context.Region.CanvasWidth;
         int height = context.Region.CanvasHeight;
-        if (context.Layout == "tonberry-classic-page" && image.Width == width && image.Height == height)
-        {
-            return image;
-        }
         if (image.Width > width || image.Height > height)
         {
             throw new NotSupportedException($"Classic texture {context.Key} exceeds its declared compatibility canvas.");
         }
-        PixelImage canvas = new(width, height);
-        for (int y = 0; y < image.Height; y++)
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(width, PixelImage.MaximumDimension);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(height, PixelImage.MaximumDimension);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan((long)width * height, PixelImage.MaximumPixelCount);
+        bool expandPalette = context.Layout == "classic-world-texl";
+        return TonberrySignatures.Calculate(width, height, (x, y) =>
         {
-            for (int x = 0; x < image.Width; x++)
+            if (x >= image.Width || y >= image.Height)
             {
-                Rgba32 color = image[x, y];
-                if (context.Layout == "classic-world-texl")
-                {
-                    // Native 0x41BC76 -> 0x418DEC expands CLUT channels with integer 255*c/31.
-                    // Tim.Decode uses bit replication; recover the original five-bit channels first.
-                    color = TonberryWorldTextureSource.NativeColor(color);
-                }
-                canvas[x, y] = color;
+                return default;
             }
-        }
-        return canvas;
+            // Native 0x41BC76 -> 0x418DEC expands CLUT channels with integer 255*c/31.
+            // Tim.Decode uses bit replication; recover the original five-bit channels first.
+            Rgba32 color = image[x, y];
+            return expandPalette ? TonberryWorldTextureSource.NativeColor(color) : color;
+        });
     }
 
     private TextureReplacement? ResolveRoadRegion(TextureBuildContext context)
@@ -179,7 +174,7 @@ public sealed class TonberryTextureResolver : ITextureReplacementResolver
         {
             throw new InvalidDataException("World road region metadata differs from its original source TIM.");
         }
-        TonberryRule? rule = tables.Match(recognition.Get(context, () => world.Page(tim)));
+        TonberryRule? rule = tables.Match(recognition.Get(context, () => TonberrySignatures.Calculate(world.Page(tim))));
         ModFile? file = rule is null ? null : tables.FindImage(rule.Name);
         if (file is null)
         {

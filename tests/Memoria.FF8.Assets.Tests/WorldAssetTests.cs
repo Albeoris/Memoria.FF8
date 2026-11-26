@@ -1,6 +1,8 @@
+using System.Buffers.Binary;
 using System.Numerics;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Rendering;
+using Memoria.FF8.Resources;
 
 namespace Memoria.FF8.Assets.Tests;
 
@@ -8,6 +10,120 @@ public sealed class WorldAssetTests
 {
     private static string GameDirectory => TestResources.GameDirectory;
     private static readonly Dictionary<int, int> StaticGarden = new() { [274] = 827, [275] = 828 };
+
+    [Fact]
+    public void UncachedTerrainSegmentsReuseAndReleaseOneResourceSnapshot()
+    {
+        byte[] terrain = new byte[835 * WorldAssets.SegmentBytes];
+        WriteEmptySegment(terrain, 0, 10);
+        WriteEmptySegment(terrain, 1, 20);
+        WriteEmptySegment(terrain, 834, 30);
+        using TerrainResourceSource source = new(terrain, MinimalWorldSettings());
+        using (WorldAssets assets = new(Path.GetTempPath(), new ResourceService(source)))
+        {
+            Assert.Empty(assets.Skies);
+            Assert.Equal(0, assets.LoadedSegmentCount);
+            WorldSegment first = assets.GetSegment(0);
+            Assert.Equal(10u, first.GroupId);
+            Assert.Equal(20u, assets.GetSegment(1).GroupId);
+            WorldSegment replacement = assets.GetSegment(0, new Dictionary<int, int> { [0] = 834 });
+            Assert.Equal(0, replacement.MapId);
+            Assert.Equal(834, replacement.SourceId);
+            Assert.Equal(30u, replacement.GroupId);
+            Assert.Same(first, assets.GetSegment(0));
+            Assert.Equal(3, assets.LoadedSegmentCount);
+            Assert.Equal(1, source.TerrainOpens);
+            Assert.True(source.TerrainStream?.CanRead);
+        }
+        Assert.False(source.TerrainStream?.CanRead);
+    }
+
+    [Fact]
+    public void FailedWorldConstructionReleasesTheTerrainSnapshot()
+    {
+        using TerrainResourceSource source = new(new byte[835 * WorldAssets.SegmentBytes], []);
+        Assert.Throws<InvalidDataException>(() => new WorldAssets(Path.GetTempPath(), new ResourceService(source)));
+        Assert.Equal(1, source.TerrainOpens);
+        Assert.False(source.TerrainStream?.CanRead);
+    }
+
+    [Fact]
+    public void TerrainTextureAliasesFollowTheSelectedSourcePageAcrossPalettes()
+    {
+        using IResourceSource source = GameDataSourceFactory.Open(GameDirectory);
+        ResourceService resources = new(source);
+        using WorldAssets assets = new(GameDirectory, resources);
+        WorldTriangle triangle = new(Vector3.Zero, Vector3.Zero, Vector3.Zero, Vector2.Zero, Vector2.Zero, Vector2.Zero, 5, 0, 0, 0, 0);
+        foreach (ushort mask in new ushort[] { 0, 1 })
+        {
+            Assert.NotSame(assets.GetTexture(triangle, mask), assets.GetTexture(triangle with { Palette = 1 }, mask));
+        }
+        TextureBuildContext[] registered = resources.CaptureTextureContextsForPreparation().OrderBy(context => context.Key.Palette).ToArray();
+        TextureBuildContext[] original = registered.Where(context => context.Key.Subresource == "texl/5").ToArray();
+        TextureBuildContext[] replacement = registered.Where(context => context.Key.Subresource == "texl/17").ToArray();
+        Assert.Equal(new[] { 0, 1 }, original.Select(context => context.Key.Palette));
+        Assert.Equal(new[] { 0, 1 }, replacement.Select(context => context.Key.Palette));
+        Assert.NotNull(original[0].NativeAlias);
+        Assert.Equal(original[0].NativeAlias, original[1].NativeAlias);
+        Assert.Equal(replacement[0].NativeAlias, replacement[1].NativeAlias);
+        Assert.NotEqual(original[0].NativeAlias, replacement[0].NativeAlias);
+    }
+
+    private static void WriteEmptySegment(byte[] terrain, int source, uint group)
+    {
+        Span<byte> segment = terrain.AsSpan(source * WorldAssets.SegmentBytes, WorldAssets.SegmentBytes);
+        BinaryPrimitives.WriteUInt32LittleEndian(segment, group);
+        const int headerSize = (1 + 16) * sizeof(uint);
+        for (int block = 0; block < 16; block++)
+        {
+            BinaryPrimitives.WriteInt32LittleEndian(segment[((block + 1) * sizeof(uint))..], headerSize);
+        }
+    }
+
+    private static byte[] MinimalWorldSettings()
+    {
+        const int headerSize = 196;
+        const int spawnEnd = headerSize + sizeof(uint);
+        const int locationEnd = spawnEnd + WorldAssets.Columns * WorldAssets.Rows + sizeof(uint);
+        byte[] settings = new byte[locationEnd + sizeof(uint)];
+        for (int section = 0; section < 48; section++)
+        {
+            int offset = section < 9 ? headerSize : section < 19 ? spawnEnd : locationEnd;
+            BinaryPrimitives.WriteInt32LittleEndian(settings.AsSpan(section * sizeof(uint)), offset);
+        }
+        return settings;
+    }
+
+    private sealed class TerrainResourceSource(byte[] terrain, byte[] settings) : IResourceSource
+    {
+        public ResourceSourceDescriptor Descriptor { get; } = new("synthetic-world", GameDataEdition.Classic, []);
+        public int TerrainOpens { get; private set; }
+        public MemoryStream? TerrainStream { get; private set; }
+
+        public ResourceContent? Find(ResourceKey key)
+        {
+            if (key.Path == "world/wmx.obj")
+            {
+                return new(key, "obj", 1, Descriptor.Id, OpenTerrain);
+            }
+            if (key == NativeResourceNames.WorldSettings("en"))
+            {
+                return new(key, "obj", 1, Descriptor.Id, () => new MemoryStream(settings, false));
+            }
+            return null;
+        }
+
+        private MemoryStream OpenTerrain()
+        {
+            TerrainOpens++;
+            TerrainStream = new MemoryStream(terrain, false);
+            return TerrainStream;
+        }
+
+        public void Dispose()
+        {
+        }
+    }
 
     [Fact]
     public void SelectedOriginalGardenSegmentsKeepSourceIdsUvsAndCollisionFlags()

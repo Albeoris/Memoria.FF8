@@ -12,6 +12,21 @@ public sealed record TonberrySignatures(ulong Primary, BigInteger Secondary, uin
     public static TonberrySignatures Calculate(PixelImage original)
     {
         ArgumentNullException.ThrowIfNull(original);
+        return Calculate(original.Width, original.Height, (x, y) => original[x, y]);
+    }
+
+    internal static TonberrySignatures Calculate(int width, int height, Func<int, int, Rgba32> readPixel)
+    {
+        int Mean(int x, int y)
+        {
+            if (x >= width || y >= height)
+            {
+                return 0;
+            }
+            Rgba32 color = readPixel(x, y);
+            return (color.R + color.G + color.B) / 3;
+        }
+
         int[] primary = new int[64];
         int[] objects = new int[64];
         int position = 0;
@@ -19,9 +34,9 @@ public sealed record TonberrySignatures(ulong Primary, BigInteger Secondary, uin
         int bottom = 0;
         void Sample(int x, int y)
         {
-            int value = Mean(original, x, y);
+            int value = Mean(x, y);
             primary[position++] = value;
-            if (x >= original.Width || y >= original.Height)
+            if (x >= width || y >= height)
             {
                 return;
             }
@@ -58,14 +73,14 @@ public sealed record TonberrySignatures(ulong Primary, BigInteger Secondary, uin
         int[] secondary = new int[98];
         for (int i = 0; i < SecondaryX.Length; i++)
         {
-            secondary[i] = Mean(original, SecondaryX[i], SecondaryY[i]);
+            secondary[i] = Mean(SecondaryX[i], SecondaryY[i]);
         }
         position = 76;
         for (int x = 0; x < 44; x += 4)
         {
             for (int y = 7; y < 16; y += 8)
             {
-                secondary[position++] = Mean(original, x, y);
+                secondary[position++] = Mean(x, y);
             }
         }
         return new TonberrySignatures((ulong)Compare(primary, primary[^1]), Compare(secondary, secondary[^1]), (uint)Compare(objects.AsSpan(0, 32), objects[^1]), (uint)Compare(objects.AsSpan(32, 32), objects[31]));
@@ -80,15 +95,5 @@ public sealed record TonberrySignatures(ulong Primary, BigInteger Secondary, uin
             previous = value;
         }
         return result;
-    }
-
-    private static int Mean(PixelImage image, int x, int y)
-    {
-        if (x >= image.Width || y >= image.Height)
-        {
-            return 0;
-        }
-        Rgba32 color = image[x, y];
-        return (color.R + color.G + color.B) / 3;
     }
 }
