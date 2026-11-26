@@ -169,6 +169,50 @@ public sealed class GameLanguageDistributionTests : IDisposable
     }
 
     [Fact]
+    public async Task StagedRepairRestoresMissingLanguageDependencyAfterReadersClose()
+    {
+        OfficialModComponent media = Component("opening-media", "1.0.0", dependency: true);
+        OfficialModComponent translation = Component("translation", "3.2.0", dependency: false, new LanguageDependencyPin(media.Id, media.Latest!.Version));
+        Dictionary<string, byte[]> downloads = [];
+        media = BuildArchive(media, downloads);
+        translation = BuildArchive(translation, downloads);
+        string modsRoot = Path.Combine(root, "Mods");
+        string cache = Path.Combine(root, "catalog-cache");
+        Directory.CreateDirectory(cache);
+        File.WriteAllBytes(Path.Combine(cache, "languages-v1.json"), Catalog(1, [translation], [media]));
+        using HttpClient client = new(new FixtureServer(request => downloads.TryGetValue(request.RequestUri!.AbsoluteUri, out byte[]? archive)
+            ? new(HttpStatusCode.OK) { Content = new ByteArrayContent(archive) }
+            : new(HttpStatusCode.NotFound)));
+        ModPackageInstaller installer = new(ModPackageInstaller.StateDirectoryFor(modsRoot), modsRoot, "Remastered/en/fixture", junctionSupported: false);
+        RemoteModEntry mediaEntry = new(OfficialModCatalog.SourceId, media.CatalogId, media.Name, media.Latest!.Version) { Official = media };
+        string mediaArchive = Path.Combine(root, "media.zip");
+        File.WriteAllBytes(mediaArchive, downloads[media.Latest.Artifact.Url]);
+        await installer.RequestInstallAsync(await installer.InspectAsync(mediaArchive, mediaEntry, Token), cancellationToken: Token);
+        Assert.True(installer.ApplyNewInstallations());
+        string mediaDirectory = Path.Combine(modsRoot, "Memoria", media.Id);
+        Directory.Delete(mediaDirectory, recursive: true);
+        Guid installationId = installer.GetStatus(mediaEntry)!.InstallationId;
+        Assert.NotNull(installer.GetStatus(mediaEntry)!.Error);
+
+        using ModRuntime runtime = new(root, watch: false, modsDirectory: modsRoot, edition: Remastered.Edition, language: Remastered.ResourceLanguage);
+        await using ModLibraryService library = new(Path.Combine(root, "library"), installer, runtime, "Remastered/en/fixture", false, client, officialCacheDirectory: cache, officialSupported: true);
+        await WaitForOffer(library, translation.Latest!.Version);
+        GameLanguageOffer offer = Inventory(library, runtime).Groups.Single(group => group.DisplayTag == "ru").Offers.Single();
+        using (ModDirectoryResourceLease reader = ModDirectoryResourceLease.Acquire(modsRoot, requestWriter: false))
+        {
+            IOException error = await Assert.ThrowsAsync<IOException>(() => library.AcquireLanguageAsync(offer, installer, Token));
+            Assert.Contains("Close any game using this mod directory", error.Message);
+            Assert.True(installer.GetStatus(mediaEntry)?.RestartRequired);
+            Assert.False(Directory.Exists(mediaDirectory));
+        }
+
+        Assert.Equal(translation.RuntimePackageId, await library.AcquireLanguageAsync(offer, installer, Token));
+        Assert.Equal(installationId, installer.GetStatus(mediaEntry)?.InstallationId);
+        Assert.True(installer.GetStatus(mediaEntry)?.Installed);
+        Assert.Equal("fixture-1.0.0", File.ReadAllText(Path.Combine(mediaDirectory, "asset.txt")));
+    }
+
+    [Fact]
     public async Task CancelledOrCorruptedDependencyDoesNotReplaceTheActiveLanguage()
     {
         string modsRoot = Path.Combine(root, "Mods");

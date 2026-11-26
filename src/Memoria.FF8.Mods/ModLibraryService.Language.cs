@@ -244,7 +244,7 @@ public sealed partial class ModLibraryService
         ModPackageInstallResult? result = destination.ApplyLanguageInstallation(entry);
         if (result is not { Installed: true })
         {
-            throw new IOException(result?.Error ?? "The language package is staged. Close any game using it and retry the installation.");
+            throw new IOException(result?.Error ?? $"The language package '{entry.Name}' could not be applied. Retry the installation.");
         }
         Post(() => reconciledCatalog = null);
         return result.PackageId;

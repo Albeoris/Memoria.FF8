@@ -141,18 +141,13 @@ public sealed partial class ModPackageInstaller
         {
             return status;
         }
-        bool update = Directory.Exists(Destination(entry.SourceId, Path.GetFileName(status.PackageId))) || File.Exists(Destination(entry.SourceId, Path.GetFileName(status.PackageId)));
-        using ModDirectoryResourceLease lease = ModDirectoryResourceLease.Acquire(modsRoot, requestWriter: update, retainStartupForReader: true);
-        if (update && !lease.IsWriter)
-        {
-            return status;
-        }
-        return RecoverAndApply(additionsOnly: !lease.IsWriter, package: entry).SingleOrDefault() ?? GetStatus(entry);
+        using ModDirectoryResourceLease lease = ModDirectoryResourceLease.Acquire(modsRoot, requestWriter: true, retainStartupForReader: true);
+        return RecoverAndApply(additionsOnly: !lease.IsWriter, languagePackage: entry).SingleOrDefault() ?? GetStatus(entry);
     }
 
-    private IReadOnlyList<ModPackageInstallResult> RecoverAndApply(bool additionsOnly, RemoteModEntry? package = null)
+    private IReadOnlyList<ModPackageInstallResult> RecoverAndApply(bool additionsOnly, RemoteModEntry? languagePackage = null)
     {
-        IReadOnlyList<ModPackageInstallResult> removals = additionsOnly || package is not null ? [] : RecoverRemovals();
+        IReadOnlyList<ModPackageInstallResult> removals = additionsOnly || languagePackage is not null ? [] : RecoverRemovals();
         if (!Directory.Exists(StatePath("journals", "")))
         {
             return removals;
@@ -167,7 +162,7 @@ public sealed partial class ModPackageInstaller
             {
                 return results.AsReadOnly();
             }
-            IEnumerable<string> paths = package is null ? Directory.GetFiles(journals, "*.json") : new[] { JournalPath(ManagedName(package)) }.Where(File.Exists);
+            IEnumerable<string> paths = languagePackage is null ? Directory.GetFiles(journals, "*.json") : new[] { JournalPath(ManagedName(languagePackage)) }.Where(File.Exists);
             foreach (string path in paths)
             {
                 Journal? journal = null;
@@ -176,8 +171,17 @@ public sealed partial class ModPackageInstaller
                     EnsureNoLinks(path);
                     journal = Read<Journal>(path) ?? throw new InvalidDataException("Empty installation journal.");
                     ValidateJournal(journal, path);
-                    if (IsRelocationPhase(journal) || additionsOnly && (!journal.IsAddition || !journal.LiveAddition && journal.Phase != "PendingRestart"))
+                    if (IsRelocationPhase(journal))
                     {
+                        continue;
+                    }
+                    bool canPublishLive = journal.IsAddition && (journal.LiveAddition || journal.Phase == "PendingRestart");
+                    if (additionsOnly && !canPublishLive)
+                    {
+                        if (languagePackage is not null)
+                        {
+                            results.Add(Result(journal.Next, true, false, "The language package is staged. Close any game using this mod directory and retry the installation."));
+                        }
                         continue;
                     }
                     if (journal.Phase == "RollingBack")
@@ -186,7 +190,8 @@ public sealed partial class ModPackageInstaller
                         results.Add(Result(journal.Next, false, false, "Previous installation restored during recovery."));
                         continue;
                     }
-                    Apply(journal, path, additionsOnly);
+                    // Language acquisitions publish fresh additions immediately and retain recovery data for repairs and updates.
+                    Apply(journal, path, additionsOnly || languagePackage is not null && canPublishLive);
                     results.Add(Result(journal.Next, false, true));
                 }
                 catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or NotSupportedException or ArgumentException or JsonException)
