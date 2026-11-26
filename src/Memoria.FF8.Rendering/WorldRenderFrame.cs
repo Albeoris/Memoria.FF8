@@ -32,6 +32,8 @@ public sealed record WorldRenderFrame(Vector3 Position, float Heading, int Anima
     public uint? NativeMainLoopCounter { get; init; }
     public byte? WorldDiscNumber { get; init; }
     public long MapFrame { get; init; }
+    public IReadOnlyList<Vector2> MapLocations { get; init; } = [];
+    public IReadOnlyList<Vector2> MapVehicles { get; init; } = [];
     public WorldAnimationBlend? AvatarAnimationBlend { get; init; }
     public IReadOnlyList<WorldForestParticleFrame>? ForestParticles { get; init; }
     public ushort TerrainReplacementMask { get; init; }

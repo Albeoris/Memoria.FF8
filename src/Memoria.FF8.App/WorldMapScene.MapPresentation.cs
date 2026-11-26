@@ -1,9 +1,61 @@
+using System.Numerics;
+using Memoria.FF8.Rendering;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8;
 
 internal sealed partial class WorldMapScene
 {
+    private sealed record FullMapMarkers(IReadOnlyList<Vector2> Locations, IReadOnlyList<Vector2> Vehicles);
+
+    private FullMapMarkers? fullMapMarkers;
+
+    private FullMapMarkers CaptureFullMapMarkers(WorldState state, ushort story)
+    {
+        IReadOnlyList<Vector2> locations = assets.ReadVisibleMapLocations(new(state.X, state.Z, story, 0));
+        List<Vector2> vehicles = [];
+        NativeGardenWorldRuntimeState? garden = WorldEventGardenObjects(state);
+        NativeRagnarokWorldRuntimeState? ragnarok = WorldEventRagnarokObjects(state);
+        void AddVehicle(NativeWorldPathPosition position)
+        {
+            vehicles.Add(2 * WorldMapPresentation.MapPosition(new Vector2(position.X, -position.Z)));
+        }
+
+        if (state.NativeCarRuntime is not null)
+        {
+            AddVehicle(new(state.X, state.NativeHeight, -state.Z));
+        }
+        else if (state.NativeFootRuntime?.ParkedCar is { } parked)
+        {
+            AddVehicle(parked.Position);
+        }
+        else if (garden is not null && garden.Allocation.SavedCarIndex >= 0)
+        {
+            AddVehicle(garden.Objects[garden.Allocation.SavedCarIndex].Position);
+        }
+        else if (ragnarok is not null && ragnarok.Allocation.SavedCarIndex >= 0)
+        {
+            AddVehicle(ragnarok.Objects[ragnarok.Allocation.SavedCarIndex].Position);
+        }
+        else if ((state.NativeFootRuntime?.StationTrains?.Load ?? state.NativeTrainRuntime?.Load) is { } train && train.SavedVehicleObjects.FirstOrDefault() is { } savedCar)
+        {
+            AddVehicle(savedCar.Position);
+        }
+        if (garden is not null)
+        {
+            AddVehicle(garden.Objects[garden.Allocation.Garden64Index].Position);
+        }
+        else if (ragnarok?.Objects.FirstOrDefault(item => item.ShapeId == 64) is { } parkedGarden)
+        {
+            AddVehicle(parkedGarden.Position);
+        }
+        if (ragnarok is not null)
+        {
+            AddVehicle(ragnarok.Objects[ragnarok.Allocation.RagnarokIndex].Position);
+        }
+        return new FullMapMarkers(locations, vehicles.AsReadOnly());
+    }
+
     internal static byte MapDisplayMode(WorldState state)
     {
         return state.NativeFootRuntime?.MapDisplayMode ?? state.NativeCarRuntime?.MapDisplayMode ?? state.NativeGardenRuntime?.MapDisplayMode ?? state.NativeRagnarokRuntime?.MapDisplayMode ?? state.NativeTrainRuntime?.MapDisplayMode ?? state.NativeScriptedRuntime?.MapDisplayMode ?? state.NativeChocoboRuntime?.MapDisplayMode ?? throw new NotSupportedException("World map presentation requires its retained native display mode.");

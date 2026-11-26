@@ -13,6 +13,9 @@ public sealed record WorldMapLayer(int TextureMember, int Palette, bool HalfTran
 /// <summary>Native logical 320x224 world-map geometry and its independent screen-space presentation.</summary>
 public static class WorldMapPresentation
 {
+    private static readonly Vector2 FullMapOrigin = new(32, 16);
+    internal const int Untextured = -1;
+
     public static Matrix3x2 ViewportTransform(byte mode, int width, int height)
     {
         ArgumentOutOfRangeException.ThrowIfGreaterThan(mode, (byte)3);
@@ -46,7 +49,7 @@ public static class WorldMapPresentation
         }
         if (mode is 2 or 3)
         {
-            Vector2 origin = mode == 2 ? new Vector2(186, 124) : new Vector2(32, 16);
+            Vector2 origin = mode == 2 ? new Vector2(186, 124) : FullMapOrigin;
             Vector2 size = mode == 2 ? new Vector2(128, 96) : new Vector2(256, 192);
             return [new(11, mode == 2 ? 1 : 0, mode == 2, false, Quad(origin, size, new Vector2(0.5f / 256, 0.5f / 192), new Vector2(255.5f / 256, 191.5f / 192), Vector4.One))];
         }
@@ -84,7 +87,7 @@ public static class WorldMapPresentation
             return Array.Empty<WorldMapLayer>();
         }
         Vector2 location = MapPosition(nativePosition);
-        Vector2 position = mode == 1 ? new Vector2(260, 180) : mode == 2 ? new Vector2(186, 124) + location : new Vector2(32, 16) + location * 2;
+        Vector2 position = mode == 1 ? new Vector2(260, 180) : mode == 2 ? new Vector2(186, 124) + location : FullMapOrigin + location * 2;
         List<WorldMapLayer> layers = [];
         void Marker(int member, Vector2 origin, Vector2 size, float angle, float brightness, bool halfTransparent)
         {
@@ -104,6 +107,22 @@ public static class WorldMapPresentation
         }
         Marker(24, new Vector2(-1), new Vector2(15), cameraHeading - 3 * MathF.PI / 4, 1, true);
         return layers.AsReadOnly();
+    }
+
+    internal static WorldMapLayer FullMapDots(IReadOnlyList<Vector2> locations, IReadOnlyList<Vector2> vehicles, long frame)
+    {
+        Vector4 yellow = new(200 / 255f, 200 / 255f, 0, 1);
+        Vector4 red = new(unchecked((byte)(0x80 - 8 * frame)) / 255f, 0, 0, 1);
+        List<WorldMapTriangle> triangles = [];
+        foreach (Vector2 position in locations)
+        {
+            triangles.AddRange(Quad(FullMapOrigin + position, new Vector2(2), Vector2.Zero, Vector2.One, yellow));
+        }
+        foreach (Vector2 position in vehicles.Reverse())
+        {
+            triangles.AddRange(Quad(FullMapOrigin + position, new Vector2(2), Vector2.Zero, Vector2.One, red));
+        }
+        return new WorldMapLayer(Untextured, 0, false, false, triangles);
     }
 
     private static IReadOnlyList<WorldMapTriangle> Quad(Vector2 origin, Vector2 size, Vector2 uvStart, Vector2 uvEnd, Vector4 color)

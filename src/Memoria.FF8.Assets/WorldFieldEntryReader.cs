@@ -150,6 +150,54 @@ public sealed partial class WorldFieldEntryReader
 
     private WorldFieldSelection? Select(WorldFieldSelectionInput input, Func<ushort, bool>? nearAllocatedShape, NativeWorldEventFlags? savedWorldFlags116, Func<ushort, ushort, bool?>? evaluateRuntimePredicate, Action<ushort, ushort>? executeRuntimeCommand)
     {
+        SelectedStream? selected = SelectStream(input, nearAllocatedShape, savedWorldFlags116, evaluateRuntimePredicate);
+        if (selected is not { } stream || ReadSelectedPacket(stream.Position, executeRuntimeCommand) is not { } packet)
+        {
+            return null;
+        }
+        return new WorldFieldSelection(stream.ClauseIndex, clauses[stream.ClauseIndex], stream.Position, packet, stream.Trace) { ReturnsBeforeMovementProgress = sectionIndex == 36 };
+    }
+
+    internal byte? SelectMapLocation(byte x, byte y, WorldFieldSelectionInput player)
+    {
+        WorldFieldSelectionInput cursor = new((x >> 1) * 2048 - 131072, (y >> 1) * 2048 - 98304, player.StoryWord, player.EntityType);
+        SelectedStream? selected = SelectStream(cursor, null, null, null, player);
+        if (selected is not { } stream)
+        {
+            return null;
+        }
+        int position = stream.Position;
+        byte? location = null;
+        var visited = new HashSet<int>();
+        while (true)
+        {
+            CheckPosition(position);
+            if (!visited.Add(position))
+            {
+                throw new InvalidDataException("WMSET map-location commands contain an instruction cycle.");
+            }
+            ushort opcode = Word(position);
+            ushort operand = Word(position + 2);
+            switch (opcode)
+            {
+                case 0xFF05:
+                    return location;
+                case 0xFF0E:
+                    position = operand;
+                    break;
+                default:
+                    // The map probe reads the low operand byte of the last command.
+                    location = unchecked((byte)operand);
+                    position += 4;
+                    break;
+            }
+        }
+    }
+
+    private readonly record struct SelectedStream(int ClauseIndex, int Position, WorldFieldPredicateEvaluation[] Trace);
+
+    private SelectedStream? SelectStream(WorldFieldSelectionInput input, Func<ushort, bool>? nearAllocatedShape, NativeWorldEventFlags? savedWorldFlags116, Func<ushort, ushort, bool?>? evaluateRuntimePredicate, WorldFieldSelectionInput? mapPlayer = null)
+    {
         if (input.X is < -131072 or >= 131072 || input.RawZ is < -98304 or >= 98304)
         {
             throw new NotSupportedException("World field selection requires centered native X/raw Z coordinates.");
@@ -208,7 +256,7 @@ public sealed partial class WorldFieldEntryReader
                     }
                     else
                     {
-                        bool? passed = Evaluate(input, position, opcode, operand, trace, nearAllocatedShape, savedWorldFlags116, evaluateRuntimePredicate);
+                        bool? passed = Evaluate(input, position, opcode, operand, trace, nearAllocatedShape, savedWorldFlags116, evaluateRuntimePredicate, mapPlayer);
                         if (passed == false)
                         {
                             nextClause = true;
@@ -276,7 +324,7 @@ public sealed partial class WorldFieldEntryReader
                             }
                             else
                             {
-                                bool? passed = Evaluate(input, position, opcode, operand, trace, nearAllocatedShape, savedWorldFlags116, evaluateRuntimePredicate);
+                                bool? passed = Evaluate(input, position, opcode, operand, trace, nearAllocatedShape, savedWorldFlags116, evaluateRuntimePredicate, mapPlayer);
                                 if (passed is null)
                                 {
                                     unresolved ??= trace[^1];
@@ -297,8 +345,7 @@ public sealed partial class WorldFieldEntryReader
                             }
                             else
                             {
-                                WorldFieldEntry? entry = ReadSelectedPacket(position, executeRuntimeCommand);
-                                return entry is WorldFieldEntry packet ? new WorldFieldSelection(clauseIndex, clauses[clauseIndex], position, packet, trace.ToArray()) { ReturnsBeforeMovementProgress = sectionIndex == 36 } : null;
+                                return new SelectedStream(clauseIndex, position, trace.ToArray());
                             }
                         }
                         else
@@ -374,14 +421,16 @@ public sealed partial class WorldFieldEntryReader
         }
     }
 
-    private bool? Evaluate(WorldFieldSelectionInput input, int position, ushort opcode, ushort operand, List<WorldFieldPredicateEvaluation> trace, Func<ushort, bool>? nearAllocatedShape, NativeWorldEventFlags? savedWorldFlags116, Func<ushort, ushort, bool?>? evaluateRuntimePredicate)
+    private bool? Evaluate(WorldFieldSelectionInput input, int position, ushort opcode, ushort operand, List<WorldFieldPredicateEvaluation> trace, Func<ushort, bool>? nearAllocatedShape, NativeWorldEventFlags? savedWorldFlags116, Func<ushort, ushort, bool?>? evaluateRuntimePredicate, WorldFieldSelectionInput? mapPlayer)
     {
         bool? passed = opcode switch
         {
             0xFF02 => input.StoryWord >= operand,
             0xFF03 => input.StoryWord < operand,
             0xFF06 => operand == 32 * ((input.RawZ + 294912) % 196608 / 8192) + (input.X + 393216) % 262144 / 8192,
-            0xFF07 => operand == 128 * ((input.RawZ + 294912) % 196608 / 2048) + (input.X + 393216) % 262144 / 2048,
+            // The map probe overrides entity, input and terrain gates. FF07 still uses the player's cell.
+            0xFF09 or 0xFF20 or 0xFF21 when mapPlayer is not null => true,
+            0xFF07 => operand == MapCell(mapPlayer ?? input),
             0xFF09 => MatchEntity(input.EntityType, operand),
             0xFF0F => operand > (input.X & 8191),
             0xFF10 => operand > (input.RawZ & 8191),
@@ -395,6 +444,11 @@ public sealed partial class WorldFieldEntryReader
         };
         trace.Add(new WorldFieldPredicateEvaluation(position, opcode, operand, passed));
         return passed;
+    }
+
+    private static int MapCell(WorldFieldSelectionInput input)
+    {
+        return 128 * ((input.RawZ + 294912) % 196608 / 2048) + (input.X + 393216) % 262144 / 2048;
     }
 
     private NotSupportedException UnknownPredicate(WorldFieldPredicateEvaluation predicate)

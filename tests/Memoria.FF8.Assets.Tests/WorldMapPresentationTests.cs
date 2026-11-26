@@ -49,6 +49,18 @@ public sealed class WorldMapPresentationTests
     }
 
     [Fact]
+    public void InstalledFullMapLocationDotsFollowTheOriginalStoryAndNameTables()
+    {
+        using WorldAssets assets = new(TestResources.GameDirectory);
+        IReadOnlyList<Vector2> early = assets.ReadVisibleMapLocations(new(0, 0, 0, 0));
+        Assert.Equal(new Vector2[] { new(152, 66), new(140, 70) }, early);
+
+        IReadOnlyList<Vector2> late = assets.ReadVisibleMapLocations(new(-15973, -12805, 3410, 0));
+        Assert.Equal(new Vector2[] { new(140, 70), new(114, 58), new(106, 90), new(68, 66), new(74, 90), new(148, 94), new(77, 103), new(100, 165), new(176, 38), new(140, 14), new(220, 104), new(213, 123), new(209, 92), new(180, 99), new(204, 110) }, late);
+        Assert.Same(late, assets.ReadVisibleMapLocations(new(-15973, -12805, 3410, 0)));
+    }
+
+    [Fact]
     public void InstalledGlobeUsesOriginalTopologyAndWrapsTextureAcrossWorldSeams()
     {
         using WorldAssets assets = new(TestResources.GameDirectory);

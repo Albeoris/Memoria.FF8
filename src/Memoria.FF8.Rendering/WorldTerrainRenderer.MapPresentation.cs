@@ -13,10 +13,17 @@ public sealed partial class WorldTerrainRenderer
         }
         Vector2 nativePosition = new(frame.Position.X, frame.Position.Z);
         IReadOnlyList<WorldMapLayer> layers = WorldMapPresentation.Create(frame.MapDisplayMode, nativePosition, frame.MapDisplayMode == 1 ? assets.ReadMapGlobeGeometry() : null);
-        bool bodyMarker = frame.MapProcessMode is not (1 or 2 or 3 or 4);
+        bool bodyMarker = frame.MapDisplayMode == 3 || frame.MapProcessMode is not (1 or 2 or 3 or 4);
         Matrix3x2 viewport = WorldMapPresentation.ViewportTransform(frame.MapDisplayMode, Width, Height);
-        // The native ordering table draws the map before its two directional markers.
-        foreach (WorldMapLayer layer in layers.Concat(WorldMapPresentation.Markers(frame.MapDisplayMode, nativePosition, frame.Heading, frame.Camera.Heading, frame.MapFrame, bodyMarker)))
+        foreach (WorldMapLayer layer in layers)
+        {
+            DrawWorldScreenLayer(layer, viewport);
+        }
+        if (frame.MapDisplayMode == 3)
+        {
+            DrawWorldScreenLayer(WorldMapPresentation.FullMapDots(frame.MapLocations, frame.MapVehicles, frame.MapFrame), viewport);
+        }
+        foreach (WorldMapLayer layer in WorldMapPresentation.Markers(frame.MapDisplayMode, nativePosition, frame.Heading, frame.Camera.Heading, frame.MapFrame, bodyMarker))
         {
             DrawWorldScreenLayer(layer, viewport);
         }
@@ -24,7 +31,7 @@ public sealed partial class WorldTerrainRenderer
 
     private void DrawWorldScreenLayer(WorldMapLayer layer, Matrix3x2 viewport)
     {
-        PixelImage texture = assets.ReadNativeSectionTexture(38, layer.TextureMember, layer.Palette);
+        PixelImage? texture = layer.TextureMember == WorldMapPresentation.Untextured ? null : assets.ReadNativeSectionTexture(38, layer.TextureMember, layer.Palette);
         Matrix3x2 transform = viewport;
         foreach (WorldMapTriangle triangle in layer.Triangles)
         {
@@ -51,7 +58,7 @@ public sealed partial class WorldTerrainRenderer
         }
     }
 
-    private void RasterWorldMap(WorldMapVertex a, WorldMapVertex b, WorldMapVertex c, PixelImage texture, WorldMapLayer layer)
+    private void RasterWorldMap(WorldMapVertex a, WorldMapVertex b, WorldMapVertex c, PixelImage? texture, WorldMapLayer layer)
     {
         float area = Edge(a.Position.X, a.Position.Y, b.Position.X, b.Position.Y, c.Position.X, c.Position.Y);
         if (MathF.Abs(area) < 0.001f)
@@ -86,9 +93,13 @@ public sealed partial class WorldTerrainRenderer
                 {
                     uv = new(uv.X - MathF.Floor(uv.X), uv.Y - MathF.Floor(uv.Y));
                 }
-                int u = Math.Clamp((int)(uv.X * texture.Width), 0, texture.Width - 1);
-                int v = Math.Clamp((int)(uv.Y * texture.Height), 0, texture.Height - 1);
-                Rgba32 texel = texture.Pixels[v * texture.Width + u];
+                Rgba32 texel = new(255, 255, 255, 255);
+                if (texture is not null)
+                {
+                    int u = Math.Clamp((int)(uv.X * texture.Width), 0, texture.Width - 1);
+                    int v = Math.Clamp((int)(uv.Y * texture.Height), 0, texture.Height - 1);
+                    texel = texture.Pixels[v * texture.Width + u];
+                }
                 if (texel.A == 0)
                 {
                     continue;

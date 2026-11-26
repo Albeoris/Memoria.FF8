@@ -427,6 +427,7 @@ internal sealed partial class WorldMapScene : IDisposable
         bool accepted = action.Kind is PlayerActionKind.Move or PlayerActionKind.Wait || stationChoice || drawChoice || transportConfirm || vehicleButtons || worldMessageConfirm;
         int advanced = 0;
         WorldState candidate = State;
+        FullMapMarkers? candidateMapMarkers = fullMapMarkers;
         WorldState previousCallback = candidate;
         NativeWorldSalaryState salary = NativeWorldSalaryState.Begin(session.State);
         List<GlobalSoundRequest> salaryRequests = [];
@@ -465,7 +466,12 @@ internal sealed partial class WorldMapScene : IDisposable
                 }
                 byte inputScriptMode = salary.EventUi?.ScriptMode ?? throw new NotSupportedException("World controls require the preceding script mode.");
                 salary = salary.WithWorldInputSample(buttons);
+                WorldState beforeMapSelection = candidate;
                 candidate = PrepareMapDisplay(candidate, salary, out byte mapScriptMode);
+                if (!ReferenceEquals(candidate, beforeMapSelection))
+                {
+                    candidateMapMarkers = MapDisplayMode(candidate) == 3 ? CaptureFullMapMarkers(candidate, salary.WorldEntryMemory?.StoryWord ?? WorldEntryVariables.Read(session.State).StoryWord) : null;
+                }
                 salary = salary.WithWorldScriptMode(mapScriptMode);
                 candidate = candidate with { EventUi = salary.EventUi };
                 (float horizontal, float vertical) = carButtons || gardenButtons ? ControllerGameplayInput.ReadVehicleAxes(buttons, action.Horizontal, action.Vertical) : (action.Kind == PlayerActionKind.Move ? action.Horizontal : 0, action.Kind == PlayerActionKind.Move ? action.Vertical : 0);
@@ -719,6 +725,7 @@ internal sealed partial class WorldMapScene : IDisposable
         if (accepted)
         {
             session.CommitWorldAction(candidate, salary);
+            fullMapMarkers = candidateMapMarkers;
             foreach (PreparedChocoboDismountMusic music in dismountMusic)
             {
                 PublishChocoboDismountMusic?.Invoke(music);
@@ -756,6 +763,12 @@ internal sealed partial class WorldMapScene : IDisposable
         NativeWorldTextureAnimationState animation = session.State.WorldProcess?.TextureAnimation ?? throw new NotSupportedException("World presentation requires its retained texture animation clocks; migrate this save explicitly.");
         // Resource loading uploads base images before the first world animation callback.
         frame = frame with { TextureAnimation = State.Frame == 0 ? null : animation, TerrainReplacementMask = State.ReplacementMask, MapDisplayMode = MapDisplayMode(State), MapProcessMode = State.EventUi?.ScriptMode ?? throw new NotSupportedException("World map presentation requires the current native process mode."), MapFrame = mainLoopCounter, NativeMainLoopCounter = mainLoopCounter, WorldDiscNumber = session.State.DiscProcess?.SavedDisc204 };
+        if (frame.MapDisplayMode == 3)
+        {
+            // Older saves can restore an already-open full map from its current world objects.
+            FullMapMarkers markers = fullMapMarkers ??= CaptureFullMapMarkers(State, WorldEntryVariables.Read(session.State).StoryWord);
+            frame = frame with { MapLocations = markers.Locations, MapVehicles = markers.Vehicles };
+        }
         return renderer.Render(frame, replacements);
     }
 

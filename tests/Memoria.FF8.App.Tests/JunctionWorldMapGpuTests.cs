@@ -8,6 +8,45 @@ namespace Memoria.FF8.App.Tests;
 [Collection("GPU rendering")]
 public sealed class JunctionWorldMapGpuTests
 {
+    [Fact]
+    public void LoadedFullMapDrawsStoryLocationsAndAllocatedVehiclesOnCpuAndGpu()
+    {
+        string input = TestResources.FixturePath("world-full-map-marker-source");
+        string game = TestResources.GameDirectory;
+        GameSession session = new(PlayerStateLoader.Load(input, game));
+        using WorldMapScene scene = new(session, game);
+        Assert.Equal((byte)1, WorldMapScene.MapDisplayMode(scene.State));
+        Assert.True(scene.Apply(new(PlayerActionKind.Wait, Frames: 24)).Accepted);
+        Assert.True(scene.Apply(new(PlayerActionKind.Wait, WorldButtons: 0x100)).Accepted);
+        Assert.Equal((byte)2, WorldMapScene.MapDisplayMode(scene.State));
+        Assert.True(scene.Apply(new(PlayerActionKind.Wait)).Accepted);
+        (int x, int z) = (scene.State.X, scene.State.Z);
+        Assert.True(scene.Apply(new(PlayerActionKind.Wait, WorldButtons: 0x100)).Accepted);
+        Assert.Equal((byte)3, WorldMapScene.MapDisplayMode(scene.State));
+        Assert.Equal((x, z), (scene.State.X, scene.State.Z));
+
+        const int width = 640;
+        const int height = 448;
+        byte[] cpu = scene.Render(width, height);
+        string snapshot = TestResources.ArtifactFile("full-map-markers.json");
+        session.Save(snapshot);
+        GameSession restored = new(GameSession.Load(snapshot));
+        using WorldMapScene restoredScene = new(restored, game);
+        Assert.Equal(cpu, restoredScene.Render(width, height));
+
+        using GpuTestDevice device = new();
+        using GpuTriangleRenderer gpu = new(device.Device);
+        Assert.Empty(scene.Render(width, height, gpu));
+        var pixels = GpuTestDevice.Read(gpu.Target);
+        int locationPixel = (54 * 2 + 1) * width + (208 * 2 + 1);
+        int gardenPixel = (108 * 2 + 1) * width + (178 * 2 + 1);
+        byte phase = unchecked((byte)(128 - 8 * session.State.WorldProcess!.MainLoopCounter));
+        Assert.Equal(new byte[] { 200, 200, 0 }, cpu.AsSpan(locationPixel * 4, 3).ToArray());
+        Assert.Equal(new byte[] { phase, 0, 0 }, cpu.AsSpan(gardenPixel * 4, 3).ToArray());
+        Assert.Equal(new Microsoft.Xna.Framework.Color(200, 200, 0), pixels[locationPixel]);
+        Assert.Equal(new Microsoft.Xna.Framework.Color((int)phase, 0, 0), pixels[gardenPixel]);
+    }
+
     [Theory]
     [InlineData(1, 230, 140, 65, 70, false)]
     [InlineData(1, 230, 140, 65, 70, true)]
