@@ -43,7 +43,7 @@ public sealed class AddedBattleEnemyLayoutTests
                 var second = sizes[combatants[j].ModelId];
                 NativeBattleVector a = positions[combatants[i].SceneSlot!.Value];
                 NativeBattleVector b = positions[combatants[j].SceneSlot!.Value];
-                int gap = first.Large || second.Large ? 600 : 300;
+                int gap = first.Large || second.Large ? 450 : 300;
                 Assert.True(Math.Abs(a.X - b.X) >= first.HalfWidth + second.HalfWidth + gap || Math.Abs(a.Z - b.Z) >= first.HalfDepth + second.HalfDepth + gap,
                     $"Models {combatants[i].ModelId} ({first}) and {combatants[j].ModelId} ({second}) at {a} and {b} lack {gap} units of clearance.");
             }

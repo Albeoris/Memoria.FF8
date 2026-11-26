@@ -10,6 +10,7 @@ internal static class AddedBattleEnemyLayout
     private const int RearStep = 750;
     private const int MinimumSearchMargin = 3600;
     private const int NormalGap = 300;
+    private const int LargeGap = NormalGap * 3 / 2;
     private const int LargeModelSpan = 2400;
 
     internal readonly record struct Footprint(int HalfWidth, int HalfDepth, bool Large);
@@ -66,7 +67,7 @@ internal static class AddedBattleEnemyLayout
 
     private static int SearchMargin(IEnumerable<int> halfSpans, int step)
     {
-        return Math.Max(MinimumSearchMargin, halfSpans.OrderDescending().Take(2).Sum() + 2 * NormalGap + step);
+        return Math.Max(MinimumSearchMargin, halfSpans.OrderDescending().Take(2).Sum() + LargeGap + step);
     }
 
     private static IEnumerable<NativeBattleVector> Candidates(int centerX, int front, int left, int right, int rear)
@@ -93,7 +94,7 @@ internal static class AddedBattleEnemyLayout
         {
             int x = size.HalfWidth + other.Size.HalfWidth - Math.Abs(position.X - other.Position.X);
             int z = size.HalfDepth + other.Size.HalfDepth - Math.Abs(position.Z - other.Position.Z);
-            int gap = size.Large || other.Size.Large ? 2 * NormalGap : NormalGap;
+            int gap = size.Large || other.Size.Large ? LargeGap : NormalGap;
             overlap += (long)Math.Max(0, x) * Math.Max(0, z);
             gapOverlap += (long)Math.Max(0, x + gap) * Math.Max(0, z + gap);
         }
