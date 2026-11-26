@@ -35,10 +35,10 @@ public sealed class InstalledIfritFormCommandTests
                 battle.SetGunbladeMode(BattleGunbladeMode.Automatic);
             }
             var expected = vitals.MenuDefinitions.CommandAbilityCommands.Select((command, index) => (Ability: index + 20, Command: command))
-                .Where(entry => entry.Command is not (0 or 2 or 3 or 4 or 6) && entry.Ability != OtherGuardianAbility).ToArray();
+                .Where(entry => entry.Command is not (0 or 2 or 3 or 4 or 6 or MiniMogCommand) && entry.Ability != OtherGuardianAbility).ToArray();
             IReadOnlyList<BattleGuardianFormCommand> commands = battle.GetGuardianFormCommands(casterId);
             BattleGuardianFormCommand[] learned = commands.Where(command => command.LearnedAbilityId.HasValue).ToArray();
-            Assert.Equal(13, expected.Length);
+            Assert.Equal(12, expected.Length);
             Assert.Equal(expected.OrderBy(entry => entry.Ability), learned.Select(command => (Ability: command.LearnedAbilityId!.Value, Command: command.NativeCommand!.Value)).OrderBy(entry => entry.Ability));
             Assert.All(learned, command => Assert.Equal(LearnedCommandBase + command.LearnedAbilityId!.Value, command.Id));
             Assert.DoesNotContain(commands, command => command.Id == (int)BattleGuardianFormAction.Flare);
@@ -78,19 +78,18 @@ public sealed class InstalledIfritFormCommandTests
     }
 
     [Fact]
-    public void Installed_Ifrit_queues_every_learned_native_command_and_hands_off_the_summon_slot_to_MiniMog()
+    public void Installed_Ifrit_queues_every_permitted_learned_native_command()
     {
         RunInForm(100, (world, battle, caster, _) =>
         {
             BattleGuardianFormCommand[] learned = battle.GetGuardianFormCommands(CasterId).Where(command => command.LearnedAbilityId.HasValue).ToArray();
-            Assert.Equal(14, learned.Length);
+            Assert.Equal(13, learned.Length);
             BattleSnapshot boundary = battle.Capture();
             foreach (BattleGuardianFormCommand command in learned)
             {
                 byte nativeCommand = command.NativeCommand!.Value;
                 BattleNativeCommandBinding binding = world.BattleResources.ReadNativeCommand(nativeCommand);
-                bool miniMog = nativeCommand == MiniMogCommand;
-                BattleSession branch = miniMog ? battle.ForkForContinuation() : BattleSession.Restore(boundary);
+                BattleSession branch = BattleSession.Restore(boundary);
                 Assert.True(command.Action.Available, $"{binding.Name} is unavailable in the installed admission fixture.");
                 IReadOnlyList<BattleCombatant> targets = branch.GetGuardianFormCommandTargets(CasterId, command.Id);
                 BattleCombatant target = nativeCommand is DefendCommand or 27 ? Assert.Single(targets) : targets.First();
@@ -103,19 +102,6 @@ public sealed class InstalledIfritFormCommandTests
                     Assert.Equal(KnockedOutAllyId, target.Id);
                     Assert.False(target.IsAlive);
                 }
-                BattleModelOwner? owner = null;
-                if (miniMog)
-                {
-                    owner = branch.ReadPresentationModelOwner(CasterId);
-                    Assert.Equal((byte)77, branch.Presentation!.Graphics.ActorModels.Get(owner).ModelId4);
-                    BattleCombatant enemy = branch.Combatants.First(candidate => !candidate.IsPlayer && candidate.IsAlive);
-                    Assert.Throws<InvalidOperationException>(() => branch.QueueGuardianFormAction(CasterId, enemy.Id, command.Id));
-                    Assert.Equal(BattleGuardianFormPhase.Active, branch.GetGuardianForm(CasterId)?.Phase);
-                    Assert.True(branch.CanChoosePlayerCommand(CasterId));
-                    Assert.True(branch.IsGuardianSummonOccupied);
-                    Assert.DoesNotContain(branch.QueuedActions, queued => queued.ActorId == CasterId);
-                }
-
                 GameWorld.ExecuteBattleCommand(branch, new(BattleInputKind.GuardianFormAction, ActorId: CasterId, TargetId: target.Id, ActionId: command.Id));
                 BattleAttackCommand queued = Assert.Single(branch.QueuedActions, queued => queued.ActorId == CasterId);
                 Assert.Equal(BattleAbility.NativeCommand, queued.Ability);
@@ -125,7 +111,7 @@ public sealed class InstalledIfritFormCommandTests
                 Assert.Equal(nativeCommand, queued.NativeAction?.Command);
                 Assert.Equal(nativeCommand == 28 ? (ushort)0 : binding.ActionId, queued.NativeAction?.ActionId);
                 Assert.Equal(nativeCommand == 27, queued.TargetRequest.AllowsKnockedOutAllies);
-                if (nativeCommand is 24 or MiniMogCommand)
+                if (nativeCommand == 24)
                 {
                     Assert.Equal(BattleTargetSide.Allies, Assert.IsType<BattleTargetSelection.SideGroup>(queued.TargetRequest.Selection).Side);
                     Assert.All(targets, candidate => Assert.True(candidate.IsAlive && candidate.IsPlayer));
@@ -136,37 +122,19 @@ public sealed class InstalledIfritFormCommandTests
                     Assert.Equal(target.Id, selected.ActorId);
                 }
                 Assert.True(branch.IsGuardianSummonOccupied);
-                if (nativeCommand is 28 or MiniMogCommand)
+                if (nativeCommand == 28)
                 {
-                    BattleSession restored = miniMog ? branch.ForkForContinuation() : BattleSession.Restore(branch.Capture());
+                    BattleSession restored = BattleSession.Restore(branch.Capture());
                     BattleAttackCommand pending = Assert.Single(restored.QueuedActions, candidate => candidate.ActorId == caster.Id);
                     Assert.Equal(command.LearnedAbilityId, pending.GuardianFormLearnedAbility);
                     Assert.Equal(queued.ActionId, pending.ActionId);
                     Assert.Equal(queued.TargetId, pending.TargetId);
-                    Assert.Equal(!miniMog, restored.GetGuardianForm(caster.Id) is not null);
+                    Assert.Equal(BattleGuardianFormPhase.Active, restored.GetGuardianForm(caster.Id)?.Phase);
                     Assert.True(restored.IsGuardianSummonOccupied);
                 }
-                if (owner is not null)
-                {
-                    Assert.Null(branch.GetGuardianForm(CasterId));
-                    Assert.NotEqual((byte)77, branch.Presentation!.Graphics.ActorModels.Get(owner).ModelId4);
-                    Assert.Equal(boundary.NativeGil, branch.Capture().NativeGil);
-                }
-                else
-                {
-                    Assert.Equal(BattleGuardianFormPhase.Active, branch.GetGuardianForm(CasterId)?.Phase);
-                }
+                Assert.Equal(BattleGuardianFormPhase.Active, branch.GetGuardianForm(CasterId)?.Phase);
             }
 
-            BattleSession noGil = BattleSession.Restore(boundary with { NativeGil = new(0, 0) });
-            BattleGuardianFormCommand unavailable = Assert.Single(noGil.GetGuardianFormCommands(CasterId), command => command.NativeCommand == MiniMogCommand);
-            Assert.False(unavailable.Action.Available);
-            Assert.Empty(noGil.GetGuardianFormCommandTargets(CasterId, unavailable.Id));
-            Assert.Throws<InvalidOperationException>(() => noGil.QueueGuardianFormAction(CasterId, CasterId, unavailable.Id));
-            Assert.Equal(BattleGuardianFormPhase.Active, noGil.GetGuardianForm(CasterId)?.Phase);
-            Assert.True(noGil.IsGuardianSummonOccupied);
-            Assert.True(noGil.CanChoosePlayerCommand(CasterId));
-            Assert.DoesNotContain(noGil.QueuedActions, queued => queued.ActorId == CasterId);
             Assert.Equal(BattleGuardianFormPhase.Active, battle.GetGuardianForm(CasterId)?.Phase);
             Assert.Equal(Assert.Single(boundary.Combatants, candidate => candidate.Id == CasterId).Atb, caster.Atb);
         }, prepareAdmission: true);
@@ -175,7 +143,6 @@ public sealed class InstalledIfritFormCommandTests
     [Theory]
     [InlineData(DefendCommand)]
     [InlineData(KamikazeCommand)]
-    [InlineData(MiniMogCommand)]
     public void Installed_Ifrit_learned_command_completes_on_the_attached_process(byte nativeCommand)
     {
         RunInForm(100, (world, battle, _, _) =>
@@ -192,10 +159,6 @@ public sealed class InstalledIfritFormCommandTests
     {
         BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(branch.Presentation);
         BattleCombatant caster = Assert.Single(branch.Combatants, actor => actor.Id == CasterId);
-        NativeBattleGil gil = Assert.IsType<NativeBattleGil>(branch.Capture().NativeGil);
-        BattleGuardianForceVital wounded = Assert.Single(branch.GuardianForces, guardian => guardian.Id == OtherGuardian);
-        BattleCombatant[] activeParty = branch.Combatants.Where(actor => actor.IsPlayer && actor.IsActive).ToArray();
-        uint miniMogCost = checked((uint)(100 * (activeParty.Sum(actor => actor.Level) / activeParty.Length)));
         int begin = branch.Events.Count;
         BattleSession? ejectionFork = null;
         for (int frame = 0; frame < 3200 && !Completed(); frame++)
@@ -228,17 +191,6 @@ public sealed class InstalledIfritFormCommandTests
                 Assert.False(ejectionFork.IsGuardianSummonOccupied);
                 Assert.Null(ejectionFork.ActiveAction);
                 Assert.False(caster.IsActive);
-                Assert.Null(branch.GetGuardianForm(CasterId));
-                Assert.Null(process.Graphics.GuardianFormPresentation);
-                Assert.False(branch.IsGuardianSummonOccupied);
-                break;
-            case MiniMogCommand:
-                BattleGuardianForceVital healed = Assert.Single(branch.GuardianForces, guardian => guardian.Id == OtherGuardian);
-                Assert.Equal(1, wounded.HitPoints);
-                int recovery = wounded.MaximumHitPoints / 5;
-                Assert.Equal(wounded.HitPoints + recovery, healed.HitPoints);
-                Assert.Contains(events, entry => entry is { Kind: "GuardianForceHealing", ActorId: CasterId, TargetId: CasterId } && entry.Amount == recovery);
-                Assert.Equal(gil with { Gil = gil.Gil - miniMogCost }, branch.Capture().NativeGil);
                 Assert.Null(branch.GetGuardianForm(CasterId));
                 Assert.Null(process.Graphics.GuardianFormPresentation);
                 Assert.False(branch.IsGuardianSummonOccupied);
@@ -283,16 +235,25 @@ public sealed class InstalledIfritFormCommandTests
     [Fact]
     public void Installed_Ifrit_full_command_grid_shows_all_rows_and_submits_a_third_column_choice()
     {
-        RunInForm(100, (_, battle, _, _) =>
+        RunInForm(100, (_, battle, _, vitals) =>
         {
             List<BattleInput> submitted = [];
             BattleHudController hud = new(battle, (_, _) => { }, () => { }, () => { }, execute: submitted.Add, readPresentationUi: BattleHudTestPresentation.Visible);
             hud.SelectParty(CasterId);
             Assert.Equal(CasterId, hud.SelectedActor?.Id);
             IReadOnlyList<BattleGuardianFormCommand> commands = battle.GetGuardianFormCommands(CasterId);
-            Assert.Equal(18, commands.Count);
-            Assert.Equal(14, commands.Count(command => command.LearnedAbilityId.HasValue));
+            Assert.Equal(17, commands.Count);
+            Assert.Equal(13, commands.Count(command => command.LearnedAbilityId.HasValue));
+            byte[] hiddenCommands = [4, 6, 2, 3, MiniMogCommand]; // Item, Draw, Magic, GF, MiniMog
+            var learned = vitals.GuardianForceAbilities(Ifrit).Where(ability => ability.Learned).Select(ability => ability.Ability).ToHashSet();
+            foreach (byte hidden in hiddenCommands)
+            {
+                int ability = vitals.MenuDefinitions.CommandAbilityCommands.IndexOf(hidden) + 20;
+                Assert.Contains(ability, learned);
+                Assert.DoesNotContain(commands, row => row.NativeCommand == hidden);
+            }
             string[] labels = hud.ChoiceLabels.ToArray();
+            Assert.Equal(17, labels.Length);
             UiView view = hud.BuildView();
             view.Resize(960, 672);
             UiTheme theme = new();
@@ -300,10 +261,10 @@ public sealed class InstalledIfritFormCommandTests
             view.Draw(canvas, theme);
             var rows = canvas.TextDraws.Where(draw => labels.Contains(draw.Text)).ToArray();
             Assert.Equal(labels, rows.Select(row => row.Text));
-            Assert.Equal(3, rows.Select(row => row.Bounds.X).Distinct().Count());
+            Assert.Equal(new[] { 6, 6, 5 }, rows.GroupBy(row => row.Bounds.X).Select(column => column.Count()));
             Assert.Equal(6, rows.Select(row => row.Bounds.Y).Distinct().Count());
-            Assert.Equal(rows[5].Bounds.Y, rows[17].Bounds.Y);
-            Assert.True(rows[17].Bounds.X > rows[11].Bounds.X);
+            Assert.Equal(rows[4].Bounds.Y, rows[16].Bounds.Y);
+            Assert.True(rows[16].Bounds.X > rows[11].Bounds.X);
             for (int index = 0; index < rows.Length; index++)
             {
                 UiRect bounds = rows[index].Bounds;
@@ -319,9 +280,13 @@ public sealed class InstalledIfritFormCommandTests
             view.Key(UiKey.Right);
             Assert.Equal(11, hud.ChoiceIndex);
             view.Key(UiKey.Right);
-            Assert.Equal(17, hud.ChoiceIndex);
+            Assert.Equal(16, hud.ChoiceIndex);
+            view.Pointer(rows[16].Bounds.X + 1, rows[11].Bounds.Y + 1, false);
+            view.Pointer(rows[16].Bounds.X + 1, rows[11].Bounds.Y + 1, true);
+            Assert.Equal(16, hud.ChoiceIndex);
+            Assert.False(hud.SelectingTarget);
 
-            int choice = Enumerable.Range(12, 6).Last(index => commands[index].LearnedAbilityId.HasValue && commands[index].Action.Available);
+            int choice = Enumerable.Range(12, 5).Last(index => commands[index].LearnedAbilityId.HasValue && commands[index].Action.Available);
             BattleGuardianFormCommand selected = commands[choice];
             UiRect cell = rows[choice].Bounds;
             view.Pointer(cell.X + 1, cell.Y + 1, false);

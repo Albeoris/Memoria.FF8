@@ -34,6 +34,10 @@ public sealed partial class BattleSession
         }
         foreach ((int ability, byte command) in IfritLearnedCommands)
         {
+            if (command == 38) // MiniMog
+            {
+                continue;
+            }
             BattleNativeCommandBinding binding = ReadGuardianFormCommandBinding(form.GuardianForceId, command);
             BattleActionDefinition action = ResolveGuardianFormLearnedAction(actor, binding);
             bool available = CanSelectGuardianFormLearnedAction(actor, action) && combatants.Any(target => IsExpandedPlayerActionTarget(actor, target, action, binding.TargetFlags));
