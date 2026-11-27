@@ -34,12 +34,19 @@ public static class WorldStaticModelTransform
 
     public static NativeWorldPathAngles AnimatedAllocationAngles(NativeGardenWorldObject item, uint? mainLoopCounter)
     {
-        if (mainLoopCounter is null || item.Flags == 0)
+        if (mainLoopCounter is null)
         {
             return AllocationAngles(item.ShapeId, item.RotationX, item.RotationY, item.RotationZ);
         }
+        // 5472C0 rotates the two time-compression barrier shapes even with flags zero.
+        if (item.Flags != 1 && item.ShapeId is 93 or 96)
+        {
+            int rate = item.ShapeId == 93 ? 8 : -2;
+            return AllocationAngles(item.ShapeId, item.RotationX, unchecked((short)(rate * mainLoopCounter.Value)), item.RotationZ);
+        }
         return item.Flags switch
         {
+            0 => AllocationAngles(item.ShapeId, item.RotationX, item.RotationY, item.RotationZ),
             1 => AllocationAngles(item.ShapeId, item.RotationX, item.RotationY, unchecked((short)(16 * mainLoopCounter.Value))),
             2 => AllocationAngles(item.ShapeId, item.RotationX, unchecked((short)(8 * mainLoopCounter.Value)), item.RotationZ),
             4 => AllocationAngles(item.ShapeId, 786, item.RotationY, unchecked((short)(8 * mainLoopCounter.Value))),

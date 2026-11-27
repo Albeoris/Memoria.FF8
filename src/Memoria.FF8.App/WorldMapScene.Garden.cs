@@ -88,7 +88,7 @@ internal sealed partial class WorldMapScene
         assets.ValidateGardenAllocationResources(garden.Allocation);
         assets.ValidateNativeGroundCache(garden.GroundCache, replacements);
         NativeSavedWorldState? saved = session.State.SavedWorld;
-        byte? savedCarShape = HasSavedParkedCar(saved) ? saved!.Slot4.ShapeId : null;
+        byte? savedCarShape = HasSavedParkedCar(saved) && !garden.Allocation.Objects.Any(item => item.ShapeId == 92) ? saved!.Slot4.ShapeId : null;
         if (garden.Allocation.Packet != arrival || garden.Allocation.Story != inputs.StoryWord || (garden.Allocation.ReplacementFlags264 & 7) != (inputs.ReplacementFlags & 7) || garden.Allocation.SavedCarSlot?.ShapeId != savedCarShape)
         {
             throw new InvalidDataException("Retained Garden allocation differs from its original allocation, current story or actual saved vehicle.");
@@ -113,6 +113,8 @@ internal sealed partial class WorldMapScene
         // Native 5472C0 animates the allocated models with the current world draw counter.
         uint mainLoopCounter = session.State.WorldProcess!.MainLoopCounter;
         List<NativeWorldStaticModelDraw> models = [];
+        List<NativeWorldAnimatedModelDraw> animated = [];
+        List<NativeWorldShadowDraw> shadows = [];
         if (garden.BackgroundRails is { } background)
         {
             ValidateBackgroundRails(state, background, true);
@@ -137,6 +139,11 @@ internal sealed partial class WorldMapScene
             }
             if (index == garden.Allocation.FootObjectIndex && state.NativeFootRuntime is null || !projection.IsNear(item.Position))
             {
+                continue;
+            }
+            if (item.ShapeId == 1)
+            {
+                AddRagnarokDraw(projection, item.Position, item.RotationX, item.RotationY, item.RotationZ, index, null, animated, shadows);
                 continue;
             }
             NativeWorldPathNodeProjection draw = projection.ProjectNode(item.Position) ?? throw new NotSupportedException(projection.UnsupportedReason);
@@ -168,6 +175,6 @@ internal sealed partial class WorldMapScene
         Vector3 position = new(state.X, -state.NativeHeight, state.Z);
         WorldSky sky = WorldTerrainSelection.SelectSky(assets.Skies, state.X, state.Z, storyByte);
         bool footVisible = state.NativeFootRuntime is not null && state.GroundType is null or > 5;
-        return new WorldRenderFrame(position, state.BodyYaw * MathF.Tau / 4096, state.AnimationId, state.AnimationCounter >> 4, camera, sky, footVisible, state.NativeFootRuntime is null ? null : assets.GetFootModel(state.NativeFootRuntime.EntityType), models, state.NativeFootRuntime?.Forest ?? garden.Forest);
+        return new WorldRenderFrame(position, state.BodyYaw * MathF.Tau / 4096, state.AnimationId, state.AnimationCounter >> 4, camera, sky, footVisible, state.NativeFootRuntime is null ? null : assets.GetFootModel(state.NativeFootRuntime.EntityType), models, state.NativeFootRuntime?.Forest ?? garden.Forest, animated) { Shadows = shadows };
     }
 }

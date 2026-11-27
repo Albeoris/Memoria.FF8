@@ -19,7 +19,7 @@ internal sealed partial class WorldMapScene
     private void InitializeChocobo(WorldTransition arrival, WorldEntryVariables inputs)
     {
         NativeGardenWorldAllocation allocation = ReadChocoboAllocation(arrival);
-        _ = assets.GetFootModel(0);
+        _ = assets.GetMountedChocoboRiderModel(allocation.RiderEntityType);
         _ = assets.GetChocoboModel();
         if ((allocation.ChocoboFlags1536 & 3) == 1)
         {
@@ -56,7 +56,10 @@ internal sealed partial class WorldMapScene
         }
         NativeChocoboWorldRuntimeState current = State.NativeChocoboRuntime ?? throw new InvalidDataException("Mounted Chocobo restoration requires its executed runtime.");
         current.Validate(State);
-        if (!JsonElement.DeepEquals(JsonSerializer.SerializeToElement(allocation), JsonSerializer.SerializeToElement(current.Objects.Allocation)))
+        // Only bits 0..2 affect allocated replacement objects. World scripts may consume other live bits.
+        JsonElement expectedAllocation = JsonSerializer.SerializeToElement(allocation with { ReplacementFlags264 = (byte)(allocation.ReplacementFlags264 & 7) });
+        JsonElement restoredAllocation = JsonSerializer.SerializeToElement(current.Objects.Allocation with { ReplacementFlags264 = (byte)(current.Objects.Allocation.ReplacementFlags264 & 7) });
+        if (!JsonElement.DeepEquals(expectedAllocation, restoredAllocation))
         {
             throw new InvalidDataException("Mounted Chocobo allocation differs from the original world packet and selected resources.");
         }
@@ -135,7 +138,7 @@ internal sealed partial class WorldMapScene
         bool companionVisible = hasCompanion && animation.CompanionPlaced && !companion.Forest && IsVisible(new(companion.X, companion.Height, -companion.Z));
         if (before.ChocoboDismount is null)
         {
-            int riderLength = assets.GetFootModel(0).Animations[animation.RiderAnimation].Frames.Count * 16;
+            int riderLength = assets.GetMountedChocoboRiderModel(objects.Allocation.RiderEntityType).Animations[animation.RiderAnimation].Frames.Count * 16;
             int companionLength = companionVisible ? assets.GetChocoboModel(companion: true).Animations[animation.CompanionAnimation].Frames.Count * 16 : 0;
             animation = animation.AdvanceAnimation(moving, visible, visible, companionVisible, riderLength, companionLength, objects.Forest, assets.ForestTables.Random, out forest);
         }
@@ -194,7 +197,7 @@ internal sealed partial class WorldMapScene
     {
         // 550070 uses the separate mount and companion body and ground owners.
         NativeWorldForestTables tables = assets.ForestTables;
-        NativeGardenWorldObject mount = objects.Objects[1];
+        NativeGardenWorldObject mount = objects.Objects[objects.Allocation.MountIndex];
         byte mountGroundType = transfer is null ? priorGroundType : assets.ResolveNativeGroundIdentity(transfer.MountGround, replacements).GroundType;
         NativeWorldWaterStepResult mountStep = forest.EmitChocoboParticles(17, mountGroundType, animation.MountAnimation, animation.MountCounter, salary.MountWaterStepEdges, mount.Position, mount.RotationY, priorGraphicsSpeed, tables.Random, tables.AllEffects);
         forest = mountStep.Forest;
@@ -233,19 +236,19 @@ internal sealed partial class WorldMapScene
         objects = objects.PublishBody(body, 0, checked((short)yaw), 0, gardenControlled: false);
         if (mountFollowsRider)
         {
-            objects = objects with { Objects = objects.Objects.SetItem(1, objects.Objects[1] with { Position = body, RotationY = checked((short)yaw) }) };
+            objects = objects with { Objects = objects.Objects.SetItem(objects.Allocation.MountIndex, objects.Objects[objects.Allocation.MountIndex] with { Position = body, RotationY = checked((short)yaw) }) };
         }
         return PublishChocoboCompanion(objects, animation);
     }
 
     private static NativeGardenWorldRuntimeState PublishChocoboCompanion(NativeGardenWorldRuntimeState objects, NativeChocoboWorldAnimation animation)
     {
-        if (!animation.CompanionPlaced)
+        if (!animation.CompanionPlaced || objects.Allocation.CompanionIndex < 0)
         {
             return objects;
         }
         NativeChocoboTrailPose pose = animation.CompanionPose;
-        return objects with { Objects = objects.Objects.SetItem(2, objects.Objects[2] with { Position = new(pose.X, pose.Height, -pose.Z), RotationY = checked((short)pose.Yaw) }) };
+        return objects with { Objects = objects.Objects.SetItem(objects.Allocation.CompanionIndex, objects.Objects[objects.Allocation.CompanionIndex] with { Position = new(pose.X, pose.Height, -pose.Z), RotationY = checked((short)pose.Yaw) }) };
     }
 
     private WorldRenderFrame PrepareChocoboFrame(WorldState state)
@@ -254,20 +257,20 @@ internal sealed partial class WorldMapScene
         NativeChocoboWorldAnimation animation = mounted.Animation;
         WorldRenderFrame frame = PrepareGardenFrame(state with { NativeGardenRuntime = mounted.Objects });
         bool visible = state.GroundType is > 5;
-        frame = frame with { AvatarVisible = visible, AvatarModel = assets.GetFootModel(0) };
+        frame = frame with { AvatarVisible = visible, AvatarModel = assets.GetMountedChocoboRiderModel(mounted.Objects.Allocation.RiderEntityType) };
         if (state.ChocoboDismount is { } transfer)
         {
             return AddDismountModels(frame, mounted.Objects, animation, transfer);
         }
-        List<NativeWorldAnimatedModelDraw> models = [];
+        List<NativeWorldAnimatedModelDraw> models = frame.AnimatedModels?.ToList() ?? [];
         if (visible)
         {
-            models.Add(new NativeWorldAnimatedModelDraw(assets.GetChocoboModel(), frame.Position, frame.Heading, animation.MountAnimation, animation.MountCounter >> 4) { ObjectId = new(WorldRenderObjectKind.Allocation, 1) });
+            models.Add(new NativeWorldAnimatedModelDraw(assets.GetChocoboModel(), frame.Position, frame.Heading, animation.MountAnimation, animation.MountCounter >> 4) { ObjectId = new(WorldRenderObjectKind.Allocation, mounted.Objects.Allocation.MountIndex) });
         }
         NativeChocoboTrailPose companion = animation.CompanionPose;
         if ((mounted.Objects.Allocation.ChocoboFlags1536 & 3) == 1 && animation.CompanionPlaced && !companion.Forest)
         {
-            models.Add(new NativeWorldAnimatedModelDraw(assets.GetChocoboModel(companion: true), new Vector3(companion.X, -companion.Height, companion.Z), companion.Yaw * MathF.Tau / 4096, animation.CompanionAnimation, animation.CompanionCounter >> 4) { ObjectId = new(WorldRenderObjectKind.Allocation, 2) });
+            models.Add(new NativeWorldAnimatedModelDraw(assets.GetChocoboModel(companion: true), new Vector3(companion.X, -companion.Height, companion.Z), companion.Yaw * MathF.Tau / 4096, animation.CompanionAnimation, animation.CompanionCounter >> 4) { ObjectId = new(WorldRenderObjectKind.Allocation, mounted.Objects.Allocation.CompanionIndex) });
         }
         return frame with { AnimatedModels = models };
     }

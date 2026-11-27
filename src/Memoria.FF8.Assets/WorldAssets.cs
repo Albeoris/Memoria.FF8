@@ -118,6 +118,25 @@ public sealed partial class WorldAssets : IDisposable
         return GetWorldCharacterModel(NativeGardenEntityShape(entityType));
     }
 
+    public FieldModel GetMountedChocoboRiderModel(byte entityType)
+    {
+        const int mountedClipCount = 8;
+        FieldModel rider = GetFootModel(entityType);
+        if (rider.Animations.Count >= mountedClipCount)
+        {
+            return rider;
+        }
+
+        // Some native riders have only the on-foot clips in chara.one.
+        // Complete the mounted clip bank from the original compatible world rig.
+        FieldModel source = GetFootModel(0);
+        if (source.Animations.Count < mountedClipCount || !rider.Bones.Select(bone => bone.Parent).SequenceEqual(source.Bones.Select(bone => bone.Parent)))
+        {
+            throw new NotSupportedException("Mounted Chocobo requires a rider model with mounted clips or a compatible original world rig.");
+        }
+        return rider with { Animations = rider.Animations.Concat(source.Animations.Skip(rider.Animations.Count).Take(mountedClipCount - rider.Animations.Count)).ToArray() };
+    }
+
     public FieldModel GetChocoboModel(bool companion = false)
     {
         return GetWorldCharacterModel(companion ? (byte)3 : (byte)2);

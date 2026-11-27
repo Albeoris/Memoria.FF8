@@ -81,7 +81,7 @@ internal sealed partial class WorldMapScene
         NativeGardenTransferAdmission admission = NativeGardenTransferState.EvaluateInput(input);
         callback.ConsumeScriptRequest = admission.ConsumeScriptRequest;
         garden = garden with { Buttons = garden.Buttons.Observe(buttons.CurrentButtons) };
-        if (admission.Action && garden.BroadContact is int hit && (hit == garden.Allocation.Garden64Index || hit == garden.Allocation.Garden65Index))
+        if (garden.Allocation.HasGarden && admission.Action && garden.BroadContact is int hit && (hit == garden.Allocation.Garden64Index || hit == garden.Allocation.Garden65Index))
         {
             NativeGardenWorldObject target = garden.Objects[garden.Allocation.Garden64Index];
             uint flags = GardenFootCurrentPolygonFlags(foot.GroundCache!);

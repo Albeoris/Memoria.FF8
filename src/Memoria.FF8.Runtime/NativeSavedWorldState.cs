@@ -240,11 +240,15 @@ public sealed partial record NativeSavedWorldState
     {
         Validate();
         garden.Validate();
-        NativeGardenWorldObject body = garden.Objects[garden.Allocation.Garden64Index];
-        NativeSavedWorldPose pose = new(body.Position.X, unchecked(-body.Position.Z), unchecked((short)body.Position.Y), unchecked((ushort)body.RotationY));
-        if (pose.Yaw >= 4096)
+        NativeSavedWorldPose? pose = GardenPose3;
+        if (garden.Allocation.HasGarden)
         {
-            throw new InvalidDataException("Parked Garden yaw is outside the normalized native object angle.");
+            NativeGardenWorldObject body = garden.Objects[garden.Allocation.Garden64Index];
+            pose = new(body.Position.X, unchecked(-body.Position.Z), unchecked((short)body.Position.Y), unchecked((ushort)body.RotationY));
+            if (pose.Yaw >= 4096)
+            {
+                throw new InvalidDataException("Parked Garden yaw is outside the normalized native object angle.");
+            }
         }
         NativeSavedWorldVehicleSlot slot = Slot4;
         if (garden.Allocation.SavedCarIndex >= 0)
@@ -256,7 +260,7 @@ public sealed partial record NativeSavedWorldState
             }
             slot = new(car.ShapeId, new(car.Position.X, -car.Position.Z, checked((short)car.Position.Y), checked((ushort)((car.RotationY % 4096 + 4096) % 4096))));
         }
-        return this with { GardenPose3 = pose, GardenReturn = null, Slot4 = slot, CarReturn = garden.Allocation.SavedCarIndex >= 0 ? null : CarReturn };
+        return this with { GardenPose3 = pose, GardenReturn = garden.Allocation.HasGarden ? null : GardenReturn, Slot4 = slot, CarReturn = garden.Allocation.SavedCarIndex >= 0 ? null : CarReturn };
     }
 
     public NativeSavedWorldState WithCarReturn(NativeSavedWorldCarReturn receipt)

@@ -30,7 +30,7 @@ public static class WorldRagnarokContactCertificate
             NativeWorldContactShape target = assets.ReadNativeContactShape(item.ShapeId);
             //54BA30/549320 are shared shape primitives, independent of the
             //Garden allocation/controller. Controlled50 has no ignore-height override.
-            if (WorldGardenContactCertificate.EvaluateObject(target, item.Yaw, item.ShapeId, selected, selectedEntity, points, anchor.Words, padding, forceCircle))
+            if (WorldGardenContactCertificate.EvaluateObject(target, item.Yaw, item.ShapeId, selected, points, anchor.Words, padding, forceCircle))
             {
                 return index;
             }

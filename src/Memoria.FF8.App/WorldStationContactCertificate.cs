@@ -95,7 +95,7 @@ public static class WorldStationContactCertificate
         // 549320's forced branch consumes only the center, omits height gates,
         // and uses the shared54BA30 radius contract for both shapes.
         NativeWorldPathWords[] points = [player, player, player, player, player];
-        return WorldGardenContactCertificate.EvaluateObject(target, 0, 0, selected, 0, points, anchor, padding, true);
+        return WorldGardenContactCertificate.EvaluateObject(target, 0, 0, selected, points, anchor, padding, true);
     }
 
     public static int EvaluateTrain(WorldAssets assets, NativeTrainRailBank bank, NativeWorldScriptedPathDefinition definition, NativeWorldPathWords player, int playerHeight, Func<NativeWorldPathPosition, bool> proximity, int padding = 0, int probeRadius = 32, bool forceCircle = false, NativeWorldContactShape? selectedShape = null)
@@ -185,11 +185,37 @@ public static class WorldStationContactCertificate
     /// <summary>54BB10/549770/5498E0/549DD0, including native five-point and reverse containment order.</summary>
     public static bool EvaluatePolygon(NativeWorldContactShape shape, short yaw, NativeWorldPathWords player, NativeWorldPathWords anchor, int padding = 0, int probeRadius = 32)
     {
-        RequirePadding(padding);
         if (probeRadius is <= 0 or > 256)
         {
             throw new NotSupportedException("Native contact probe radius lies outside its represented movement footprint.");
         }
+        if (OutsideBroadPhase(player, anchor))
+        {
+            return false;
+        }
+        if (player.X < short.MinValue + probeRadius || player.X > short.MaxValue - probeRadius || player.Z < short.MinValue + probeRadius || player.Z > short.MaxValue - probeRadius)
+        {
+            throw new NotSupportedException("Native contact footprint crosses its signed-WORD packing boundary.");
+        }
+        NativeWorldPathWords[] probes =
+        [
+            player,
+            player with { X = (short)(player.X - probeRadius) },
+            player with { Z = (short)(player.Z + probeRadius) },
+            player with { X = (short)(player.X + probeRadius) },
+            player with { Z = (short)(player.Z - probeRadius) }
+        ];
+        return EvaluateProjectedPolygon(shape, yaw, probes, anchor, padding);
+    }
+
+    public static bool EvaluateProjectedPolygon(NativeWorldContactShape shape, short yaw, IReadOnlyList<NativeWorldPathWords> points, NativeWorldPathWords anchor, int padding)
+    {
+        RequirePadding(padding);
+        if (points.Count != 5)
+        {
+            throw new InvalidDataException("Native polygon contact requires the center and four ordered corners.");
+        }
+        NativeWorldPathWords player = points[0];
         if (shape.Kind is < 1 or > 3 || shape.Length < 0 || shape.Width < 0)
         {
             throw new NotSupportedException("Native contact reached an unrepresented circle or shape layout.");
@@ -216,13 +242,13 @@ public static class WorldStationContactCertificate
         {
             Interval transformedX = Round(Add(Multiply(cosine, Exact(localX)), Multiply(sine, Exact(localZ))), 4096);
             Interval transformedZ = Round(Add(Multiply(Negate(sine), Exact(localX)), Multiply(cosine, Exact(localZ))), 4096);
-            if (anchor.X + transformedX.Low < short.MinValue || anchor.X + transformedX.High > short.MaxValue || anchor.Z + transformedZ.Low < short.MinValue || anchor.Z + transformedZ.High > short.MaxValue || player.X < short.MinValue + probeRadius || player.X > short.MaxValue - probeRadius || player.Z < short.MinValue + probeRadius || player.Z > short.MaxValue - probeRadius)
+            if (anchor.X + transformedX.Low < short.MinValue || anchor.X + transformedX.High > short.MaxValue || anchor.Z + transformedZ.Low < short.MinValue || anchor.Z + transformedZ.High > short.MaxValue)
             {
                 throw new NotSupportedException("Native contact polygon crosses its signed-WORD packing boundary.");
             }
             polygon.Add(new Point(Add(transformedX, Exact(anchor.X - player.X)), Add(transformedZ, Exact(anchor.Z - player.Z))));
         }
-        Point[] probes = [At(0, 0), At(-probeRadius, 0), At(0, probeRadius), At(probeRadius, 0), At(0, -probeRadius)];
+        Point[] probes = points.Select(point => At(point.X - player.X, point.Z - player.Z)).ToArray();
         Point[] foot = [probes[1], probes[2], probes[3], probes[4]];
         bool uncertain = false;
         foreach (Point probe in probes)

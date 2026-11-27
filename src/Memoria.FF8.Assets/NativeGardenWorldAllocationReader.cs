@@ -16,7 +16,7 @@ public static class NativeGardenWorldAllocationReader
         bool controlledCar = NativeCarWorldRuntimeState.IsSupportedEntity(controlledType);
         bool mounted = controlledType == 49;
         bool savedCar = NativeCarWorldRuntimeState.IsSupportedEntity(NativeTrainWorldObject.ClassifyShape(saved.Slot4.ShapeId));
-        if (controlledType is not (0 or 48 or 49) && !controlledCar || controlledType is 0 or 49 && parkedGardenPose is null || (controlledType == 48 || controlledCar) && unchecked((sbyte)packet.Extra) != -1 || controlledCar && (parkedGardenPose is null || saved.Slot4.ShapeId != NativeCarWorldRuntimeState.ShapeForEntity(controlledType)) || (entry.ReadBytes(264, 1) & 0x10) != 0 || !savedCar && saved.Slot4.ShapeId is not (0 or 255))
+        if (controlledType is not (0 or 48 or 49) && !controlledCar || controlledType == 0 && parkedGardenPose is null || (controlledType == 48 || controlledCar) && unchecked((sbyte)packet.Extra) != -1 || controlledCar && (parkedGardenPose is null || saved.Slot4.ShapeId != NativeCarWorldRuntimeState.ShapeForEntity(controlledType)) || !mounted && (entry.ReplacementFlags264 & 0x10) != 0 || !savedCar && saved.Slot4.ShapeId is not (0 or 255))
         {
             throw new NotSupportedException("Garden allocation requires its ordinary packet and represented active saved vehicle slot.");
         }
@@ -29,129 +29,113 @@ public static class NativeGardenWorldAllocationReader
             auxiliaryEntry.RequireGardenPublication(packet, loadPose);
             _ = auxiliaryEntry.ApplyTo(memory);
         }
-        if (program.Length < 8 || program.Length % 4 != 0 || coordinates.Length < 16 || coordinates[..16].IndexOfAnyExcept((byte)0) >= 0)
+        if (coordinates.Length < 16 || coordinates[..16].IndexOfAnyExcept((byte)0) >= 0)
         {
-            throw new InvalidDataException("Garden allocation lacks the original aligned program and complete zero coordinate0.");
-        }
-        int tableBytes = BinaryPrimitives.ReadInt32LittleEndian(program);
-        if (tableBytes < 8 || tableBytes % 4 != 0 || tableBytes > program.Length - 4 || BinaryPrimitives.ReadInt32LittleEndian(program[(tableBytes - 4)..]) != 0)
-        {
-            throw new InvalidDataException("Garden section9 clause pointer table is invalid.");
+            throw new InvalidDataException("Garden allocation lacks the complete original zero coordinate0.");
         }
         ushort story = entry.StoryWord;
         byte flags265 = checked((byte)entry.ReadBytes(265, 1));
         byte chocoboFlags = mounted ? pocketStationFlags ?? throw new NotSupportedException("Mounted Garden allocation requires the current native PocketStation flags.") : checked((byte)memory.Read(1536, 1).RequireExact());
-        for (int index = 0; index < tableBytes / 4 - 1; index++)
+        NativeWorldAllocationClause clause = NativeWorldAllocationClauseReader.Read(program, story);
+        ReadOnlySpan<ushort> records = NativeGardenWorldAllocation.ReadObjectInstructions(clause.Words, clause.MinimumStory, clause.MaximumStory, mounted);
+        // 544860 clears the selected saved-car slot when any shape92 is allocated.
+        savedCar = savedCar && !clause.ContainsShape(92);
+        if (mounted && clause.ContainsShape(64) && parkedGardenPose is null)
         {
-            int start = BinaryPrimitives.ReadInt32LittleEndian(program[(index * 4)..]);
-            int end = BinaryPrimitives.ReadInt32LittleEndian(program[((index + 1) * 4)..]);
-            if (end == 0)
+            throw new NotSupportedException("Mounted world allocation requires the actual persisted Garden pose3 for shape64.");
+        }
+        NativeWorldPathPosition body = new(loadPose.X, loadPose.Height, -loadPose.RawZ);
+        NativeSavedWorldPose gardenPose = clause.ContainsShape(64) ? parkedGardenPose ?? loadPose : loadPose;
+        short gardenYaw = unchecked((short)gardenPose.Yaw);
+        if ((controlledType == 0 || controlledCar) && auxiliaryEntry is not null)
+        {
+            //54D6A0's ordered writes survive548300 when foot0 is controlled.
+            NativeWorldAuxiliaryRelocation last = auxiliaryEntry.Relocations[^1];
+            gardenYaw = last.Yaw;
+            gardenPose = new(last.Position.X, -last.Position.Z, checked((short)last.Position.Y), checked((ushort)((last.Yaw % 4096 + 4096) % 4096)));
+        }
+        NativeWorldPathPosition gardenPosition = new(gardenPose.X, gardenPose.Height, -gardenPose.RawZ);
+        var objects = ImmutableArray.CreateBuilder<NativeGardenWorldObject>();
+        int footIndex = -1;
+        int garden64 = -1;
+        int garden65 = -1;
+        for (int index = 0; index < records.Length; index += 2)
+        {
+            ushort operand = records[index + 1];
+            byte shape = unchecked((byte)operand);
+            switch (shape)
             {
-                end = program.Length;
+                case 0:
+                case 4:
+                case 5:
+                case 6:
+                    if (footIndex < 0)
+                    {
+                        footIndex = objects.Count;
+                    }
+                    objects.Add(new(shape, 0, body, 0, unchecked((short)loadPose.Yaw), 0));
+                    break;
+                case 1:
+                    // 544860 reads pose2 before 548300 publishes the controlled body.
+                    NativeSavedWorldPose ship = saved.RagnarokPose2 ?? throw new NotSupportedException("World allocation requires its actual persisted Ragnarok pose2.");
+                    objects.Add(new(shape, 0, new(ship.X, ship.Height, -ship.RawZ), 0, unchecked((short)ship.Yaw), 0));
+                    break;
+                case 3 when (chocoboFlags & 3) != 1:
+                    break;
+                case 2:
+                case 3:
+                    // Fresh 548300 publishes the mounted body to both allocated Chocobo shapes.
+                    objects.Add(new(shape, 0, mounted ? body : default, 0, mounted ? unchecked((short)loadPose.Yaw) : (short)0, 0));
+                    break;
+                case 64:
+                    garden64 = objects.Count;
+                    objects.Add(new(shape, 0, gardenPosition, 0, gardenYaw, 0));
+                    break;
+                case 65:
+                    garden65 = objects.Count;
+                    objects.Add(new(shape, 2, gardenPosition, 0, gardenYaw, 0));
+                    break;
+                default:
+                    // 544860 decodes the high byte as the section10 coordinate row.
+                    objects.Add(ReadCoordinateObject(coordinates, shape, operand >> 8, shape == 80 ? (byte)4 : (byte)0));
+                    break;
             }
-            if (start < tableBytes || start % 4 != 0 || end <= start || end > program.Length)
-            {
-                throw new InvalidDataException("Garden section9 clause pointer leaves its original resource.");
-            }
-            ReadOnlySpan<byte> clause = program[start..end];
-            if (clause.Length < 16 || Word(clause, 0) != 0xFF01 || Word(clause, 2) != 0 || Word(clause, 4) != 0xFF02 || Word(clause, 8) != 0xFF03 || Word(clause, 12) != 0xFF04 || Word(clause, 14) != 0)
-            {
-                throw new NotSupportedException("Garden allocation selected an unrepresented conditional story-clause header.");
-            }
-            ushort minimum = Word(clause, 6);
-            ushort maximum = Word(clause, 10);
-            if (story < minimum || story >= maximum)
+        }
+        if (savedCar)
+        {
+            NativeSavedWorldPose car = controlledCar ? loadPose : saved.Slot4.Pose;
+            objects.Add(new NativeGardenWorldObject(saved.Slot4.ShapeId, 0, new(car.X, car.Height, -car.RawZ), 0, unchecked((short)car.Yaw), 0));
+        }
+        if ((guardianForce13Flags & 1) == 0)
+        {
+            objects.Add(new NativeGardenWorldObject(94, 0, cactuarLoadPosition, 0, 0, 0));
+        }
+        byte replacements = entry.ReplacementFlags264;
+        for (int group = 0; group < 3; group++)
+        {
+            if ((replacements & (1 << group)) == 0)
             {
                 continue;
             }
-            List<ushort> expected = [0xFF01, 0, 0xFF02, minimum, 0xFF03, maximum, 0xFF04, 0, 0xFF13, 0, 0xFF13, 2, 0xFF13, 3, 0xFF13, 64, 0xFF13, 65];
-            bool whiteSeeDShip = clause.Length == 44 && Word(clause, 36) == 0xFF13 && Word(clause, 38) == 0x1958;
-            if (whiteSeeDShip)
-            {
-                expected.AddRange([0xFF13, 0x1958]);
-            }
-            expected.AddRange([0xFF05, 0]);
-            if (clause.Length != expected.Count * 2)
-            {
-                throw new NotSupportedException("Garden's reached selected clause has additional objects or branches outside the complete ordinary allocation contract.");
-            }
-            for (int word = 0; word < expected.Count; word++)
-            {
-                if (Word(clause, word * 2) != expected[word])
-                {
-                    throw new NotSupportedException("Garden's complete selected object instructions differ from the admitted ordinary clause.");
-                }
-            }
-            NativeWorldPathPosition body = new(loadPose.X, loadPose.Height, -loadPose.RawZ);
-            NativeSavedWorldPose gardenPose = parkedGardenPose ?? loadPose;
-            short gardenYaw = unchecked((short)gardenPose.Yaw);
-            if ((controlledType == 0 || controlledCar) && auxiliaryEntry is not null)
-            {
-                //54D6A0's ordered writes survive548300 when foot0 is controlled.
-                NativeWorldAuxiliaryRelocation last = auxiliaryEntry.Relocations[^1];
-                gardenYaw = last.Yaw;
-                gardenPose = new(last.Position.X, -last.Position.Z, checked((short)last.Position.Y), checked((ushort)((last.Yaw % 4096 + 4096) % 4096)));
-            }
-            NativeWorldPathPosition gardenPosition = new(gardenPose.X, gardenPose.Height, -gardenPose.RawZ);
-            var objects = ImmutableArray.CreateBuilder<NativeGardenWorldObject>();
-            objects.Add(new NativeGardenWorldObject(0, 0, body, 0, unchecked((short)loadPose.Yaw), 0));
-            // Fresh 548300 publishes the mounted body to both allocated Chocobo shapes.
-            NativeWorldPathPosition chocoboPosition = mounted ? body : default;
-            short chocoboYaw = mounted ? unchecked((short)loadPose.Yaw) : (short)0;
-            objects.Add(new NativeGardenWorldObject(2, 0, chocoboPosition, 0, chocoboYaw, 0));
-            if ((chocoboFlags & 3) == 1)
-            {
-                objects.Add(new NativeGardenWorldObject(3, 0, chocoboPosition, 0, chocoboYaw, 0));
-            }
-            int garden64 = objects.Count;
-            objects.Add(new NativeGardenWorldObject(64, 0, gardenPosition, 0, gardenYaw, 0));
-            objects.Add(new NativeGardenWorldObject(65, 2, gardenPosition, 0, gardenYaw, 0));
-            if (whiteSeeDShip)
-            {
-                //544860 decodes FF13 lowBYTE shape88/highBYTE coordinate25,
-                //then545280 copies the original section10 pose with flags0.
-                const int offset = 25 * 16;
-                if (offset > coordinates.Length - 16)
-                {
-                    throw new InvalidDataException("Native FF13/0x1958 has no complete original coordinate25.");
-                }
-                ReadOnlySpan<byte> raw = coordinates.Slice(offset, 16);
-                NativeWorldPathPosition position = new(BinaryPrimitives.ReadInt32LittleEndian(raw), BinaryPrimitives.ReadInt32LittleEndian(raw[4..]), BinaryPrimitives.ReadInt32LittleEndian(raw[8..]));
-                int orientation = BinaryPrimitives.ReadInt32LittleEndian(raw[12..]);
-                objects.Add(new NativeGardenWorldObject(88, 0, position, 0, unchecked((short)orientation), unchecked((short)(orientation >> 16))));
-            }
-            if (savedCar)
-            {
-                NativeSavedWorldPose car = controlledCar ? loadPose : saved.Slot4.Pose;
-                objects.Add(new NativeGardenWorldObject(saved.Slot4.ShapeId, 0, new(car.X, car.Height, -car.RawZ), 0, unchecked((short)car.Yaw), 0));
-            }
-            if ((guardianForce13Flags & 1) == 0)
-            {
-                objects.Add(new NativeGardenWorldObject(94, 0, cactuarLoadPosition, 0, 0, 0));
-            }
-            byte replacements = entry.ReplacementFlags264;
-            for (int group = 0; group < 3; group++)
-            {
-                if ((replacements & (1 << group)) == 0)
-                {
-                    continue;
-                }
-                int offset = (31 + group) * 16;
-                if (offset > coordinates.Length - 16)
-                {
-                    throw new InvalidDataException("Native264-controlled shape79/80 pair has no original coordinate row.");
-                }
-                ReadOnlySpan<byte> raw = coordinates.Slice(offset, 16);
-                NativeWorldPathPosition position = new(BinaryPrimitives.ReadInt32LittleEndian(raw), BinaryPrimitives.ReadInt32LittleEndian(raw[4..]), BinaryPrimitives.ReadInt32LittleEndian(raw[8..]));
-                int orientation = BinaryPrimitives.ReadInt32LittleEndian(raw[12..]);
-                objects.Add(new NativeGardenWorldObject(79, 0, position, 0, unchecked((short)orientation), unchecked((short)(orientation >> 16))));
-                objects.Add(new NativeGardenWorldObject(80, 4, position, 0, unchecked((short)orientation), unchecked((short)(orientation >> 16))));
-            }
-            var allocation = new NativeGardenWorldAllocation(1, NativeGardenWorldAllocation.AllocationRule, Hash(program), Hash(coordinates), Hash(clause), index, minimum, maximum, story, flags265, chocoboFlags, expected.ToImmutableArray(), objects.ToImmutable(), 0, garden64, garden64 + 1, packet, loadPose, gardenPose, cameraYaw, variant, mapDisplay) { ReplacementFlags264 = replacements, GuardianForce13Flags = guardianForce13Flags, CactuarLoadPosition = cactuarLoadPosition, BattleReload = battleReload, SavedCarSlot = savedCar ? saved.Slot4 : null };
-            allocation.Validate();
-            return allocation;
+            objects.Add(ReadCoordinateObject(coordinates, 79, 31 + group));
+            objects.Add(ReadCoordinateObject(coordinates, 80, 31 + group, 4));
         }
-        throw new NotSupportedException("Original section9 has no admitted ordinary Garden allocation for the current story.");
+        var allocation = new NativeGardenWorldAllocation(1, NativeGardenWorldAllocation.AllocationRule, Hash(program), Hash(coordinates), Hash(program.Slice(clause.Offset, clause.Length)), clause.Index, clause.MinimumStory, clause.MaximumStory, story, flags265, chocoboFlags, clause.Words, objects.ToImmutable(), footIndex, garden64, garden65, packet, loadPose, gardenPose, cameraYaw, variant, mapDisplay) { ReplacementFlags264 = replacements, GuardianForce13Flags = guardianForce13Flags, CactuarLoadPosition = cactuarLoadPosition, BattleReload = battleReload, SavedCarSlot = savedCar ? saved.Slot4 : null };
+        allocation.Validate();
+        return allocation;
+    }
+
+    private static NativeGardenWorldObject ReadCoordinateObject(ReadOnlySpan<byte> coordinates, byte shape, int coordinate, byte flags = 0)
+    {
+        int offset = coordinate * 16;
+        if (offset > coordinates.Length - 16)
+        {
+            throw new InvalidDataException("Native Garden object has no complete original section10 coordinate row.");
+        }
+        ReadOnlySpan<byte> raw = coordinates.Slice(offset, 16);
+        NativeWorldPathPosition position = new(BinaryPrimitives.ReadInt32LittleEndian(raw), BinaryPrimitives.ReadInt32LittleEndian(raw[4..]), BinaryPrimitives.ReadInt32LittleEndian(raw[8..]));
+        int orientation = BinaryPrimitives.ReadInt32LittleEndian(raw[12..]);
+        return new(shape, flags, position, 0, unchecked((short)orientation), unchecked((short)(orientation >> 16)));
     }
 
     public static NativeGardenCameraDefaults ReadCameraDefaults(byte[] executable) => ReadCameraDefaults(new NativeExecutableMemory(executable));
@@ -174,7 +158,6 @@ public static class NativeGardenWorldAllocationReader
         return new NativeWorldPathPosition(BinaryPrimitives.ReadInt32LittleEndian(bytes), BinaryPrimitives.ReadInt32LittleEndian(bytes[4..]), BinaryPrimitives.ReadInt32LittleEndian(bytes[8..]));
     }
 
-    private static ushort Word(ReadOnlySpan<byte> bytes, int offset) => BinaryPrimitives.ReadUInt16LittleEndian(bytes[offset..]);
     private static string Hash(ReadOnlySpan<byte> bytes) => Convert.ToHexString(SHA256.HashData(bytes));
 }
 
@@ -249,7 +232,7 @@ public sealed partial class WorldAssets
         {
             throw new InvalidDataException("The native Chocobo spawn is absent.");
         }
-        NativeSavedWorldPose parkedGarden = saved.GardenPose3 ?? throw new NotSupportedException("Mounted Garden allocation requires its actual persisted Garden pose3.");
+        NativeSavedWorldPose? parkedGarden = saved.GardenPose3;
         NativeSavedWorldPose pose;
         ushort cameraYaw;
         byte variant;

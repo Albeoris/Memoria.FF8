@@ -16,22 +16,22 @@ public sealed class NativeGardenContactTests
     public void ForcedTransferCirclesUseStrictCombinedNativeRadius(int distance, bool expected)
     {
         NativeWorldPathWords[] points = Diamond(distance, -10000, 0, 32);
-        Assert.Equal(expected, WorldGardenContactCertificate.EvaluateObject(Garden, 0, 64, Foot, 0, points, new(0, 10000, 0), 0, true));
+        Assert.Equal(expected, WorldGardenContactCertificate.EvaluateObject(Garden, 0, 64, Foot, points, new(0, 10000, 0), 0, true));
     }
 
     [Fact]
     public void ForcedCirclePaddingIsAddedAtBothNativeCallSites()
     {
-        Assert.True(WorldGardenContactCertificate.EvaluateObject(Garden, 0, 64, Foot, 0, Diamond(958, 0, 0, 32), new(0, 0, 0), 200, true));
-        Assert.False(WorldGardenContactCertificate.EvaluateObject(Garden, 0, 64, Foot, 0, Diamond(959, 0, 0, 32), new(0, 0, 0), 200, true));
+        Assert.True(WorldGardenContactCertificate.EvaluateObject(Garden, 0, 64, Foot, Diamond(958, 0, 0, 32), new(0, 0, 0), 200, true));
+        Assert.False(WorldGardenContactCertificate.EvaluateObject(Garden, 0, 64, Foot, Diamond(959, 0, 0, 32), new(0, 0, 0), 200, true));
     }
 
     [Fact]
     public void OrdinaryFootContactUsesAllFivePointsAndTheNativeInclusiveCircleBoundary()
     {
-        Assert.True(WorldGardenContactCertificate.EvaluateObject(Garden, 0, 64, Foot, 0, Diamond(543, 0, 0, 32), new(0, 0, 0), 0, false));
-        Assert.False(WorldGardenContactCertificate.EvaluateObject(Garden, 0, 64, Foot, 0, Diamond(544, 0, 0, 32), new(0, 0, 0), 0, false));
-        Assert.False(WorldGardenContactCertificate.EvaluateObject(Garden, 0, 64, Foot, 0, Diamond(0, -1000, 0, 32), new(0, 0, 0), 0, false));
+        Assert.True(WorldGardenContactCertificate.EvaluateObject(Garden, 0, 64, Foot, Diamond(543, 0, 0, 32), new(0, 0, 0), 0, false));
+        Assert.False(WorldGardenContactCertificate.EvaluateObject(Garden, 0, 64, Foot, Diamond(544, 0, 0, 32), new(0, 0, 0), 0, false));
+        Assert.False(WorldGardenContactCertificate.EvaluateObject(Garden, 0, 64, Foot, Diamond(0, -1000, 0, 32), new(0, 0, 0), 0, false));
     }
 
     [Theory]
@@ -39,13 +39,13 @@ public sealed class NativeGardenContactTests
     [InlineData(30)]
     public void CircleInsideTheSelectedDiamondUsesTheOriginalPlanarReverseContainment(int height)
     {
-        Assert.True(WorldGardenContactCertificate.EvaluateObject(new(20, 20, 100, 4), 0, 64, Garden, 48, Diamond(20, height, 0, 64), new(0, 0, 0), 0, false));
+        Assert.True(WorldGardenContactCertificate.EvaluateObject(new(20, 20, 100, 4), 0, 64, Garden, Diamond(20, height, 0, 64), new(0, 0, 0), 0, false));
     }
 
     [Fact]
     public void ForcedContactRetainsTheNativeSignedDwordSumAfterWordSubtraction()
     {
-        Assert.True(WorldGardenContactCertificate.EvaluateObject(Garden, 0, 64, Foot, 0, Diamond(short.MinValue, 0, short.MinValue, 32), new(0, 0, 0), 0, true));
+        Assert.True(WorldGardenContactCertificate.EvaluateObject(Garden, 0, 64, Foot, Diamond(short.MinValue, 0, short.MinValue, 32), new(0, 0, 0), 0, true));
     }
 
     [Fact]

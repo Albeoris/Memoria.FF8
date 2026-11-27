@@ -60,7 +60,7 @@ internal sealed partial class WorldMapScene
 
     private (NativeGardenWorldRuntimeState Objects, NativeChocoboDismountState Transfer) AdvanceChocoboEscape(WorldState state, NativeGardenWorldRuntimeState objects, NativeChocoboDismountState transfer, NativeWorldPathProjectionCertificate projection, int trailWriter, int trailReader)
     {
-        NativeGardenWorldObject mount = objects.Objects[1];
+        NativeGardenWorldObject mount = objects.Objects[objects.Allocation.MountIndex];
         switch (transfer.Phase)
         {
             case NativeChocoboEscapePhase.Initialize:
@@ -105,7 +105,7 @@ internal sealed partial class WorldMapScene
                 NativeWorldPathPosition next = new(WrapCoordinate(mount.Position.X + x, 262144), mount.Position.Y, -WrapCoordinate(-mount.Position.Z - z, 196608));
                 WorldGroundSelection ground = LookupChocoboGround(next, objects.GroundCache) ?? throw new NotSupportedException("The native Chocobo escape route lost its ground polygon.");
                 next = next with { Y = -(int)ground.Ground.Height + (ground.Ground.Triangle.GroundType <= 5 ? 80 : 0) };
-                objects = objects with { Objects = objects.Objects.SetItem(1, mount with { Position = next, RotationY = yaw }) };
+                objects = objects with { Objects = objects.Objects.SetItem(objects.Allocation.MountIndex, mount with { Position = next, RotationY = yaw }) };
                 transfer = transfer with { MountGround = ground.Identity, Waypoint = transfer.Waypoint + (dx + dz < 200 ? 1 : 0) };
                 break;
         }
@@ -126,7 +126,7 @@ internal sealed partial class WorldMapScene
 
     private NativeChocoboWorldAnimation AdvanceEscapeTrail(NativeChocoboWorldAnimation animation, NativeGardenWorldRuntimeState objects, NativeChocoboDismountState transfer, int acceptedSpeed, bool companionAllocated)
     {
-        NativeGardenWorldObject mount = objects.Objects[1];
+        NativeGardenWorldObject mount = objects.Objects[objects.Allocation.MountIndex];
         bool forest = assets.ResolveNativeGroundIdentity(transfer.MountGround, replacements).GroundType <= 5;
         return animation.AdvanceTrail(mount.Position.X, mount.Position.Y, -mount.Position.Z, WrapYaw(mount.RotationY), forest, acceptedSpeed, companionAllocated, transfer.Phase == NativeChocoboEscapePhase.Run);
     }
@@ -265,16 +265,16 @@ internal sealed partial class WorldMapScene
 
     private WorldRenderFrame AddDismountModels(WorldRenderFrame frame, NativeGardenWorldRuntimeState objects, NativeChocoboWorldAnimation animation, NativeChocoboDismountState transfer)
     {
-        List<NativeWorldAnimatedModelDraw> models = [];
-        NativeGardenWorldObject mount = objects.Objects[1];
+        List<NativeWorldAnimatedModelDraw> models = frame.AnimatedModels?.ToList() ?? [];
+        NativeGardenWorldObject mount = objects.Objects[objects.Allocation.MountIndex];
         if (transfer.Phase != NativeChocoboEscapePhase.Finish && assets.ResolveNativeGroundIdentity(transfer.MountGround, replacements).GroundType > 5)
         {
-            models.Add(new(assets.GetChocoboModel(), new Vector3(mount.Position.X, -mount.Position.Y, -mount.Position.Z), mount.RotationY * MathF.Tau / 4096, animation.MountAnimation, animation.MountCounter >> 4) { ObjectId = new(WorldRenderObjectKind.Allocation, 1) });
+            models.Add(new(assets.GetChocoboModel(), new Vector3(mount.Position.X, -mount.Position.Y, -mount.Position.Z), mount.RotationY * MathF.Tau / 4096, animation.MountAnimation, animation.MountCounter >> 4) { ObjectId = new(WorldRenderObjectKind.Allocation, objects.Allocation.MountIndex) });
         }
         NativeChocoboTrailPose companion = animation.CompanionPose;
         if (ShowEscapingCompanion(objects, animation, transfer))
         {
-            models.Add(new(assets.GetChocoboModel(companion: true), new Vector3(companion.X, -companion.Height, companion.Z), companion.Yaw * MathF.Tau / 4096, animation.CompanionAnimation, animation.CompanionCounter >> 4) { ObjectId = new(WorldRenderObjectKind.Allocation, 2) });
+            models.Add(new(assets.GetChocoboModel(companion: true), new Vector3(companion.X, -companion.Height, companion.Z), companion.Yaw * MathF.Tau / 4096, animation.CompanionAnimation, animation.CompanionCounter >> 4) { ObjectId = new(WorldRenderObjectKind.Allocation, objects.Allocation.CompanionIndex) });
         }
         return frame with { AnimatedModels = models };
     }

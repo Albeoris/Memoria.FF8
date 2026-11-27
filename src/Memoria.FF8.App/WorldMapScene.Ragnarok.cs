@@ -140,16 +140,8 @@ internal sealed partial class WorldMapScene
             }
             if (item.ShapeId == 1)
             {
-                NativeWorldPathNodeProjection ship = projection.ProjectNode(item.Position) ?? throw new NotSupportedException(projection.UnsupportedReason);
-                if (ship.Visible)
-                {
-                    Vector3 anchor = projection.CanonicalModelAnchor(ship);
-                    WorldRenderObjectId id = new(WorldRenderObjectKind.Allocation, index);
-                    // Native type50 lowers the projected model root by 146 before applying all body angles.
-                    animated.Add(new(assets.GetRagnarokModel(), anchor + new Vector3(0, 146, 0), item.Yaw * MathF.Tau / 4096, 0, 0) { ObjectId = id, NativePitch = item.Pitch * MathF.Tau / 4096, NativeRoll = item.Roll * MathF.Tau / 4096 });
-                    float ground = foot is null && index == runtime.Allocation.RagnarokIndex ? -(runtime.DrawGroundHeight ?? runtime.CurrentGroundHeight!.Value) : anchor.Y;
-                    shadows.Add(new(item.ShapeId, anchor, item.Yaw, ground) { ObjectId = id });
-                }
+                float? ground = foot is null && index == runtime.Allocation.RagnarokIndex ? -(runtime.DrawGroundHeight ?? runtime.CurrentGroundHeight!.Value) : null;
+                AddRagnarokDraw(projection, item.Position, item.Pitch, item.Yaw, item.Roll, index, ground, animated, shadows);
                 continue;
             }
             if (item.ShapeId < 64)
@@ -169,5 +161,18 @@ internal sealed partial class WorldMapScene
         WorldSky sky = WorldTerrainSelection.SelectSky(assets.Skies, state.X, state.Z, storyByte);
         bool avatarVisible = foot is not null && (state.GroundType is null or > 5);
         return new WorldRenderFrame(new Vector3(state.X, -state.NativeHeight, state.Z), state.BodyYaw * MathF.Tau / 4096, foot is null ? 0 : state.AnimationId, foot is null ? 0 : state.AnimationCounter >> 4, camera, sky, avatarVisible, AvatarModel: foot is null ? assets.GetRagnarokModel() : assets.GetFootModel(foot.EntityType), StaticModels: models, Forest: foot?.Forest ?? runtime.Forest, AnimatedModels: animated) { Shadows = shadows };
+    }
+
+    private void AddRagnarokDraw(NativeWorldPathProjectionCertificate projection, NativeWorldPathPosition position, short pitch, short yaw, short roll, int index, float? ground, List<NativeWorldAnimatedModelDraw> animated, List<NativeWorldShadowDraw> shadows)
+    {
+        NativeWorldPathNodeProjection ship = projection.ProjectNode(position) ?? throw new NotSupportedException(projection.UnsupportedReason);
+        if (ship.Visible)
+        {
+            Vector3 anchor = projection.CanonicalModelAnchor(ship);
+            WorldRenderObjectId id = new(WorldRenderObjectKind.Allocation, index);
+            // Native type50 lowers the projected model root by 146 before applying all body angles.
+            animated.Add(new(assets.GetRagnarokModel(), anchor + new Vector3(0, 146, 0), yaw * MathF.Tau / 4096, 0, 0) { ObjectId = id, NativePitch = pitch * MathF.Tau / 4096, NativeRoll = roll * MathF.Tau / 4096 });
+            shadows.Add(new(1, anchor, yaw, ground ?? anchor.Y) { ObjectId = id });
+        }
     }
 }

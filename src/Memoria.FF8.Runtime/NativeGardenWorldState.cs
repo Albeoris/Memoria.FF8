@@ -44,6 +44,60 @@ public sealed record NativeGardenWorldAllocation([property: JsonRequired] int Ve
     [JsonIgnore]
     public int CactuarIndex => Objects.Select((item, index) => (item, index)).Where(pair => pair.item.ShapeId == 94).Select(pair => pair.index).DefaultIfEmpty(-1).Single();
 
+    [JsonIgnore]
+    public bool HasGarden => Garden64Index >= 0;
+    [JsonIgnore]
+    public byte RiderEntityType => checked((byte)Objects[FootObjectIndex].EntityType);
+    [JsonIgnore]
+    public int MountIndex => FindShape(2);
+    [JsonIgnore]
+    public int CompanionIndex => FindShape(3);
+    [JsonIgnore]
+    public int RagnarokIndex => FindShape(1);
+
+    private int FindShape(byte shape)
+    {
+        for (int index = 0; index < Objects.Length; index++)
+        {
+            if (Objects[index].ShapeId == shape)
+            {
+                return index;
+            }
+        }
+        return -1;
+    }
+
+    public static ReadOnlySpan<ushort> ReadObjectInstructions(ImmutableArray<ushort> words, ushort minimum, ushort maximum, bool mounted)
+    {
+        ReadOnlySpan<ushort> header = [0xFF01, 0, 0xFF02, minimum, 0xFF03, maximum, 0xFF04, 0];
+        ReadOnlySpan<ushort> clause = words.AsSpan();
+        if (clause.Length < 12 || (clause.Length & 1) != 0 || !clause[..header.Length].SequenceEqual(header) || clause[^2] != 0xFF05 || clause[^1] != 0)
+        {
+            throw new NotSupportedException("World allocation requires its original simple-range clause and terminal instruction.");
+        }
+        ReadOnlySpan<ushort> records = clause[header.Length..^2];
+        if (!mounted)
+        {
+            ReadOnlySpan<ushort> ordinary = [0xFF13, 0, 0xFF13, 2, 0xFF13, 3, 0xFF13, 64, 0xFF13, 65];
+            if (!records.SequenceEqual(ordinary) && !(records.Length == ordinary.Length + 2 && records[..^2].SequenceEqual(ordinary) && records[^2] == 0xFF13 && records[^1] == 0x1958))
+            {
+                throw new NotSupportedException("Garden allocation requires its complete original ordinary object contract.");
+            }
+        }
+        for (int index = 0; index < records.Length; index += 2)
+        {
+            ushort operand = records[index + 1];
+            byte shape = unchecked((byte)operand);
+            bool characterOrVehicle = shape is 0 or 1 or 2 or 3 or 4 or 5 or 6 or 64 or 65;
+            bool staticObject = shape >= 64 && shape is not (64 or 65 or 94) && !NativeCarWorldRuntimeState.IsSupportedEntity(NativeTrainWorldObject.ClassifyShape(shape));
+            if (records[index] != 0xFF13 || !(characterOrVehicle && operand == shape || staticObject && (operand >> 8) < 128))
+            {
+                throw new NotSupportedException("World allocation contains an unrepresented object instruction.");
+            }
+        }
+        return records;
+    }
+
     public void Validate()
     {
         if (BattleReload is { } battle)
@@ -59,22 +113,27 @@ public sealed record NativeGardenWorldAllocation([property: JsonRequired] int Ve
         {
             throw new InvalidDataException("Native Garden allocation lacks its original clause, exact loader packet or current pose authority.");
         }
-        if ((uint)FootObjectIndex >= Objects.Length || (uint)Garden64Index >= Objects.Length || (uint)Garden65Index >= Objects.Length || Objects[FootObjectIndex].ShapeId != 0 || Objects[Garden64Index].ShapeId != 64 || Objects[Garden65Index].ShapeId != 65)
+        bool mounted = ControlledEntityType == 49;
+        ReadOnlySpan<ushort> records = ReadObjectInstructions(ClauseWords, MinimumStory, MaximumStory, mounted);
+        List<byte> expected = [];
+        for (int index = 0; index < records.Length; index += 2)
         {
-            throw new InvalidDataException("Garden allocation lost its distinct foot and shape64/65 native object identities.");
+            byte shape = unchecked((byte)records[index + 1]);
+            if (shape != 3 || (ChocoboFlags1536 & 3) == 1)
+            {
+                expected.Add(shape);
+            }
         }
-        ushort[] header = [0xFF01, 0, 0xFF02, MinimumStory, 0xFF03, MaximumStory, 0xFF04, 0];
-        bool whiteSeeDShip = ClauseWords.Length == 22 && ClauseWords[18] == 0xFF13 && ClauseWords[19] == 0x1958;
-        ushort[] body = whiteSeeDShip ? [0xFF13, 0, 0xFF13, 2, 0xFF13, 3, 0xFF13, 64, 0xFF13, 65, 0xFF13, 0x1958, 0xFF05, 0] : [0xFF13, 0, 0xFF13, 2, 0xFF13, 3, 0xFF13, 64, 0xFF13, 65, 0xFF05, 0];
-        if (ClauseWords.Length != header.Length + body.Length || !ClauseWords.AsSpan()[..8].SequenceEqual(header) || !ClauseWords.AsSpan()[8..].SequenceEqual(body))
+        int footIndex = expected.FindIndex(shape => NativeWorldEntityTypes.IsSupportedFoot(NativeTrainWorldObject.ClassifyShape(shape)));
+        int garden64 = expected.IndexOf(64);
+        int garden65 = expected.IndexOf(65);
+        if (footIndex < 0 || mounted && !expected.Contains(2) || !mounted && garden64 < 0 || (garden64 < 0) != (garden65 < 0))
         {
-            throw new NotSupportedException("Garden allocation requires the reached complete ordinary foot/chocobo/Garden clause.");
+            throw new NotSupportedException("World allocation lacks the controller's original rider, mount or vehicle objects.");
         }
-        List<byte> expected = (ChocoboFlags1536 & 3) == 1 ? [0, 2, 3, 64, 65] : [0, 2, 64, 65];
-        int gardenIndex = expected.Count - 2;
-        if (whiteSeeDShip)
+        if (expected.Contains(92) && SavedCarSlot is not null)
         {
-            expected.Add(88);
+            throw new InvalidDataException("Native shape92 clears the saved-car selection before the vehicle append.");
         }
         if (SavedCarSlot is { } car)
         {
@@ -96,7 +155,7 @@ public sealed record NativeGardenWorldAllocation([property: JsonRequired] int Ve
                 expected.Add(80);
             }
         }
-        if (!Objects.Select(item => item.ShapeId).SequenceEqual(expected) || FootObjectIndex != 0 || Garden64Index != gardenIndex || Garden65Index != gardenIndex + 1 || Objects.Any(item => item.Flags != (item.ShapeId == 65 ? 2 : item.ShapeId == 80 ? 4 : 0)))
+        if (!Objects.Select(item => item.ShapeId).SequenceEqual(expected) || FootObjectIndex != footIndex || Garden64Index != garden64 || Garden65Index != garden65 || Objects.Any(item => item.Flags != (item.ShapeId == 65 ? 2 : item.ShapeId == 80 ? 4 : 0)))
         {
             throw new InvalidDataException("Garden dense allocation differs from its exact1536 conditional admission and original object flags.");
         }
@@ -104,11 +163,19 @@ public sealed record NativeGardenWorldAllocation([property: JsonRequired] int Ve
         {
             NativeWorldPathPosition rider = new(LoadPose.X, LoadPose.Height, -LoadPose.RawZ);
             short riderYaw = unchecked((short)LoadPose.Yaw);
-            NativeWorldPathPosition garden = new(GardenPose.X, GardenPose.Height, -GardenPose.RawZ);
-            short gardenYaw = unchecked((short)GardenPose.Yaw);
-            if (Objects.Take(Garden64Index).Any(item => item != new NativeGardenWorldObject(item.ShapeId, 0, rider, 0, riderYaw, 0)) || Objects[Garden64Index] != new NativeGardenWorldObject(64, 0, garden, 0, gardenYaw, 0) || Objects[Garden65Index] != new NativeGardenWorldObject(65, 2, garden, 0, gardenYaw, 0))
+            NativeGardenWorldObject RiderBody(byte shape) => new(shape, 0, rider, 0, riderYaw, 0);
+            if (Objects[FootObjectIndex] != RiderBody(Objects[FootObjectIndex].ShapeId) || Objects[MountIndex] != RiderBody(2) || CompanionIndex >= 0 && Objects[CompanionIndex] != RiderBody(3))
             {
-                throw new InvalidDataException("Mounted Garden allocation lost the original rider publication or the parked Garden pose.");
+                throw new InvalidDataException("Mounted allocation lost the original rider and mount publication.");
+            }
+            if (HasGarden)
+            {
+                NativeWorldPathPosition garden = new(GardenPose.X, GardenPose.Height, -GardenPose.RawZ);
+                short gardenYaw = unchecked((short)GardenPose.Yaw);
+                if (Objects[Garden64Index] != new NativeGardenWorldObject(64, 0, garden, 0, gardenYaw, 0) || Objects[Garden65Index] != new NativeGardenWorldObject(65, 2, garden, 0, gardenYaw, 0))
+                {
+                    throw new InvalidDataException("Mounted allocation lost the independently parked Garden pose.");
+                }
             }
         }
         if (CactuarIndex >= 0 && Objects[CactuarIndex].Position != CactuarLoadPosition)
@@ -252,6 +319,15 @@ public sealed record NativeGardenWorldRuntimeState
         if (expectedCar is not null && Objects[Allocation.SavedCarIndex] != expectedCar)
         {
             throw new InvalidDataException("Garden callbacks cannot move or replace the separately parked saved car.");
+        }
+        int savedCarIndex = Allocation.SavedCarIndex;
+        for (int index = 0; index < Objects.Length; index++)
+        {
+            byte shape = Objects[index].ShapeId;
+            if ((shape == 1 || shape >= 64 && shape is not (64 or 65 or 94) && index != savedCarIndex) && Objects[index] != Allocation.Objects[index])
+            {
+                throw new InvalidDataException("Garden callbacks cannot move an independently parked ship or a clause coordinate object.");
+            }
         }
         AuxiliaryEntry?.RequireGardenPublication(Allocation.Packet, Allocation.LoadPose);
         if ((Allocation.CactuarIndex >= 0) != (Cactuar is not null))

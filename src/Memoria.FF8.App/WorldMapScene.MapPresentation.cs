@@ -41,7 +41,7 @@ internal sealed partial class WorldMapScene
         {
             AddVehicle(savedCar.Position);
         }
-        if (garden is not null)
+        if (garden?.Allocation.HasGarden == true)
         {
             AddVehicle(garden.Objects[garden.Allocation.Garden64Index].Position);
         }
@@ -52,6 +52,10 @@ internal sealed partial class WorldMapScene
         if (ragnarok is not null)
         {
             AddVehicle(ragnarok.Objects[ragnarok.Allocation.RagnarokIndex].Position);
+        }
+        else if (garden is not null && garden.Allocation.RagnarokIndex >= 0)
+        {
+            AddVehicle(garden.Objects[garden.Allocation.RagnarokIndex].Position);
         }
         return new FullMapMarkers(locations, vehicles.AsReadOnly());
     }

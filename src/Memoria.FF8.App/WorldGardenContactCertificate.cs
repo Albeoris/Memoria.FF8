@@ -45,7 +45,7 @@ public static class WorldGardenContactCertificate
             NativeWorldPathNodeProjection anchor = projection.ProjectNode(item.Position) ?? throw new NotSupportedException(projection.UnsupportedReason);
             NativeWorldContactShape shape = assets.ReadNativeContactShape(item.ShapeId);
             bool ignoreHeight = currentEntity is >= 32 and <= 40 or 132 && selectedEntity is 48 or 50 || currentEntity == 49 && item.ShapeId is 93 or 96;
-            if (EvaluateObject(shape, item.RotationY, item.ShapeId, selected, selectedEntity, points, anchor.Words, padding, forceCircle, ignoreHeight))
+            if (EvaluateObject(shape, item.RotationY, item.ShapeId, selected, points, anchor.Words, padding, forceCircle, ignoreHeight))
             {
                 return index;
             }
@@ -69,7 +69,7 @@ public static class WorldGardenContactCertificate
         int Find(byte shape) => objects.Select((item, index) => (item, index)).Where(pair => pair.item.ShapeId == shape).Select(pair => pair.index).DefaultIfEmpty(-1).Single();
     }
 
-    public static bool EvaluateObject(NativeWorldContactShape target, short targetYaw, byte targetShape, NativeWorldContactShape selected, int selectedEntity, IReadOnlyList<NativeWorldPathWords> points, NativeWorldPathWords anchor, int padding, bool forceCircle, bool ignoreHeight = false)
+    public static bool EvaluateObject(NativeWorldContactShape target, short targetYaw, byte targetShape, NativeWorldContactShape selected, IReadOnlyList<NativeWorldPathWords> points, NativeWorldPathWords anchor, int padding, bool forceCircle, bool ignoreHeight = false)
     {
         if (points.Count != 5 || padding is not (0 or 200))
         {
@@ -111,17 +111,8 @@ public static class WorldGardenContactCertificate
             NativeWorldPathWords boundary = new(unchecked((short)(anchor.X + x)), 0, unchecked((short)(anchor.Z + z)));
             return Contains(points.Skip(1).ToArray(), boundary);
         }
-        int probeRadius = NativeWorldTerrain.ProbeRadius(selectedEntity);
-        (int X, int Z)[] expected = [(0, 0), (-probeRadius, 0), (0, probeRadius), (probeRadius, 0), (0, -probeRadius)];
-        for (int index = 0; index < expected.Length; index++)
-        {
-            if (points[index].X != center.X + expected[index].X || points[index].Z != center.Z + expected[index].Z)
-            {
-                throw new NotSupportedException("Native Garden polygon contact requires its represented canonical five-point footprint without WORD wrapping.");
-            }
-        }
         short yaw = unchecked((short)(targetYaw + WorldAssets.NativeGardenShapeYawCorrection(targetShape)));
-        return WorldStationContactCertificate.EvaluatePolygon(target, yaw, center, anchor, padding, probeRadius);
+        return WorldStationContactCertificate.EvaluateProjectedPolygon(target, yaw, points, anchor, padding);
     }
 
     private static short Radius(NativeWorldContactShape shape)
