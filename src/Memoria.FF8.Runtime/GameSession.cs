@@ -995,8 +995,7 @@ public sealed partial class GameSession : IEventServices
             {
                 throw new InvalidDataException("Active native foot forest cooldown disagrees with the world process authority.");
             }
-            bool battleFootReload = world.NativeFootRuntime is { Rule: NativeFootWorldRuntimeState.BattleReloadRule } battleFoot && ValidateWorldBattleFootReload(state, world, battleFoot);
-            if (world.NativeFootRuntime is NativeFootWorldRuntimeState foot && (state.Scene != SceneKind.WorldMap || state.WorldArrival is null || (foot.StationTrains is { } stationSource ? state.WorldArrival != stationSource.Packet || state.SavedWorld is null || state.DepartingWorldState is null || stationSource.Load != NativeTrainWorldLoadReceipt.Create(foot.StationTrainEntrySavedWorld ?? throw new NotSupportedException("Station foot requires its retained train-entry saved owner."), state.DepartingWorldState, stationSource.Load.Allocation) : !battleFootReload && unchecked((byte)state.WorldArrival.Mode) != foot.EntityType && !(foot.ParkedCar is { } parkedCar && (unchecked((byte)state.WorldArrival.Mode) == parkedCar.Car.EntityType || parkedCar.Car.Boarding is { } carBoarding && carBoarding.OriginalPacket == state.WorldArrival && carBoarding.SourceWorldFrame <= world.Frame)) && !(unchecked((byte)state.WorldArrival.Mode) is 48 or 49 && foot.Rule == NativeFootWorldRuntimeState.GardenDismountRule && foot.GardenDismount is not null && world.NativeGardenRuntime?.Allocation.Packet == state.WorldArrival) && !(unchecked((byte)state.WorldArrival.Mode) == 49 && foot.Rule == NativeFootWorldRuntimeState.ChocoboDismountRule && world.NativeGardenRuntime?.Allocation.Packet == state.WorldArrival) && !(unchecked((byte)state.WorldArrival.Mode) == 50 && foot.Rule == NativeFootWorldRuntimeState.RagnarokDismountRule && foot.RagnarokDismount is not null && world.NativeRagnarokRuntime?.Allocation.Packet == state.WorldArrival))))
+            if (world.NativeFootRuntime is { } foot && !HasNativeFootArrivalAuthority(state, world, foot))
             {
                 throw new InvalidDataException("Native foot world state disagrees with its original transition entity type.");
             }
@@ -1038,6 +1037,43 @@ public sealed partial class GameSession : IEventServices
         {
             ValidateWorldState(departingWorld);
         }
+    }
+
+    private static bool HasNativeFootArrivalAuthority(GameState state, WorldState world, NativeFootWorldRuntimeState foot)
+    {
+        if (state.Scene != SceneKind.WorldMap || state.WorldArrival is not { } arrival)
+        {
+            return false;
+        }
+        bool battleFootReload = foot.Rule == NativeFootWorldRuntimeState.BattleReloadRule && ValidateWorldBattleFootReload(state, world, foot);
+        if (foot.StationTrains is { } station)
+        {
+            return arrival == station.Packet && state.SavedWorld is not null && state.DepartingWorldState is not null &&
+                station.Load == NativeTrainWorldLoadReceipt.Create(foot.StationTrainEntrySavedWorld ?? throw new NotSupportedException("Station foot requires its retained train-entry saved owner."), state.DepartingWorldState, station.Load.Allocation);
+        }
+        byte entryEntity = unchecked((byte)arrival.Mode);
+        if (battleFootReload || entryEntity == foot.EntityType)
+        {
+            return true;
+        }
+        if (foot.ParkedCar is { } parkedCar && (entryEntity == parkedCar.Car.EntityType ||
+            parkedCar.Car.Boarding is { } carBoarding && carBoarding.OriginalPacket == arrival && carBoarding.SourceWorldFrame <= world.Frame))
+        {
+            return true;
+        }
+
+        // Mode 2 uses the mode 3 save to allocate foot and parked vehicles while retaining the field's original packet.
+        // A later dismount replaces the foot runtime, but the vehicle allocation still owns that reload.
+        return foot.Rule switch
+        {
+            NativeFootWorldRuntimeState.GardenDismountRule when foot.GardenDismount is not null && world.NativeGardenRuntime?.Allocation is { } garden =>
+                garden.Packet == arrival && (garden.ControlledEntityType is 48 or 49 || garden.BattleReload?.EntityType105 == foot.EntityType),
+            NativeFootWorldRuntimeState.ChocoboDismountRule when world.NativeGardenRuntime?.Allocation is { } chocobo =>
+                chocobo.Packet == arrival && chocobo.ControlledEntityType == 49,
+            NativeFootWorldRuntimeState.RagnarokDismountRule when foot.RagnarokDismount is not null && world.NativeRagnarokRuntime?.Allocation is { } ragnarok =>
+                ragnarok.Packet == arrival && (ragnarok.ControlledEntityType == 50 || ragnarok.BattleReload?.EntityType105 == foot.EntityType),
+            _ => false
+        };
     }
 
     private static void ValidateWorldState(WorldState world)

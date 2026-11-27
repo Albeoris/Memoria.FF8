@@ -13,15 +13,11 @@ internal sealed partial class WorldMapScene
         NativeSavedWorldState saved = session.State.SavedWorld!;
         NativeWorldEntryMemory entry = session.State.WorldEntryMemory ?? throw new NotSupportedException("Garden allocation requires the current executed world-entry bytes.");
         NativeCharacterVitals vitals = session.State.CharacterVitals ?? throw new NotSupportedException("Garden allocation requires its actual saved GF13 flags.");
-        if (unchecked((byte)arrival.Mode) == ChocoboEntity && session.State.World?.NativeGardenRuntime is { } formerChocoboAllocation)
-        {
-            ValidateRetainedGardenAllocation(formerChocoboAllocation, arrival, inputs);
-            ValidateChocoboEscapeGround(session.State.World.ChocoboDismount);
-            return;
-        }
-        if (session.State.World?.NativeGardenRuntime is { CarBodyPose: not null } retainedGarden)
+        if (session.State.World?.NativeGardenRuntime is { } retainedGarden &&
+            (unchecked((byte)arrival.Mode) == ChocoboEntity || retainedGarden.CarBodyPose is not null || retainedGarden.Allocation.BattleReload is not null))
         {
             ValidateRetainedGardenAllocation(retainedGarden, arrival, inputs);
+            ValidateChocoboEscapeGround(session.State.World.ChocoboDismount);
             return;
         }
         //The allocation packet remains the original foot entry after54B460 reboards

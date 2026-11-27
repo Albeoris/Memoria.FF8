@@ -77,6 +77,46 @@ public sealed partial class WorldGardenCameraSceneTests
         Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.State), JsonSerializer.SerializeToElement(restored.State)));
     }
 
+    [Fact]
+    public void GardenDismountAfterBattleFootReloadKeepsTheOriginalEntryPacket()
+    {
+        GameSession source = Fixture();
+        using WorldMapScene initial = new(source, TestResources.GameDirectory);
+        Assert.True(initial.Apply(new(PlayerActionKind.Wait, Frames: 24)).Accepted);
+        Assert.True(initial.Apply(new(PlayerActionKind.WorldButtons, 0x40)).Accepted);
+        Assert.True(initial.Apply(new(PlayerActionKind.Wait, Frames: 31)).Accepted);
+        Assert.NotNull(initial.State.NativeFootRuntime);
+
+        WorldState departure = initial.State;
+        NativeSavedWorldFootReturn receipt = NativeSavedWorldFootReturn.RecordBattleDeparture(departure, checked((ushort)source.State.FieldId), 750, initial.PlaceId);
+        NativeSavedWorldState saved = GameSession.PrepareGardenParkingForFootReturn(source.State.SavedWorld!, departure).WithFootReturn(receipt);
+        WorldTransition entry = new(61, 32, -1);
+        GameSession session = new(source.State with { WorldArrival = entry, World = null, DepartingWorldState = departure, SavedWorld = saved });
+        using WorldMapScene scene = new(session, TestResources.GameDirectory, battleReload: receipt);
+        Assert.True(scene.Apply(new(PlayerActionKind.Wait, Frames: 24)).Accepted);
+        for (int callback = 0; callback < 48 && scene.State.NativeGardenRuntime!.BroadContact != scene.State.NativeGardenRuntime.Allocation.Garden64Index; callback++)
+        {
+            Assert.True(scene.Apply(new(PlayerActionKind.Move, Vertical: 1)).Accepted);
+        }
+        Assert.Equal(scene.State.NativeGardenRuntime!.Allocation.Garden64Index, scene.State.NativeGardenRuntime.BroadContact);
+        Assert.True(scene.Apply(new(PlayerActionKind.Confirm)).Accepted);
+        Assert.Null(scene.State.NativeFootRuntime);
+        Assert.True(scene.Apply(new(PlayerActionKind.Wait, Frames: 64)).Accepted);
+        Assert.True(scene.Apply(new(PlayerActionKind.WorldButtons, 0x40)).Accepted);
+        Assert.NotNull(scene.State.NativeGardenRuntime.Transfer);
+        Assert.True(scene.Apply(new(PlayerActionKind.Wait, Frames: 31)).Accepted);
+        Assert.Equal(NativeFootWorldRuntimeState.GardenDismountRule, scene.State.NativeFootRuntime!.Rule);
+        Assert.Equal(entry, session.State.WorldArrival);
+        Assert.Equal(receipt, scene.State.NativeGardenRuntime.Allocation.BattleReload);
+
+        GameSession restored = new(JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!);
+        using WorldMapScene replay = new(restored, TestResources.GameDirectory);
+        PlayerAction next = new(PlayerActionKind.Wait);
+        Assert.True(scene.Apply(next).Accepted);
+        Assert.True(replay.Apply(next).Accepted);
+        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.State), JsonSerializer.SerializeToElement(restored.State)));
+    }
+
     internal static GameSession Fixture(short gardenSpawn = 41)
     {
         GameSession session = GameSession.CreateColdProcess();

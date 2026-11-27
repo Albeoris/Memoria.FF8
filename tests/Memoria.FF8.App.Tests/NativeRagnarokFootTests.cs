@@ -127,6 +127,41 @@ public sealed class NativeRagnarokFootTests
         Assert.Equal((short)-14336, scene.State.NativeRagnarokRuntime!.TransferCamera!.OffsetZ);
     }
 
+    [Fact]
+    public void RagnarokLandingAfterBattleFootReloadKeepsTheOriginalMountedEntryPacket()
+    {
+        GameSession source = Fixture(3600);
+        using WorldMapScene initial = new(source, GameDirectory);
+        Land(initial);
+        ApproachShip(initial);
+        WorldState departure = initial.State;
+        NativeSavedWorldFootReturn receipt = NativeSavedWorldFootReturn.RecordBattleDeparture(departure, checked((ushort)source.State.FieldId), 3600, initial.PlaceId);
+        NativeSavedWorldState saved = GameSession.PrepareGardenParkingForFootReturn(source.State.SavedWorld!, departure).WithFootReturn(receipt);
+        WorldTransition mountedEntry = new(34, 49, 34);
+        GameSession session = new(source.State with { WorldArrival = mountedEntry, World = null, DepartingWorldState = departure, SavedWorld = saved });
+        using WorldMapScene scene = new(session, GameDirectory, battleReload: receipt);
+
+        Assert.Equal(24, scene.Apply(new(PlayerActionKind.Wait, Frames: 24)).FramesAdvanced);
+        Assert.Equal(NativeFootWorldRuntimeState.BattleReloadRule, scene.State.NativeFootRuntime!.Rule);
+        Assert.Equal(scene.State.NativeRagnarokRuntime!.Allocation.RagnarokIndex, scene.State.NativeRagnarokRuntime.BroadContact);
+        Assert.True(scene.Apply(new(PlayerActionKind.Confirm)).Accepted);
+        Assert.Equal(NativeRagnarokTransferKind.Takeoff, scene.State.NativeRagnarokRuntime.Transfer!.Kind);
+        Assert.Equal(60, scene.Apply(new(PlayerActionKind.Wait, Frames: 60)).FramesAdvanced);
+        Assert.Null(scene.State.NativeRagnarokRuntime.Transfer);
+        Land(scene);
+
+        Assert.Equal(NativeFootWorldRuntimeState.RagnarokDismountRule, scene.State.NativeFootRuntime!.Rule);
+        Assert.Equal(mountedEntry, session.State.WorldArrival);
+        Assert.Equal(receipt, scene.State.NativeRagnarokRuntime.Allocation.BattleReload);
+        Assert.Throws<InvalidDataException>(() => new GameSession(session.State with { WorldArrival = mountedEntry with { Extra = -1 } }));
+        GameSession restored = new(JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!);
+        using WorldMapScene replay = new(restored, GameDirectory);
+        PlayerAction next = new(PlayerActionKind.Move, Vertical: -1, Frames: 4);
+        Assert.True(scene.Apply(next).Accepted);
+        Assert.True(replay.Apply(next).Accepted);
+        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.State), JsonSerializer.SerializeToElement(restored.State)));
+    }
+
     [Theory]
     [InlineData(0x40)]
     [InlineData(0x02)]
