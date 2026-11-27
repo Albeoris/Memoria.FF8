@@ -85,6 +85,37 @@ public sealed class GpuWorldRenderingTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public void NativeStaticModelCullsBackFacesFromEitherSide(bool reverseCamera)
+    {
+        using WorldAssets assets = new(TestResources.GameDirectory);
+        WorldStaticModel original = assets.ReadScriptedStaticModel(91);
+        WorldStaticFace nativeFace = original.Faces[0];
+        PixelImage quadTexture = new(1, 1, [new Rgba32(255, 0, 0, 255)]);
+        PixelImage triangleTexture = new(1, 1, [new Rgba32(0, 0, 255, 255)]);
+        WorldStaticModel model = original with
+        {
+            NativeVertices = [Vector3.Zero, new(0, 400, 0), new(400, 0, 0), new(400, 400, 0)],
+            Faces =
+            [
+                nativeFace with { Vertices = [0, 1, 2, 3], TextureCoordinates = new Vector2[4], Palette = 0, Transparent = false },
+                nativeFace with { Vertices = [0, 2, 1], TextureCoordinates = new Vector2[3], Palette = 1, Transparent = false }
+            ],
+            Textures = [quadTexture, triangleTexture]
+        };
+        RecordingRenderer sink = new();
+        WorldTerrainRenderer renderer = new(assets, 160, 112) { TriangleRenderer = sink };
+        WorldCamera camera = new(reverseCamera ? MathF.PI : 0, 120, 20, 0, MathF.PI / 3, 900);
+        NativeWorldStaticModelDraw draw = new(model, new(Position, new(0, 0, 0)));
+
+        renderer.Render(Position + new Vector3(200, -200, 0), 0, 0, 0, camera, Replacements, avatarVisible: false, staticModels: [draw]);
+
+        Assert.Equal(reverseCamera ? 0 : 2, sink.Materials.Count(material => ReferenceEquals(material.Texture, quadTexture)));
+        Assert.Equal(reverseCamera ? 1 : 0, sink.Materials.Count(material => ReferenceEquals(material.Texture, triangleTexture)));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public void InstalledWorldGpuSamplesMatchSoftwareTerrainAndSky(bool nativeCamera)
     {
         using WorldAssets assets = new(TestResources.GameDirectory);

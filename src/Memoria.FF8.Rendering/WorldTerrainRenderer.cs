@@ -235,7 +235,7 @@ public sealed partial class WorldTerrainRenderer
         {
             foreach (NativeWorldStaticModelDraw draw in staticModels)
             {
-                DrawStaticModel(draw.Model, draw.Pose);
+                DrawStaticModel(draw.Model, draw.Pose, eye);
             }
         }
         foreach ((WorldTriangle triangle, Vector3 offset) in transparent.OrderByDescending(item => Vector3.DistanceSquared((item.Triangle.A + item.Triangle.B + item.Triangle.C) / 48 + item.Offset, eye)))
@@ -330,7 +330,7 @@ public sealed partial class WorldTerrainRenderer
         }
     }
 
-    private void DrawStaticModel(WorldStaticModel model, NativeWorldStaticModelPose pose)
+    private void DrawStaticModel(WorldStaticModel model, NativeWorldStaticModelPose pose, Vector3 eye)
     {
         Matrix4x4 rotation = pose.Rotation ?? WorldStaticModelTransform.CreateRotation(model.ShapeId, pose.Angles);
         Vector3 position = pose.Anchor;
@@ -338,11 +338,19 @@ public sealed partial class WorldTerrainRenderer
         IReadOnlyList<PixelImage> textures = assets.ReadAnimatedStaticTextures(model, worldDiscNumber, nativeMainLoopCounter);
         foreach (WorldStaticFace face in model.Faces)
         {
+            Vector3 first = vertices[face.Vertices[0]];
+            Vector3 second = vertices[face.Vertices[1]];
+            Vector3 third = vertices[face.Vertices[2]];
+            // Native static primitives require positive screen winding on the first three vertices, including quads.
+            if (face.CullBackFace && Vector3.Dot(Vector3.Cross(second - first, third - first), first - eye) <= 0)
+            {
+                continue;
+            }
             PixelImage texture = textures[face.Palette];
             Vector2 size = ResourceTextureList.LogicalSize(textures, face.Palette);
-            Vertex a = new(vertices[face.Vertices[0]], face.TextureCoordinates[0] / size, face.VertexColors?[0]);
-            Vertex b = new(vertices[face.Vertices[1]], face.TextureCoordinates[1] / size, face.VertexColors?[1]);
-            Vertex c = new(vertices[face.Vertices[2]], face.TextureCoordinates[2] / size, face.VertexColors?[2]);
+            Vertex a = new(first, face.TextureCoordinates[0] / size, face.VertexColors?[0]);
+            Vertex b = new(second, face.TextureCoordinates[1] / size, face.VertexColors?[1]);
+            Vertex c = new(third, face.TextureCoordinates[2] / size, face.VertexColors?[2]);
             TriangleBlend? blend = face.Transparent ? ((model.TexturePage >> 5) & 3) switch
             {
                 0 => TriangleBlend.HalfAdd,

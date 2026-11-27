@@ -76,7 +76,7 @@ public static class WorldStaticModelReader
                 }
             }
             bool transparent = quad ? (BinaryPrimitives.ReadUInt16LittleEndian(raw[14..]) & 1) != 0 : (raw[3] & 1) != 0;
-            faces.Add(new WorldStaticFace(indices, uv, palette, transparent));
+            faces.Add(new WorldStaticFace(indices, uv, palette, transparent) { CullBackFace = true });
             position += quad ? 16 : 12;
         }
         return new WorldStaticModel(shape, shape - 64, page, vertices, faces, Enumerable.Range(0, tim.Palettes.Count).Select(palette => sheet?.Image ?? tim.Decode(palette)).ToArray());
