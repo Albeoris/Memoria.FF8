@@ -7,16 +7,25 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.App.Tests;
 
+[Collection("GPU rendering")]
 public sealed class NativeStagePageRenderingTests
 {
-    [Fact]
-    public void RemasteredEncounterRendersBeforeTheStageLoadsAndThenUsesItsReplacementPages()
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    public void RemasteredEncounterRendersBeforeTheStageLoadsAndThenUsesItsReplacementPages(bool animated, bool windowsDx)
     {
         string directory = TestResources.GameDirectory;
         using IResourceSource source = GameDataSourceFactory.Open(directory);
         Assert.SkipUnless(source.Descriptor.Edition == GameDataEdition.Remastered, "Installed Remastered battle resources are required.");
         ResourceService resources = new(source);
-        resources.Prepare(new PageResolver()).Commit();
+        resources.Prepare(new PageResolver(animated)).Commit();
+#if MEMORIA_NATIVE
+        Assert.SkipWhen(windowsDx, "The Direct3D 11 case requires the WindowsDX host.");
+#endif
+        using GpuTestDevice? device = windowsDx ? new GpuTestDevice() : null;
+        using GpuTriangleRenderer? gpu = device is null ? null : new GpuTriangleRenderer(device.Device);
         using GameAssets game = new(directory);
         GameSession session = GameWorld.CreateColdProcess(directory);
         session.StartNewGame();
@@ -26,13 +35,14 @@ public sealed class NativeStagePageRenderingTests
         BattleDefinition definition = battle.Capture().Definition;
         int stageId = Assert.IsType<int>(definition.StageId);
         BattleStage stage = world.BattleResources.LoadStage(stageId);
-        Assert.Contains(NativeBattleTextureReplacements.Bind(stage), replacement => replacement.SourceOwner is not null && replacement.Animation is not null);
+        Assert.Contains(NativeBattleTextureReplacements.Bind(stage), replacement => replacement.SourceOwner is not null && (replacement.Animation is not null) == animated);
         BattleScenePresentation scene = new(world.BattleResources, definition);
+        scene.Render(battle, 320, 240, gpu);
         bool renderedBeforeStageLoad = false;
         for (int callback = 0; callback < 1024 && !battle.NativeEntryReady; callback++)
         {
             battle.Tick();
-            scene.Render(battle, 320, 240);
+            scene.Render(battle, 320, 240, gpu);
             renderedBeforeStageLoad |= scene.PresentedNativeFrame is { StageResourceId: null };
         }
 
@@ -43,10 +53,20 @@ public sealed class NativeStagePageRenderingTests
         BattleSession fork = battle.ForkForContinuation();
         battle.Tick();
         fork.Tick();
-        byte[] replaced = scene.Render(battle, 320, 240).ToArray();
-        Assert.Equal(replaced, new BattleScenePresentation(world.BattleResources, definition).Render(fork, 320, 240));
+        byte[] replaced = RenderPixels(scene, battle);
+        Assert.Equal(replaced, RenderPixels(new BattleScenePresentation(world.BattleResources, definition), fork));
         resources.Prepare(null).Commit();
-        Assert.NotEqual(replaced, scene.Render(battle, 320, 240));
+        Assert.NotEqual(replaced, RenderPixels(scene, battle));
+
+        byte[] RenderPixels(BattleScenePresentation presentation, BattleSession current)
+        {
+            byte[] pixels = presentation.Render(current, 320, 240, gpu);
+            if (gpu is null)
+            {
+                return pixels.ToArray();
+            }
+            return System.Runtime.InteropServices.MemoryMarshal.AsBytes(GpuTestDevice.Read(gpu.Target).AsSpan()).ToArray();
+        }
     }
 
     [Fact]
@@ -131,7 +151,7 @@ public sealed class NativeStagePageRenderingTests
         return new(1, meshes, [new(384, 256, Enumerable.Repeat(new Rgba32(90, 90, 90), 384 * 256).ToArray())]) { NativePages = pages };
     }
 
-    private sealed class PageResolver : ITextureReplacementResolver
+    private sealed class PageResolver(bool animated = true) : ITextureReplacementResolver
     {
         public TextureReplacement? Resolve(TextureBuildContext context)
         {
@@ -141,6 +161,10 @@ public sealed class NativeStagePageRenderingTests
             }
             bool first = context.Key.Subresource == "page/16";
             PixelImage image = Solid(first ? new(220, 30, 40) : new(20, 70, 230), first ? 512 : 510);
+            if (!animated)
+            {
+                return new(image, "fixture:page", 256, 256);
+            }
             PixelImage next = Solid(first ? new(30, 210, 60) : new(230, 200, 20), first ? 512 : 510);
             return new(image, "fixture:page", 256, 256) { Animation = new([image, next], 100) };
         }
