@@ -29,6 +29,13 @@ public sealed partial class DemasterTextureResolver
             {
                 throw new ModTextureLoadException(file.PackageId, file.RelativePath, new InvalidDataException("Demaster field pages require a square image with a positive integral scale of the native 256x256 canvas."));
             }
+            bool stpOnly = address.StpPalette == TextureStpPalette.AllVisible;
+            PixelImage? native = null;
+            if (address.StpPalette == TextureStpPalette.Mixed && Array.Exists(context.Original.Pixels, color => color.A == 128))
+            {
+                native = context.Original;
+                stpOnly = !Array.Exists(native.Pixels, color => color.A == 255);
+            }
             List<PixelImage> levels = [];
             foreach (PixelImage mip in decoded.MipLevels)
             {
@@ -49,11 +56,38 @@ public sealed partial class DemasterTextureResolver
                 {
                     mip.Pixels.AsSpan((y + row) * mip.Width + x, width).CopyTo(crop.Pixels.AsSpan(row * width, width));
                 }
+                if (stpOnly || native is not null)
+                {
+                    RestoreFieldStp(crop, stpOnly ? null : native);
+                }
                 levels.Add(crop);
             }
             return new(levels[0], $"{file.PackageId}/{file.RelativePath}@{file.Revision}", 16, 16, levels.AsReadOnly());
         }
         return null;
+    }
+
+    private static void RestoreFieldStp(PixelImage crop, PixelImage? mixedTile)
+    {
+        // HD artwork owns the silhouette. An STP-only tile also blends detail extending beyond the original silhouette.
+        // On mixed tiles the source texel distinguishes blended pixels from opaque scenery.
+        for (int y = 0; y < crop.Height; y++)
+        {
+            int nativeY = (int)((2L * y + 1) * 16 / (2L * crop.Height));
+            for (int x = 0; x < crop.Width; x++)
+            {
+                Rgba32 color = crop[x, y];
+                if (color.A == 0)
+                {
+                    continue;
+                }
+                int nativeX = (int)((2L * x + 1) * 16 / (2L * crop.Width));
+                if (mixedTile is null || mixedTile[nativeX, nativeY].A == 128)
+                {
+                    crop[x, y] = color with { A = 128 };
+                }
+            }
+        }
     }
 
     private static bool TryFieldPageAddress(TextureBuildContext context, out string map, out int nativePage, out TextureSourceAddress address)

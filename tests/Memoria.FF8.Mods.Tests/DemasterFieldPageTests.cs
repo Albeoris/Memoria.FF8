@@ -32,6 +32,33 @@ public sealed class DemasterFieldPageTests
     }
 
     [Fact]
+    public void MixedStpAndOpaqueTilesSharingOneHdPageKeepIndependentCoverageAtEveryMip()
+    {
+        DemasterTextureResolver resolver = Resolver(DdsFile(Stem + ".dds", 1024));
+        TextureBuildContext mixed = Context(stpPalette: TextureStpPalette.Mixed);
+        mixed.Original[0, 0] = new(50, 60, 70);
+        for (int y = 0; y < 16; y++)
+        {
+            for (int x = 8; x < 16; x++)
+            {
+                mixed.Original[x, y] = new(10, 20, 30, 128);
+            }
+        }
+        TextureReplacement blended = Assert.IsType<TextureReplacement>(resolver.Resolve(mixed));
+        TextureReplacement plain = Assert.IsType<TextureReplacement>(resolver.Resolve(Context(palette: 4)));
+        foreach (PixelImage mip in blended.MipLevels!)
+        {
+            Assert.Equal(128, mip[mip.Width - 1, 0].A);
+            if (mip.Width > 1)
+            {
+                Assert.Equal(255, mip[0, 0].A);
+            }
+        }
+        Assert.Equal(Pixel(63, 0, 0) with { A = 128 }, blended.Image[63, 0]);
+        Assert.Equal(Pixel(63, 0, 0), plain.Image[63, 0]);
+    }
+
+    [Fact]
     public void MipsStopBeforeAnyFractionalSourcePixelBoundary()
     {
         TextureReplacement replacement = Assert.IsType<TextureReplacement>(Resolver(DdsFile(Stem + "_3.dds", 1024)).Resolve(Context(x: 1, y: 3)));
@@ -153,11 +180,11 @@ public sealed class DemasterFieldPageTests
         Assert.Equal(valid.Length + invalid.Length, DemasterTextureResolver.Inspect(new("test", GameDataEdition.Remastered, ["demaster-direct"]), catalog).Diagnostics.Count);
     }
 
-    private static TextureBuildContext Context(string owner = "field/testmap/testmap.mim", string page = "page/16", int palette = 3, int x = 0, int y = 0, int bpp = 4, int tile = 0, bool published = true)
+    private static TextureBuildContext Context(string owner = "field/testmap/testmap.mim", string page = "page/16", int palette = 3, int x = 0, int y = 0, int bpp = 4, int tile = 0, bool published = true, TextureStpPalette stpPalette = TextureStpPalette.None)
     {
         return new(new(new(owner), $"tile/{tile}", palette), published ? Source : new("test", GameDataEdition.Classic, []), 1, "classic-field-tile", 16, 16, () => new(16, 16), new(BitsPerPixel: bpp))
         {
-            NativeAlias = new(new(owner), page, palette, x, y, 16, 16, 256, 256)
+            NativeAlias = new(new(owner), page, palette, x, y, 16, 16, 256, 256) { StpPalette = stpPalette }
         };
     }
 

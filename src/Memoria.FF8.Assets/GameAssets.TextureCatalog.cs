@@ -462,7 +462,7 @@ public sealed partial class GameAssets
         MimFile mim = MimFile.Read(ReadTextureSource(owner));
         MapFile map = MapFile.Read(ReadTextureSource(new($"field/{field}/{field}.map")));
         IReadOnlyList<TextureSourceAddress> atlas = FieldBackgroundTileDecoder.AtlasAddresses(owner, map.Tiles);
-        return map.Tiles.Select((tile, index) => new TextureBuildContext(new(owner, $"tile/{index}", tile.PaletteId), resources.Source, resources.Get(owner).Revision, "classic-field-tile", MimFile.TileSize, MimFile.TileSize, () => FieldBackgroundTileDecoder.Decode(mim, tile), new(tile.TextureId * 64, 256, tile.Uses8BitIndices ? 8 : 4), encodedSource: resources.Get(owner)) { NativeAlias = FieldBackgroundTileDecoder.Address(owner, tile), NativeSheet = atlas[index] }).ToArray();
+        return map.Tiles.Select((tile, index) => new TextureBuildContext(new(owner, $"tile/{index}", tile.PaletteId), resources.Source, resources.Get(owner).Revision, "classic-field-tile", MimFile.TileSize, MimFile.TileSize, () => FieldBackgroundTileDecoder.Decode(mim, tile), new(tile.TextureId * 64, 256, tile.Uses8BitIndices ? 8 : 4), encodedSource: resources.Get(owner)) { NativeAlias = FieldBackgroundTileDecoder.Address(owner, tile, mim), NativeSheet = atlas[index] }).ToArray();
     }
 
     private IReadOnlyList<TextureBuildContext> ReadCatalogTex(ResourceKey owner)

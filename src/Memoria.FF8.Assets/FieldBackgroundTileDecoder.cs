@@ -93,7 +93,29 @@ public static class FieldBackgroundTileDecoder
 
     public static TextureSourceAddress Address(ResourceKey owner, MapTile tile)
     {
-        return new(owner, $"page/{16 + tile.TextureId}", tile.PaletteId, tile.SourceX, tile.SourceY, MimFile.TileSize, MimFile.TileSize, 256, 256);
+        return Address(owner, tile, null);
+    }
+
+    public static TextureSourceAddress Address(ResourceKey owner, MapTile tile, MimFile? mim)
+    {
+        return new(owner, $"page/{16 + tile.TextureId}", tile.PaletteId, tile.SourceX, tile.SourceY, MimFile.TileSize, MimFile.TileSize, 256, 256)
+        {
+            StpPalette = mim is null ? TextureStpPalette.None : ClassifyStpPalette(mim, tile)
+        };
+    }
+
+    private static TextureStpPalette ClassifyStpPalette(MimFile mim, MapTile tile)
+    {
+        if (((tile.PackedTexture >> 5) & 3) == 0 || tile.BlendMode is MapBlendMode.None or MapBlendMode.Subtract)
+        {
+            return TextureStpPalette.None;
+        }
+        ReadOnlySpan<ushort> palette = mim.Colors.AsSpan(tile.PaletteId * MimFile.ColorsPerPalette, tile.Uses8BitIndices ? 256 : 16);
+        if (!palette.ContainsAnyInRange((ushort)0x8000, ushort.MaxValue))
+        {
+            return TextureStpPalette.None;
+        }
+        return palette.ContainsAnyInRange((ushort)1, (ushort)0x7FFF) ? TextureStpPalette.Mixed : TextureStpPalette.AllVisible;
     }
 
     public static PixelImage Decode(MimFile mim, MapTile tile)

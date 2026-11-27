@@ -126,6 +126,8 @@ Lookup tries the exact palette's DDS, exact palette's PNG, plain-page DDS, then 
 
 The suffix selects a palette; it does not create animation frames. Original MAP `Parameter`/`State` selection still chooses animated tiles and their independent source UVs. Destination coordinates, layers, draw order, visibility and native blend modes remain unchanged, including transparent and semitransparent texels. Enabling, disabling or refreshing a package republishes resident tile handles and refreshes cached CPU rendering and GPU atlases, including replacements whose dimensions stay the same.
 
+On field tiles using average, additive or quarter-additive blending, the DDS or PNG supplies the color and silhouette. Fully transparent replacement pixels stay transparent. When every visible native color in the selected palette or tile has the PlayStation semitransparency bit (STP), visible replacement pixels use the MAP blend operation throughout the HD silhouette. Tiles containing both opaque and STP colors recover the STP flag at the corresponding native texel. This applies to each retained mip level.
+
 #### Isolate a field texture for a bug report
 
 1. Record the field name from the window title (for example, `165:bghall_1`) and take a screenshot. In **Mods → Installed Mods**, disable **Installed Demaster (DEMASTER_EXP)** and compare the same view. Continue if the symptom disappears.

@@ -9,7 +9,17 @@ public readonly record struct TextureKey(ResourceKey Owner, string Subresource, 
 public sealed record TextureSourceRegion(int X = 0, int Y = 0, int BitsPerPixel = 0, int CanvasWidth = 256, int CanvasHeight = 256, int? PaletteX = null, int? PaletteY = null);
 
 /// <summary>An equivalent region of another native source, before internal texture enlargement.</summary>
-public sealed record TextureSourceAddress(ResourceKey Owner, string Subresource, int Palette, int X, int Y, int Width, int Height, int CanvasWidth, int CanvasHeight);
+public sealed record TextureSourceAddress(ResourceKey Owner, string Subresource, int Palette, int X, int Y, int Width, int Height, int CanvasWidth, int CanvasHeight)
+{
+    public TextureStpPalette StpPalette { get; init; }
+}
+
+public enum TextureStpPalette
+{
+    None,
+    AllVisible,
+    Mixed
+}
 
 public sealed record TexturePageMember(string Kind, string Name, int Texture, int X, int Y, int WidthWords, int Height, int BitsPerPixel, int Frame);
 public sealed record TextureSourcePageAddress(int Page, int X, int Y, int Width, int Height, int PaletteX, int PaletteY, IReadOnlyList<TexturePageMember> Members)
