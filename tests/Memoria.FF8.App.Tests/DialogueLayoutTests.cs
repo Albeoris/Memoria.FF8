@@ -67,6 +67,21 @@ public sealed class DialogueLayoutTests
     }
 
     [Theory]
+    [InlineData("{Next}")]
+    [InlineData("{Page}")]
+    public void Another_quote_on_a_new_page_aligns_under_its_first_letter(string pageBreak)
+    {
+        string source = "Инструктор{Line}«Начало»" + pageBreak + "«Новая{Line}строка{Line}и ещё " + new string('я', 40) + "»";
+        var pages = Layout(source);
+
+        Assert.Equal(2, pages.Count);
+        Assert.All(pages, page => Assert.Equal("Инструктор", page.Speaker));
+        Assert.True(pages[1].Lines.Count > 3);
+        Assert.Equal(0, pages[1].Lines[0].Runs[0].X);
+        Assert.All(pages[1].Lines.Skip(1), line => Assert.Equal(Width("«"), line.Runs[0].X));
+    }
+
+    [Theory]
     [InlineData("", "")]
     [InlineData(" ", "")]
     [InlineData("  ", " ")]

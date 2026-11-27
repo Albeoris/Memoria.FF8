@@ -329,9 +329,11 @@ internal static partial class DialogueTextFormatter
             DialogueLine[] lines = page.Lines.ToArray();
             int first = Array.FindIndex(lines, line => line.Text.Trim().Length > 0);
             int next = first < 0 ? -1 : Array.FindIndex(lines, first + 1, line => line.Text.Trim().Length > 0);
-            bool quotedDialogue = openingQuote.Length == 0 && thoughtDepth == 0 && IsQuotedDialogue(pages, pageIndex);
+            bool hasSpeechHeading = HasSpeechHeading(lines);
+            int quoteLineIndex = hasSpeechHeading ? 1 : speaker is not null ? first : -1;
+            bool quotedDialogue = openingQuote.Length == 0 && thoughtDepth == 0 && quoteLineIndex >= 0 && IsQuotedDialogue(pages, pageIndex, quoteLineIndex);
             bool namedThought = openingQuote.Length == 0 && thoughtDepth == 0 && next >= 0 && StartsThought(lines[next].Text) && !IsBlockStart(lines[first].Text);
-            if (first >= 0 && (lines[first].IsSpeaker || quotedDialogue || namedThought))
+            if (first >= 0 && (lines[first].IsSpeaker || (hasSpeechHeading && quotedDialogue) || namedThought))
             {
                 lines[first] = lines[first] with { IsSpeaker = true };
                 speaker = lines[first].Text.Trim();
@@ -346,7 +348,7 @@ internal static partial class DialogueTextFormatter
                 string trimmed = line.Text.Trim();
                 string opening = "";
                 string closing = "";
-                bool quoteStart = quotedDialogue && index == 1 && TryOpeningQuote(trimmed, out opening, out closing);
+                bool quoteStart = quotedDialogue && index == quoteLineIndex && TryOpeningQuote(trimmed, out opening, out closing);
                 if (quoteStart)
                 {
                     openingQuote = opening;
@@ -392,29 +394,22 @@ internal static partial class DialogueTextFormatter
         return new DialogueDocument(result);
     }
 
-    private static bool IsQuotedDialogue(IReadOnlyList<DialoguePage> pages, int pageIndex)
+    private static bool IsQuotedDialogue(IReadOnlyList<DialoguePage> pages, int pageIndex, int quoteLineIndex)
     {
-        IReadOnlyList<DialogueLine> lines = pages[pageIndex].Lines;
-        if (!HasSpeechHeading(lines) || !TryOpeningQuote(lines[1].Text.TrimStart(), out _, out string closing))
+        DialogueLine openingLine = pages[pageIndex].Lines[quoteLineIndex];
+        if (!TryOpeningQuote(openingLine.Text.TrimStart(), out _, out string closing))
         {
             return false;
         }
-        string last = "";
         for (int index = pageIndex; index < pages.Count; index++)
         {
-            if (index > pageIndex && EndsQuotedDialogue(last, closing) && HasSpeechHeading(pages[index].Lines))
+            DialogueLine? last = pages[index].Lines.LastOrDefault(line => !string.IsNullOrWhiteSpace(line.Text));
+            if (last is not null && EndsQuotedDialogue(last.Text, closing))
             {
-                break;
-            }
-            foreach (DialogueLine line in pages[index].Lines)
-            {
-                if (!string.IsNullOrWhiteSpace(line.Text))
-                {
-                    last = line.Text.TrimEnd();
-                }
+                return true;
             }
         }
-        return EndsQuotedDialogue(last, closing);
+        return false;
     }
 
     private static bool HasSpeechHeading(IReadOnlyList<DialogueLine> lines)
