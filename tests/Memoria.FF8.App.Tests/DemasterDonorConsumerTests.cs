@@ -6,7 +6,7 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.App.Tests;
 
-public sealed class DemasterDonorConsumerTests
+public sealed class DemasterDonorConsumerTests(ITestOutputHelper output)
 {
     [Fact]
     public void SelectedExportReachesFieldShopNewGameAndEnemyReaders()
@@ -50,6 +50,24 @@ public sealed class DemasterDonorConsumerTests
         Assert.Equal(2000u, originalShop.BuyPrice(17, 0));
         Assert.Equal(10000u, shop.BuyPrice(17, 0));
         Assert.Equal("Remedy+", shop.ResolvePrice(17).Name);
+        NativeShopHistory history = assets.ReadNewGameShopHistory();
+        int shopArgument = Enumerable.Range(0, shop.ArgumentMap.Length).First(argument =>
+        {
+            int catalog = shop.ArgumentMap[argument];
+            return catalog < shop.Catalogs.Length && shop.Catalogs[catalog].Select((entry, index) => (entry, index))
+                .Any(row => row.entry.ItemId == 17 && history.Bytes[20 * catalog + row.index] != 0);
+        });
+        NativeEconomy funded = donorEconomy with { Gil = 70000 };
+        NativeShopTransaction transaction = NativeShopTransaction.Begin(shopArgument, shop, funded, vitals, history);
+        NativeEconomy purchased = transaction.Buy(17, 1, out bool accepted).Commit(funded);
+        Assert.True(accepted);
+        Assert.Equal(60000u, purchased.Gil);
+        Assert.Equal(funded.Items.Where(item => item.ItemId == 17).Sum(item => item.Count) + 1, purchased.Items.Where(item => item.ItemId == 17).Sum(item => item.Count));
+        foreach (string member in new[] { "cyocobo.bin", "magsort.bin", "mitem.bin", "mngrp.bin", "mwepon.bin", "pet_exp.msg", "price.bin", "shop.bin" })
+        {
+            ResourceKey key = new("menu/" + member);
+            Assert.False(mounted.Read(key).AsSpan().SequenceEqual(original.Read(key)), member);
+        }
 
         const int model = 1;
         Assert.False(mounted.Read(new("battle/c0m001.dat")).AsSpan().SequenceEqual(original.Read(new("battle/c0m001.dat"))));
@@ -61,6 +79,31 @@ public sealed class DemasterDonorConsumerTests
         const ushort formationId = 111;
         BattleEncounter encounter = battle.LoadEncounter(formationId);
         Assert.Contains(encounter.Enemies, enemy => enemy.ModelId == model);
+
+        int changedFormations = 0;
+        for (int index = 0; index < battle.FormationCount; index++)
+        {
+            if (battle.FormationSourceHash(index) != originalBattle.FormationSourceHash(index))
+            {
+                _ = battle.LoadEncounter(index);
+                changedFormations++;
+            }
+        }
+        int changedEnemies = 0;
+        foreach (int enemyModel in battle.EnemyModelIds)
+        {
+            ResourceKey enemyKey = new($"battle/c0m{enemyModel:000}.dat");
+            if (stock.Find(enemyKey) is null || mounted.Read(enemyKey).AsSpan().SequenceEqual(original.Read(enemyKey)))
+            {
+                continue;
+            }
+            _ = battle.ReadEnemyTemplate(enemyModel, 10);
+            _ = battle.ReadEnemyAi(enemyModel, 10);
+            changedEnemies++;
+        }
+        Assert.Equal(143, changedEnemies);
+        Assert.True(changedFormations > 0);
+        output.WriteLine($"Decoded {changedEnemies} changed enemy models and {changedFormations} changed formations.");
 
         GameSession session = GameSession.CreateColdProcess(assets.ReadColdProcessNativeBattleMemory());
         session.StartNewGame();

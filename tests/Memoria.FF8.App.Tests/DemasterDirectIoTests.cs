@@ -1,4 +1,7 @@
+using System.Buffers.Binary;
 using System.Text;
+using Albeoris.Games.FF8.FlArchives;
+using Albeoris.Games.FF8.FlArchives.Abstractions;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Assets.Remastered;
 using Memoria.FF8.Mods;
@@ -110,6 +113,19 @@ public sealed class DemasterDirectIoTests : IDisposable
         Assert.Contains("main.zzz:data/lang-en/sample.fl", failure.Message);
         Assert.Contains("main.zzz:data/lang-en/sample.fi", failure.Message);
         Assert.Contains("Demaster/Archive/data/lang-en/sample.fs", failure.Message);
+    }
+
+    [Fact]
+    public void FlArchiveReleasesItsEntrySlotAfterAReadFailsToOpen()
+    {
+        byte[] index = Index(2);
+        BinaryPrimitives.WriteInt32LittleEndian(index, 2);
+        using IFlArchive archive = FlArchive.Open(new MemoryStream(Listing("broken", "valid")), new MemoryStream(index), new MemoryStream(new byte[] { 13, 42 }), false, FlArchiveRepresentation.Files);
+        IFlArchiveEntry broken = Assert.Single(archive.Entries, entry => entry.RelativePath == "broken");
+        Assert.Throws<InvalidDataException>(() => broken.OpenForRead());
+        IFlArchiveEntry valid = Assert.Single(archive.Entries, entry => entry.RelativePath == "valid");
+        using Stream content = valid.OpenForRead();
+        Assert.Equal(42, content.ReadByte());
     }
 
     [Fact]

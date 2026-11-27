@@ -90,7 +90,7 @@ public sealed partial class FlArchive
             }
             else if (entry.Size != desiredSize || entry.Compression != FlCompressionMethod.None)
             {
-                // Fits in the existing slot — update size/compression in-place.
+                // Fits in the existing slot â€” update size/compression in-place.
                 entry.Size = desiredSize;
                 entry.Compression = FlCompressionMethod.None;
                 UpdateEntryMetrics(entry);
@@ -108,7 +108,15 @@ public sealed partial class FlArchive
             if (previousValue is not null)
                 throw new InvalidOperationException($"The archive is already in use by another stream for entry [{previousValue.RelativePath}].");
 
-            _contentStream.Position = entry.Offset;
+            try
+            {
+                _contentStream.Position = entry.Offset;
+            }
+            catch
+            {
+                CloseEntry(entry);
+                throw;
+            }
         }
 
         private Stream ProtectEntry(FlArchiveEntry entry, Stream contentStream)
@@ -123,6 +131,19 @@ public sealed partial class FlArchive
         private Stream DecompressEntry(FlArchiveEntry entry)
         {
             OpenEntry(entry);
+            try
+            {
+                return OpenEntryPayload(entry);
+            }
+            catch
+            {
+                CloseEntry(entry);
+                throw;
+            }
+        }
+
+        private Stream OpenEntryPayload(FlArchiveEntry entry)
+        {
             switch (entry.Compression)
             {
                 case FlCompressionMethod.None:
