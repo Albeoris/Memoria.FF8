@@ -774,22 +774,25 @@ internal sealed partial class RecreateGame
         }
         if (keyboard.DebugRoomRequested && !saveMenu.IsOpen && !gameMenus.IsNamePrompt)
         {
+            if (gameMenus.IsDebugRoomOpen || gameMenus.IsSelectingCharacter || gameMenus.IsGuardianAbilityWorkspace || gameMenus.IsJunctionDashboard || gameMenus.IsBattleLoadoutEditor)
+            {
+                DispatchMenuInput(MenuInput.Cancel);
+                drainUiButtons |= !gameMenus.IsOpen;
+                SynchronizeUiMoviePause();
+                return true;
+            }
+            CaptureGameplayTextures();
             if (gameMenus.IsOpen)
             {
-                if (gameMenus.IsGuardianAbilityWorkspace || gameMenus.IsJunctionDashboard || gameMenus.IsBattleLoadoutEditor)
-                {
-                    DispatchMenuInput(MenuInput.Cancel);
-                }
-                else
-                {
-                    gameMenus.Close();
-                }
+                gameMenus.Push("debug-room");
             }
             else
             {
-                CaptureGameplayTextures();
                 gameMenus.Open("debug-room", true);
             }
+            keyboard.SuppressHeldUiInput();
+            SynchronizeUiMoviePause();
+            return true;
         }
         else if (openMenu && !saveMenu.IsOpen && !gameMenus.IsNamePrompt)
         {
@@ -949,7 +952,7 @@ internal sealed partial class RecreateGame
             drainUiButtons = true;
             CompleteNativeNormalMenu(nativeMainWasOpen);
         }
-        else if (!hostOnly && !gameMenus.IsNamePrompt && !gameMenus.IsDemo && IsNativeGridMenuActive)
+        else if (!hostOnly && !gameMenus.IsNamePrompt && !gameMenus.IsDemo && !gameMenus.IsDebugRoomOpen && IsNativeGridMenuActive)
         {
             UpdatePartyMenu(gameplayClock.Advance(elapsed, session.State.Scene, events?.RequiresRealTimeFieldInput == true), default);
         }

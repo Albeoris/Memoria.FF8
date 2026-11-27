@@ -223,21 +223,36 @@ public sealed class DebugRoomSettingsTests
         Assert.Equal(100, preferences.TextScale);
     }
 
-    [Fact]
-    public void FpsTraceStartsOnceAfterConfirmClosesTheDebugRoom()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void FpsTraceStartsOnceAfterConfirmLeavesTheDebugRoom(bool fromSettings)
     {
         MenuController menu = new();
         KeyboardInput keyboard = new();
         int starts = 0;
         menu.PerformanceTraceRequested += () =>
         {
-            Assert.False(menu.IsOpen);
+            Assert.False(menu.IsDebugRoomOpen);
+            Assert.Equal(fromSettings, menu.IsOpen);
+            if (fromSettings)
+            {
+                Assert.Equal("config-graphics", menu.ScreenId);
+            }
             starts++;
         };
 
         keyboard.Read(new KeyboardState(Keys.F2), true);
         Assert.True(keyboard.DebugRoomRequested);
-        menu.Open("debug-room", true);
+        if (fromSettings)
+        {
+            menu.Open("config-graphics");
+            menu.Push("debug-room");
+        }
+        else
+        {
+            menu.Open("debug-room", true);
+        }
         menu.SelectEntry("debug-room", "start-fps-trace");
         Assert.True(menu.SelectedEntry!.Enabled);
         Assert.Equal(0, starts);
@@ -250,7 +265,7 @@ public sealed class DebugRoomSettingsTests
 
         keyboard.Read(confirm, true);
         Assert.False(keyboard.UiConfirmRequested);
-        menu.Navigate(MenuInput.Confirm);
+        menu.Execute(new("start-fps-trace"));
         Assert.Equal(1, starts);
     }
 

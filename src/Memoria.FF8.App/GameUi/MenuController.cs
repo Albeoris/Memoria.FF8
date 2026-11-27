@@ -50,6 +50,7 @@ public sealed partial class MenuController
     }
 
     public bool IsOpen { get; private set; }
+    internal bool IsDebugRoomOpen => IsOpen && (ScreenId == "debug-room" || _history.Contains("debug-room"));
     internal bool ShowMainScreenTitle { get; init; }
     public event Action? BattleDebugRequested;
     public event Action? PerformanceTraceRequested;
@@ -1016,9 +1017,9 @@ public sealed partial class MenuController
                 }
                 return;
             case "start-fps-trace":
-                if (PerformanceTraceRequested is not null)
+                if (IsOpen && ScreenId == "debug-room" && PerformanceTraceRequested is not null)
                 {
-                    Close();
+                    Back();
                     PerformanceTraceRequested.Invoke();
                 }
                 return;

@@ -14,7 +14,6 @@ internal sealed partial class RecreateGame
     private Task<bool>? traceDecision;
     private ErrorReportPresenter? traceReport;
     private string traceReportTitle = "";
-    private bool traceDebugRoom;
     private bool traceKeyHeld;
     private bool traceStarted;
     private long nextTraceLabelUpdate;
@@ -22,7 +21,7 @@ internal sealed partial class RecreateGame
     private Vector2 traceLabelSize;
     private string traceLabel = "";
 
-    private bool TraceModalOpen => traceDebugRoom || traceDecision is not null || traceReport is not null;
+    private bool TraceModalOpen => traceDecision is not null || traceReport is not null;
 
     private void StartPerformanceTrace()
     {
@@ -44,7 +43,7 @@ internal sealed partial class RecreateGame
         SetTraceModalPause();
     }
 
-    private bool UpdatePerformanceTraceUi(GameTime time)
+    private bool UpdatePerformanceTraceUi()
     {
         KeyboardState keys = physicalInput.ReadKeyboard();
         bool down = keys.IsKeyDown(Keys.F2);
@@ -59,43 +58,11 @@ internal sealed partial class RecreateGame
 
         if (TraceModalOpen)
         {
-            UpdateTraceModal(time, keys, pressed);
+            UpdateTraceModal(keys, pressed);
             return true;
         }
 
-        if (!pressed || gameMenus is null || gameMenus.IsCapturingControls || !keyboard.Profile.Match(keys, physicalInput.ReadController()).Any(binding => binding.Action == ControlAction.DebugRoom))
-        {
-            return false;
-        }
-        if (InFf7 && crossoverSetup is null && !saveMenu.IsOpen && !updateSave.Paused && !dialogContext.IsBusy && windowCloseDecision is null && worldTransfer is null)
-        {
-            // The hosted FFVII scene supplies its own debug menu.
-            return false;
-        }
-        if (gameMenus.IsOpen && gameMenus.IsDemo && gameMenus.ScreenId == "debug-room")
-        {
-            return false;
-        }
-        // Preserve the current owner of modal input, including its selection and script position.
-        bool otherOwner = gameMenus.IsOpen || saveMenu.IsOpen || dialogContext.IsBusy || windowCloseDecision is not null
-            || userPaused || updateSave.Paused || worldTransfer is not null || crossoverSetup is not null
-            || battleEntryTransition is not null || BattleModalBlocksGameplay || world?.ActiveTripleTriad is not null || world?.Tutorial is not null
-            || startup.Active || session.State.Ff8Completion is not null || error is not null
-            || battleDebug is not null || sceneInspector is not null || modelBrowser is not null || textureBrowser is not null
-            || lightingEditor is not null || lightingRebinding is not null || localizationWorkbench.CapturesSimulation;
-        if (otherOwner)
-        {
-            traceDecision = tracePrompt.ShowAsync(new GameConfirmationRequest(LocalizeAuthored("debug.fps-trace.help", "Record frame timings. Press F2 to stop and prepare a GitHub report."), LocalizeAuthored("debug.fps-trace.paused", "Game paused"), LocalizeAuthored("debug.fps-trace.cancel", "Cancel"), LocalizeAuthored("debug.fps-trace.start", "Start FPS trace"), ""));
-            tracePrompt.Handle(UiKey.Right);
-        }
-        else
-        {
-            CaptureGameplayTextures();
-            gameMenus.Open("debug-room", true);
-            traceDebugRoom = true;
-        }
-        SetTraceModalPause();
-        return true;
+        return false;
     }
 
     private void FinishPerformanceTrace()
@@ -111,7 +78,7 @@ internal sealed partial class RecreateGame
         }
     }
 
-    private void UpdateTraceModal(GameTime time, KeyboardState keys, bool pressed)
+    private void UpdateTraceModal(KeyboardState keys, bool pressed)
     {
         if (!physicalInput.CanRead)
         {
@@ -121,17 +88,7 @@ internal sealed partial class RecreateGame
         keyboard.NativeButtonsOwnInput = false;
         keyboard.TextEntryEnabled = false;
         keyboard.NamingNavigationEnabled = false;
-        if (traceDebugRoom)
-        {
-            InputFrame input = keyboard.Read(keys, physicalInput.ReadController(), true);
-            UpdateGameUi(time.ElapsedGameTime, input, hostOnly: true);
-            if (gameMenus is not { IsOpen: true, ScreenId: "debug-room" })
-            {
-                traceDebugRoom = false;
-                SetTraceModalPause();
-            }
-        }
-        else if (traceReport is not null)
+        if (traceReport is not null)
         {
             InputFrame input = keyboard.Read(keys, physicalInput.ReadController(), true);
             traceReport.Update(traceReportTitle, input, keyboard, physicalInput.ReadMouse(), GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height);
@@ -186,11 +143,7 @@ internal sealed partial class RecreateGame
         text.BeginFrame();
         uiCanvas?.BeginFrame(time.TotalGameTime);
         batch.Begin(samplerState: SamplerState.LinearClamp);
-        if (traceDebugRoom)
-        {
-            DrawGameUi(bounds);
-        }
-        else if (traceReport is not null)
+        if (traceReport is not null)
         {
             DrawWindowView(traceReport.View(traceReportTitle), bounds);
         }

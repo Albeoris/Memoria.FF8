@@ -11,7 +11,7 @@ public sealed class PerformanceTraceHostTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void F2StartsRecordingOnConfirmationAndStopsAtTheReport(bool preserveSettingsMenu)
+    public void F2OpensDebugRoomAndStopsRecordingAfterAnExplicitStart(bool preserveSettingsMenu)
     {
         Assert.SkipUnless(Environment.GetEnvironmentVariable("MEMORIA_FF8_GRAPHICS_HOST_TEST") == "1", "An installed-game graphics host is required.");
         string gameDirectory = TestResources.GameDirectory;
@@ -32,7 +32,8 @@ public sealed class PerformanceTraceHostTests
                 ControlDirectory = Path.Combine(directory, "controls"),
                 SavePath = Path.Combine(directory, "unused.json")
             };
-            using RecreateGame game = new(options, GameSession.CreateColdProcess());
+            GameSession session = GameSession.CreateColdProcess();
+            using RecreateGame game = new(options, session);
             KeyboardState keys = default;
             HostPhysicalInput input = new(true, () => true, () => keys, () => default, () => default);
             HostField("physicalInput").SetValue(game, input);
@@ -52,23 +53,15 @@ public sealed class PerformanceTraceHostTests
                 menu.Close();
             }
             PresentationTiming timing = Read<PresentationTiming>(game, "presentationTiming");
-            TimeSpan beforePause = timing.SimulationTotal;
-            Frame(Keys.F2);
-            Frame(Keys.F2);
+            Keys[] openKeys = preserveSettingsMenu ? [Keys.F2, Keys.X] : [Keys.F2];
+            Frame(openKeys);
+            Frame(openKeys);
 
             Assert.True(Read<bool>(game, "uiMovieSuspended"));
-            Assert.Equal(beforePause, timing.SimulationTotal);
+            Assert.Equal(SceneKind.Title, session.State.Scene);
             Assert.False(trace.IsRecording);
-            if (preserveSettingsMenu)
-            {
-                Assert.Equal("config-graphics", menu.ScreenId);
-                Assert.True(Read<GameConfirmationOverlay>(game, "tracePrompt").IsOpen);
-            }
-            else
-            {
-                Assert.Equal("debug-room", menu.ScreenId);
-                menu.SelectEntry("debug-room", "start-fps-trace");
-            }
+            Assert.Equal("debug-room", menu.ScreenId);
+            menu.SelectEntry("debug-room", "start-fps-trace");
 
             Frame();
             Frame(Keys.X);
@@ -83,6 +76,7 @@ public sealed class PerformanceTraceHostTests
 
             Frame(Keys.F2);
             Assert.False(trace.IsRecording);
+            Assert.False(menu.IsDebugRoomOpen);
             ErrorReportPresenter report = Read<ErrorReportPresenter>(game, "traceReport");
             Assert.Contains("Viewport", report.Details);
             long length = new FileInfo(path).Length;

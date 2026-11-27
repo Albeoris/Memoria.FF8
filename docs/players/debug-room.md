@@ -21,7 +21,7 @@ Player preferences belong in Config. Debug Room has no second editor for volume,
 
 ## Recording low FPS
 
-Press **F2**, select **Start FPS trace**, then reproduce the slowdown. Opening the menu pauses gameplay. If a game screen already owns input, the trace prompt keeps that screen in place. Starting the recording returns control to it. The indicator shows the size already written to disk.
+Press **F2** to open Debug Room, then select **Start FPS trace** and reproduce the slowdown. Opening Debug Room pauses gameplay. If you open it from another menu, starting the recording returns you to that menu. The indicator shows the size already written to disk.
 
 Press **F2** again to stop and review the report. Select **Report performance** to prepare a ZIP and open a GitHub draft. Attach the ZIP, describe what you were doing when the frame rate dropped, and submit the issue. **Details** shows the original CSV path.
 

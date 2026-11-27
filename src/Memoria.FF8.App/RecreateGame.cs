@@ -163,7 +163,7 @@ internal sealed partial class RecreateGame : GamePresentationHost
         BeginPresentationUpdate();
         using DiagnosticHostPhaseTiming.Scope updateTiming = diagnosticHostPhaseTiming.Measure(DiagnosticHostPhase.Update);
         physicalInput.BeginFrame();
-        if (UpdatePerformanceTraceUi(gameTime))
+        if (UpdatePerformanceTraceUi())
         {
             PollModalRecoveryControls();
             return;
