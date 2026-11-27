@@ -164,6 +164,7 @@ public sealed record SceneLightingProfile
 
     public SceneLightingCycle Cycle { get; init; } = new();
     public bool ClockEnabled { get; init; }
+    public bool ClockPerSave { get; init; } = true;
     public bool SceneLightsEnabled { get; init; }
     public bool GradeEnabled { get; init; }
     public float GradeStrength { get; init; } = 1;

@@ -124,9 +124,22 @@ public static class DemasterSceneLighting
         }
         int lunarFrom = Integer("LUT_LUNAR_FROM", 0);
         int lunarTo = Integer("LUT_LUNAR_TO", ushort.MaxValue);
+        bool clockPerSave = profile.ClockPerSave;
+        if (settings.TryGetValue("DAY_NIGHT_SAVES", out var clockMode))
+        {
+            if (clockMode.Value is "0" or "1")
+            {
+                clockPerSave = clockMode.Value == "1";
+            }
+            else
+            {
+                warn(clockMode.Line, $"Invalid DAY_NIGHT_SAVES: {clockMode.Value}");
+            }
+        }
         return profile with
         {
             ClockEnabled = Integer("DAY_NIGHT", 1) != 0,
+            ClockPerSave = clockPerSave,
             SceneLightsEnabled = Integer("SCENE_LIGHT", 1) != 0,
             GradeEnabled = Integer("LUT", 1) != 0,
             GradeStrength = (float)Math.Clamp(Number("LUT_STRENGTH", 1), 0, 1),

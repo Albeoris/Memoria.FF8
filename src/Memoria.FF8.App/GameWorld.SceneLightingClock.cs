@@ -5,6 +5,7 @@ namespace Memoria.FF8;
 internal sealed partial class GameWorld
 {
     private SceneLightingClock? sceneLightingClock;
+    private bool sceneLightingContextRestored;
     private string? sceneLightingEncounter;
     private SceneFieldLighting? sceneLightingBattleField;
 
@@ -44,6 +45,7 @@ internal sealed partial class GameWorld
         if (state.Scene == SceneKind.Title)
         {
             sceneLightingClock = null;
+            sceneLightingContextRestored = false;
             sceneLightingEncounter = null;
             return;
         }
@@ -74,18 +76,32 @@ internal sealed partial class GameWorld
         SceneLightingClock clock = GetSceneLightingClock(profile, state);
         SceneFieldLighting? battleField = state.PendingBattleEncounter is null || IsWorldBattle(state)
             ? null : ResolveSceneLightingBattleField(profile, state, ReadSceneLightingMoment(state));
-        return state with { SceneClock = new(clock.Seconds, clock.Paused, battleField) };
+        if (profile.ClockPerSave)
+        {
+            return state with { SceneClock = new(clock.Seconds, clock.Paused, battleField) };
+        }
+        if (state.SceneClock is { } saved)
+        {
+            return state with { SceneClock = saved with { BattleField = battleField } };
+        }
+        return battleField is null
+            ? state
+            : state with { SceneClock = new(profile.Cycle.Wrap(profile.Cycle.Fade / 2 + (state.Playtime?.Seconds ?? 0)), false, battleField) };
     }
 
     private SceneLightingClock GetSceneLightingClock(SceneLightingProfile profile, GameState state)
     {
-        if (sceneLightingClock is null)
+        if (!sceneLightingContextRestored)
         {
-            sceneLightingClock = new(profile.Cycle, state.SceneClock, state.Playtime?.Seconds ?? 0);
+            sceneLightingContextRestored = true;
             sceneLightingEncounter = state.PendingBattleEncounter?.OccurrenceId;
             sceneLightingBattleField = state.SceneClock?.BattleField;
         }
-        return sceneLightingClock;
+        if (!profile.ClockPerSave && modelOverrides is GameResourceHost host)
+        {
+            return host.ReadGlobalSceneClock(profile.Cycle);
+        }
+        return sceneLightingClock ??= new(profile.Cycle, state.SceneClock, state.Playtime?.Seconds ?? 0);
     }
 
     private SceneFieldLighting ResolveSceneLightingBattleField(SceneLightingProfile profile, GameState state, int moment)
