@@ -6,7 +6,8 @@ namespace Memoria.FF8.GameUi;
 internal readonly record struct BattleResistanceGrid(int Count, int Columns, float CellWidth, float IconSize, float FontSize, float TextHeight)
 {
     public float Width => Columns * CellWidth;
-    public float RowHeight => IconSize + TextHeight + 2;
+    public float RowGap { get; init; } = 2;
+    public float RowHeight => IconSize + TextHeight + RowGap;
     public float Height => Columns == 0 ? 0 : ((Count + Columns - 1) / Columns) * RowHeight;
 
     public static BattleResistanceGrid Measure(IUiCanvas canvas, float scale, float textScale, IReadOnlyList<BattleResistanceBadge> badges)
@@ -52,39 +53,58 @@ internal struct BattleTargetResistanceRow
     public const float Gap = 8;
     public IReadOnlyList<BattleResistanceBadge>? Badges;
     public BattleResistanceGrid Grid;
-    public float NameWidth;
-    public float NameHeight;
     public float BadgeX;
-    public float BadgeY;
 
-    public static float Arrange(BattleTargetResistanceRow[] rows, BattleResistanceGrid sharedGrid, float nameWidth, float availableWidth, float availableHeight)
+    public static void Arrange(IUiCanvas canvas, BattleTargetResistanceRow[] rows, string[] names, float fontSize, float scale, float availableWidth, float availableHeight)
     {
-        bool inline = nameWidth + Gap + sharedGrid.Width <= availableWidth;
-        float badgeX = inline ? nameWidth + Gap : 0;
-        float badgeY = 0;
-        if (!inline)
+        BattleResistanceGrid sharedGrid = default;
+        float nameWidth = 0;
+        for (int index = 0; index < rows.Length; index++)
         {
-            foreach (BattleTargetResistanceRow row in rows)
+            if (rows[index].Grid.Count > 0)
             {
-                if (row.Grid.Count > 0)
-                {
-                    badgeY = Math.Max(badgeY, row.NameHeight + 2);
-                }
+                sharedGrid = sharedGrid.Include(rows[index].Grid);
+                nameWidth = Math.Max(nameWidth, canvas.MeasureText(names[index], fontSize, float.PositiveInfinity).Width / scale);
             }
-            sharedGrid = sharedGrid.Fit(availableWidth, availableHeight - badgeY);
         }
+        if (sharedGrid.Count == 0 || availableWidth <= Gap)
+        {
+            return;
+        }
+
+        // Keep room beside long names while allowing short names to leave more space for badges.
+        float badgeWidth = Math.Min(sharedGrid.Width, Math.Max(availableWidth - nameWidth - Gap, (availableWidth - Gap) / 3));
+        float badgeX = Math.Min(nameWidth + Gap, availableWidth - badgeWidth);
+        float bestScale = 0;
+        int bestColumns = sharedGrid.Count;
+        for (int columns = sharedGrid.Count; columns > 0; columns--)
+        {
+            BattleResistanceGrid candidate = sharedGrid with { Columns = columns };
+            float fit = Math.Min(1, Math.Min(badgeWidth / candidate.Width, availableHeight / candidate.Height));
+            if (fit > bestScale)
+            {
+                bestScale = fit;
+                bestColumns = columns;
+            }
+        }
+        sharedGrid = sharedGrid with
+        {
+            Columns = bestColumns,
+            CellWidth = sharedGrid.CellWidth * bestScale,
+            IconSize = sharedGrid.IconSize * bestScale,
+            FontSize = sharedGrid.FontSize * bestScale,
+            TextHeight = sharedGrid.TextHeight * bestScale,
+            RowGap = sharedGrid.RowGap * bestScale
+        };
         for (int index = 0; index < rows.Length; index++)
         {
             ref BattleTargetResistanceRow row = ref rows[index];
             if (row.Grid.Count > 0)
             {
-                row.NameWidth = inline ? nameWidth : availableWidth;
                 row.BadgeX = badgeX;
-                row.BadgeY = badgeY;
                 row.Grid = sharedGrid with { Count = row.Grid.Count };
             }
         }
-        return badgeY + sharedGrid.Height;
     }
 }
 

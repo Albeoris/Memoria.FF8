@@ -15,7 +15,7 @@ public sealed class BattleScanHintHudTests
     {
         using BattleAssets assets = new(TestResources.GameDirectory);
         BattleActionDefinition fire = assets.ActionDefinitions.Single(action => action.Ability == BattleAbility.Magic && action.Id == 1);
-        BattleHudController hud = CreateHud(fire, 700, 1000, secondKnown: false);
+        BattleHudController hud = CreateHud(fire, 700, 1000, secondKnown: false, enemyStatus: 8192);
         hud.ScanHintMode = mode;
         hud.Choose(hud.Commands.ToList().IndexOf(BattleAbility.Magic));
         Assert.True(hud.ShowingMagicList);
@@ -39,6 +39,16 @@ public sealed class BattleScanHintHudTests
             Assert.Equal(2, targets.Images.Count(draw => draw.Source == new UiImageSource(UiImageKind.Icon, 288)));
             var enemy = hud.Session.Combatants[1];
             Assert.Same(hud.ResistanceBadges(enemy), hud.ResistanceBadges(enemy));
+        }
+        hud.ScanHintMode = BattleScanHintMode.Off;
+        var plain = Draw(hud, theme);
+        Assert.Equal(2, targets.Texts.Count(text => text == "Float"));
+        Assert.Equal(plain.TextDraws.Where(draw => draw.Text == "Float"), targets.TextDraws.Where(draw => draw.Text == "Float"));
+        foreach (string name in new[] { "first", "second" })
+        {
+            UiRect expectedBounds = Assert.Single(plain.TextDraws, draw => draw.Text == name).Bounds;
+            UiRect actualBounds = Assert.Single(targets.TextDraws, draw => draw.Text == name).Bounds;
+            Assert.Equal(expectedBounds, actualBounds with { Width = expectedBounds.Width });
         }
         Assert.Empty(hud.Session.QueuedActions);
         Assert.Equal(7, Assert.Single(hud.Session.Combatants[0].MagicStocks).Count);

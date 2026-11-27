@@ -494,11 +494,11 @@ internal sealed partial class BattleHudElement : UiElement
         {
             BattleCombatant actor = targets[index];
             UiRect row = targetList.Cell(index);
-            bool measured = targetList.Expanded || hintRows is not null;
-            float statusOffset = measured ? row.Height - targetList.StatusHeight : 25;
-            float textWidth = hintRows?[index].NameWidth ?? row.Width - 42;
-            float textHeight = hintRows?[index].NameHeight ?? (measured ? statusOffset : row.Height);
-            UiRect text = Rect(row.X + 30, row.Y, textWidth, textHeight);
+            bool measured = targetList.Expanded;
+            float statusOffset = measured ? row.Height - targetList.StatusHeight : BattleHudLayout.CompactTargetStatusOffset;
+            BattleTargetResistanceRow hints = hintRows?[index] ?? default;
+            float textWidth = hints.BadgeX > 0 ? hints.BadgeX - BattleTargetResistanceRow.Gap : row.Width - 42;
+            UiRect text = Rect(row.X + 30, row.Y, textWidth, measured ? statusOffset : row.Height);
             if (group || selectedTargetId == actor.Id)
             {
                 if (targetList.Expanded)
@@ -514,16 +514,22 @@ internal sealed partial class BattleHudElement : UiElement
             try
             {
                 float font = 24 * Scale * controller.TextScale;
-                canvas.Text(names[index], font, text, controller.IsTargetUnavailable(actor) ? theme.Muted : theme.Foreground, UiAlignment.Start, measured ? UiTextFlow.Wrap : UiTextFlow.SingleLine);
+                UiTextFlow flow = measured ? UiTextFlow.Wrap : UiTextFlow.SingleLine;
+                if (hints.BadgeX > 0 && (!measured || canvas.MeasureText(names[index], font, text.Width).Height > text.Height))
+                {
+                    float nameWidth = canvas.MeasureText(names[index], font, float.PositiveInfinity).Width;
+                    font *= Math.Min(1, text.Width / Math.Max(1, nameWidth));
+                    flow = UiTextFlow.SingleLine;
+                }
+                canvas.Text(names[index], font, text, controller.IsTargetUnavailable(actor) ? theme.Muted : theme.Foreground, UiAlignment.Start, flow);
             }
             finally
             {
                 canvas.PopClip();
             }
-            if (hintRows is not null && hintRows[index].Badges is { Count: > 0 } badges)
+            if (hints.BadgeX > 0 && hints.Badges is { Count: > 0 } badges)
             {
-                BattleTargetResistanceRow hints = hintRows[index];
-                DrawResistanceBadges(canvas, theme, Scale, hints.Grid, badges, Rect(row.X + 30 + hints.BadgeX, row.Y + hints.BadgeY, hints.Grid.Width, hints.Grid.Height));
+                DrawResistanceBadges(canvas, theme, Scale, hints.Grid, badges, Rect(row.X + 30 + hints.BadgeX, row.Y, hints.Grid.Width, hints.Grid.Height));
             }
             if (measured)
             {

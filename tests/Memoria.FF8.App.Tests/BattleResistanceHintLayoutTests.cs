@@ -61,36 +61,46 @@ public sealed class BattleResistanceHintLayoutTests
     }
 
     [Theory]
-    [InlineData(1, 442, true)]
-    [InlineData(8, 400, false)]
-    public void TargetHintsFitNextToOrBelowTheNameAndStayInItsHitCell(int targets, int maximumWidth, bool inline)
+    [InlineData(3, 442, 1)]
+    [InlineData(3, 442, 2)]
+    [InlineData(8, 400, 1)]
+    [InlineData(8, 400, 2)]
+    public void TargetHintsFitBesideNamesWithoutChangingTargetRows(int targets, int maximumWidth, float textScale)
     {
         BattleUiTests.TestCanvas canvas = new() { WrapMeasuredText = true };
         BattleHudLayout viewport = new(new UiRect(0, 0, 960, 672));
         string[] names = Enumerable.Range(1, targets).Select(index => $"Garden Guard {index}").ToArray();
         BattleResistanceBadge[] badges = [new(new UiImageSource(UiImageKind.Icon, 288), "Fire", "-100%", BattleResistanceTone.Favorable), new(new UiImageSource(UiImageKind.Icon, 279), "Sleep", "100%", BattleResistanceTone.Immune)];
-        BattleTargetResistanceRow[] hints = names.Select(_ => new BattleTargetResistanceRow { Badges = badges, Grid = BattleResistanceGrid.Measure(canvas, 1, 1, badges) }).ToArray();
-        BattleHudTargetList list = viewport.MeasureTargetList(canvas, new(), names, 1, 90, maximumWidth, 0, targets - 1, hints);
+        BattleTargetResistanceRow[] hints = new BattleTargetResistanceRow[targets];
+        hints[^1] = new() { Badges = badges, Grid = BattleResistanceGrid.Measure(canvas, 1, textScale, badges) };
+        BattleHudTargetList plain = viewport.MeasureTargetList(canvas, new(), names, textScale, 90, maximumWidth, 0, targets - 1);
+        BattleHudTargetList list = viewport.MeasureTargetList(canvas, new(), names, textScale, 90, maximumWidth, 0, targets - 1, hints);
+        Assert.Equal(plain, list);
         Assert.Contains(targets - 1, list.VisibleIndices());
         foreach (int index in list.VisibleIndices())
         {
             UiRect cell = list.Cell(index);
             BattleTargetResistanceRow row = hints[index];
-            UiRect name = new(cell.X + 30, cell.Y, row.NameWidth, row.NameHeight);
-            UiRect strip = new(name.X + row.BadgeX, cell.Y + row.BadgeY, row.Grid.Width, row.Grid.Height);
-            Assert.True(strip.Intersect(name).IsEmpty);
-            Assert.Equal(inline, strip.X >= name.Right);
-            Assert.True(strip.Right <= cell.Right);
-            Assert.True(strip.Bottom <= cell.Bottom - list.StatusHeight);
-            Assert.Equal(index, list.HitIndex(viewport, strip.Right - 1, strip.Bottom - 1));
+            if (index == targets - 1)
+            {
+                UiRect strip = new(cell.X + 30 + row.BadgeX, cell.Y, row.Grid.Width, row.Grid.Height);
+                Assert.True(row.BadgeX > BattleTargetResistanceRow.Gap);
+                Assert.True(strip.Right <= cell.Right - 12 + 0.01f);
+                Assert.True(strip.Bottom <= cell.Y + (list.Expanded ? cell.Height - list.StatusHeight : 25) + 0.01f);
+                Assert.Equal(index, list.HitIndex(viewport, strip.Right - 1, strip.Bottom - 1));
+            }
+            else
+            {
+                Assert.Equal(default, row);
+            }
         }
     }
 
     [Theory]
-    [InlineData(680, true)]
-    [InlineData(442, false)]
-    [InlineData(260, false)]
-    public void TwelveKnownAndUnknownResistancesShareColumnsAcrossTargetNames(int maximumWidth, bool inline)
+    [InlineData(680)]
+    [InlineData(442)]
+    [InlineData(260)]
+    public void TwelveKnownAndUnknownResistancesShareColumnsAcrossTargetNames(int maximumWidth)
     {
         BattleUiTests.TestCanvas canvas = new() { WrapMeasuredText = true };
         BattleHudLayout viewport = new(new UiRect(0, 0, 960, 672));
@@ -103,13 +113,14 @@ public sealed class BattleResistanceHintLayoutTests
             rows[index] = new() { Badges = badges, Grid = BattleResistanceGrid.Measure(canvas, 1, 1, badges) };
         }
         BattleHudTargetList list = viewport.MeasureTargetList(canvas, new(), names, 1, 90, maximumWidth, 0, 0, rows);
-        Assert.Equal(inline, rows[0].BadgeY == 0);
-        Assert.Equal(rows[0].NameWidth, rows[1].NameWidth);
+        Assert.Equal(rows[0].BadgeX, rows[1].BadgeX);
+        Assert.Equal(rows[0].Grid, rows[1].Grid);
+        Assert.InRange(rows[0].Grid.Height, 1, 25.01f);
         for (int index = 0; index < rows.Length; index++)
         {
             UiRect cell = list.Cell(index);
             BattleTargetResistanceRow row = rows[index];
-            BattleHudElement.DrawResistanceBadges(canvas, new(), 1, row.Grid, row.Badges!, new(cell.X + 30 + row.BadgeX, cell.Y + row.BadgeY, row.Grid.Width, row.Grid.Height));
+            BattleHudElement.DrawResistanceBadges(canvas, new(), 1, row.Grid, row.Badges!, new(cell.X + 30 + row.BadgeX, cell.Y, row.Grid.Width, row.Grid.Height));
         }
         Assert.Equal(24, canvas.Images.Count);
         for (int icon = 0; icon < 12; icon++)
@@ -118,7 +129,7 @@ public sealed class BattleResistanceHintLayoutTests
             var unknown = canvas.Images[icon + 12];
             Assert.Equal(known.Source, unknown.Source);
             Assert.Equal(known.Bounds.X, unknown.Bounds.X);
-            Assert.Equal(known.Bounds.Y + list.RowHeight, unknown.Bounds.Y);
+            Assert.InRange(Math.Abs(known.Bounds.Y + list.RowHeight - unknown.Bounds.Y), 0, 0.001f);
             Assert.Equal("-100%", canvas.TextDraws[icon].Text);
             Assert.Equal("??", canvas.TextDraws[icon + 12].Text);
             Assert.Equal(known.Bounds.Bottom, canvas.TextDraws[icon].Bounds.Y);

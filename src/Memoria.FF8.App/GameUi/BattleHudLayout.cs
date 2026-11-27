@@ -123,6 +123,7 @@ internal readonly record struct BattleHudTargetList(UiRect Panel, BattleDrawLayo
 
 internal readonly record struct BattleHudLayout(UiRect Bounds)
 {
+    public const float CompactTargetStatusOffset = 25;
     public const float CommandX = 30;
     public const float CommandRowHeight = 28;
     public const int VisibleCommandRows = 4;
@@ -190,68 +191,46 @@ internal readonly record struct BattleHudLayout(UiRect Bounds)
     public BattleHudTargetList MeasureTargetList(IUiCanvas canvas, UiTheme theme, string[] names, float textScale, float helpSpace, float maximumWidth, int previousRow, int selectedIndex, BattleTargetResistanceRow[]? hintRows = null)
     {
         BattleDrawLayout grid = BattleDrawLayout.Calculate(names.Length);
-        if (names.Length <= 4 && hintRows is null)
+        float scale = Scale;
+        float fontSize = 24 * scale * textScale;
+        if (names.Length <= 4)
         {
-            var (panel, width, nativeRowHeight, offset) = MeasureTargets(canvas, theme, names, 1, textScale);
+            var (panel, width, rowHeight, offset) = MeasureTargets(canvas, theme, names, 1, textScale);
             float fitted = Math.Min(width, maximumWidth);
-            return new(panel with { Width = fitted }, grid, fitted, nativeRowHeight, offset, 0, 0, grid.Rows);
+            ArrangeHints(fitted - 42, CompactTargetStatusOffset);
+            return new(panel with { Width = fitted }, grid, fitted, rowHeight, offset, 0, 0, grid.Rows);
         }
 
         const float bottom = 660;
         const float top = 108;
         const float footerHeight = 34;
-        float scale = Scale;
-        float fontSize = 24 * scale * textScale;
-        float captionSize = UiTheme.DefaultCaptionFontSize * Scale * textScale;
-        float naturalWidth = 0;
-        float hintNameWidth = 0;
-        BattleResistanceGrid sharedGrid = default;
-        for (int index = 0; index < names.Length; index++)
-        {
-            float nameWidth = canvas.MeasureText(names[index], fontSize, float.PositiveInfinity).Width / scale;
-            naturalWidth = Math.Max(naturalWidth, nameWidth);
-            if (hintRows?[index].Grid is { Count: > 0 } badges)
-            {
-                hintNameWidth = Math.Max(hintNameWidth, nameWidth);
-                sharedGrid = sharedGrid.Include(badges);
-            }
-        }
-        if (sharedGrid.Count > 0)
-        {
-            naturalWidth = Math.Max(naturalWidth, hintNameWidth + BattleTargetResistanceRow.Gap + sharedGrid.Width);
-        }
-        float minimumWidth = names.Length <= 4 ? 324 : 158;
-        float columnWidth = Math.Min(Math.Max(minimumWidth, naturalWidth + 42), maximumWidth / grid.Columns);
-        float contentOffset = Math.Max(27, Math.Max(theme.CaptionContentHeight(captionSize), captionSize * 0.75f) / Scale);
-        float statusHeight = Math.Max(12, canvas.MeasureText("Mg", 11 * Scale * textScale, float.PositiveInfinity).Height / Scale);
+        float captionSize = UiTheme.DefaultCaptionFontSize * scale * textScale;
+        float naturalWidth = names.Max(name => canvas.MeasureText(name, fontSize, float.PositiveInfinity).Width / scale);
+        float columnWidth = Math.Min(Math.Max(158, naturalWidth + 42), maximumWidth / grid.Columns);
+        float contentOffset = Math.Max(27, Math.Max(theme.CaptionContentHeight(captionSize), captionSize * 0.75f) / scale);
+        float statusHeight = Math.Max(12, canvas.MeasureText("Mg", 11 * scale * textScale, float.PositiveInfinity).Height / scale);
         float textWidth = columnWidth - 42;
         float available = bottom - top - helpSpace - contentOffset;
-        float maximumContentHeight = available - (grid.ColumnRows(0) > 1 ? footerHeight : 12) - statusHeight - 4;
-        float contentHeight = canvas.MeasureText("Mg", fontSize, float.PositiveInfinity).Height / scale;
-        for (int index = 0; index < names.Length; index++)
-        {
-            float nameHeight = canvas.MeasureText(names[index], fontSize, textWidth * scale).Height / scale;
-            contentHeight = Math.Max(contentHeight, nameHeight);
-            if (hintRows is not null)
-            {
-                hintRows[index].NameWidth = textWidth;
-                hintRows[index].NameHeight = nameHeight;
-            }
-        }
-        if (hintRows is not null && sharedGrid.Count > 0)
-        {
-            contentHeight = Math.Max(contentHeight, BattleTargetResistanceRow.Arrange(hintRows, sharedGrid, hintNameWidth, textWidth, maximumContentHeight));
-        }
-        float rowHeight = Math.Max(39, contentHeight + statusHeight + 4);
-        int visibleRows = Math.Clamp((int)((available - 12) / rowHeight), 1, hintRows is null ? grid.Rows : grid.ColumnRows(0));
+        float contentHeight = Math.Max(canvas.MeasureText("Mg", fontSize, float.PositiveInfinity).Height, names.Max(name => canvas.MeasureText(name, fontSize, textWidth * scale).Height)) / scale;
+        float expandedRowHeight = Math.Max(39, contentHeight + statusHeight + 4);
+        ArrangeHints(textWidth, expandedRowHeight - statusHeight);
+        int visibleRows = Math.Clamp((int)((available - 12) / expandedRowHeight), 1, grid.Rows);
         if (visibleRows < grid.ColumnRows(0))
         {
-            visibleRows = Math.Max(1, (int)((available - footerHeight) / rowHeight));
+            visibleRows = Math.Max(1, (int)((available - footerHeight) / expandedRowHeight));
         }
         int selectedRow = selectedIndex < 0 ? -1 : grid.GetCell(selectedIndex).Row;
         int start = BattleHudGridWindow.Reveal(previousRow, grid.ColumnRows(0), visibleRows, selectedRow);
-        float height = contentOffset + visibleRows * rowHeight + (visibleRows < grid.ColumnRows(0) ? footerHeight : 12);
-        return new(new UiRect(54, bottom - height, columnWidth * grid.Columns, height), grid, columnWidth, rowHeight, contentOffset, statusHeight, start, visibleRows);
+        float height = contentOffset + visibleRows * expandedRowHeight + (visibleRows < grid.ColumnRows(0) ? footerHeight : 12);
+        return new(new UiRect(54, bottom - height, columnWidth * grid.Columns, height), grid, columnWidth, expandedRowHeight, contentOffset, statusHeight, start, visibleRows);
+
+        void ArrangeHints(float width, float height)
+        {
+            if (hintRows is not null)
+            {
+                BattleTargetResistanceRow.Arrange(canvas, hintRows, names, fontSize, scale, width, height);
+            }
+        }
     }
 
     public void DrawVitals(IUiCanvas canvas, string name, long hp, long maximumHp, float y, float textScale, UiColor nameColor, UiColor hpColor, int? mp = null, int maximumMp = 0, float? compactHeight = null)
