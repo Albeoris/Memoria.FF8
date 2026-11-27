@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text;
 using Albeoris.Games.FF8.Imaging;
 using Albeoris.Games.FF8.Imaging.Map;
 using Memoria.FF8.Assets;
@@ -69,6 +70,7 @@ public static class DemasterFieldLayers
             AddCandidate(candidates, id, canvas);
         }
         Dictionary<uint, Painting> paintings = [];
+        ILookup<string, ModFile> fieldFiles = catalog.Files.Where(file => file.Format == ModFormat.Demaster && file.RelativePath.StartsWith(folder, StringComparison.OrdinalIgnoreCase)).ToLookup(file => file.RelativePath, StringComparer.OrdinalIgnoreCase);
         foreach ((uint id, List<Frame> choices) in candidates)
         {
             string suffix = $"{id:X8}";
@@ -91,7 +93,7 @@ public static class DemasterFieldLayers
                 {
                     if (frame.ScaleOf(decoded.Image) > 0)
                     {
-                        paintings.Add(id, new(file, frame, decoded));
+                        paintings.Add(id, new(file, frame, decoded, PrepareBakedLayer(fieldFiles, field, file, id, decoded.Image, diagnose)));
                         break;
                     }
                 }
@@ -172,6 +174,48 @@ public static class DemasterFieldLayers
         long candidateTime = candidate.ContentStamp?.Modified ?? 0;
         long currentTime = current.ContentStamp?.Modified ?? 0;
         return candidateTime > currentTime || candidateTime == currentTime && candidate.RelativePath.EndsWith(".dds", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static BakedLayer? PrepareBakedLayer(ILookup<string, ModFile> files, string field, ModFile painting, uint id, PixelImage baseImage, Action<ModDiagnostic>? diagnose)
+    {
+        string stem = painting.RelativePath[..^Path.GetExtension(painting.RelativePath).Length];
+        ModFile? albedo = FindImage("_A");
+        ModFile? lightmap = FindImage("_LF");
+        if (albedo is null || lightmap is null)
+        {
+            return null;
+        }
+        string metadataPath = stem[..(stem.LastIndexOf('/') + 1)] + field + "_pbr.txt";
+        ModFile? metadata = files[metadataPath].FirstOrDefault(candidate => candidate.PackageId == painting.PackageId);
+        try
+        {
+            float scale = metadata is null ? 1 : DemasterMaterialChannels.ReadLayerLightmapScale(Encoding.UTF8.GetString(metadata.ReadBytes()), id);
+            PreparedFieldMaterial material = DemasterMaterialChannels.LoadField(albedo, lightmap, scale);
+            if (material.Albedo.Width != baseImage.Width || material.Albedo.Height != baseImage.Height)
+            {
+                throw new InvalidDataException("Prepared material dimensions differ from the selected painting.");
+            }
+            string origin = $"{albedo.RelativePath}@{albedo.Revision}/{lightmap.RelativePath}@{lightmap.Revision}/{metadata?.Revision ?? 0}";
+            return new(material.BakePaintedLight(), origin);
+        }
+        catch (Exception error) when (error is InvalidDataException or IOException or ModTextureLoadException)
+        {
+            diagnose?.Invoke(new("Demaster.FieldMaterialImage", error.Message, painting.PackageId, albedo.RelativePath));
+            return null;
+        }
+
+        ModFile? FindImage(string suffix)
+        {
+            ModFile? best = null;
+            foreach (ModFile candidate in files[stem + suffix + ".png"].Concat(files[stem + suffix + ".dds"]))
+            {
+                if (candidate.PackageId == painting.PackageId && (best is null || PreferImage(candidate, best)))
+                {
+                    best = candidate;
+                }
+            }
+            return best;
+        }
     }
 
     private static bool IsLanguage(ReadOnlySpan<char> token)
@@ -284,7 +328,9 @@ public static class DemasterFieldLayers
             return null;
         }
         List<PixelImage> levels = [];
-        foreach (PixelImage mip in painting.Image.MipLevels)
+        BakedLayer? material = tile.BlendMode == MapBlendMode.None ? painting.Material : null;
+        IReadOnlyList<PixelImage> mipLevels = material is null ? painting.Image.MipLevels : [material.Paint];
+        foreach (PixelImage mip in mipLevels)
         {
             int scale = painting.Frame.ScaleOf(mip);
             if (scale == 0)
@@ -303,7 +349,12 @@ public static class DemasterFieldLayers
             }
             levels.Add(crop);
         }
-        return new(levels[0], $"{painting.File.PackageId}/{painting.File.RelativePath}@{painting.File.Revision}", TileSize, TileSize, levels.AsReadOnly());
+        string origin = $"{painting.File.PackageId}/{painting.File.RelativePath}@{painting.File.Revision}";
+        if (material is not null)
+        {
+            origin += "/" + material.Origin;
+        }
+        return new(levels[0], origin, TileSize, TileSize, levels.AsReadOnly());
     }
 
     private static void ApplyNativeCoverage(PixelImage crop, PixelImage native, int scale)
@@ -322,7 +373,9 @@ public static class DemasterFieldLayers
         }
     }
 
-    private sealed record Painting(ModFile File, Frame Frame, DecodedModImage Image);
+    private sealed record Painting(ModFile File, Frame Frame, DecodedModImage Image, BakedLayer? Material);
+
+    private sealed record BakedLayer(PixelImage Paint, string Origin);
 
     private readonly record struct Frame(int Left, int Top, int Width, int Height)
     {
