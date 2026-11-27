@@ -3,11 +3,52 @@ using Albeoris.Games.FF8.Imaging;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Rendering;
 using Memoria.FF8.Resources;
+using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.App.Tests;
 
 public sealed class NativeStagePageRenderingTests
 {
+    [Fact]
+    public void RemasteredEncounterRendersBeforeTheStageLoadsAndThenUsesItsReplacementPages()
+    {
+        string directory = TestResources.GameDirectory;
+        using IResourceSource source = GameDataSourceFactory.Open(directory);
+        Assert.SkipUnless(source.Descriptor.Edition == GameDataEdition.Remastered, "Installed Remastered battle resources are required.");
+        ResourceService resources = new(source);
+        resources.Prepare(new PageResolver()).Commit();
+        using GameAssets game = new(directory);
+        GameSession session = GameWorld.CreateColdProcess(directory);
+        session.StartNewGame();
+        session.SetCharacterVitals(game.ReadNewGameCharacterVitals().AcquireGuardianForce(0).RebuildParty().Rest());
+        using GameWorld world = new(session, directory, resources: resources, sharedAssets: game);
+        BattleSession battle = world.StartDiagnosticBattle(new(512, 0, 0, 0, 0) { BattleMusic = 5, PrimaryMusicChannel = -1 });
+        BattleDefinition definition = battle.Capture().Definition;
+        int stageId = Assert.IsType<int>(definition.StageId);
+        BattleStage stage = world.BattleResources.LoadStage(stageId);
+        Assert.Contains(NativeBattleTextureReplacements.Bind(stage), replacement => replacement.SourceOwner is not null && replacement.Animation is not null);
+        BattleScenePresentation scene = new(world.BattleResources, definition);
+        bool renderedBeforeStageLoad = false;
+        for (int callback = 0; callback < 1024 && !battle.NativeEntryReady; callback++)
+        {
+            battle.Tick();
+            scene.Render(battle, 320, 240);
+            renderedBeforeStageLoad |= scene.PresentedNativeFrame is { StageResourceId: null };
+        }
+
+        Assert.True(renderedBeforeStageLoad);
+        Assert.True(battle.NativeEntryReady);
+        Assert.Equal(stageId, scene.PresentedNativeFrame!.StageResourceId);
+        Assert.NotNull(scene.PresentedNativeFrame.StageTextureAnimationStartCallback);
+        BattleSession fork = battle.ForkForContinuation();
+        battle.Tick();
+        fork.Tick();
+        byte[] replaced = scene.Render(battle, 320, 240).ToArray();
+        Assert.Equal(replaced, new BattleScenePresentation(world.BattleResources, definition).Render(fork, 320, 240));
+        resources.Prepare(null).Commit();
+        Assert.NotEqual(replaced, scene.Render(battle, 320, 240));
+    }
+
     [Fact]
     public void OverlappingEightBitPagesUseIndependentImagesAndOriginalPageLocalUv()
     {
@@ -94,6 +135,10 @@ public sealed class NativeStagePageRenderingTests
     {
         public TextureReplacement? Resolve(TextureBuildContext context)
         {
+            if (context.Layout != "native-battle-stage-page")
+            {
+                return null;
+            }
             bool first = context.Key.Subresource == "page/16";
             PixelImage image = Solid(first ? new(220, 30, 40) : new(20, 70, 230), first ? 512 : 510);
             PixelImage next = Solid(first ? new(30, 210, 60) : new(230, 200, 20), first ? 512 : 510);

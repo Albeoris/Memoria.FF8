@@ -9,7 +9,6 @@ namespace Memoria.FF8;
 /// <summary>The live host and GPU-independent diagnostic preview render the same installed scene and actor presentation.</summary>
 internal sealed partial class BattleScenePresentation
 {
-    private readonly BattleStage stage;
     private readonly BattleAssets assets;
     private readonly Dictionary<string, BattleCombatantDefinition> definitions;
     private readonly Dictionary<string, BattleModel> models = [];
@@ -44,9 +43,12 @@ internal sealed partial class BattleScenePresentation
 
     public BattleScenePresentation(BattleAssets assets, BattleDefinition definition)
     {
+        if (definition.StageId is null)
+        {
+            throw new NotSupportedException("A battle scene requires its installed stage identity.");
+        }
         this.assets = assets;
         definitions = definition.Combatants.ToDictionary(actor => actor.Id);
-        stage = assets.LoadStage(definition.StageId ?? throw new NotSupportedException("A battle scene requires its installed stage identity."));
         foreach (BattleCombatantDefinition actor in definition.Combatants.Where(actor => actor.InitialActive))
         {
             EnsureActorResources(actor.Id);

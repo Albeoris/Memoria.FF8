@@ -6,30 +6,29 @@ namespace Memoria.FF8;
 
 internal sealed partial class BattleScenePresentation
 {
-    private object[]? stageReplacementMaterials;
-    private IReadOnlyList<NativeBattleTextureReplacement> stageReplacements = [];
+    private (int StageId, object[] Materials, IReadOnlyList<NativeBattleTextureReplacement> Replacements)? stageReplacementBinding;
 
     private IReadOnlyList<NativeBattleTextureReplacement> NativeModelReplacements(NativeBattlePreparedPresentation prepared)
     {
         List<NativeBattleTextureReplacement> result = [];
-        BattleStage replacementStage = prepared.StageResourceId is int stageId ? assets.LoadStage(stageId) : stage;
-        object[] stageMaterials = [.. Materials(replacementStage.Textures), .. replacementStage.NativePages.Values.Select(handle => (object)handle.Value)];
-        if (stageReplacementMaterials is null || !stageReplacementMaterials.SequenceEqual(stageMaterials))
+        // Entry callbacks can publish a frame before the native stage load.
+        if (prepared.StageResourceId is int stageId)
         {
-            stageReplacementMaterials = stageMaterials;
-            stageReplacements = NativeBattleTextureReplacements.Bind(replacementStage);
+            BattleStage replacementStage = assets.LoadStage(stageId);
+            object[] stageMaterials = [.. Materials(replacementStage.Textures), .. replacementStage.NativePages.Values.Select(handle => (object)handle.Value)];
+            if (stageReplacementBinding is not { } binding || binding.StageId != stageId || !binding.Materials.SequenceEqual(stageMaterials))
+            {
+                binding = (stageId, stageMaterials, NativeBattleTextureReplacements.Bind(replacementStage));
+                stageReplacementBinding = binding;
+            }
+            if (binding.Replacements.Any(replacement => replacement.Animation is not null) && prepared.StageTextureAnimationStartCallback is null)
+            {
+                throw new NotSupportedException("Animated stage pages require their retained presentation clock epoch; explicitly migrate this snapshot or load the original stage resource.");
+            }
+            long animationCallback = Math.Max(0, prepared.Callback - (prepared.StageTextureAnimationStartCallback ?? prepared.Callback));
+            TimeSpan animationClock = BattlePresentationTiming.ElapsedForCallbacks(animationCallback);
+            result.AddRange(binding.Replacements.Select(replacement => replacement.Animation is { } animation ? replacement with { Image = animation.At(animationClock) } : replacement));
         }
-        long animationCallback = Math.Max(0, prepared.Callback - (prepared.StageTextureAnimationStartCallback ?? prepared.Callback));
-        if (stageReplacements.Any(replacement => replacement.SourceOwner is not null) && prepared.StageResourceId is null)
-        {
-            throw new NotSupportedException("Stage page replacements require the retained current stage resource identity; explicitly migrate this snapshot or load the original stage resource.");
-        }
-        if (stageReplacements.Any(replacement => replacement.Animation is not null) && prepared.StageTextureAnimationStartCallback is null)
-        {
-            throw new NotSupportedException("Animated stage pages require their retained presentation clock epoch; explicitly migrate this snapshot or load the original stage resource.");
-        }
-        TimeSpan animationClock = BattlePresentationTiming.ElapsedForCallbacks(animationCallback);
-        result.AddRange(stageReplacements.Select(replacement => replacement.Animation is { } animation ? replacement with { Image = animation.At(animationClock) } : replacement));
         foreach (NativeBattlePreparedActor actor in prepared.Actors)
         {
             string actorId = actor.Id;
