@@ -53,7 +53,7 @@ public sealed class CardModOnceSettingsTests
     {
         MenuData data = new();
         MenuRecipe recipe = new("native-refine-115-0", "Card Mod", "card-0", 1, "item-1", "Screw", 5) { NativeAbility = 115, NativeRecipeIndex = 0, NativeKind = 4, CardModOnce = true, IngredientName = "Geezard", IngredientStock = 2, MaximumBatches = new Dictionary<int, int> { [0] = 1 } };
-        data.RefinementAbilities.Add("Card Mod");
+        data.RefinementAbilities.Add(115, "Card Mod");
         data.Recipes.Add(recipe);
         data.SupportedActions.Add("native-refine");
         List<MenuAction> actions = [];

@@ -4,6 +4,8 @@ namespace Memoria.FF8;
 
 internal sealed partial class RecreateGame
 {
+    private string FormatListPageLabel(int page, int count) => FormatAuthored("ui.list.page-indicator", "P.{0} / {1}", page, count);
+
     private string LocalizeUiText(string key, string original) => resourceHost?.Resources.Localize(key, original) ?? original;
     private string LocalizeAuthored(string id, string original) => SystemTextCatalog.Translate(LocalizeUiText, id, original);
     private string FormatAuthored(string id, string original, params object?[] arguments) => SystemTextCatalog.Format(LocalizeAuthored(id, original), original, arguments);

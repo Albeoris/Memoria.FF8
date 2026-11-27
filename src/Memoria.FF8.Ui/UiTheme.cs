@@ -17,6 +17,8 @@ public class UiTheme
     public byte PanelBackgroundAlpha { get; init; } = 255;
     public float FontSize { get; init; } = 16;
 
+    public Func<int, int, string>? ListPageLabel { get; init; }
+
     public virtual string? FontFamily { get; init; }
     public virtual bool AlwaysHighlightSelection => false;
 

@@ -105,6 +105,18 @@ public sealed class UiTests
     }
 
     [Fact]
+    public void Paginated_list_draws_the_theme_label_for_the_visible_page()
+    {
+        UiList list = At(new UiList { Paginated = true, PageSize = 3, RowHeight = 20, Items = Enumerable.Range(0, 8).Select(index => index.ToString()).ToList() }, new UiRect(0, 0, 160, 94));
+        list.SelectedIndex = 3;
+        RecordingCanvas canvas = new();
+
+        list.Draw(canvas, new UiTheme { ListPageLabel = (page, count) => $"Стр. {page} / {count}" });
+
+        Assert.Equal(new[] { "3", "4", "5", "Стр. 2 / 3" }, canvas.Texts);
+    }
+
+    [Fact]
     public void Final_page_does_not_repeat_previous_items_or_activate_empty_rows()
     {
         UiList list = At(new UiList { Paginated = true, RowHeight = 20, Items = Enumerable.Range(0, 8).Select(index => index.ToString()).ToList() }, new UiRect(0, 0, 160, 84));

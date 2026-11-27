@@ -361,7 +361,7 @@ public sealed class UiList : UiElement
         {
             DrawPageArrow(canvas, theme, false);
             DrawPageArrow(canvas, theme, true);
-            string pageText = $"P.{CurrentPage + 1} / {PageCount}";
+            string pageText = theme.ListPageLabel?.Invoke(CurrentPage + 1, PageCount) ?? $"P.{CurrentPage + 1} / {PageCount}";
             float fontSize = Math.Min(FontSize > 0 ? FontSize : theme.FontSize, FooterHeight * 0.7f);
             float textWidth = Math.Min(Math.Max(0, Bounds.Width - PageArrowBounds(false).Width * 2), pageText.Length * fontSize * 0.65f);
             canvas.Text(pageText, fontSize, new UiRect(Bounds.X + (Bounds.Width - textWidth) / 2, Bounds.Bottom - FooterHeight, textWidth, FooterHeight), Enabled ? theme.Foreground : theme.Muted, UiAlignment.Center);

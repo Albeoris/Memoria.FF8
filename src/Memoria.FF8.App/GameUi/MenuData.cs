@@ -34,7 +34,7 @@ public sealed class MenuData
     public List<MenuMagic> Magic { get; } = [];
     public List<MenuCard> Cards { get; } = [];
     public List<MenuRecipe> Recipes { get; } = [];
-    public List<string> RefinementAbilities { get; } = [];
+    public Dictionary<int, string> RefinementAbilities { get; } = [];
     public List<MenuSaveSlot> SaveSlots { get; } = [];
     public List<MenuBattleTarget> BattleTargets { get; } = [];
     public MenuBattleRewards? BattleRewards { get; set; }
