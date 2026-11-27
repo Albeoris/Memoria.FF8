@@ -76,6 +76,25 @@ public sealed class ErrorReportPresenterTests
         Assert.Contains(Descendants(view.Root).OfType<UiLabel>(), label => label.Text.Contains("will be public", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public void PerformanceReportCanCloseAndCopyDetailsWithoutPreparingAnIssue()
+    {
+        string? copied = null;
+        bool closed = false;
+        using ErrorReportPresenter presenter = new(value => copied = value);
+        string trace = Path.Combine(Path.GetTempPath(), "trace.csv");
+        presenter.ShowPerformanceReport(trace, "Field 14", () => closed = true, "Viewport: 1280x720\nAdapter: confidential@example.com");
+        UiButton[] buttons = Descendants(presenter.View("Performance trace recorded").Root).OfType<UiButton>().ToArray();
+        Assert.Equal(new[] { "Report performance", "Details", "Copy full description", "Close" }, buttons.Select(button => button.Text));
+        buttons[2].Click!();
+        Assert.Contains("Field 14", copied);
+        Assert.Contains("Viewport: 1280x720", copied);
+        Assert.DoesNotContain("confidential@example.com", copied);
+        Assert.DoesNotContain(trace, copied);
+        buttons[3].Click!();
+        Assert.True(closed);
+    }
+
     private static IEnumerable<UiElement> Descendants(UiElement element)
     {
         yield return element;

@@ -3,7 +3,10 @@ using System.Text.Json.Serialization;
 
 namespace Memoria.FF8;
 
-internal readonly record struct PresentationPacerObservation(bool Enabled, long Calls, long TimerCalls, long TimerTicks, long Resets, int FrameLimit, long Invalid);
+internal readonly record struct PresentationPacerObservation(bool Enabled, long Calls, long TimerCalls, long TimerTicks, long Resets, int FrameLimit, long Invalid)
+{
+    internal long PacingWaitTicks { get; init; }
+}
 internal readonly record struct DiagnosticPacingSample(long Frame, long PresentedTicks, long IntervalTicks, long PresentBeginTicks, long PresentEndTicks, long TimerWaitTicks, long PacerCalls, long TimerCalls, long ResetGeneration, int FrameLimit, DiagnosticHostFramePhases? HostPhases)
 {
     internal DiagnosticGcPauseDelta? GcPause { get; init; }

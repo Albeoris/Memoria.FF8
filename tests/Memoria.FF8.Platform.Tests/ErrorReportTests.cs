@@ -22,6 +22,31 @@ public sealed class ErrorReportTests : IDisposable
     }
 
     [Fact]
+    public async Task PerformanceReportPackagesTheRecordedCsvAndPrefillsAPublicDraft()
+    {
+        Directory.CreateDirectory(root);
+        string source = Path.Combine(root, "private-trace-name.csv");
+        string trace = "frame,update_ms\n1,0.23\n2,3.94\n";
+        File.WriteAllText(source, trace);
+        using PreparedErrorReport report = await ErrorReport.PreparePerformanceAsync(source, "field 123", Path.Combine(root, "reports"), "Backend: Vulkan\nAdapter: confidential@example.com");
+        using ZipArchive zip = ZipFile.OpenRead(report.ArchivePath);
+        Assert.Equal(new[] { "frame-timings.csv", "report.md" }, zip.Entries.Select(entry => entry.FullName));
+        using StreamReader reader = new(zip.GetEntry("frame-timings.csv")!.Open());
+        Assert.Equal(trace, reader.ReadToEnd());
+        using StreamReader reportText = new(zip.GetEntry("report.md")!.Open());
+        Assert.Equal(report.Description, reportText.ReadToEnd());
+        Assert.Contains("field 123", report.Description);
+        Assert.Contains("Backend: Vulkan", report.Description);
+        Assert.DoesNotContain("confidential@example.com", report.Description);
+        Assert.DoesNotContain("Vulkan", Uri.UnescapeDataString(report.IssueUrl));
+        Assert.Contains(Path.GetFileName(report.ArchivePath), Uri.UnescapeDataString(report.IssueUrl));
+        Assert.StartsWith("https://github.com/Albeoris/Memoria.FF8/issues/new?", report.IssueUrl);
+        Assert.DoesNotContain("private-trace-name", report.Description);
+        Assert.DoesNotContain(source, Uri.UnescapeDataString(report.IssueUrl));
+        Assert.True(File.Exists(source));
+    }
+
+    [Fact]
     public void CaptureDetachesContextAndAllExceptionBranches()
     {
         Dictionary<string, int> runtime = new() { ["frame"] = 12 };

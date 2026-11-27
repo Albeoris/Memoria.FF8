@@ -149,7 +149,8 @@ internal sealed partial class RecreateGame
 
     private void ConfigureFf7Presentation(Ff7Scene scene)
     {
-        scene.ConfigureEnemyScanLocalization(LocalizeUiText);
+        scene.ConfigureSystemTextLocalization(LocalizeUiText);
+        scene.PerformanceTraceRequested += StartPerformanceTrace;
         scene.ConfigureDialoguePresentation(() => uiPreferences, text, uiCanvas!, () => CreateUiTheme(), preferences =>
         {
             bool backendChanged = uiPreferences.Graphics.Backend != preferences.Graphics.Backend;

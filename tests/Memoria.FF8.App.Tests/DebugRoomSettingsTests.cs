@@ -2,6 +2,7 @@ using System.Text.Json;
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Runtime;
 using Memoria.FF8.Ui;
+using Microsoft.Xna.Framework.Input;
 
 namespace Memoria.FF8.App.Tests;
 
@@ -210,7 +211,7 @@ public sealed class DebugRoomSettingsTests
         MenuController menus = new();
         menus.ConnectPreferences(() => preferences, _ => writes++);
         menus.Open("debug-room", true);
-        Assert.Equal(new[] { "Mods", "Localization", "Gameplay rules", "Models", "Battle", "Scene", "UI tools", "Session", "Automation", "Shortcuts", "Switch world: FFVII", "Quit" }, menus.Entries.Select(entry => entry.Label));
+        Assert.Equal(new[] { "Start FPS trace", "Mods", "Localization", "Gameplay rules", "Textures", "Models", "Battle", "3D field scenes", "Scene", "UI tools", "Session", "Automation", "Shortcuts", "Switch world: FFVII", "Quit" }, menus.Entries.Select(entry => entry.Label));
         menus.SelectEntry("debug-room", "debug-gallery");
         menus.Navigate(MenuInput.Confirm);
         Assert.Equal("debug-gallery", menus.ScreenId);
@@ -220,6 +221,49 @@ public sealed class DebugRoomSettingsTests
         menus.Execute(new("config", "Text scale", Value: "150%"));
         Assert.Equal(0, writes);
         Assert.Equal(100, preferences.TextScale);
+    }
+
+    [Fact]
+    public void FpsTraceStartsOnceAfterConfirmClosesTheDebugRoom()
+    {
+        MenuController menu = new();
+        KeyboardInput keyboard = new();
+        int starts = 0;
+        menu.PerformanceTraceRequested += () =>
+        {
+            Assert.False(menu.IsOpen);
+            starts++;
+        };
+
+        keyboard.Read(new KeyboardState(Keys.F2), true);
+        Assert.True(keyboard.DebugRoomRequested);
+        menu.Open("debug-room", true);
+        menu.SelectEntry("debug-room", "start-fps-trace");
+        Assert.True(menu.SelectedEntry!.Enabled);
+        Assert.Equal(0, starts);
+
+        KeyboardState confirm = new(Keys.X);
+        keyboard.Read(confirm, true);
+        Assert.True(keyboard.UiConfirmRequested);
+        menu.Navigate(MenuInput.Confirm);
+        Assert.Equal(1, starts);
+
+        keyboard.Read(confirm, true);
+        Assert.False(keyboard.UiConfirmRequested);
+        menu.Navigate(MenuInput.Confirm);
+        Assert.Equal(1, starts);
+    }
+
+    [Fact]
+    public void FpsTraceIsDisabledWithoutARecordingHost()
+    {
+        MenuController menu = new();
+        menu.Open("debug-room", true);
+        menu.SelectEntry("debug-room", "start-fps-trace", allowDisabled: true);
+        Assert.False(menu.SelectedEntry!.Enabled);
+        menu.Navigate(MenuInput.Confirm);
+        Assert.True(menu.IsOpen);
+        Assert.Equal("debug-room", menu.ScreenId);
     }
 
     [Fact]

@@ -19,11 +19,11 @@ internal sealed partial class Ff7Scene
     private double enemyScanPitch;
     private double enemyScanIdleDelay;
     private GpuTriangleRenderer? enemyScanRenderer;
-    private Func<string, string, string>? enemyScanLocalize;
+    private Func<string, string, string>? localizeSystemText;
 
-    internal void ConfigureEnemyScanLocalization(Func<string, string, string> localize)
+    internal void ConfigureSystemTextLocalization(Func<string, string, string> localize)
     {
-        enemyScanLocalize = localize;
+        localizeSystemText = localize;
     }
 
     private bool UpdateEnemyScan(Ff7BattleSession battle, double seconds)
@@ -100,9 +100,9 @@ internal sealed partial class Ff7Scene
         int[] nativeOrder = [0, 1, 2, 3, 4, 7, 6, 8];
         for (int index = 0; index < nativeOrder.Length; index++)
         {
-            elements.Add(TargetScanScreen.Element(index, scan.ElementResistances[nativeOrder[index]], enemyScanLocalize));
+            elements.Add(TargetScanScreen.Element(index, scan.ElementResistances[nativeOrder[index]], localizeSystemText));
         }
-        elements.Add(new(SystemTextCatalog.Translate(enemyScanLocalize, "battle.scan.gravity", "Gravity"), null, scan.ElementResistances[5]));
+        elements.Add(new(SystemTextCatalog.Translate(localizeSystemText, "battle.scan.gravity", "Gravity"), null, scan.ElementResistances[5]));
 
         List<TargetScanResistance> statuses = [];
         for (int index = 0; index < TargetScanScreen.Statuses.Length; index++)
@@ -111,12 +111,12 @@ internal sealed partial class Ff7Scene
             uint mask = id < 16 ? Ff7GuestBattleStatuses.ToHostStatuses((ushort)(1 << id), 0) : Ff7GuestBattleStatuses.ToHostStatuses(0, 1u << (id - 16));
             if (mask != 0)
             {
-                statuses.Add(TargetScanScreen.Status(index, (scan.StatusImmunities & mask) != 0 ? 100 : 0, enemyScanLocalize));
+                statuses.Add(TargetScanScreen.Status(index, (scan.StatusImmunities & mask) != 0 ? 100 : 0, localizeSystemText));
             }
         }
 
         TargetScanData data = new(scan.Title, scan.Name, scan.Description, scan.Level, scan.Hp, scan.MaximumHp, scan.Strength, scan.Vitality, scan.Speed, scan.Magic, scan.Spirit, scan.Evasion, elements, statuses);
-        TargetScanScreen.Draw(canvas, theme, layout, textScale, data, enemyScanLocalize, DrawModel);
+        TargetScanScreen.Draw(canvas, theme, layout, textScale, data, localizeSystemText, DrawModel);
         return true;
 
         void DrawModel(UiRect bounds)

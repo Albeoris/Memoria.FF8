@@ -1,5 +1,6 @@
 using Memoria.FF7.Runtime;
 using Memoria.FF8.GameUi;
+using Memoria.FF8.Resources.Localization;
 using Memoria.FF8.Runtime;
 using Memoria.FF8.Ui;
 using Microsoft.Xna.Framework;
@@ -11,7 +12,9 @@ internal sealed partial class Ff7Scene
 {
     private const int BattlePolicyDebugCommand = 4;
     private const int RandomEncountersDebugCommand = 5;
-    private const int DebugCommandCount = 6;
+    private const int PerformanceTraceDebugCommand = 6;
+    private int DebugCommandCount => PerformanceTraceRequested is null ? PerformanceTraceDebugCommand : PerformanceTraceDebugCommand + 1;
+    public event Action? PerformanceTraceRequested;
     private UiView? debugView;
     private bool debugPointerPressed;
 
@@ -40,10 +43,17 @@ internal sealed partial class Ff7Scene
         UiAnchorPanel content = new();
         UiPanel choices = new() { Anchors = new UiAnchors(0, 0, 0.64f, 1), Padding = 8 };
         UiPanel preview = new() { Caption = "Selection", Anchors = new UiAnchors(0.66f, 0, 1, 1), Padding = 14, CaptionHeight = 32 };
+        List<string> labels = ["Save", "Switch world: FFVIII", "Dialogue: " + (UseNativeDialogue ? "Original FFVII" : "Common"), "Auto-play: " + (autoPlay?.Running == true && !autoPlay.Paused ? "Pause" : "Start"), "Battle policy: " + (Session?.Progress.FullCombatEnabled == true ? "Full combat" : "Instant victory"), "Random encounters: " + (Session?.Progress.RandomEncountersEnabled == false ? "Off" : "On")];
+        List<bool> enabled = [CanSave, CanSave && envelope.Ff8Payload is { Length: > 0 }, true, !IsTitle, !IsTitle, !IsTitle];
+        if (PerformanceTraceRequested is not null)
+        {
+            labels.Add(SystemTextCatalog.Translate(localizeSystemText, "debug.fps-trace.start", "Start FPS trace"));
+            enabled.Add(true);
+        }
         UiList commands = new()
         {
-            Items = ["Save", "Switch world: FFVIII", "Dialogue: " + (UseNativeDialogue ? "Original FFVII" : "Common"), "Auto-play: " + (autoPlay?.Running == true && !autoPlay.Paused ? "Pause" : "Start"), "Battle policy: " + (Session?.Progress.FullCombatEnabled == true ? "Full combat" : "Instant victory"), "Random encounters: " + (Session?.Progress.RandomEncountersEnabled == false ? "Off" : "On")],
-            EnabledItems = [CanSave, CanSave && envelope.Ff8Payload is { Length: > 0 }, true, !IsTitle, !IsTitle, !IsTitle],
+            Items = labels,
+            EnabledItems = enabled,
             SelectedIndex = debugSelection,
             SelectionChanged = index => debugSelection = index,
             Confirmed = index =>
@@ -56,7 +66,7 @@ internal sealed partial class Ff7Scene
         };
         choices.Children.Add(commands);
         content.Children.Add(choices);
-        string details = noticeWindow.Text ?? "World switching and saving use the original game's available boundaries.";
+        string details = debugSelection == PerformanceTraceDebugCommand ? SystemTextCatalog.Translate(localizeSystemText, "debug.fps-trace.help", "Record frame timings. Press F2 to stop and prepare a GitHub report.") : noticeWindow.Text ?? "World switching and saving use the original game's available boundaries.";
         preview.Children.Add(new UiLabel { Text = details, FontSize = 18 * scale });
         content.Children.Add(preview);
         panel.Children.Add(content);

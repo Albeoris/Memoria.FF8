@@ -9,6 +9,8 @@ namespace Memoria.FF8;
 internal enum DiagnosticHostPhase
 {
     Update,
+    SceneUpdate,
+    SceneRender,
     BattlePresentationUpdate,
     Draw,
     BattleSceneRender,
@@ -18,6 +20,8 @@ internal enum DiagnosticHostPhase
 // Whole-host Update and Draw include their respective battle subscopes.
 internal readonly record struct DiagnosticHostFramePhases(long Update, long BattlePresentationUpdate, long Draw, long BattleSceneRender, long PostPresent)
 {
+    internal long SceneUpdate { get; init; }
+    internal long SceneRender { get; init; }
     internal DiagnosticNativeFramePhases Native { get; init; }
     internal DiagnosticNativeCpuCycles? NativeCpuCycles { get; init; }
 
@@ -122,7 +126,8 @@ internal sealed class DiagnosticHostPhaseTiming(bool enabled, bool nativeCpuCycl
     private DiagnosticNativeFramePhases callbackCycles;
     private DiagnosticNativeFramePhases callbackCycleWallTicks;
 
-    internal bool Enabled { get; } = enabled;
+    internal bool CaptureEnabled { get; set; }
+    internal bool Enabled => enabled || CaptureEnabled;
     bool INativeBattlePhaseTimingSink.DetailEnabled => readCycles is not null;
 
     internal Scope Measure(DiagnosticHostPhase phase)
@@ -160,6 +165,8 @@ internal sealed class DiagnosticHostPhaseTiming(bool enabled, bool nativeCpuCycl
         {
             DiagnosticHostPhase.Update => current with { Update = current.Update + elapsed },
             DiagnosticHostPhase.BattlePresentationUpdate => current with { BattlePresentationUpdate = current.BattlePresentationUpdate + elapsed },
+            DiagnosticHostPhase.SceneUpdate => current with { SceneUpdate = current.SceneUpdate + elapsed },
+            DiagnosticHostPhase.SceneRender => current with { SceneRender = current.SceneRender + elapsed },
             DiagnosticHostPhase.Draw => current with { Draw = current.Draw + elapsed },
             DiagnosticHostPhase.BattleSceneRender => current with { BattleSceneRender = current.BattleSceneRender + elapsed },
             DiagnosticHostPhase.PostPresent => current with { PostPresent = current.PostPresent + elapsed },

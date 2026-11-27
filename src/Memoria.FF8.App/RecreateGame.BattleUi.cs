@@ -97,6 +97,7 @@ internal sealed partial class RecreateGame
         {
             return false;
         }
+        using DiagnosticHostPhaseTiming.Scope sceneUpdate = diagnosticHostPhaseTiming.Measure(DiagnosticHostPhase.SceneUpdate);
         EnsureBattleHud(active);
         if (effectPreview is not null)
         {

@@ -2441,6 +2441,11 @@ public static partial class SystemTextCatalog
         defaults["ui.register.entry.label.session"] = "Session";
         defaults["ui.register.entry.label.quit"] = "Quit";
         defaults["ui.register.entry.help.quit.game"] = "Exit the game.";
+        defaults["debug.fps-trace.start"] = "Start FPS trace";
+        defaults["debug.fps-trace.help"] = "Record frame timings. Press F2 to stop and prepare a GitHub report.";
+        defaults["debug.fps-trace.paused"] = "Game paused";
+        defaults["debug.fps-trace.recording"] = "Recording FPS trace · {0} written · F2 to stop";
+        defaults["debug.fps-trace.cancel"] = "Cancel";
         defaults["debug.quit.help"] = "Return to the title screen or exit the game.";
         defaults["debug.quit.title-screen"] = "Return to title screen";
         defaults["debug.quit.title-help"] = "Return to the title screen. Unsaved game progress will be lost.";

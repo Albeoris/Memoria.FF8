@@ -145,6 +145,7 @@ internal sealed partial class RecreateGame
             keyboard.Profile = profile;
         }, () => keyboard.ControllerPresentation, () => controller!.Generation, () => keyboard.LastInputDevice);
         gameMenus.BattleDebugRequested += OpenBattleDebug;
+        gameMenus.PerformanceTraceRequested += StartPerformanceTrace;
         gameMenus.QuitRequested += ShowWindowCloseConfirmation;
         gameMenus.ReturnToTitleRequested += ReturnToTitleScreen;
         gameMenus.ModelBrowserRequested += OpenModelBrowser;
@@ -1007,7 +1008,7 @@ internal sealed partial class RecreateGame
 
     private void SynchronizeUiMoviePause()
     {
-        bool pause = worldTransfer is not null || focusPaused || userPaused || updateSave.Paused || gameMenus?.IsOpen == true || drainUiButtons || battleDebug is not null || debugBattle is not null || sceneInspector is not null || modelBrowser is not null || textureBrowser is not null || lightingEditor is not null || localizationWorkbench.CapturesSimulation || authoringCandidates is not null;
+        bool pause = TraceModalOpen || worldTransfer is not null || focusPaused || userPaused || updateSave.Paused || gameMenus?.IsOpen == true || drainUiButtons || battleDebug is not null || debugBattle is not null || sceneInspector is not null || modelBrowser is not null || textureBrowser is not null || lightingEditor is not null || localizationWorkbench.CapturesSimulation || authoringCandidates is not null;
         fieldAudio?.SetVoicePresentationPaused(pause);
         if (pause && !uiMovieSuspended)
         {

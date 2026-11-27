@@ -52,6 +52,7 @@ public sealed partial class MenuController
     public bool IsOpen { get; private set; }
     internal bool ShowMainScreenTitle { get; init; }
     public event Action? BattleDebugRequested;
+    public event Action? PerformanceTraceRequested;
     public event Action? QuitRequested;
     public event Action? ReturnToTitleRequested;
     public event Action<string>? ScreenOpened;
@@ -62,6 +63,7 @@ public sealed partial class MenuController
     }
 
     public bool BattleDebugAvailable => BattleDebugRequested is not null;
+    internal bool PerformanceTraceAvailable => PerformanceTraceRequested is not null;
     public bool QuitAvailable => QuitRequested is not null;
     public bool ReturnToTitleAvailable => ReturnToTitleRequested is not null;
     public bool IsDemo { get; private set; }
@@ -997,6 +999,13 @@ public sealed partial class MenuController
                 if (IsOpen && ScreenId == "debug-quit")
                 {
                     ReturnToTitleRequested?.Invoke();
+                }
+                return;
+            case "start-fps-trace":
+                if (PerformanceTraceRequested is not null)
+                {
+                    Close();
+                    PerformanceTraceRequested.Invoke();
                 }
                 return;
             case "quit-game":

@@ -75,7 +75,7 @@ internal sealed partial class RecreateGame
             gameMenus?.PauseModMediaForFocus();
         }
         SynchronizeFieldAudioPause();
-        ff7Scene?.SetFocusPaused(worldTransfer is not null || pause || updateSave.Paused);
+        ff7Scene?.SetFocusPaused(TraceModalOpen || worldTransfer is not null || pause || updateSave.Paused);
         SynchronizeUiMoviePause();
         controllerFeedback?.Update(session.State.VibrationProcess, false, keyboard.Profile.Controller.VibrationEnabled);
         if (!pause)
@@ -88,7 +88,7 @@ internal sealed partial class RecreateGame
 
     private void SynchronizeFieldAudioPause()
     {
-        fieldAudio?.SetFocusPaused(worldTransfer is not null || focusPaused || InFf7 || gameMenus?.IsModMediaPreviewOpen == true);
+        fieldAudio?.SetFocusPaused(TraceModalOpen || worldTransfer is not null || focusPaused || InFf7 || gameMenus?.IsModMediaPreviewOpen == true);
     }
 
     private bool UpdateFocusPause()

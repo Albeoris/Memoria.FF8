@@ -19,6 +19,14 @@ Press **F2** to open Debug Room, or change its binding in [Controls](controls.md
 
 Player preferences belong in Config. Debug Room has no second editor for volume, fonts, difficulty, random encounters, player ATB mode or gunblade triggering. The gallery is labelled Preview / Fixture and its changes stay isolated from live owners. See [saves and settings](saves.md) for persistence boundaries.
 
+## Recording low FPS
+
+Press **F2**, select **Start FPS trace**, then reproduce the slowdown. Opening the menu pauses gameplay. If a game screen already owns input, the trace prompt keeps that screen in place. Starting the recording returns control to it. The indicator shows the size already written to disk.
+
+Press **F2** again to stop and review the report. Select **Report performance** to prepare a ZIP and open a GitHub draft. Attach the ZIP, describe what you were doing when the frame rate dropped, and submit the issue. **Details** shows the original CSV path.
+
+The CSV has one row per interval between presented frames. Compare `interval_ms` with the target frame duration (16.7 ms at 60 FPS). Use the scene and field or encounter ID to locate the slowdown. Update and draw timings include their respective subphases. Present time includes time waiting for the graphics backend. Pacing wait measures time the host spends waiting for its frame limit, and GC pause measures the change in process-wide garbage collection pause time. The ZIP also records the graphics adapter, renderer, resolution, VSync and configured frame limits.
+
 ## Gameplay rules
 
 One editor contains three pages: **Rewards & Draw**, **Magic & damage**, and **Rare Item & Scan**. Numeric fields open a keypad and also accept keyboard input. Previous/Next keeps the draft; Apply commits it and Cancel discards it. Save the game to retain applied values. An active battle keeps its captured rules until it ends.

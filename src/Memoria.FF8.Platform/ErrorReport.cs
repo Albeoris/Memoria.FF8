@@ -52,6 +52,63 @@ public static class ErrorReport
         return AwaitPreparation(key, pending);
     }
 
+    public static Task<PreparedErrorReport> PreparePerformanceAsync(string tracePath, string scene, string? reportsDirectory = null, string? context = null)
+    {
+        string root = Path.GetFullPath(reportsDirectory ?? Path.Combine(ApplicationPaths.Current.LegacyState, "performance-reports"));
+        return Task.Run(() => PreparePerformance(tracePath, scene, root, context));
+    }
+
+    private static PreparedErrorReport PreparePerformance(string tracePath, string scene, string root, string? context)
+    {
+        using FileStream trace = File.OpenRead(tracePath);
+        string id = Guid.NewGuid().ToString("N");
+        string directory = Path.Combine(root, id);
+        string name = $"Memoria-FF8-performance-{DateTime.UtcNow:yyyyMMdd-HHmmss}-{id[..8]}.zip";
+        string archivePath = Path.Combine(directory, name);
+        string temporary = archivePath + ".tmp";
+        string safeScene = Shorten(ReportPrivacy.Text(scene), 100);
+        string description = $"## Performance trace\nScene: {safeScene}\nAttach: {name}\n\n{PublicInstructions}\n\n## What I was doing\nDescribe when you noticed the slowdown.\n";
+        string url = IssueBase + Uri.EscapeDataString("[Performance] Frame timing trace") + "&body=" + Uri.EscapeDataString(description);
+        if (!string.IsNullOrWhiteSpace(context))
+        {
+            description += "\n## Environment\n" + ReportPrivacy.Text(context) + "\n";
+        }
+        Directory.CreateDirectory(directory);
+        try
+        {
+            using (ZipArchive zip = ZipFile.Open(temporary, ZipArchiveMode.Create))
+            {
+                using (Stream target = zip.CreateEntry("frame-timings.csv", CompressionLevel.Optimal).Open())
+                {
+                    trace.CopyTo(target);
+                }
+                using StreamWriter readme = new(zip.CreateEntry("report.md").Open(), new UTF8Encoding(false));
+                readme.Write(description);
+            }
+            if (new FileInfo(temporary).Length > MaximumArchiveBytes)
+            {
+                throw new IOException("The ZIP exceeds the 20 MiB report limit. Record a shorter trace. The original CSV is still available.");
+            }
+            lock (retentionLock)
+            {
+                File.Move(temporary, archivePath);
+                AcquireArchiveLease(archivePath);
+                protectedPaths.Add(archivePath);
+                leases.Add(archivePath, 1);
+            }
+            Cleanup(root);
+            return new(id, archivePath, description, url);
+        }
+        catch
+        {
+            Release(archivePath);
+            File.Delete(temporary);
+            File.Delete(archivePath);
+            Directory.Delete(directory);
+            throw;
+        }
+    }
+
     private static async Task<PreparedErrorReport> AwaitPreparation(string key, Lazy<Task<PreparedErrorReport>> pending)
     {
         try

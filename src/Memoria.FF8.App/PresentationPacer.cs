@@ -24,12 +24,13 @@ internal sealed class PresentationPacer : IDisposable
     private long observedCalls;
     private long observedTimerCalls;
     private long observedTimerTicks;
+    private long observedPacingWaitTicks;
     private long observedResets;
     private long invalidObservations;
     private int observedFrameLimit;
 
     internal void ObserveTiming(bool enabled) => observeTiming = enabled;
-    internal PresentationPacerObservation TimingObservation => new(observeTiming, observedCalls, observedTimerCalls, observedTimerTicks, observedResets, observedFrameLimit, invalidObservations);
+    internal PresentationPacerObservation TimingObservation => new PresentationPacerObservation(observeTiming, observedCalls, observedTimerCalls, observedTimerTicks, observedResets, observedFrameLimit, invalidObservations) { PacingWaitTicks = observedPacingWaitTicks };
 
 
     internal void BeginUpdate(int frameLimit, long started)
@@ -90,6 +91,7 @@ internal sealed class PresentationPacer : IDisposable
             nextDeadline = AdvanceDeadline(nextDeadline, now, period);
             return;
         }
+        long waitStarted = now;
         if (OperatingSystem.IsWindows())
         {
             now = WaitWindows(nextDeadline, now, cancellationToken);
@@ -111,6 +113,10 @@ internal sealed class PresentationPacer : IDisposable
                 }
                 now = Stopwatch.GetTimestamp();
             }
+        }
+        if (observeTiming)
+        {
+            observedPacingWaitTicks += now - waitStarted;
         }
         nextDeadline = AdvanceDeadline(nextDeadline, now, period);
     }

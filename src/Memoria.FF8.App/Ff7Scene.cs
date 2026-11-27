@@ -666,6 +666,15 @@ internal sealed partial class Ff7Scene : IDisposable
 
     private void ActivateDebugSelection()
     {
+        if (debugSelection == PerformanceTraceDebugCommand && PerformanceTraceRequested is not null)
+        {
+            debugMenu = false;
+            SetAudioPaused(false);
+            movie?.Resume();
+            sharedInput.SuppressHeldUiInput();
+            PerformanceTraceRequested.Invoke();
+            return;
+        }
         if (debugSelection == BattlePolicyDebugCommand)
         {
             if (Session is { } session)

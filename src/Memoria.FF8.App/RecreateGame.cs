@@ -159,9 +159,15 @@ internal sealed partial class RecreateGame : GamePresentationHost
 
     protected override void Update(GameTime gameTime)
     {
+        diagnosticHostPhaseTiming.CaptureEnabled = performanceTrace.IsRecording;
         BeginPresentationUpdate();
         using DiagnosticHostPhaseTiming.Scope updateTiming = diagnosticHostPhaseTiming.Measure(DiagnosticHostPhase.Update);
         physicalInput.BeginFrame();
+        if (UpdatePerformanceTraceUi(gameTime))
+        {
+            PollModalRecoveryControls();
+            return;
+        }
         if (worldTransferIncoming && UpdateWorldTransfer(gameTime))
         {
             PollModalRecoveryControls();
@@ -736,6 +742,7 @@ internal sealed partial class RecreateGame : GamePresentationHost
 
     private void UpdateField(TimeSpan elapsed, TimeSpan realElapsed, InputFrame input)
     {
+        using DiagnosticHostPhaseTiming.Scope sceneUpdate = diagnosticHostPhaseTiming.Measure(DiagnosticHostPhase.SceneUpdate);
         if (fieldFaulted && field?.Id == session.State.FieldId)
         {
             return;
@@ -865,7 +872,7 @@ internal sealed partial class RecreateGame : GamePresentationHost
 
     private void OnTextInput(object? sender, TextInputEventArgs args)
     {
-        if (!physicalInput.CanRead || windowCloseDecision is not null)
+        if (!physicalInput.CanRead || TraceModalOpen || windowCloseDecision is not null)
         {
             return;
         }
@@ -945,6 +952,7 @@ internal sealed partial class RecreateGame : GamePresentationHost
 
     private void UpdateWorldMap(TimeSpan elapsed, InputFrame input)
     {
+        using DiagnosticHostPhaseTiming.Scope sceneUpdate = diagnosticHostPhaseTiming.Measure(DiagnosticHostPhase.SceneUpdate);
         if (fieldFaulted)
         {
             return;
@@ -1750,7 +1758,10 @@ internal sealed partial class RecreateGame : GamePresentationHost
                         fieldGpuPresented = fieldGpu is not null;
                         break;
                     case FieldPresentationRenderer.Field:
-                        UploadField(gameplayClock.Total, options.ControlStep ? 1 : worldSimulationClock.Fraction);
+                        using (diagnosticHostPhaseTiming.Measure(DiagnosticHostPhase.SceneRender))
+                        {
+                            UploadField(gameplayClock.Total, options.ControlStep ? 1 : worldSimulationClock.Fraction);
+                        }
                         break;
                 }
                 if (worldPresentationDeferred)
@@ -1968,6 +1979,9 @@ internal sealed partial class RecreateGame : GamePresentationHost
     {
         if (disposing)
         {
+            performanceTrace.Stop();
+            tracePrompt.Dispose();
+            traceReport?.Dispose();
             ff7Scene?.Dispose();
             crossoverSetup?.Dispose();
             crossoverAssets?.Dispose();

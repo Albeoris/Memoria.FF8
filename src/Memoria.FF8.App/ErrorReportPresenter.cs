@@ -13,6 +13,9 @@ internal sealed class ErrorReportPresenter(Action<string> copy, Func<ErrorIncide
     internal string Details { get; set; } = "";
     internal string Status { get; set; } = "";
     private string? error;
+    private Func<Task<PreparedErrorReport>>? preparePerformance;
+    private Action? closePerformance;
+    private string? performanceTracePath;
     private Task<PreparedErrorReport>? reportPreparation;
     private PreparedErrorReport? preparedReport;
     private UiView? errorReportView;
@@ -26,9 +29,29 @@ internal sealed class ErrorReportPresenter(Action<string> copy, Func<ErrorIncide
     {
         ReleasePreparedErrorReport();
         Evidence = null;
+        preparePerformance = null;
+        closePerformance = null;
+        performanceTracePath = null;
+        errorReportViewKey = null;
+        reportBrowserOpenedUtc = default;
+        reportFileRevealedUtc = default;
         Status = "";
         Details = details;
         reportDetails = false;
+    }
+
+    internal void ShowPerformanceReport(string tracePath, string scene, Action close, string? context = null)
+    {
+        string details = $"Frame timing trace recorded. Scene: {ReportPrivacy.Text(scene)}";
+        if (!string.IsNullOrWhiteSpace(context))
+        {
+            details += "\n\n" + ReportPrivacy.Text(context);
+        }
+        Reset(details);
+        performanceTracePath = tracePath;
+        Incident = null;
+        preparePerformance = () => ErrorReport.PreparePerformanceAsync(tracePath, scene, context: context);
+        closePerformance = close;
     }
 
     internal UiView View(string? message)
@@ -63,7 +86,7 @@ internal sealed class ErrorReportPresenter(Action<string> copy, Func<ErrorIncide
     {
         error = message;
         PollPreparation();
-        if (Incident is null || error is null)
+        if ((Incident is null && preparePerformance is null) || error is null)
         {
             return false;
         }
@@ -99,6 +122,11 @@ internal sealed class ErrorReportPresenter(Action<string> copy, Func<ErrorIncide
         }
         if (input.Cancel || keyboard.UiCancelRequested)
         {
+            if (!reportDetails && closePerformance is not null)
+            {
+                closePerformance();
+                return true;
+            }
             reportDetails = false;
         }
         bool pressed = mouse.LeftButton == ButtonState.Pressed;
@@ -121,7 +149,7 @@ internal sealed class ErrorReportPresenter(Action<string> copy, Func<ErrorIncide
             }
             catch (Exception failure)
             {
-                Status = "Report preparation failed: " + failure.Message + ". Copy the error details below.";
+                Status = "Report preparation failed: " + failure.Message + (performanceTracePath is null ? ". Copy the error details below." : " Find the original CSV path in Details.");
                 reportPreparation = null;
             }
         }
@@ -156,13 +184,20 @@ internal sealed class ErrorReportPresenter(Action<string> copy, Func<ErrorIncide
             OpenReportDraft();
             return;
         }
-        if (reportPreparation is not null || Incident is null)
+        if (reportPreparation is not null)
         {
             return;
         }
         Status = "Preparing report files...";
-        Task<ErrorIncident> evidence = Evidence ?? Task.FromResult(Incident);
-        reportPreparation = PrepareErrorReport(evidence);
+        if (preparePerformance is not null)
+        {
+            reportPreparation = preparePerformance();
+        }
+        else if (Incident is not null)
+        {
+            Task<ErrorIncident> evidence = Evidence ?? Task.FromResult(Incident);
+            reportPreparation = PrepareErrorReport(evidence);
+        }
     }
 
     private async Task<PreparedErrorReport> PrepareErrorReport(Task<ErrorIncident> evidence)
@@ -214,9 +249,13 @@ internal sealed class ErrorReportPresenter(Action<string> copy, Func<ErrorIncide
         UiStack stack = new() { Gap = 5 };
         stack.Children.Add(new UiLabel { Text = error ?? "Game error", FontSize = 17, Height = 48 });
         UiStack buttons = new() { Orientation = UiOrientation.Horizontal, Gap = 5, Height = 35 };
-        buttons.Children.Add(new UiButton { Text = "Report error", FontSize = 15, Enabled = reportPreparation is null || preparedReport is not null, Click = BeginErrorReport });
+        buttons.Children.Add(new UiButton { Text = preparePerformance is null ? "Report error" : "Report performance", FontSize = 15, Enabled = reportPreparation is null || preparedReport is not null, Click = BeginErrorReport });
         buttons.Children.Add(new UiButton { Text = "Details", FontSize = 15, Click = () => reportDetails = !reportDetails });
         buttons.Children.Add(new UiButton { Text = "Copy full description", FontSize = 15, Click = () => CopyReportText(preparedReport?.Description ?? Details) });
+        if (closePerformance is not null)
+        {
+            buttons.Children.Add(new UiButton { Text = "Close", FontSize = 15, Click = closePerformance });
+        }
         stack.Children.Add(buttons);
         if (preparedReport is not null)
         {
@@ -228,11 +267,16 @@ internal sealed class ErrorReportPresenter(Action<string> copy, Func<ErrorIncide
             stack.Children.Add(recovery);
             stack.Children.Add(new UiLabel { Text = Path.GetFileName(preparedReport.ArchivePath) + " (" + (new FileInfo(preparedReport.ArchivePath).Length / 1024d).ToString("F1") + " KiB)", FontSize = 14, Height = 22 });
         }
-        stack.Children.Add(new UiLabel { Text = "Sign in to GitHub if needed, drag this ZIP into the issue, wait for the upload, then submit the issue. The report and attached files will be public.", FontSize = 14, Height = 42 });
+        stack.Children.Add(new UiLabel { Text = ErrorReport.PublicInstructions, FontSize = 14, Height = 42 });
         stack.Children.Add(new UiLabel { Text = Status, FontSize = 14, Height = 40 });
         if (reportDetails)
         {
-            string detailText = (preparedReport?.Description ?? Incident?.SaveUnavailableReason) + "\n\n" + Details;
+            string? summary = preparedReport?.Description ?? Incident?.SaveUnavailableReason;
+            string detailText = string.IsNullOrEmpty(summary) ? Details : summary + "\n\n" + Details;
+            if (performanceTracePath is not null)
+            {
+                detailText += "\nTrace file: " + performanceTracePath;
+            }
             UiScrollPanel details = new() { Height = 100, ContentHeight = Math.Max(100, detailText.Split('\n').Sum(line => Math.Max(1, (line.Length + 99) / 100)) * 18) };
             details.Children.Add(new UiLabel { Text = detailText, FontSize = 13 });
             stack.Children.Add(details);

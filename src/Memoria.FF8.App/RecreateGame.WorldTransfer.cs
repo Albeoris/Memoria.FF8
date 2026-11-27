@@ -138,6 +138,12 @@ internal sealed partial class RecreateGame
     protected override void Draw(GameTime gameTime)
     {
         using DiagnosticHostPhaseTiming.Scope drawTiming = diagnosticHostPhaseTiming.Measure(DiagnosticHostPhase.Draw);
+        if (TraceModalOpen)
+        {
+            DrawPerformanceTraceModal(gameTime);
+            CapturePresentedFrame(gameTime);
+            return;
+        }
         DrawGameFrame(gameTime);
         if (worldTransfer is not null)
         {
@@ -147,5 +153,6 @@ internal sealed partial class RecreateGame
             }
             worldTransfer.Draw(batch, pixel, GraphicsDevice.Viewport.Bounds);
         }
+        DrawPerformanceTraceStatus();
     }
 }

@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Reflection;
+using Memoria.FF8.Mods;
 using Memoria.FF8.Runtime;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -8,6 +10,7 @@ namespace Memoria.FF8;
 internal sealed partial class RecreateGame
 {
     private readonly DiagnosticHostPhaseTiming diagnosticHostPhaseTiming = new(Environment.GetEnvironmentVariable("MEMORIA_DIAGNOSTIC_PACING") == "1", Environment.GetEnvironmentVariable("MEMORIA_DIAGNOSTIC_NATIVE_CPU_CYCLES") == "1");
+    private readonly PerformanceTrace performanceTrace = new();
     private VisualFrameRate? visualFrameRate;
     private readonly long presentationClockStarted = Stopwatch.GetTimestamp();
     private TimeSpan nextFpsLabelUpdate;
@@ -34,6 +37,13 @@ internal sealed partial class RecreateGame
         using DiagnosticHostPhaseTiming.Scope postPresentTiming = diagnosticHostPhaseTiming.Measure(DiagnosticHostPhase.PostPresent);
         long visualTimestamp = diagnosticTelemetry?.VisualChangesEnabled == true ? Stopwatch.GetTimestamp() : 0;
         PresentationPacerObservation pacer = observePacing ? presentationPacer.TimingObservation : default;
+        if (performanceTrace.IsRecording && phases is { } framePhases)
+        {
+            BattleSession? battle = InFf7 ? null : ActiveBattle;
+            string scene = PerformanceTraceScene();
+            int? fieldId = scene == "Field" ? session.State.FieldId : null;
+            performanceTrace.Presented(scene, fieldId, battle?.EncounterId, presentBegin, presentEnd, pacer, framePhases);
+        }
         PresentedFrameObserver?.Invoke(presentBegin, presentEnd, pacer, phases);
         if (observePacing)
         {
@@ -70,6 +80,58 @@ internal sealed partial class RecreateGame
             fpsLabel = fps is double value ? FormattableString.Invariant($"FPS: {value:F1} | {changesLabel}") : $"FPS: -- | {changesLabel}";
             nextFpsLabelUpdate = now + TimeSpan.FromSeconds(0.25);
         }
+    }
+
+    private string PerformanceTraceScene()
+    {
+        if (gameMenus?.IsOpen == true)
+        {
+            return InFf7 ? "FFVII Menu" : "Menu";
+        }
+        if (InFf7)
+        {
+            return ff7Scene?.Session switch
+            {
+                null => "FFVII Title",
+                { Battle: not null } => "FFVII Battle",
+                { World: not null } => "FFVII WorldMap",
+                { Condor: not null } => "FFVII Fort Condor",
+                { Submarine: not null } => "FFVII Submarine",
+                { ChocoboRace: not null } => "FFVII Chocobo Race",
+                _ => "FFVII Field"
+            };
+        }
+        if (ActiveBattle is not null)
+        {
+            return "Battle";
+        }
+        if (world?.ActiveTripleTriad is not null)
+        {
+            return "Triple Triad";
+        }
+        return session.State.Scene.ToString();
+    }
+
+    private string PerformanceTraceContext()
+    {
+        var assembly = typeof(RecreateGame).Assembly;
+        var presentation = GraphicsDevice.PresentationParameters;
+        string? build = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? assembly.GetName().Version?.ToString();
+        string activeMods = string.Join(", ", resourceHost?.Mods.Catalog.Packages.Where(package => package.Status == ModEffectiveStatus.Active).Select(package => package.Id) ?? []);
+        return $"""
+            Build: {build}
+            Runtime: .NET {Environment.Version} ({System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture})
+            Operating system: {System.Runtime.InteropServices.RuntimeInformation.OSDescription}
+            Logical processors available: {Environment.ProcessorCount}
+            Active mods: {activeMods}
+            Graphics backend: {GraphicsHostReadiness.Backend}
+            Graphics adapter: {GraphicsDevice.Adapter.Description}
+            FFVIII scene renderer: {(options.SoftwareRenderer ? "software" : "GPU")}
+            Viewport: {GraphicsDevice.Viewport.Width} x {GraphicsDevice.Viewport.Height}
+            Back buffer: {presentation.BackBufferWidth} x {presentation.BackBufferHeight}, MSAA samples: {presentation.MultiSampleCount}
+            VSync: {uiPreferences.VSync}, present interval: {presentation.PresentationInterval}
+            Configured frame limits (FPS): field {uiPreferences.FieldFps}, world {uiPreferences.WorldFps}, battle {uiPreferences.BattleFps}, menu {uiPreferences.MenuFps}
+            """;
     }
 
     private void DrawFps(Rectangle bounds)
