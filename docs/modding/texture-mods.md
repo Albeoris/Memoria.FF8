@@ -126,6 +126,15 @@ Lookup tries the exact palette's DDS, exact palette's PNG, plain-page DDS, then 
 
 The suffix selects a palette; it does not create animation frames. Original MAP `Parameter`/`State` selection still chooses animated tiles and their independent source UVs. Destination coordinates, layers, draw order, visibility and native blend modes remain unchanged, including transparent and semitransparent texels. Enabling, disabling or refreshing a package republishes resident tile handles and refreshes cached CPU rendering and GPU atlases, including replacements whose dimensions stay the same.
 
+#### Isolate a field texture for a bug report
+
+1. Record the field name from the window title (for example, `165:bghall_1`) and take a screenshot. In **Mods → Installed Mods**, disable **Installed Demaster (DEMASTER_EXP)** and compare the same view. Continue if the symptom disappears.
+2. Leave that entry disabled. In the selected game's `Mods/Demaster` folder, create a new temporary package with an unused name, such as `FieldCheck`. Copy only the affected field's images into it, preserving their paths from `textures/` onward. For the example, the destination is `Mods/Demaster/FieldCheck/textures/field_bg/bg/bghall_1/`. Keep the installed files in place.
+3. Use **Refresh**, enable the temporary package, and check that it reproduces the symptom. Move half the test copies outside the package, refresh, and compare the same spot again. Keep narrowing the group that reproduces it. If different spots respond to different files, follow one spot at a time. If neither half reproduces it alone, restore the group and remove one file at a time to identify the required combination.
+4. Refresh and verify the smallest set on its own. Toggle the test package off and on once to confirm. Share those original DDS or PNG files with their relative paths, the screenshot and the field name. The original bytes preserve alpha and compression information that a screenshot or re-encoded image loses. Remove the temporary package, refresh, and restore the previous enablement.
+
+For a black halo around a lamp, the dark pixels can belong to an additive glow. In additive blending, black contributes zero light and the background shows through. When the same pixel enters the opaque pass, it covers the background. A single field page can contain glow tiles alongside ordinary scenery.
+
 ### Demaster battle stage pages
 
 Stage images use `textures/battle.fs/hd_new/a0stgNNN_PAGE.dds` or `.png`, where `NNN` is the original stage resource number and `PAGE` is its native page number, 16 through 21. These pages overlap in the original VRAM atlas at eight-bit depth; each replacement retains its own 256 × 256 logical canvas. Replacement images may use any positive physical dimensions, with independent horizontal and vertical densities over that logical page. Original polygon UVs, geometry, blend modes and colors remain unchanged. DDS takes precedence over PNG.
