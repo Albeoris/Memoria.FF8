@@ -169,12 +169,78 @@ public sealed class NativeMountedChocoboTests
 
             if (spawn == 34)
             {
+                if (allocation.RagnarokIndex >= 0)
+                {
+                    NativeRagnarokWorldAllocation ship = NativeRagnarokWorldAllocation.FromMountedAllocation(allocation);
+                    assets.ValidateRagnarokAllocationResources(ship);
+                    NativeSavedWorldPose flightPose = new(scene.State.X, scene.State.Z, checked((short)scene.State.NativeHeight), checked((ushort)scene.State.BodyYaw));
+                    NativeRagnarokWorldAllocation flightReload = assets.ReadRagnarokAllocation(new(62, 50, -1), session.State.WorldEntryMemory!, session.State.EventMemory, session.State.SavedWorld!, session.State.CharacterVitals!, flightPose, checked((ushort)scene.State.CameraYaw), 0);
+                    assets.ValidateRagnarokAllocationResources(flightReload);
+                    Assert.Equal(ship.FootEntityType, flightReload.FootEntityType);
+
+                    Assert.Equal(allocation.RiderEntityType, ship.FootEntityType);
+                    Assert.Equal(allocation.Objects.Select(NativeRagnarokWorldAllocation.FromGardenObject), ship.Objects);
+                }
                 Assert.True(scene.Apply(new(PlayerActionKind.Move, Horizontal: 1, Frames: 12)).Accepted);
                 GameSession restored = new(JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(riding.State))!);
                 using WorldMapScene resumed = new(restored, directory);
                 Assert.True(resumed.Apply(new(PlayerActionKind.Wait)).Accepted);
             }
         }
+    }
+
+    [Fact]
+    public void ReleasedChocoboRiderBoardsTheParkedRagnarokAndRestoresTakeoff()
+    {
+        string directory = TestResources.GameDirectory;
+        const ushort story = 3410;
+        GameSession session = GameSession.CreateColdProcess();
+        session.StartNewGame();
+        using (GameWorld initialization = new(session, directory))
+        {
+            session.SetWorldEntryMemory(session.State.WorldEntryMemory!.WriteBytes(256, 2, story).WriteBytes(265, 1, 1));
+            NativePocketStationState pocket = session.State.PocketStation!;
+            session.SetPocketStation(pocket with { Raw = pocket.Raw.SetItem(0, 1) });
+        }
+        WorldState rider = new() { X = 52976, Z = -63710, NativeHeight = -685, BodyYaw = 2683, CameraYaw = 637 };
+        NativeSavedWorldFootReturn mounted = NativeSavedWorldFootReturn.Create(rider, 289, story, 0, 0, 0, 49);
+        NativeSavedWorldPose parked = new(53826, -63898, -557, 0);
+        session.SetSavedWorldState(session.State.SavedWorld!.WithFootReturn(mounted) with { RagnarokPose2 = parked, WorldEventFlags116 = NativeWorldEventFlags.CreateNewGame().WithOperand(260) });
+        WorldTransition packet = new(62, 49, -1);
+        using PreparedWorldEntry ticket = WorldEntryPreflight.Prepare(session.State, directory, packet);
+        session.CommitPreparedWorldEntry(packet, ticket.InitialState, session.WorldControls!, ticket.ValidateAdoption, ticket.InitialSavedWorld);
+        using WorldMapScene scene = ticket.Adopt(session);
+        Assert.True(scene.Apply(new(PlayerActionKind.Wait, Frames: 24)).Accepted);
+        if (scene.CurrentDialogue is not null)
+        {
+            Assert.True(scene.Apply(new(PlayerActionKind.Confirm)).Accepted);
+            Assert.True(scene.Apply(new(PlayerActionKind.Wait)).Accepted);
+        }
+        Assert.True(scene.Apply(new(PlayerActionKind.Confirm)).Accepted);
+        Assert.NotNull(scene.State.ChocoboDismount);
+        Assert.True(scene.Apply(new(PlayerActionKind.Wait, Frames: 65)).Accepted);
+        for (int callback = 0; callback < 100 && scene.State.NativeGardenRuntime!.BroadContact != scene.State.NativeGardenRuntime.Allocation.RagnarokIndex; callback++)
+        {
+            Assert.True(scene.Apply(WorldNavigationGuide.Next(scene.State, parked.X, parked.RawZ) with { Frames = 1 }).Accepted);
+        }
+        NativeGardenWorldRuntimeState before = scene.State.NativeGardenRuntime!;
+        Assert.Equal(49, before.Allocation.ControlledEntityType);
+        Assert.Equal(before.Allocation.RagnarokIndex, before.BroadContact);
+        Assert.Equal(NativeFootWorldRuntimeState.ChocoboDismountRule, scene.State.NativeFootRuntime!.Rule);
+        Assert.True(scene.Apply(new(PlayerActionKind.Confirm)).Accepted);
+        NativeRagnarokWorldRuntimeState ship = Assert.IsType<NativeRagnarokWorldRuntimeState>(scene.State.NativeRagnarokRuntime);
+        Assert.Null(scene.State.NativeFootRuntime);
+        Assert.Null(scene.State.NativeGardenRuntime);
+        Assert.Equal(1, ship.Transfer!.Counter);
+        Assert.Equal(before.Allocation.Packet, ship.Allocation.Packet);
+        Assert.Equal(before.Objects.Select(item => item.ShapeId), ship.Objects.Select(item => item.ShapeId));
+        GameSession restored = new(JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!);
+        using WorldMapScene replay = new(restored, directory);
+        PlayerAction wait = new(PlayerActionKind.Wait, Frames: 60);
+        Assert.True(scene.Apply(wait).Accepted);
+        Assert.True(replay.Apply(wait).Accepted);
+        Assert.Null(scene.State.NativeRagnarokRuntime!.Transfer);
+        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(scene.State), JsonSerializer.SerializeToElement(replay.State)));
     }
 
     [Theory]

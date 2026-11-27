@@ -93,11 +93,11 @@ internal sealed partial class WorldMapScene : IDisposable
                 InitializeChocobo(arrival, inputs);
                 return;
             }
-            bool ordinaryFoot = !parkedCarFoot && !scripted && !stationFoot && !car && !garden && !ragnarok && footEntityType == 0;
+            bool ordinaryFoot = !parkedCarFoot && !scripted && !stationFoot && !car && !garden && !ragnarok && footEntityType is 0 or 6;
             NativeWorldAllocationClause? footClause = ordinaryFoot ? assets.ReadWorldAllocationClause(inputs.StoryWord) : null;
             //544860 establishes vehicle indexes from the selected clause's objects; loader-initialized pose2/3 do not establish vehicle presence.
             bool parkedRagnarok = footClause?.ContainsShape(1) == true;
-            bool parkedGarden = !parkedRagnarok && footClause?.ContainsShape(64) == true && footClause.ContainsShape(65);
+            bool parkedGarden = footEntityType == 0 && !parkedRagnarok && footClause?.ContainsShape(64) == true && footClause.ContainsShape(65);
             bool singleFootClause = ordinaryFoot && footClause is { Index: 7, MinimumStory: 482, MaximumStory: 740 };
             if (!scripted && !stationFoot && !car && !garden && !ragnarok && !parkedGarden && !parkedRagnarok && !parkedCarFoot && !HasSavedParkedCar(session.State.SavedWorld) && !singleFootClause && (footEntityType == 2 ? inputs.StoryWord is < 2140 or >= 2500 : footEntityType == 1 ? inputs.StoryWord is < 34 or >= 205 : inputs.StoryWord is >= 34 and < 205 or >= 392))
             {
@@ -808,7 +808,14 @@ internal sealed partial class WorldMapScene : IDisposable
         }
         if (state.NativeRagnarokRuntime is not null)
         {
-            return PrepareRagnarokFrame(state);
+            WorldRenderFrame frame = PrepareRagnarokFrame(state);
+            if (state.ChocoboDismount is { ParkedAnimation: { } animation } transfer)
+            {
+                int mount = state.NativeRagnarokRuntime.Allocation.MountIndex;
+                int companion = state.NativeRagnarokRuntime.Allocation.CompanionIndex;
+                return AddDismountModels(frame, AsGardenObject(state.NativeRagnarokRuntime.Objects[mount]), mount, companion, animation, transfer);
+            }
+            return frame;
         }
         if (state.NativeGardenRuntime is not null)
         {
@@ -1047,7 +1054,7 @@ internal sealed partial class WorldMapScene : IDisposable
         }
         int? previousInput = foot.PreviousHorizontalInput ?? (session.State.WorldProcess is { } inputProcess ? PreviousFootHorizontalInput(inputProcess) : null);
         int? selectedGroup = inputX != 0 && previousInput != inputX ? inputX > 0 ? 0 : 1 : null;
-        WorldNativeGroundResult ground = assets.ResolveNativeGround(before.X, before.Z, moveX, graphicsMoveZ, previousGroundHeight, selectedGroup, foot.GroundCache!, replacements, foot.EntityType, previousInput is null, foot.StationTrains is not null ? (candidateX, candidateZ, candidateHeight) => HasStationContact(foot, candidateX, candidateZ, candidateHeight) : foot.NormalObjects is not null ? (candidateX, candidateZ, candidateHeight) => HasNormalFootObjectContact(foot, candidateX, candidateZ, candidateHeight) : null, footprintContact: foot.ParkedCar is { } parkedCar ? (probes, padding) => CarTransferContact(before with { CameraYaw = cameraYaw, CameraTargetX = targetX, CameraTargetZ = targetZ, CameraTargetNativeHeight = targetHeight, NativeFootRuntime = foot }, parkedCar.Car, probes, foot.EntityType, padding, parkedCar) : ragnarokCameraState is not null ? (probes, padding) => RagnarokFootContact(ragnarokCameraState, probes, foot.EntityType, padding) : gardenCameraState is not null ? (probes, padding) => GardenFootContact(gardenCameraState, probes, foot.EntityType, padding) : null, commitSuppressed: gardenFootCallback?.BoardingTarget is not null || ragnarokFootCallback?.BoardingTarget is not null);
+        WorldNativeGroundResult ground = assets.ResolveNativeGround(before.X, before.Z, moveX, graphicsMoveZ, previousGroundHeight, selectedGroup, foot.GroundCache!, replacements, foot.EntityType, previousInput is null, foot.StationTrains is not null ? (candidateX, candidateZ, candidateHeight) => HasStationContact(foot, candidateX, candidateZ, candidateHeight) : foot.NormalObjects is not null ? (candidateX, candidateZ, candidateHeight) => HasNormalFootObjectContact(foot, candidateX, candidateZ, candidateHeight) : null, footprintContact: foot.ParkedCar is { } parkedCar ? (probes, padding) => CarTransferContact(before with { CameraYaw = cameraYaw, CameraTargetX = targetX, CameraTargetZ = targetZ, CameraTargetNativeHeight = targetHeight, NativeFootRuntime = foot }, parkedCar.Car, probes, foot.EntityType, padding, parkedCar) : ragnarokCameraState is not null ? (probes, padding) => RagnarokFootContact(ragnarokCameraState, probes, foot.EntityType, padding) : gardenCameraState is not null ? (probes, padding) => GardenFootContact(gardenCameraState, probes, foot.EntityType, padding) : null, commitSuppressed: gardenFootCallback?.BoardingTarget is not null || ragnarokFootCallback?.BoardingTarget is not null || gardenFootCallback?.RagnarokBoardingTarget is not null);
         RecordTransportContactPublication(before.Frame + 1, ground.BroadContact);
         if (foot.ParkedCar is not null)
         {

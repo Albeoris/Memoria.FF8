@@ -18,18 +18,48 @@ public sealed record NativeRagnarokWorldAllocation([property: JsonRequired] stri
     [JsonIgnore]
     public byte ControlledEntityType => BattleReload?.EntityType105 ?? unchecked((byte)Packet.Mode);
 
+    [JsonIgnore]
+    public byte FootEntityType => checked((byte)NativeTrainWorldObject.ClassifyShape(Objects[0].ShapeId));
+    [JsonIgnore]
+    public int MountIndex => 1;
+    [JsonIgnore]
+    public int CompanionIndex => (ChocoboFlags1536 & 3) == 1 ? 2 : -1;
+
     public const string Rule = "ff8-en-ragnarok-section9-clause14-544860-548080-548300-v1";
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeSavedWorldPose? ParkedRagnarokPose2 { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeWorldAuxiliaryRelocationReceipt? AuxiliaryEntry { get; init; }
 
+    public static NativeRagnarokWorldAllocation FromMountedAllocation(NativeGardenWorldAllocation source)
+    {
+        source.Validate();
+        if (source.ControlledEntityType != 49 || source.RagnarokIndex < 0)
+        {
+            throw new InvalidDataException("Ragnarok boarding requires a parked ship in the mounted arrival's dense allocation.");
+        }
+        NativeGardenWorldObject ship = source.Objects[source.RagnarokIndex];
+        NativeSavedWorldPose parked = new(ship.Position.X, -ship.Position.Z, checked((short)ship.Position.Y), checked((ushort)ship.RotationY));
+        NativeRagnarokWorldAllocation allocation = new(source.ProgramHash, source.CoordinateHash, source.ClauseHash, source.Story, source.ChocoboFlags1536, source.ReplacementFlags264, source.GuardianForce13Flags, source.ClauseWords, source.Objects.Select(FromGardenObject).ToImmutableArray(), source.RagnarokIndex, source.Packet, source.LoadPose, source.CameraYaw, source.MapDisplayMode)
+        {
+            ParkedRagnarokPose2 = parked,
+            SavedCarSlot = source.SavedCarSlot
+        };
+        allocation.Validate();
+        return allocation;
+    }
+
+    public static NativeRagnarokWorldObject FromGardenObject(NativeGardenWorldObject item)
+    {
+        return new(item.ShapeId, item.Flags, item.Position, item.RotationX, item.RotationY, item.RotationZ);
+    }
+
     public void Validate()
     {
         if (BattleReload is { } battle)
         {
             battle.RequireCompleteFootReload();
-            if (battle.WorldMode != 3 || battle.EntityType105 != 0 || battle.Pose0 != LoadPose || battle.CameraYaw96 != CameraYaw || battle.MapDisplayMode110 != MapDisplayMode)
+            if (battle.WorldMode != 3 || !NativeWorldEntityTypes.IsSupportedFoot(battle.EntityType105) || battle.Pose0 != LoadPose || battle.CameraYaw96 != CameraYaw || battle.MapDisplayMode110 != MapDisplayMode)
             {
                 throw new InvalidDataException("World mode2 allocation differs from its actual mode3 foot save.");
             }
@@ -38,12 +68,24 @@ public sealed record NativeRagnarokWorldAllocation([property: JsonRequired] stri
         {
             return value is { Length: 64 } && value.All(Uri.IsHexDigit);
         }
-        ushort[] expectedClause = [0xFF01, 0, 0xFF02, 3100, 0xFF03, 3900, 0xFF04, 0, 0xFF13, 0, 0xFF13, 2, 0xFF13, 3, 0xFF13, 1, 0xFF13, 64, 0xFF13, 65, 0xFF13, 7514, 0xFF13, 7515, 0xFF05, 0];
-        if (!Hash(ProgramHash) || !Hash(CoordinateHash) || !Hash(ClauseHash) || Story is < 3100 or >= 3900 || ClauseWords.IsDefault || !ClauseWords.AsSpan().SequenceEqual(expectedClause) || Objects.IsDefaultOrEmpty || Objects.Any(item => item is null) || Packet is null || ControlledEntityType is not (0 or 50) && !NativeCarWorldRuntimeState.IsSupportedEntity(ControlledEntityType) || ControlledEntityType != 50 && ParkedRagnarokPose2 is null || ControlledEntityType == 50 && ParkedRagnarokPose2 is not null || LoadPose is null || LoadPose.X is < -131072 or >= 131072 || LoadPose.RawZ is < -98304 or >= 98304 || LoadPose.Yaw >= 4096 || CameraYaw >= 4096 || MapDisplayMode > 3)
+        if (!Hash(ProgramHash) || !Hash(CoordinateHash) || !Hash(ClauseHash) || ClauseWords.IsDefault || ClauseWords.Length < 12 || Objects.IsDefaultOrEmpty || Objects.Any(item => item is null) || Packet is null || !NativeWorldEntityTypes.IsSupportedFoot(ControlledEntityType) && ControlledEntityType is not (49 or 50) && !NativeCarWorldRuntimeState.IsSupportedEntity(ControlledEntityType) || ControlledEntityType != 50 && ParkedRagnarokPose2 is null || ControlledEntityType == 50 && ParkedRagnarokPose2 is not null || LoadPose is null || LoadPose.X is < -131072 or >= 131072 || LoadPose.RawZ is < -98304 or >= 98304 || LoadPose.Yaw >= 4096 || CameraYaw >= 4096 || MapDisplayMode > 3)
         {
             throw new InvalidDataException("Ragnarok allocation requires the exact original selected clause, loader packet and published pose owners.");
         }
-        List<byte> expected = (ChocoboFlags1536 & 3) == 1 ? [0, 2, 3, 1, 64, 65, 90, 91] : [0, 2, 1, 64, 65, 90, 91];
+        ReadOnlySpan<ushort> records = NativeGardenWorldAllocation.ReadObjectInstructions(ClauseWords, ClauseWords[3], ClauseWords[5], mounted: true);
+        List<byte> expected = [];
+        for (int index = 0; index < records.Length; index += 2)
+        {
+            byte shape = unchecked((byte)records[index + 1]);
+            if (shape != 3 || (ChocoboFlags1536 & 3) == 1)
+            {
+                expected.Add(shape);
+            }
+        }
+        if (Story < ClauseWords[3] || Story >= ClauseWords[5] || expected.Count < 3 || !NativeWorldEntityTypes.IsSupportedFoot(NativeTrainWorldObject.ClassifyShape(expected[0])) || NativeWorldEntityTypes.IsSupportedFoot(ControlledEntityType) && FootEntityType != ControlledEntityType || expected[1] != 2 || !expected.Contains((byte)1) || expected.Contains((byte)92) && SavedCarSlot is not null)
+        {
+            throw new InvalidDataException("Ragnarok allocation lost its selected story range, rider, mount or parked ship identity.");
+        }
         if (SavedCarSlot is { } car)
         {
             if (!NativeCarWorldRuntimeState.IsSupportedEntity(NativeTrainWorldObject.ClassifyShape(car.ShapeId)) || car.Pose is null || car.Pose.X is < -131072 or >= 131072 || car.Pose.RawZ is < -98304 or >= 98304 || car.Pose.Yaw >= 4096)
@@ -82,7 +124,7 @@ public sealed record NativeRagnarokWorldAllocation([property: JsonRequired] stri
             throw new InvalidDataException("Ragnarok car loader requires its selected original appended saved vehicle.");
         }
         AuxiliaryEntry?.RequireRagnarokPublication(Packet, LoadPose);
-        foreach (NativeRagnarokWorldObject item in Objects.Where(item => item.ShapeId is 0 or 1 or 3))
+        foreach (NativeRagnarokWorldObject item in Objects.Where(item => item.ShapeId == Objects[0].ShapeId || item.ShapeId is 1 or 3 || item.ShapeId == 2 && ControlledEntityType == 49))
         {
             NativeSavedWorldPose pose = item.ShapeId == 1 && ParkedRagnarokPose2 is not null ? ParkedRagnarokPose2 : LoadPose;
             NativeWorldPathPosition expectedPosition = new(pose.X, pose.Height, -pose.RawZ);
@@ -178,7 +220,7 @@ public sealed record NativeRagnarokWorldRuntimeState([property: JsonRequired] Na
         //557250 clears body pitch/roll;53DC70 copies the signed height WORD.
         short height = allocation.LoadPose.Height;
         var motor = new NativeRagnarokMotorState(0, allocation.LoadPose.Yaw, 0, 0, height, allocation.CameraYaw, unchecked((short)(-256 - height / 24)), cameraFollowSpeed204DAE4, verticalBias.IsExact ? verticalBias.Minimum : null) { VerticalBiasAuthority = verticalBias.IsExact ? null : verticalBias };
-        var result = new NativeRagnarokWorldRuntimeState(allocation, allocation.Objects, motor);
+        var result = new NativeRagnarokWorldRuntimeState(allocation, allocation.Objects, motor) { PreviousParticleMotion = new(0, 0, 0) };
         result.Validate();
         return result;
     }
@@ -242,7 +284,7 @@ public sealed record NativeRagnarokWorldRuntimeState([property: JsonRequired] Na
         var objects = Objects.ToBuilder();
         for (int index = 0; index < objects.Count; index++)
         {
-            if (objects[index].ShapeId is 0 or 3)
+            if (index == 0 || objects[index].ShapeId == 3)
             {
                 objects[index] = objects[index] with { Position = position, Pitch = pitch, Yaw = yaw, Roll = roll };
             }
@@ -250,14 +292,14 @@ public sealed record NativeRagnarokWorldRuntimeState([property: JsonRequired] Na
         return this with { Objects = objects.ToImmutable() };
     }
 
-    public NativeRagnarokWorldRuntimeState PublishBody(NativeWorldPathPosition position, short pitch, short yaw, short roll)
+    public NativeRagnarokWorldRuntimeState PublishBody(NativeWorldPathPosition position, short pitch, short yaw, short roll, bool companionFollows = true)
     {
         Validate();
         var objects = Objects.ToBuilder();
         for (int index = 0; index < objects.Count; index++)
         {
             //548300 updates C76640, conditional C76648 and C7664C for controlled50.
-            if (objects[index].ShapeId is 0 or 1 or 3)
+            if (index == 0 || objects[index].ShapeId == 1 || objects[index].ShapeId == 3 && companionFollows)
             {
                 objects[index] = objects[index] with { Position = position, Pitch = pitch, Yaw = yaw, Roll = roll };
             }

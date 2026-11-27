@@ -291,7 +291,7 @@ public sealed partial record NativeFootWorldRuntimeState
         }
         if (Rule == RagnarokDismountRule)
         {
-            if (RagnarokDismount is null || GardenDismount is not null || StationTrains is not null || TrainDismount is not null || StationTrainProcess is not null || NormalObjects is not null || ReloadSourceWorldFrame is not null || EntityType != 0 || AnimationVariant > 1 || CameraOffsetY != RagnarokDismount.ProjectionCamera.OffsetY || CameraOffsetZ != RagnarokDismount.Camera.OffsetZ || GroundCache is null || GroundYaw is null || Forest is null)
+            if (RagnarokDismount is null || GardenDismount is not null || StationTrains is not null || TrainDismount is not null || StationTrainProcess is not null || NormalObjects is not null || ReloadSourceWorldFrame is not null || !NativeWorldEntityTypes.IsSupportedFoot(EntityType) || AnimationVariant > 1 || CameraOffsetY != RagnarokDismount.ProjectionCamera.OffsetY || CameraOffsetZ != RagnarokDismount.Camera.OffsetZ || GroundCache is null || GroundYaw is null || Forest is null)
             {
                 throw new InvalidDataException("Ragnarok foot handoff lost its completed landing or retained ground, forest and camera owners.");
             }
@@ -334,7 +334,7 @@ public sealed partial record NativeFootWorldRuntimeState
         {
             throw new InvalidDataException("Native normal object allocation requires its actual controlled shape0 body.");
         }
-        if (Rule == ChocoboDismountRule ? ChocoboDismountStartFrame is null or < 24 || EntityType != 0 || ReloadSourceWorldFrame is not null || NormalObjects is not null : ChocoboDismountStartFrame is not null)
+        if (Rule == ChocoboDismountRule ? ChocoboDismountStartFrame is null or < 24 || ReloadSourceWorldFrame is not null || NormalObjects is not null : ChocoboDismountStartFrame is not null)
         {
             throw new InvalidDataException("Native foot Chocobo handoff requires its completed world transfer frame.");
         }

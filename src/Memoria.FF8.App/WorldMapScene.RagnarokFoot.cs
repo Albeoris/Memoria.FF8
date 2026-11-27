@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
 
@@ -45,7 +46,7 @@ internal sealed partial class WorldMapScene
         NativeRagnarokWorldObject ship = runtime.Objects[runtime.Allocation.RagnarokIndex];
         //54B460 changes20409E0 to546F90(shape0)=0, restores the retained
         //53E7A0 placement and548300 publishes foot/chocobo, leaving shape1 parked.
-        runtime = PublishRagnarokFootBody(runtime with { GroundCache = foot.GroundCache, Forest = foot.Forest, TransferCamera = camera }, placement, ship.Pitch, ship.Yaw, ship.Roll);
+        runtime = PublishRagnarokFootBody(runtime with { GroundCache = foot.GroundCache, Forest = foot.Forest, TransferCamera = camera }, placement, ship.Pitch, ship.Yaw, ship.Roll, companionFollows: state.ChocoboDismount is null);
         return state with { X = WrapCoordinate(placement.X, 262144), Z = WrapCoordinate(-placement.Z, 196608), NativeHeight = placement.Y, BodyYaw = WrapYaw(ship.Yaw), CameraYaw = WrapYaw(camera.Yaw), AnimationId = 0, AnimationCounter = 0, NativeFootRuntime = foot, NativeRagnarokRuntime = runtime };
     }
 
@@ -73,30 +74,34 @@ internal sealed partial class WorldMapScene
         if (admission.Action && runtime.BroadContact == runtime.Allocation.RagnarokIndex)
         {
             NativeRagnarokWorldObject ship = runtime.Objects[runtime.Allocation.RagnarokIndex];
-            uint flags = GardenFootCurrentPolygonFlags(foot.GroundCache!);
-            bool heightAndSurface = NativeRagnarokTransferInput.PassesBoardingGate(foot.EntityType, flags, runtime.CurrentGroundHeight!.Value, ship.Position.Y, true, true);
-            if (heightAndSurface)
+            if (CanBoardParkedRagnarok(foot, runtime.CurrentGroundHeight!.Value, ship, shape => RagnarokFootContact(prepared, shape, 50, 0, true)))
             {
-                IReadOnlyList<WorldNativeGardenProbe> shape = assets.CreateNativeGardenShapeFootprint(ship.Position, 50, ship.Yaw);
-                if (RagnarokFootContact(prepared, shape, 50, 0, true) < 0)
-                {
-                    callback.BoardingTarget = ship;
-                    NativeWorldGroundCacheState cleared = foot.GroundCache! with { Alternatives = foot.GroundCache.Alternatives.Select(alternative => alternative with { Entries = [] }).ToArray() };
-                    foot = foot with { GroundCache = cleared };
-                    runtime = runtime with { GroundCache = cleared };
-                    prepared = prepared with { NativeFootRuntime = foot, NativeRagnarokRuntime = runtime };
-                }
+                callback.BoardingTarget = ship;
+                NativeWorldGroundCacheState cleared = foot.GroundCache! with { Alternatives = foot.GroundCache.Alternatives.Select(alternative => alternative with { Entries = [] }).ToArray() };
+                foot = foot with { GroundCache = cleared };
+                runtime = runtime with { GroundCache = cleared };
+                prepared = prepared with { NativeFootRuntime = foot, NativeRagnarokRuntime = runtime };
             }
         }
         callback.CameraState = prepared;
         return prepared;
     }
 
+    private bool CanBoardParkedRagnarok(NativeFootWorldRuntimeState foot, int groundHeight, NativeRagnarokWorldObject ship, Func<IReadOnlyList<WorldNativeGardenProbe>, int> contact)
+    {
+        uint flags = GardenFootCurrentPolygonFlags(foot.GroundCache!);
+        if (!NativeRagnarokTransferInput.PassesBoardingGate(foot.EntityType, flags, groundHeight, ship.Position.Y, true, true))
+        {
+            return false;
+        }
+        return contact(assets.CreateNativeGardenShapeFootprint(ship.Position, 50, ship.Yaw)) < 0;
+    }
+
     private int RagnarokFootContact(WorldState cameraState, IReadOnlyList<WorldNativeGardenProbe> probes, int selectedEntity, int padding, bool forceCircle = false)
     {
         NativeRagnarokWorldRuntimeState runtime = cameraState.NativeRagnarokRuntime!;
         NativeWorldPathProjectionCertificate projection = NativeWorldPathProjectionCertificate.CreateRagnarok(runtime.ProjectionCamera!, runtime.TransferCamera!.CurveThreshold);
-        return WorldRagnarokContactCertificate.Evaluate(assets, runtime, probes, projection, padding, WorldFootContactCertificate.ExcludesOriginalTrainRoutes(projection), selectedEntity, 0, forceCircle);
+        return WorldRagnarokContactCertificate.Evaluate(assets, runtime, probes, projection, padding, WorldFootContactCertificate.ExcludesOriginalTrainRoutes(projection), selectedEntity, cameraState.NativeFootRuntime!.EntityType, forceCircle);
     }
 
     private WorldState CompleteRagnarokFootCallback(WorldState after, WorldNativeGroundResult ground)
@@ -106,24 +111,52 @@ internal sealed partial class WorldMapScene
         NativeRagnarokWorldObject previousFoot = runtime.Objects[0];
         short pitch = checked((short)(previousFoot.Pitch + Math.Clamp(-(int)previousFoot.Pitch, -16, 16)));
         short groundHeight = ground.GroundCommitted ? unchecked((short)-(int)ground.Center!.Ground.Height) : runtime.CurrentGroundHeight!.Value;
-        WorldNativeTerrainOcclusionResult occlusion = assets.CertifyNativeTerrainCameraOcclusion(runtime.ProjectionCamera!, groundHeight, replacements, 0, runtime.TransferCamera!.CurveThreshold);
+        WorldNativeTerrainOcclusionResult occlusion = assets.CertifyNativeTerrainCameraOcclusion(runtime.ProjectionCamera!, groundHeight, replacements, foot.EntityType, runtime.TransferCamera!.CurveThreshold);
         runtime = runtime with { GroundCache = foot.GroundCache, GroundYaw = checked((short)foot.GroundYaw!.Value), Forest = foot.Forest, CurrentGroundHeight = groundHeight, PrimaryContact = ground.PrimaryContact ?? throw new InvalidDataException("Ragnarok foot callback omitted primary contact."), BroadContact = ground.BroadContact ?? throw new InvalidDataException("Ragnarok foot callback omitted broad contact."), PriorTerrainOcclusion = occlusion.Occluded ?? throw new NotSupportedException(occlusion.Reason), TransferCamera = runtime.TransferCamera with { Pitch = foot.Forest!.CameraPitch, Yaw = checked((short)after.CameraYaw), OffsetZ = foot.CameraOffsetZ } };
         runtime = runtime with { PreviousParticleNativeHeight = ragnarokFootCallback.CameraState.NativeHeight };
-        runtime = PublishRagnarokFootBody(runtime, new(after.X, after.NativeHeight, -after.Z), pitch, checked((short)after.BodyYaw), previousFoot.Roll);
+        runtime = PublishRagnarokFootBody(runtime, new(after.X, after.NativeHeight, -after.Z), pitch, checked((short)after.BodyYaw), previousFoot.Roll, companionFollows: after.ChocoboDismount is null);
         return after with { NativeRagnarokRuntime = runtime };
     }
 
-    private static NativeRagnarokWorldRuntimeState PublishRagnarokFootBody(NativeRagnarokWorldRuntimeState runtime, NativeWorldPathPosition position, short pitch, short yaw, short roll)
+    private static NativeRagnarokWorldRuntimeState PublishRagnarokFootBody(NativeRagnarokWorldRuntimeState runtime, NativeWorldPathPosition position, short pitch, short yaw, short roll, bool companionFollows = true)
     {
         var objects = runtime.Objects.ToBuilder();
         for (int index = 0; index < objects.Count; index++)
         {
-            if (objects[index].ShapeId is 0 or 3)
+            if (index == 0 || objects[index].ShapeId == 3 && companionFollows)
             {
                 objects[index] = objects[index] with { Position = position, Pitch = pitch, Yaw = yaw, Roll = roll };
             }
         }
         return runtime with { Objects = objects.ToImmutable() };
+    }
+
+    private NativeRagnarokWorldRuntimeState AdoptMountedRagnarok(WorldState state)
+    {
+        NativeGardenWorldRuntimeState garden = state.NativeGardenRuntime!;
+        NativeFootWorldRuntimeState foot = state.NativeFootRuntime!;
+        NativeWorldProcess process = session.State.WorldProcess!;
+        NativeRagnarokWorldAllocation allocation = NativeRagnarokWorldAllocation.FromMountedAllocation(garden.Allocation);
+        NativeRagnarokWorldRuntimeState runtime = NativeRagnarokWorldRuntimeState.CreateAfterLoader(allocation, checked((short)garden.CameraFollowSpeed), process.VerticalBias204DADC ?? NativeWorldVerticalBiasState.UnknownWord);
+        NativeRagnarokTransferCamera camera = assets.ReadRagnarokTransferCameraTargets(NativeRagnarokTransferKind.Landing, garden.CurrentGroundHeight!.Value);
+        return runtime with
+        {
+            Objects = garden.Objects.Select(NativeRagnarokWorldAllocation.FromGardenObject).ToImmutableArray(),
+            GroundCache = foot.GroundCache,
+            GroundYaw = garden.GroundYaw,
+            Forest = foot.Forest,
+            Cactuar = garden.Cactuar,
+            CarBodyPose = garden.CarBodyPose,
+            BackgroundRails = garden.BackgroundRails,
+            ManualCameraVelocity = garden.ManualCameraVelocity,
+            CurrentGroundHeight = garden.CurrentGroundHeight,
+            PrimaryContact = garden.PrimaryContact,
+            BroadContact = garden.BroadContact,
+            PriorTerrainOcclusion = garden.PriorTerrainOcclusion,
+            ProjectionCamera = garden.ProjectionCamera,
+            ProjectionCurveThreshold = 5216,
+            TransferCamera = camera with { ProjectionDistance = foot.CameraTransition?.ProjectionDistance ?? 1024, CurveThreshold = 5216, Pitch = foot.Forest!.CameraPitch, Yaw = checked((short)state.CameraYaw), OffsetZ = foot.CameraOffsetZ }
+        };
     }
 
     private WorldState CompleteRagnarokFootReboarding(WorldState state)
@@ -134,14 +167,15 @@ internal sealed partial class WorldMapScene
         {
             return state;
         }
-        NativeRagnarokWorldRuntimeState runtime = state.NativeRagnarokRuntime!;
+        NativeRagnarokWorldRuntimeState runtime = state.NativeRagnarokRuntime ?? AdoptMountedRagnarok(state);
+        state = state with { NativeGardenRuntime = null };
         NativeFootWorldRuntimeState foot = state.NativeFootRuntime!;
         NativeRagnarokTransferCamera initial = runtime.TransferCamera! with { ProjectionDistance = foot.CameraTransition?.ProjectionDistance ?? runtime.TransferCamera!.ProjectionDistance, Pitch = foot.Forest!.CameraPitch, Yaw = checked((short)state.CameraYaw), OffsetZ = foot.CameraOffsetZ };
         NativeRagnarokTransferCamera destination = assets.ReadRagnarokTransferCameraTargets(NativeRagnarokTransferKind.Takeoff, runtime.CurrentGroundHeight!.Value, target.Yaw);
         NativeRagnarokTransferState transfer = new(NativeRagnarokTransferKind.Takeoff, target.Position, runtime.CurrentGroundHeight!.Value, target.Yaw, initial, destination);
         NativeWorldVerticalBiasState bias = (session.State.WorldProcess!.VerticalBias204DADC ?? NativeWorldVerticalBiasState.UnknownWord).Damp(2, 2, state.Frame - session.State.World!.Frame);
         runtime = runtime with { AnimationVariant = 0, MapDisplayMode = foot.MapDisplayMode, Transfer = transfer, LandingPlacement = null, TransferCamera = initial, Motor = runtime.Motor with { Speed = 0, BodyYaw = checked((ushort)WrapYaw(target.Yaw)), BodyPitch = target.Pitch, BodyRoll = target.Roll, CameraYaw = checked((ushort)state.CameraYaw), CameraPitch = initial.Pitch, VerticalBias204DADC = bias.IsExact ? bias.Minimum : null, VerticalBiasAuthority = bias.IsExact ? null : bias }, Forest = foot.Forest };
-        runtime = runtime.PublishBody(target.Position, target.Pitch, target.Yaw, target.Roll);
+        runtime = runtime.PublishBody(target.Position, target.Pitch, target.Yaw, target.Roll, companionFollows: state.ChocoboDismount is null);
         runtime = runtime with { DrawBody = target, DrawGroundHeight = runtime.CurrentGroundHeight };
         state = state with { X = target.Position.X, Z = -target.Position.Z, NativeHeight = target.Position.Y, BodyYaw = WrapYaw(target.Yaw), NativeFootRuntime = null, NativeRagnarokRuntime = runtime };
         return AdvanceRagnarokTransfer(state);

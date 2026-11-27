@@ -99,7 +99,7 @@ public sealed class NativeRagnarokAllocationAssetsTests
         NativeCharacterVitals vitals = game.ReadNewGameCharacterVitals();
         Assert.Throws<NotSupportedException>(() => assets.ReadRagnarokAllocation(new(62, 50, -1), entry, NativeEventMemory.Empty, saved, vitals));
         Assert.Throws<NotSupportedException>(() => assets.ReadRagnarokAllocation(new(62, 50, -1), entry, NativeEventMemory.Empty, saved, vitals, new(1, 2, -300, 0), 0));
-        Assert.Throws<NotSupportedException>(() => Read(assets, game, 3900, 0, 0));
+        Assert.True(Read(assets, game, 3900, 0, 0).RagnarokIndex >= 0);
         Assert.Throws<NotSupportedException>(() => Read(assets, game, 3099, 0, 0));
         NativeRagnarokWorldAllocation relocated = assets.ReadRagnarokAllocation(new(62, 50, -1), entry, NativeEventMemory.Empty.Write(269, 1, NativeScalarValue.Exact(1)), saved, vitals, new(1, 2, -300, 0), 0, 0);
         Assert.Equal((short)9, relocated.Objects.Single(item => item.ShapeId == 64).Yaw);

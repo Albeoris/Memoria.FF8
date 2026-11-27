@@ -11,12 +11,16 @@ internal sealed partial class WorldMapScene
         {
             return null;
         }
+        // 5401CE tests the live script mode after 54B460 has advanced or finished the vehicle transfer.
+        if (state.NativeRagnarokRuntime?.Transfer is not null || state.NativeGardenRuntime?.Transfer is { Counter: < 31 })
+        {
+            return null;
+        }
         NativeWorldInputHistory history = salary.InputHistory ?? throw new NotSupportedException("Vehicle cockpit input requires its sampled button history.");
         if ((history.CurrentButtons & 0x20) == 0 || history.PreviousButtons is not ushort previous || (previous & 0x20) != 0)
         {
             return null;
         }
-        // 53FAC0 dispatches 544630 after late vehicle transfers on a rising menu edge.
         bool garden = state.NativeGardenRuntime is not null;
         bool landingPermitted = garden ? ResolveGardenFootPlacement(state)?.Accepted == true : PrepareRagnarokLanding(state) is not null;
         salary = salary.WithVehicleCockpitLanding(landingPermitted);

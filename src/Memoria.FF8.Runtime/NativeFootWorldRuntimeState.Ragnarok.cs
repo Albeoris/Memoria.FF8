@@ -53,7 +53,7 @@ public sealed partial record NativeFootWorldRuntimeState
         {
             ProofVersion = CurrentProofVersion,
             Rule = RagnarokDismountRule,
-            EntityType = 0,
+            EntityType = runtime.Allocation.FootEntityType,
             AnimationVariant = 0,
             MapDisplayMode = runtime.MapDisplayMode,
             CameraOffsetY = runtime.ProjectionCamera!.OffsetY,

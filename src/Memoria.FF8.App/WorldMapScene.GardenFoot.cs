@@ -10,6 +10,7 @@ internal sealed partial class WorldMapScene
         public NativeWorldEntryMemory Memory { get; } = memory;
         public bool ConsumeScriptRequest { get; set; }
         public WorldState? CameraState { get; set; }
+        public NativeRagnarokWorldObject? RagnarokBoardingTarget { get; set; }
         public NativeGardenWorldObject? BoardingTarget { get; set; }
     }
 
@@ -22,12 +23,14 @@ internal sealed partial class WorldMapScene
         {
             throw new InvalidOperationException("Garden foot callbacks cannot be nested.");
         }
+        ragnarokFootBoardingTarget = null;
         gardenFootCallback = new GardenFootCallback(memory);
         try
         {
             WorldState after = StepFoot(before, movementSpeedPercent, horizontal, vertical, cameraHorizontal, priorGraphicsSpeed, ref salary, out fieldEntry, out salaryMovementUnits, out graphicsSpeed);
             consumeGardenRequest = gardenFootCallback.ConsumeScriptRequest;
             boardingTarget = gardenFootCallback.BoardingTarget;
+            ragnarokFootBoardingTarget = gardenFootCallback.RagnarokBoardingTarget;
             return after;
         }
         finally
@@ -81,7 +84,18 @@ internal sealed partial class WorldMapScene
         NativeGardenTransferAdmission admission = NativeGardenTransferState.EvaluateInput(input);
         callback.ConsumeScriptRequest = admission.ConsumeScriptRequest;
         garden = garden with { Buttons = garden.Buttons.Observe(buttons.CurrentButtons) };
-        if (garden.Allocation.HasGarden && admission.Action && garden.BroadContact is int hit && (hit == garden.Allocation.Garden64Index || hit == garden.Allocation.Garden65Index))
+        if (admission.Action && garden.Allocation.RagnarokIndex >= 0 && garden.BroadContact == garden.Allocation.RagnarokIndex)
+        {
+            NativeRagnarokWorldObject ship = NativeRagnarokWorldAllocation.FromGardenObject(garden.Objects[garden.Allocation.RagnarokIndex]);
+            if (CanBoardParkedRagnarok(foot, garden.CurrentGroundHeight!.Value, ship, shape => GardenFootContact(cameraState with { NativeGardenRuntime = garden }, shape, 50, 0, true)))
+            {
+                callback.RagnarokBoardingTarget = ship;
+                NativeWorldGroundCacheState cleared = foot.GroundCache! with { Alternatives = foot.GroundCache.Alternatives.Select(alternative => alternative with { Entries = [] }).ToArray() };
+                foot = foot with { GroundCache = cleared };
+                garden = garden with { GroundCache = cleared };
+            }
+        }
+        else if (garden.Allocation.HasGarden && admission.Action && garden.BroadContact is int hit && (hit == garden.Allocation.Garden64Index || hit == garden.Allocation.Garden65Index))
         {
             NativeGardenWorldObject target = garden.Objects[garden.Allocation.Garden64Index];
             uint flags = GardenFootCurrentPolygonFlags(foot.GroundCache!);

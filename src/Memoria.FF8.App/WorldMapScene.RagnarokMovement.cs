@@ -62,7 +62,7 @@ internal sealed partial class WorldMapScene
             consumeRequest = false;
             movementUnits = 0;
             graphicsSpeed = nativeGraphicsSpeed;
-            runtime = runtime.PublishBody(new(before.X, before.NativeHeight, -before.Z), motor.State.BodyPitch, checked((short)motor.State.BodyYaw), motor.State.BodyRoll);
+            runtime = runtime.PublishBody(new(before.X, before.NativeHeight, -before.Z), motor.State.BodyPitch, checked((short)motor.State.BodyYaw), motor.State.BodyRoll, companionFollows: before.ChocoboDismount is null);
             if (runtime.BackgroundRails is { } mapRails)
             {
                 runtime = runtime with { BackgroundRails = CompleteBackgroundRails(mapRails, before.X, before.Z, before.NativeHeight) };
@@ -83,7 +83,7 @@ internal sealed partial class WorldMapScene
         WorldNativeTerrainOcclusionResult occlusion = assets.CertifyNativeTerrainCameraOcclusion(runtime.ProjectionCamera!, ground.GroundCommitted ? ground.GroundHeight : runtime.CurrentGroundHeight!.Value, replacements, 50, runtime.ProjectionCurveThreshold);
         runtime = runtime with { GroundCache = ground.Cache, GroundYaw = checked((short)ground.GroundYaw), CurrentGroundHeight = ground.GroundCommitted ? ground.GroundHeight : runtime.CurrentGroundHeight, PrimaryContact = ground.PrimaryContact, BroadContact = ground.BroadContact, PriorTerrainOcclusion = occlusion.Occluded ?? throw new NotSupportedException(occlusion.Reason), Motor = motor.State with { FlightHeight = ground.FlightHeight, Speed = ground.ResetSpeed ? 0 : motor.State.Speed } };
         WorldState after = cameraState with { Frame = before.Frame + 1, X = WrapCoordinate(ground.X, 262144), Z = WrapCoordinate(ground.Z, 196608), NativeHeight = ground.BodyHeight, GroundType = ground.Center?.Ground.Triangle.GroundType ?? before.GroundType, NativeRagnarokRuntime = runtime };
-        runtime = runtime.PublishBody(new(after.X, after.NativeHeight, -after.Z), runtime.Motor.BodyPitch, checked((short)after.BodyYaw), runtime.Motor.BodyRoll);
+        runtime = runtime.PublishBody(new(after.X, after.NativeHeight, -after.Z), runtime.Motor.BodyPitch, checked((short)after.BodyYaw), runtime.Motor.BodyRoll, companionFollows: before.ChocoboDismount is null);
         if (runtime.BackgroundRails is { } completedRails)
         {
             runtime = runtime with { BackgroundRails = CompleteBackgroundRails(completedRails, after.X, after.Z, after.NativeHeight) };

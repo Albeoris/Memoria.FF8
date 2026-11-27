@@ -63,8 +63,8 @@ internal sealed partial class WorldMapScene
         }
         NativeWorldPathPosition body = new(cameraState.X, cameraState.NativeHeight, -cameraState.Z);
         //The shared current53E7A0 evaluator is also used by Garden. This call
-        //uses its real Ragnarok50 source, native foot0 destination and528 distance.
-        WorldGardenPlacementResult foot = assets.ResolveNativeGardenPlacement(body, checked((short)cameraState.BodyYaw), 50, 0, 528, groundHeight, flags, runtime.GroundCache!, replacements, Contact);
+        //uses its real Ragnarok50 source, allocated rider destination and528 distance.
+        WorldGardenPlacementResult foot = assets.ResolveNativeGardenPlacement(body, checked((short)cameraState.BodyYaw), 50, runtime.Allocation.FootEntityType, 528, groundHeight, flags, runtime.GroundCache!, replacements, Contact);
         if (!foot.Accepted)
         {
             return null;

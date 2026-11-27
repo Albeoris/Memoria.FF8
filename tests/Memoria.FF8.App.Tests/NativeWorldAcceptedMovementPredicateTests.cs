@@ -39,18 +39,26 @@ public sealed class NativeWorldAcceptedMovementPredicateTests
         }
     }
 
-    [Fact]
-    public void UnknownFootAndFlightMagnitudeRemainUnknown()
+    [Theory]
+    [InlineData(0, 0, 64, 0)]
+    [InlineData(-32, 0, 0, 1)]
+    [InlineData(0, 64, 0, 1)]
+    public void FlightPredicateUsesAcceptedMotionAndPreservesFootOwnership(int x, int z, int speed, ushort expected)
     {
         GameSession session = NativeRagnarokFootTests.Fixture();
         using WorldMapScene scene = new(session, TestResources.GameDirectory);
         NativeSavedWorldState saved = session.State.SavedWorld!;
-        NativeFootWorldRuntimeState unknownFoot = NativeFootWorldRuntimeState.CreateFirstNormalLoad(NativeSavedWorldState.CreateNewGame());
-        WorldState unknown = scene.State with { NativeFootRuntime = unknownFoot };
-        foreach (ushort operand in new ushort[] { 0, 1, 2 })
-        {
-            Assert.Null(scene.EvaluateWorldEventPredicate(unknown, 0, saved, 0xFF38, operand));
-            Assert.Null(scene.EvaluateWorldEventPredicate(scene.State, 0, saved, 0xFF38, operand));
-        }
+        NativeRagnarokWorldRuntimeState ship = scene.State.NativeRagnarokRuntime!;
+        Assert.True(scene.EvaluateWorldEventPredicate(scene.State, 0, saved, 0xFF38, 0));
+        WorldState flight = scene.State with { NativeRagnarokRuntime = ship with { Motor = ship.Motor with { Speed = speed }, PreviousParticleMotion = new(x, 0, z) } };
+        Assert.True(scene.EvaluateWorldEventPredicate(flight, 0, saved, 0xFF38, expected));
+        Assert.False(scene.EvaluateWorldEventPredicate(flight, 0, saved, 0xFF38, (ushort)(1 - expected)));
+        Assert.False(scene.EvaluateWorldEventPredicate(flight, 0, saved, 0xFF38, 256));
+
+        NativeFootWorldRuntimeState foot = NativeFootWorldRuntimeState.CreateFirstNormalLoad(saved);
+        Assert.Null(scene.EvaluateWorldEventPredicate(flight with { NativeFootRuntime = foot with { MovementMagnitude20409F4 = null } }, 0, saved, 0xFF38, expected));
+        WorldState historical = flight with { NativeRagnarokRuntime = ship with { PreviousParticleMotion = null } };
+        Assert.Null(scene.EvaluateWorldEventPredicate(historical, 0, saved, 0xFF38, expected));
+        Assert.True(scene.EvaluateWorldEventPredicate(historical with { NativeFootRuntime = foot with { MovementMagnitude20409F4 = 32 } }, 0, saved, 0xFF38, 1));
     }
 }

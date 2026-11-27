@@ -1071,7 +1071,7 @@ public sealed partial class GameSession : IEventServices
             NativeFootWorldRuntimeState.ChocoboDismountRule when world.NativeGardenRuntime?.Allocation is { } chocobo =>
                 chocobo.Packet == arrival && chocobo.ControlledEntityType == 49,
             NativeFootWorldRuntimeState.RagnarokDismountRule when foot.RagnarokDismount is not null && world.NativeRagnarokRuntime?.Allocation is { } ragnarok =>
-                ragnarok.Packet == arrival && (ragnarok.ControlledEntityType == 50 || ragnarok.BattleReload?.EntityType105 == foot.EntityType),
+                ragnarok.Packet == arrival && (ragnarok.ControlledEntityType is 49 or 50 || ragnarok.BattleReload?.EntityType105 == foot.EntityType),
             _ => false
         };
     }
@@ -1091,7 +1091,7 @@ public sealed partial class GameSession : IEventServices
         world.NativeRagnarokRuntime?.RequireSceneState();
         world.ChocoboDismount?.Validate(world);
         if (world.NativeFootRuntime?.ChocoboDismountStartFrame is long dismountFrame &&
-            (world.NativeGardenRuntime?.Allocation.ControlledEntityType != 49 || world.Frame - dismountFrame < NativeChocoboDismountState.CallbackCount - 1))
+            (world.NativeGardenRuntime?.Allocation.ControlledEntityType != 49 || world.NativeFootRuntime.EntityType != world.NativeGardenRuntime.Allocation.RiderEntityType || world.Frame - dismountFrame < NativeChocoboDismountState.CallbackCount - 1))
         {
             throw new InvalidDataException("Native foot lost the completed Chocobo transfer or its original allocation.");
         }
@@ -1107,13 +1107,13 @@ public sealed partial class GameSession : IEventServices
         {
             NativeFootWorldRuntimeState? foot = world.NativeFootRuntime;
             NativeRagnarokWorldAllocation allocation = ragnarokWorld.Allocation;
-            if (foot is not null && foot.MapDisplayMode != ragnarokWorld.MapDisplayMode)
+            if (foot is not null && (foot.MapDisplayMode != ragnarokWorld.MapDisplayMode || foot.EntityType != allocation.FootEntityType))
             {
-                throw new InvalidDataException("Parked Ragnarok and its controlled foot must share the current world map display mode.");
+                throw new InvalidDataException("Parked Ragnarok requires the allocated rider and shared world map display mode.");
             }
-            bool ordinaryParkedReload = foot?.Rule is NativeFootWorldRuntimeState.FirstLoadRule or NativeFootWorldRuntimeState.SavedReloadRule && allocation.BattleReload is null && unchecked((byte)allocation.Packet.Mode) == 0;
-            bool battleParkedReload = foot is { Rule: NativeFootWorldRuntimeState.BattleReloadRule } && allocation.BattleReload is { WorldMode: 3, EntityType105: 0 } battleReload && foot.ReloadSourceWorldFrame == battleReload.SourceWorldFrame && foot.EntityType == battleReload.EntityType105 && foot.AnimationVariant == battleReload.AnimationVariant108;
-            bool parkedReload = (ordinaryParkedReload || battleParkedReload) && allocation.ControlledEntityType == 0 && allocation.ParkedRagnarokPose2 is not null;
+            bool ordinaryParkedReload = foot?.Rule is NativeFootWorldRuntimeState.FirstLoadRule or NativeFootWorldRuntimeState.SavedReloadRule && allocation.BattleReload is null && unchecked((byte)allocation.Packet.Mode) == allocation.FootEntityType;
+            bool battleParkedReload = foot is { Rule: NativeFootWorldRuntimeState.BattleReloadRule } && allocation.BattleReload is { WorldMode: 3 } battleReload && foot.ReloadSourceWorldFrame == battleReload.SourceWorldFrame && foot.EntityType == battleReload.EntityType105 && foot.AnimationVariant == battleReload.AnimationVariant108;
+            bool parkedReload = (ordinaryParkedReload || battleParkedReload) && allocation.ControlledEntityType == allocation.FootEntityType && allocation.ParkedRagnarokPose2 is not null;
             if (world.NativeFootRuntime is not null && world.NativeFootRuntime.RagnarokDismount is null && !parkedReload || world.NativeCarRuntime is not null || world.NativeGardenRuntime is not null || world.NativeTrainRuntime is not null || world.NativeScriptedRuntime is not null || world.GroundType is null)
             {
                 throw new InvalidDataException("Ragnarok requires its sole current physical allocation and accepted ground owner.");

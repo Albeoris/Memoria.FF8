@@ -192,7 +192,13 @@ internal sealed partial class WorldMapScene
                 }
                 return saved.MatchesWorldEventVariable(opcode, operand);
             case 0xFF38:
-                int? acceptedMagnitude = state.NativeFootRuntime is { } movementFoot ? movementFoot.MovementMagnitude20409F4 : state.NativeCarRuntime is { } movementCar ? movementCar.MovementMagnitude20409F4 : WorldEventGardenObjects(state)?.MovementMagnitude20409F4;
+                int? acceptedMagnitude = state switch
+                {
+                    { NativeFootRuntime: { } footOwner } => footOwner.MovementMagnitude20409F4,
+                    { NativeCarRuntime: { } carOwner } => carOwner.MovementMagnitude20409F4,
+                    { NativeRagnarokRuntime.PreviousParticleMotion: { } acceptedMotion } => NativeWorldVectorMagnitude.Truncate(acceptedMotion.X, acceptedMotion.Y, acceptedMotion.Z),
+                    _ => WorldEventGardenObjects(state)?.MovementMagnitude20409F4
+                };
                 return acceptedMagnitude is int magnitude ? operand == (magnitude != 0 ? 1 : 0) : null;
             case 0xFF22:
             case 0xFF32:

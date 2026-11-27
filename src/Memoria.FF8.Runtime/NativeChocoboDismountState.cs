@@ -36,7 +36,7 @@ public sealed record NativeChocoboDismountState(
             Phase is < NativeChocoboEscapePhase.Initialize or > NativeChocoboEscapePhase.Finish || (Phase == NativeChocoboEscapePhase.Initialize) != (Route is null) ||
             Waypoint < 0 || Waypoint > (Route?.BestPath.Length ?? 0) || CompanionStopIndex is < -1 or > 15 ||
             (mounted ? Counter == CallbackCount || ParkedAnimation is not null || world.Frame != StartFrame + Counter - 1 || world.EventUi?.ScriptMode != 7
-                : Counter != CallbackCount || ParkedAnimation is null || (world.NativeGardenRuntime ?? world.NativeCarRuntime?.GardenObjects)?.Allocation.ControlledEntityType != 49))
+                : Counter != CallbackCount || ParkedAnimation is null || ((world.NativeGardenRuntime ?? world.NativeCarRuntime?.GardenObjects)?.Allocation.ControlledEntityType ?? world.NativeRagnarokRuntime?.Allocation.ControlledEntityType) != 49))
         {
             throw new InvalidDataException("Chocobo dismount lost its native phase, route or controlled body.");
         }

@@ -52,7 +52,7 @@ public sealed record NativeWorldAuxiliaryRelocationReceipt([property: JsonRequir
     public void RequireRagnarokPublication(WorldTransition packet, NativeSavedWorldPose loadPose)
     {
         Validate();
-        if (Packet != packet || FinalLoadPose != loadPose || unchecked((byte)packet.Mode) is not (0 or 50) && !NativeCarWorldRuntimeState.IsSupportedEntity(unchecked((byte)packet.Mode)))
+        if (Packet != packet || FinalLoadPose != loadPose || unchecked((byte)packet.Mode) != 50 && !NativeWorldEntityTypes.IsSupportedFoot(unchecked((byte)packet.Mode)) && !NativeCarWorldRuntimeState.IsSupportedEntity(unchecked((byte)packet.Mode)))
         {
             throw new NotSupportedException("Native auxiliary relocation requires its actual Ragnarok allocation packet and final548080/548300 loader pose.");
         }

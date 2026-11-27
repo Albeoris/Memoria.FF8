@@ -65,11 +65,15 @@ public sealed class VehicleCockpitInputTests
         Assert.True(ControllerGameplayInput.WorldOwnsMenu(session.State));
     }
 
-    [Fact]
-    public void PhysicalBoardingButtonReachesTheParkedRagnarokAndCompletesTakeoff()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void RagnarokCockpitRequiresAFreshMenuEdgeWhenTakeoffCompletes(bool holdMenu)
     {
         GameSession session = NativeRagnarokFootTests.Fixture(3600);
-        using WorldMapScene scene = new(session, TestResources.GameDirectory);
+        using GameWorld world = new(session, TestResources.GameDirectory);
+        world.EnsureField();
+        WorldMapScene scene = world.WorldScene!;
         NativeRagnarokFootTests.Land(scene);
         scene.Apply(new(PlayerActionKind.Wait));
         for (int callback = 0; callback < 48 && scene.State.NativeRagnarokRuntime!.BroadContact != scene.State.NativeRagnarokRuntime.Allocation.RagnarokIndex; callback++)
@@ -83,8 +87,46 @@ public sealed class VehicleCockpitInputTests
         scene.Apply(action);
         Assert.Null(scene.State.NativeFootRuntime);
         Assert.Equal(NativeRagnarokTransferKind.Takeoff, scene.State.NativeRagnarokRuntime!.Transfer!.Kind);
-        scene.Apply(new(PlayerActionKind.Wait, Frames: 60));
-        Assert.Null(scene.State.NativeRagnarokRuntime.Transfer);
+        PlayerAction menu = ControllerGameplayInput.CreateWorldAction(default, session.State, 0x20);
+        Assert.True(scene.Apply(menu).Accepted);
+        Assert.Equal(2, scene.State.NativeRagnarokRuntime.Transfer.Counter);
+        PlayerAction beforeCompletion = holdMenu ? menu : new(PlayerActionKind.Wait);
+        Assert.True(scene.Apply(beforeCompletion with { Frames = 58 }).Accepted);
+        Assert.Equal(60, scene.State.NativeRagnarokRuntime.Transfer.Counter);
+        if (holdMenu)
+        {
+            Assert.True(scene.Apply(menu).Accepted);
+            Assert.Null(scene.State.NativeRagnarokRuntime.Transfer);
+            Assert.Equal(SceneKind.WorldMap, session.State.Scene);
+            Assert.True(scene.Apply(new(PlayerActionKind.Wait)).Accepted);
+        }
+        PlayerActionResult result = scene.Apply(menu);
+        Assert.Equal(PlayerTriggerKind.FieldTransition, result.Trigger.Kind);
+        Assert.Equal(827, session.State.FieldId);
+        Assert.NotNull(session.State.SavedWorld!.RagnarokReturn);
+    }
+
+    [Theory]
+    [InlineData(false, 31)]
+    [InlineData(true, 61)]
+    public void MenuDuringVehicleLandingLetsTheTransferReachFootControl(bool ragnarok, int callbacks)
+    {
+        GameSession session = ragnarok ? NativeRagnarokFootTests.Fixture(3600) : WorldGardenCameraSceneTests.Fixture();
+        using WorldMapScene scene = new(session, TestResources.GameDirectory);
+        scene.Apply(new(PlayerActionKind.Wait, Frames: 24));
+        scene.Apply(new(PlayerActionKind.WorldButtons, 0x60));
+        Assert.Null(scene.State.NativeFootRuntime);
+        if (ragnarok)
+        {
+            Assert.Equal(NativeRagnarokTransferKind.Landing, scene.State.NativeRagnarokRuntime!.Transfer!.Kind);
+        }
+        else
+        {
+            Assert.Equal(1, scene.State.NativeGardenRuntime!.Transfer!.Counter);
+        }
+        scene.Apply(new(PlayerActionKind.Wait, Frames: callbacks - 2));
+        scene.Apply(new(PlayerActionKind.WorldButtons, 0x20));
+        Assert.NotNull(scene.State.NativeFootRuntime);
     }
 
     private static GameSession CreateVehicle(bool ragnarok)

@@ -145,9 +145,9 @@ internal sealed partial class WorldMapScene
         else
         {
             animation = AdvanceDismountAnimation(animation, transfer!, mounted: true);
-            animation = AnimateEscapingCompanion(animation, objects, transfer!, projection, out forest);
+            animation = AnimateEscapingCompanion(animation, hasCompanion, transfer!, projection, ref forest);
         }
-        forest = EmitChocoboParticles(objects, animation, transfer, previousGroundType, priorGraphicsSpeed, forest, ref salary);
+        forest = EmitChocoboParticles(objects.Objects[objects.Allocation.MountIndex], objects.GroundCache, hasCompanion, animation, transfer, previousGroundType, priorGraphicsSpeed, forest, ref salary);
         forest = forest.AdvanceParticlesOnly(assets.ForestTables.AllEffects);
         int? previousInput = mounted.PreviousHorizontalInput ?? PreviousFootHorizontalInput(process);
         int? group = inputX != 0 && previousInput != inputX ? inputX > 0 ? 0 : 1 : null;
@@ -160,7 +160,7 @@ internal sealed partial class WorldMapScene
         int acceptedSpeed = ground.PositionCommitted ? graphicsSpeed : 0;
         salaryMovementUnits = NativeWorldSalaryMovement.AcceptedVectorUnits(ground.PositionCommitted ? moveX : 0, 0, ground.PositionCommitted ? moveZ : 0);
         animation = transfer is null ? animation.AdvanceTrail(x, height, z, yaw, groundType <= 5, acceptedSpeed, hasCompanion)
-            : AdvanceEscapeTrail(animation, objects, transfer, acceptedSpeed, hasCompanion);
+            : AdvanceEscapeTrail(animation, objects.Objects[objects.Allocation.MountIndex], transfer, acceptedSpeed, hasCompanion);
         WorldNativeTerrainOcclusionResult occlusion = assets.CertifyNativeTerrainCameraOcclusion(camera, objects.CurrentGroundHeight.Value, replacements, ChocoboEntity);
         objects = objects with
         {
@@ -193,19 +193,18 @@ internal sealed partial class WorldMapScene
         }
     }
 
-    private NativeWorldForestState EmitChocoboParticles(NativeGardenWorldRuntimeState objects, NativeChocoboWorldAnimation animation, NativeChocoboDismountState? transfer, byte priorGroundType, int priorGraphicsSpeed, NativeWorldForestState forest, ref NativeWorldSalaryState salary)
+    private NativeWorldForestState EmitChocoboParticles(NativeGardenWorldObject mount, NativeWorldGroundCacheState cache, bool hasCompanion, NativeChocoboWorldAnimation animation, NativeChocoboDismountState? transfer, byte priorGroundType, int priorGraphicsSpeed, NativeWorldForestState forest, ref NativeWorldSalaryState salary)
     {
         // 550070 uses the separate mount and companion body and ground owners.
         NativeWorldForestTables tables = assets.ForestTables;
-        NativeGardenWorldObject mount = objects.Objects[objects.Allocation.MountIndex];
         byte mountGroundType = transfer is null ? priorGroundType : assets.ResolveNativeGroundIdentity(transfer.MountGround, replacements).GroundType;
         NativeWorldWaterStepResult mountStep = forest.EmitChocoboParticles(17, mountGroundType, animation.MountAnimation, animation.MountCounter, salary.MountWaterStepEdges, mount.Position, mount.RotationY, priorGraphicsSpeed, tables.Random, tables.AllEffects);
         forest = mountStep.Forest;
         byte companionEdges = salary.CompanionWaterStepEdges;
-        if ((objects.Allocation.ChocoboFlags1536 & 3) == 1)
+        if (hasCompanion)
         {
             NativeChocoboTrailPose companion = animation.CompanionPose;
-            byte companionGroundType = animation.CompanionPlaced ? ReadChocoboCompanionGround(companion, objects.GroundCache) : priorGroundType;
+            byte companionGroundType = animation.CompanionPlaced ? ReadChocoboCompanionGround(companion, cache) : priorGroundType;
             NativeWorldWaterStepResult companionStep = forest.EmitChocoboParticles(18, companionGroundType, animation.CompanionAnimation, animation.CompanionCounter, companionEdges, new(companion.X, companion.Height, -companion.Z), checked((short)companion.Yaw), priorGraphicsSpeed, tables.Random, tables.AllEffects);
             forest = companionStep.Forest;
             companionEdges = companionStep.Edges!.Value;

@@ -20,7 +20,7 @@ internal sealed partial class WorldMapScene
             WorldGroundSelection ground = assets.LookupNativeGround(pose.X, pose.RawZ, replacements, []) ?? throw new NotSupportedException("Parked Ragnarok foot reload has no actual original current ground polygon.");
             NativeWorldGroundCacheState cache = CreateFreshGroundCache(ground.Identity);
             NativeWorldForestState forest = NativeWorldForestState.Create(process.MainLoopCounter, process.CameraCooldown);
-            NativeFootWorldRuntimeState foot = (battleReload is not null ? NativeFootWorldRuntimeState.CreateBattleReload(battleReload) : unchecked((sbyte)arrival.EntryIndex) == 62 ? NativeFootWorldRuntimeState.CreateSavedReload(saved.FootReturn!) : NativeFootWorldRuntimeState.CreateFirstNormalLoad(saved)) with { GroundCache = cache, Forest = forest };
+            NativeFootWorldRuntimeState foot = (battleReload is not null ? NativeFootWorldRuntimeState.CreateBattleReload(battleReload) : unchecked((sbyte)arrival.EntryIndex) == 62 ? NativeFootWorldRuntimeState.CreateSavedReload(saved.FootReturn!) : NativeFootWorldRuntimeState.CreateFirstNormalLoad(saved, allocation.FootEntityType)) with { GroundCache = cache, Forest = forest };
             forest = forest with { CameraPitch = foot.AnimationVariant == 0 ? (short)-112 : (short)-512 };
             foot = foot with { Forest = forest };
             NativeRagnarokWorldRuntimeState runtime = NativeRagnarokWorldRuntimeState.CreateAfterLoader(allocation, checked((short)process.CarCameraFollowSpeed), process.VerticalBias204DADC ?? NativeWorldVerticalBiasState.UnknownWord);

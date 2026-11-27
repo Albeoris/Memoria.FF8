@@ -10,7 +10,8 @@ public sealed partial class WorldAssets
         {
             throw new InvalidDataException("World mode2 requires its actual retained mode3 saved-foot owner.");
         }
-        if ((battleReload?.EntityType105 ?? unchecked((byte)packet.Mode)) != 0)
+        byte entityType = battleReload?.EntityType105 ?? unchecked((byte)packet.Mode);
+        if (!NativeWorldEntityTypes.IsSupportedFoot(entityType))
         {
             throw new NotSupportedException("Parked Ragnarok allocation requires its original normal-foot packet.");
         }
@@ -21,7 +22,7 @@ public sealed partial class WorldAssets
         {
             NativeSavedWorldFootReturn receipt = battleReload ?? saved.FootReturn ?? throw new NotSupportedException("Parked Ragnarok entry62 requires the actual independent foot return.");
             receipt.RequireCompleteFootReload();
-            if (receipt.EntityType105 != 0 || receipt.AnimationVariant108 is null or > 1)
+            if (receipt.EntityType105 != entityType || receipt.AnimationVariant108 is null or > 1)
             {
                 throw new NotSupportedException("Parked Ragnarok saved reload requires the actual supported normal-foot camera variant.");
             }

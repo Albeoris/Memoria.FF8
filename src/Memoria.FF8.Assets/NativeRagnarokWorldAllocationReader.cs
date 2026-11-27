@@ -13,7 +13,7 @@ public static class NativeRagnarokWorldAllocationReader
         entry.Validate();
         memory.Validate();
         saved.Validate();
-        if (controlledType is not (0 or 50) && !NativeCarWorldRuntimeState.IsSupportedEntity(controlledType) || controlledType != 50 && parkedRagnarokPose2 is null || (entry.ReadBytes(264, 1) & 0x10) != 0 || saved.Slot4.ShapeId is not (0 or 255) && !NativeCarWorldRuntimeState.IsSupportedEntity(NativeTrainWorldObject.ClassifyShape(saved.Slot4.ShapeId)))
+        if (!NativeWorldEntityTypes.IsSupportedFoot(controlledType) && controlledType != 50 && !NativeCarWorldRuntimeState.IsSupportedEntity(controlledType) || controlledType != 50 && parkedRagnarokPose2 is null || (entry.ReadBytes(264, 1) & 0x10) != 0 || saved.Slot4.ShapeId is not (0 or 255) && !NativeCarWorldRuntimeState.IsSupportedEntity(NativeTrainWorldObject.ClassifyShape(saved.Slot4.ShapeId)))
         {
             throw new NotSupportedException("Ragnarok allocation requires its ordinary packet and represented active saved vehicle branch.");
         }
@@ -31,80 +31,46 @@ public static class NativeRagnarokWorldAllocationReader
             throw new InvalidDataException("Ragnarok allocation lacks its aligned original program or zero coordinate row.");
         }
         ushort story = entry.StoryWord;
-        if (story is < 3100 or >= 3900)
+        NativeWorldAllocationClause clause = NativeWorldAllocationClauseReader.Read(program, story);
+        ReadOnlySpan<ushort> records = NativeGardenWorldAllocation.ReadObjectInstructions(clause.Words, clause.MinimumStory, clause.MaximumStory, mounted: true);
+        if (!clause.ContainsShape(1) || !clause.ContainsShape(2) || NativeWorldEntityTypes.IsSupportedFoot(controlledType) && clause.HasRequestedFootObject(controlledType) != true)
         {
-            throw new NotSupportedException("Ragnarok allocation currently represents the complete original3100..3899 clause14 only.");
+            throw new NotSupportedException("The selected world allocation has no Ragnarok, mount or requested controlled rider.");
         }
-        int tableBytes = BinaryPrimitives.ReadInt32LittleEndian(program);
-        if (tableBytes < 64 || tableBytes % 4 != 0 || tableBytes > program.Length - 4 || BinaryPrimitives.ReadInt32LittleEndian(program[(tableBytes - 4)..]) != 0)
-        {
-            throw new InvalidDataException("Ragnarok section9 clause pointer table is invalid.");
-        }
-        // Earlier clauses have disjoint original story windows. Validate every
-        // preceding header rather than silently jumping over changed predicates.
-        int selectedStart = -1;
-        int selectedEnd = -1;
-        for (int index = 0; index <= 14; index++)
-        {
-            int start = BinaryPrimitives.ReadInt32LittleEndian(program[(index * 4)..]);
-            int end = BinaryPrimitives.ReadInt32LittleEndian(program[((index + 1) * 4)..]);
-            if (start < tableBytes || start % 4 != 0 || end <= start || end > program.Length || end - start < 16)
-            {
-                throw new InvalidDataException("Ragnarok allocation clause pointer leaves its resource.");
-            }
-            ReadOnlySpan<byte> clause = program[start..end];
-            if (Word(clause, 0) != 0xFF01 || Word(clause, 2) != 0 || Word(clause, 4) != 0xFF02 || Word(clause, 8) != 0xFF03 || Word(clause, 12) != 0xFF04 || Word(clause, 14) != 0)
-            {
-                throw new NotSupportedException("Ragnarok preceding original story-clause header differs from its authenticated selection contract.");
-            }
-            if (story >= Word(clause, 6) && story < Word(clause, 10))
-            {
-                if (index != 14)
-                {
-                    throw new NotSupportedException("An earlier section9 clause precedes the expected Ragnarok allocation.");
-                }
-                selectedStart = start;
-                selectedEnd = end;
-                break;
-            }
-        }
-        if (selectedStart < 0)
-        {
-            throw new NotSupportedException("Original section9 has no reached Ragnarok clause for the current story.");
-        }
-        ReadOnlySpan<byte> selected = program[selectedStart..selectedEnd];
-        ushort[] expected = [0xFF01, 0, 0xFF02, 3100, 0xFF03, 3900, 0xFF04, 0, 0xFF13, 0, 0xFF13, 2, 0xFF13, 3, 0xFF13, 1, 0xFF13, 64, 0xFF13, 65, 0xFF13, 7514, 0xFF13, 7515, 0xFF05, 0];
-        if (selected.Length != expected.Length * 2)
-        {
-            throw new NotSupportedException("Ragnarok selected clause includes unrepresented original object commands.");
-        }
-        for (int index = 0; index < expected.Length; index++)
-        {
-            if (Word(selected, index * 2) != expected[index])
-            {
-                throw new NotSupportedException("Ragnarok selected clause differs from the complete original object commands.");
-            }
-        }
-        NativeSavedWorldPose garden = saved.GardenPose3 ?? throw new NotSupportedException("Ragnarok allocation requires the actual saved Garden pose3; controlled50 cannot relocate the parked Garden.");
         NativeWorldPathPosition body = new(loadPose.X, loadPose.Height, -loadPose.RawZ);
         var objects = ImmutableArray.CreateBuilder<NativeRagnarokWorldObject>();
         byte chocobo = checked((byte)memory.Read(1536, 1).RequireExact());
-        objects.Add(new(0, 0, body, 0, unchecked((short)loadPose.Yaw), 0));
-        objects.Add(new(2, 0, default, 0, 0, 0));
-        if ((chocobo & 3) == 1)
+        int ragnarokIndex = -1;
+        for (int index = 0; index < records.Length; index += 2)
         {
-            objects.Add(new(3, 0, body, 0, unchecked((short)loadPose.Yaw), 0));
+            ushort operand = records[index + 1];
+            byte shape = unchecked((byte)operand);
+            switch (shape)
+            {
+                case 3 when (chocobo & 3) != 1:
+                    break;
+                case 0 or 4 or 5 or 6 or 3:
+                    objects.Add(new(shape, 0, body, 0, unchecked((short)loadPose.Yaw), 0));
+                    break;
+                case 2:
+                    objects.Add(new(shape, 0, default, 0, 0, 0));
+                    break;
+                case 1:
+                    ragnarokIndex = objects.Count;
+                    NativeSavedWorldPose ship = parkedRagnarokPose2 ?? loadPose;
+                    objects.Add(new(shape, 0, new(ship.X, ship.Height, -ship.RawZ), 0, unchecked((short)ship.Yaw), 0));
+                    break;
+                case 64 or 65:
+                    NativeSavedWorldPose garden = saved.GardenPose3 ?? throw new NotSupportedException("The selected world allocation needs the parked Garden pose3.");
+                    objects.Add(new(shape, shape == 65 ? (byte)2 : (byte)0, new(garden.X, garden.Height, -garden.RawZ), 0, unchecked((short)garden.Yaw), 0));
+                    break;
+                default:
+                    AddCoordinate(objects, coordinates, shape, operand >> 8, shape == 80 ? (byte)4 : (byte)0);
+                    break;
+            }
         }
-        int ragnarokIndex = objects.Count;
-        NativeSavedWorldPose ship = parkedRagnarokPose2 ?? loadPose;
-        objects.Add(new(1, 0, new(ship.X, ship.Height, -ship.RawZ), 0, unchecked((short)ship.Yaw), 0));
-        NativeWorldPathPosition gardenPosition = new(garden.X, garden.Height, -garden.RawZ);
-        objects.Add(new(64, 0, gardenPosition, 0, unchecked((short)garden.Yaw), 0));
-        objects.Add(new(65, 2, gardenPosition, 0, unchecked((short)garden.Yaw), 0));
-        AddCoordinate(objects, coordinates, 90, 29, 0);
-        AddCoordinate(objects, coordinates, 91, 29, 0);
         NativeSavedWorldVehicleSlot? savedCarSlot = null;
-        if (NativeCarWorldRuntimeState.IsSupportedEntity(NativeTrainWorldObject.ClassifyShape(saved.Slot4.ShapeId)))
+        if (!clause.ContainsShape(92) && NativeCarWorldRuntimeState.IsSupportedEntity(NativeTrainWorldObject.ClassifyShape(saved.Slot4.ShapeId)))
         {
             savedCarSlot = saved.Slot4;
             NativeSavedWorldPose car = NativeCarWorldRuntimeState.IsSupportedEntity(controlledType) ? loadPose : savedCarSlot.Pose;
@@ -127,7 +93,7 @@ public static class NativeRagnarokWorldAllocationReader
             //receive the final load pose; controlled50 also republishes shape1.
             for (int index = 0; index < objects.Count; index++)
             {
-                if (objects[index].ShapeId is 0 or 3 || objects[index].ShapeId == 1 && controlledType == 50 || NativeCarWorldRuntimeState.IsSupportedEntity(controlledType) && objects[index].ShapeId == savedCarSlot?.ShapeId)
+                if (index == 0 || objects[index].ShapeId == 3 || objects[index].ShapeId == 1 && controlledType == 50 || NativeCarWorldRuntimeState.IsSupportedEntity(controlledType) && objects[index].ShapeId == savedCarSlot?.ShapeId)
                 {
                     objects[index] = objects[index] with { Position = body, Pitch = 0, Yaw = unchecked((short)loadPose.Yaw), Roll = 0 };
                 }
@@ -141,7 +107,7 @@ public static class NativeRagnarokWorldAllocationReader
                 AddCoordinate(objects, coordinates, 80, 31 + group, 4);
             }
         }
-        var result = new NativeRagnarokWorldAllocation(Hash(program), Hash(coordinates), Hash(selected), story, chocobo, entry.ReplacementFlags264, guardianForce13Flags, expected.ToImmutableArray(), objects.ToImmutable(), ragnarokIndex, packet, loadPose, cameraYaw, mapDisplay) { ParkedRagnarokPose2 = parkedRagnarokPose2, AuxiliaryEntry = auxiliaryEntry, BattleReload = battleReload, SavedCarSlot = savedCarSlot };
+        var result = new NativeRagnarokWorldAllocation(Hash(program), Hash(coordinates), Hash(program.Slice(clause.Offset, clause.Length)), story, chocobo, entry.ReplacementFlags264, guardianForce13Flags, clause.Words, objects.ToImmutable(), ragnarokIndex, packet, loadPose, cameraYaw, mapDisplay) { ParkedRagnarokPose2 = parkedRagnarokPose2, AuxiliaryEntry = auxiliaryEntry, BattleReload = battleReload, SavedCarSlot = savedCarSlot };
         result.Validate();
         return result;
     }
@@ -156,11 +122,6 @@ public static class NativeRagnarokWorldAllocationReader
         var position = new NativeWorldPathPosition(BinaryPrimitives.ReadInt32LittleEndian(bytes), BinaryPrimitives.ReadInt32LittleEndian(bytes[4..]), BinaryPrimitives.ReadInt32LittleEndian(bytes[8..]));
         int orientation = BinaryPrimitives.ReadInt32LittleEndian(bytes[12..]);
         objects.Add(new(shape, flags, position, 0, unchecked((short)orientation), unchecked((short)(orientation >> 16))));
-    }
-
-    private static ushort Word(ReadOnlySpan<byte> bytes, int offset)
-    {
-        return BinaryPrimitives.ReadUInt16LittleEndian(bytes[offset..]);
     }
 
     private static string Hash(ReadOnlySpan<byte> bytes)
@@ -190,7 +151,7 @@ public sealed partial class WorldAssets
         string programHash = Convert.ToHexString(SHA256.HashData(wmset.AsSpan(sections[9], sections[10] - sections[9])));
         string coordinateHash = Convert.ToHexString(SHA256.HashData(wmset.AsSpan(sections[10], sections[11] - sections[10])));
         NativeWorldAllocationClause clause = ReadWorldAllocationClause(allocation.Story);
-        if (allocation.ProgramHash != programHash || allocation.CoordinateHash != coordinateHash || clause.Index != 14 || !allocation.ClauseWords.SequenceEqual(clause.Words))
+        if (allocation.ProgramHash != programHash || allocation.CoordinateHash != coordinateHash || !allocation.ClauseWords.SequenceEqual(clause.Words))
         {
             throw new InvalidDataException("Retained Ragnarok allocation differs from its actual current native resources.");
         }
@@ -200,9 +161,21 @@ public sealed partial class WorldAssets
             int orientation = BinaryPrimitives.ReadInt32LittleEndian(bytes[12..]);
             return new(shape, flags, new(BinaryPrimitives.ReadInt32LittleEndian(bytes), BinaryPrimitives.ReadInt32LittleEndian(bytes[4..]), BinaryPrimitives.ReadInt32LittleEndian(bytes[8..])), 0, unchecked((short)orientation), unchecked((short)(orientation >> 16)));
         }
-        if (allocation.Objects.Single(item => item.ShapeId == 90) != Coordinate(90, 0, 29) || allocation.Objects.Single(item => item.ShapeId == 91) != Coordinate(91, 0, 29))
+        int denseIndex = 0;
+        ReadOnlySpan<ushort> records = NativeGardenWorldAllocation.ReadObjectInstructions(clause.Words, clause.MinimumStory, clause.MaximumStory, mounted: true);
+        for (int index = 0; index < records.Length; index += 2)
         {
-            throw new InvalidDataException("Retained Ragnarok fixed objects differ from their actual original section10 coordinates.");
+            ushort operand = records[index + 1];
+            byte shape = unchecked((byte)operand);
+            if (shape == 3 && allocation.CompanionIndex < 0)
+            {
+                continue;
+            }
+            if (shape > 65 && allocation.Objects[denseIndex] != Coordinate(shape, shape == 80 ? (byte)4 : (byte)0, operand >> 8))
+            {
+                throw new InvalidDataException("Retained Ragnarok fixed object differs from its original section10 coordinate.");
+            }
+            denseIndex++;
         }
         int objectIndex = allocation.Objects.Length;
         for (int group = 2; group >= 0; group--)

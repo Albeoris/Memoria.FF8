@@ -18,7 +18,7 @@ internal sealed partial class WorldMapScene
         {
             allocation = retained.Allocation;
             assets.ValidateRagnarokAllocationResources(allocation);
-            if (allocation.Packet != arrival || allocation.Story != entry.StoryWord || (allocation.ReplacementFlags264 & 7) != (entry.ReplacementFlags264 & 7) || allocation.GuardianForce13Flags != vitals.GuardianForces[13].Flags || allocation.ChocoboFlags1536 != session.State.EventMemory.Read(1536, 1).RequireExact() || allocation.SavedCarSlot is { } storedCar && storedCar.ShapeId != saved.Slot4.ShapeId)
+            if (allocation.Packet != arrival || allocation.Story != entry.StoryWord || (allocation.ReplacementFlags264 & 7) != (entry.ReplacementFlags264 & 7) || allocation.GuardianForce13Flags != vitals.GuardianForces[13].Flags || allocation.ChocoboFlags1536 != (allocation.ControlledEntityType == 49 ? session.State.PocketStation!.Flags : session.State.EventMemory.Read(1536, 1).RequireExact()) || allocation.SavedCarSlot is { } storedCar && storedCar.ShapeId != saved.Slot4.ShapeId)
             {
                 throw new InvalidDataException("Retained Ragnarok allocation differs from its actual packet and current original allocation inputs.");
             }
@@ -72,6 +72,7 @@ internal sealed partial class WorldMapScene
             throw new InvalidDataException("Restored Ragnarok allocation differs from actual original loader inputs.");
         }
         assets.ValidateNativeGroundCache(restored.GroundCache!, replacements);
+        ValidateChocoboEscapeGround(State.ChocoboDismount);
         _ = assets.GetRagnarokModel();
     }
 
@@ -134,7 +135,7 @@ internal sealed partial class WorldMapScene
             {
                 continue;
             }
-            if (item.ShapeId is 0 or 2 or 3 || !projection.IsNear(item.Position))
+            if (index == 0 || item.ShapeId is 2 or 3 || !projection.IsNear(item.Position))
             {
                 continue;
             }

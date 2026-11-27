@@ -13,7 +13,7 @@ public static class WorldRagnarokContactCertificate
         {
             throw new InvalidDataException("Ragnarok contacts require five original radius256 probes and native padding.");
         }
-        if (selectedEntity is not (0 or 50) && !NativeCarWorldRuntimeState.IsSupportedEntity(selectedEntity) || currentEntity is not (0 or 50) && !NativeCarWorldRuntimeState.IsSupportedEntity(currentEntity))
+        if (selectedEntity != 50 && !NativeWorldEntityTypes.IsSupportedFoot(selectedEntity) && !NativeCarWorldRuntimeState.IsSupportedEntity(selectedEntity) || currentEntity != 50 && !NativeWorldEntityTypes.IsSupportedFoot(currentEntity) && !NativeCarWorldRuntimeState.IsSupportedEntity(currentEntity))
         {
             throw new NotSupportedException("Ragnarok contact requires its original controlled/selected foot, car or airship entity.");
         }
@@ -22,7 +22,7 @@ public static class WorldRagnarokContactCertificate
         for (int index = 0; index < runtime.Objects.Length; index++)
         {
             NativeRagnarokWorldObject item = runtime.Objects[index];
-            if (index == ignoredObjectIndex || item.ShapeId is 0 or 2 or 3 or 94 || item.ShapeId == 1 && (selectedEntity == 50 || currentEntity == 50) || !projection.IsNear(item.Position))
+            if (index == ignoredObjectIndex || index == 0 || item.ShapeId is 2 or 3 or 94 || item.ShapeId == 1 && (selectedEntity == 50 || currentEntity == 50) || !projection.IsNear(item.Position))
             {
                 continue;
             }
