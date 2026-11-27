@@ -100,6 +100,7 @@ public sealed partial class EventEngine
     /// <summary>Persists the shared event process when no field VM is allocated.</summary>
     public JsonElement CaptureWorldEventState()
     {
+        RequireClosedAbilityShop();
         if (program is not null || services is not GameSession session || !IsUnallocatedWorldContext(session.State) || Scene.MusicProcess is null || Scene.WorldMusicLoad is null)
         {
             throw new InvalidOperationException("An unallocated world process can only be captured without a loaded field VM.");

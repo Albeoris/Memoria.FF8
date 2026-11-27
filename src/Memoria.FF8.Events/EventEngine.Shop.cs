@@ -63,15 +63,7 @@ public sealed partial class EventEngine
     {
         NativeShopDefinitions definitions = ResolveNativeShopDefinitions?.Invoke() ?? throw new NotSupportedException("Native shop definitions are unavailable.");
         int raw = current.ShopRawArgument ?? throw new InvalidDataException("Native shop request lost its original DWORD.");
-        byte catalog = definitions.ResolveCatalog(raw);
-        NativeCharacterVitals vitals = services.CharacterVitals ?? throw new NotSupportedException("Native shop GF/menu ability inputs are unknown.");
-        uint abilities = vitals.ShopAbilityMask();
-        NativeEconomy economy = NativeShopTransaction.NormalizeInventory(services.Economy ?? throw new NotSupportedException("Native shop inventory is unknown."));
-        NativeShopHistory history = (services.ShopHistory ?? throw new NotSupportedException("Native saved shop history is unknown.")).Refresh(definitions, catalog, abilities);
-        NativeShopTransaction shop = NativeShopTransaction.Begin(raw, definitions, economy, vitals, history);
-        int calls = 2 * definitions.Catalogs[catalog].Count(entry => entry.ItemId != 0);
-        NativeMenuRandomState random = (services.MenuRandom ?? throw new NotSupportedException("Native shop refresh has no current menu RNG owner.")).Advance(calls);
-        return (economy, shop, history, random);
+        return NativeShopTransaction.Open(raw, definitions, services.Economy!, services.CharacterVitals!, services.ShopHistory!, services.MenuRandom!);
     }
 
     private bool BuyNativeShopItem(int itemId, int quantity)

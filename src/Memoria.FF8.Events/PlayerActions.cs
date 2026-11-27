@@ -44,7 +44,10 @@ public enum PlayerActionKind
     ReassignGuardianForce,
     ToggleGuardianForcePassiveAbility,
     ApplyJunctionEdit = 39,
-    ExchangeJunctions = 40
+    ExchangeJunctions = 40,
+    OpenCallShop,
+    OpenJunkShop,
+    CloseAbilityShop
 }
 
 public enum PlayerTriggerKind

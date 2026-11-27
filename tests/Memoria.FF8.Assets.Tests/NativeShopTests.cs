@@ -10,6 +10,40 @@ public sealed class NativeShopTests
     private static string GameDirectory => TestResources.GameDirectory;
 
     [Fact]
+    public void ShopMenuAbilityRequiresAnAcquiredGuardianAndVisitedShopInTheCurrentEra()
+    {
+        using GameAssets assets = new(GameDirectory);
+        NativeCharacterVitals original = assets.ReadNewGameCharacterVitals();
+        NativeGuardianForceVital[] guardians = original.GuardianForces.Select(row => row with { Flags = 0 }).ToArray();
+        guardians[3] = guardians[3] with { LearnedBank = new(0, 3UL << (95 - 64)) };
+        NativeCharacterVitals vitals = original with { GuardianForces = guardians };
+        NativeShopHistory history = assets.ReadNewGameShopHistory();
+        byte[] flags = new byte[400];
+        flags[19 * 20 + 17] = 1;
+        flags[9 * 20 + 16] = 1;
+        flags[15 * 20 + 17] = 2;
+        flags[8 * 20 + 16] = 1;
+        flags[4 * 20 + 15] = 1;
+        flags[4 * 20 + 18] = 1;
+        history = history with { Bytes = [.. flags] };
+        Assert.Equal(new[] { 8, 19 }, NativeShopMenuAbilities.CallableCatalogs(history, false));
+        Assert.Equal(new[] { 9, 15 }, NativeShopMenuAbilities.CallableCatalogs(history, true));
+        Assert.False(NativeShopMenuAbilities.CanUse(vitals, history, 95));
+        Assert.False(NativeShopMenuAbilities.CanUse(vitals, history, 96));
+        guardians[3] = guardians[3] with { Flags = 1 };
+        Assert.True(NativeShopMenuAbilities.CanUse(vitals, history, 95));
+        Assert.True(NativeShopMenuAbilities.CanUse(vitals, history, 95, 19));
+        Assert.False(NativeShopMenuAbilities.CanUse(vitals, history, 95, 4));
+        Assert.False(NativeShopMenuAbilities.CanUse(vitals, history, 95, 9));
+        Assert.True(NativeShopMenuAbilities.CanUse(vitals, null, 96));
+        Assert.False(NativeShopMenuAbilities.CanUse(vitals, history, 96, 19));
+        vitals = vitals with { DreamEnabled = true };
+        Assert.True(NativeShopMenuAbilities.CanUse(vitals, history, 95, 9));
+        Assert.False(NativeShopMenuAbilities.CanUse(vitals, history, 95, 19));
+        Assert.False(NativeShopMenuAbilities.CanUse(vitals, history, 96));
+    }
+
+    [Fact]
     public void AuthenticCatalogUsesNamesPricesAndPhysicalArgumentMap()
     {
         using GameAssets assets = new(GameDirectory);

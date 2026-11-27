@@ -237,6 +237,7 @@ internal sealed partial class GameWorld : IDisposable
 
     private GameState PrepareSnapshot(GameState state)
     {
+        Events.RequireClosedAbilityShop();
         if (diagnosticBattle is not null)
         {
             throw new NotSupportedException("Diagnostic battle lifecycle persistence is unsupported; retain the declared recipe and restart a fresh process instead.");
@@ -590,6 +591,13 @@ internal sealed partial class GameWorld : IDisposable
         {
             return ApplyNativeTutorial(action);
         }
+        if (action.Kind is PlayerActionKind.OpenCallShop or PlayerActionKind.OpenJunkShop or PlayerActionKind.CloseAbilityShop || Events.HasAbilityShop)
+        {
+            bool worldMap = session.State.Scene == SceneKind.WorldMap;
+            bool available = !HasPendingBattle && battle is null && ActiveTripleTriad is null && (!worldMap || worldScene!.CurrentDialogue is null);
+            bool accepted = available && Events.ApplyAbilityShop(action, worldMap);
+            return new PlayerActionResult(accepted, NextTrigger, 0, accepted ? null : "The current menu cannot perform this shop action.");
+        }
         if (action.Kind == PlayerActionKind.UseFieldItem && FieldItemCatalog.FieldItem(action.Value) is { SupportsBattleUse: true } battleItem)
         {
             return ApplyMenuBattleItem(action, battleItem);
@@ -646,6 +654,10 @@ internal sealed partial class GameWorld : IDisposable
     {
         try
         {
+            if (Events.HasAbilityShop)
+            {
+                Events.ApplyAbilityShop(new PlayerAction(PlayerActionKind.CloseAbilityShop), session.State.Scene == SceneKind.WorldMap);
+            }
             if (diagnosticBattle is not null)
             {
                 EndDiagnosticBattle();

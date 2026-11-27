@@ -20,6 +20,16 @@ public sealed record NativeShopTransaction([property: JsonRequired] int RawArgum
         return result;
     }
 
+    public static (NativeEconomy Economy, NativeShopTransaction Shop, NativeShopHistory History, NativeMenuRandomState MenuRandom) Open(int rawArgument, NativeShopDefinitions definitions, NativeEconomy inventory, NativeCharacterVitals vitals, NativeShopHistory savedHistory, NativeMenuRandomState menuRandom)
+    {
+        byte catalog = definitions.ResolveCatalog(rawArgument);
+        NativeEconomy economy = NormalizeInventory(inventory);
+        NativeShopHistory history = savedHistory.Refresh(definitions, catalog, vitals.ShopAbilityMask());
+        NativeShopTransaction shop = Begin(rawArgument, definitions, economy, vitals, history);
+        int calls = 2 * definitions.Catalogs[catalog].Count(entry => entry.ItemId != 0);
+        return (economy, shop, history, menuRandom.Advance(calls));
+    }
+
     public static NativeShopTransaction Begin(int rawArgument, NativeShopDefinitions definitions, NativeEconomy economy, NativeCharacterVitals vitals, NativeShopHistory history)
     {
         definitions.Validate();

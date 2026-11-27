@@ -64,13 +64,7 @@ public sealed partial class EventEngine
         {
             return false;
         }
-        BattleLoadoutOverrides? loadouts = null;
-        if (current.WeaponShop.ManagedWeapons?.TryGetValue(current.WeaponShop.SelectedCharacter, out int weapon) == true)
-        {
-            int identity = remodeled.Vitals.Records[current.WeaponShop.SelectedCharacter].CharacterId;
-            loadouts = services.CurrentBattleLoadouts ?? throw new InvalidDataException("The weapon shop lost its equipped weapon.");
-            loadouts = loadouts.RemodelEquippedWeapon(identity, weapon, recipeId);
-        }
+        BattleLoadoutOverrides? loadouts = current.WeaponShop.RemodelLoadout(recipeId, remodeled.Vitals, services.CurrentBattleLoadouts);
         PublishPartyMenuCallback(remodeled.Vitals, services.Economy!, services.ShotAvailability!, services.SalaryPresentation!.Advance(1), advanceVibration: true, weaponRecipes: remodeled.Recipes, battleLoadouts: loadouts);
         partyMenu = current with { WeaponShop = remodeled.Shop, Callbacks = checked(current.Callbacks + 1) };
         return true;

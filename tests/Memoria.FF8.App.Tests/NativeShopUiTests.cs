@@ -14,6 +14,21 @@ namespace Memoria.FF8.App.Tests;
 public sealed class NativeShopUiTests
 {
     [Fact]
+    public void ShopMenuNamesAndUnavailableReasonsComeFromTheInstalledNestedTextTables()
+    {
+        using GameAssets assets = InstalledAssets();
+        LiveMenuCatalog catalog = LiveMenuCatalog.ReadInstalled(assets);
+        Assert.Equal("Timber Pet Shop", catalog.ShopName(0));
+        Assert.Equal("Balamb Shop", catalog.ShopName(1));
+        Assert.Equal(catalog.ShopName(1), catalog.ShopName(9));
+        Assert.Equal("Man from Garden", catalog.ShopName(16));
+        Assert.Equal("Esthar Book Store", catalog.ShopName(18));
+        Assert.Equal("Esthar Shop!!!", catalog.ShopName(19));
+        Assert.Equal("Haven’t been to a shop!", catalog.ShopAbilityUnavailableReason(95));
+        Assert.Equal("No Junk Shop", catalog.ShopAbilityUnavailableReason(96));
+    }
+
+    [Fact]
     public void OriginalShopRowsShowPetPalsPricesWithoutMutatingTheNativeCache()
     {
         using GameAssets assets = InstalledAssets();

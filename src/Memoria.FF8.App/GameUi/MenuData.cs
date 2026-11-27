@@ -35,6 +35,8 @@ public sealed class MenuData
     public List<MenuCard> Cards { get; } = [];
     public List<MenuRecipe> Recipes { get; } = [];
     public Dictionary<int, string> RefinementAbilities { get; } = [];
+    public List<MenuEntry> ShopAbilities { get; } = [];
+    public List<MenuEntry> CallableShops { get; } = [];
     public List<MenuSaveSlot> SaveSlots { get; } = [];
     public List<MenuBattleTarget> BattleTargets { get; } = [];
     public MenuBattleRewards? BattleRewards { get; set; }
@@ -264,7 +266,10 @@ public enum MenuLayout
     Main, List, Character, Junction, GuardianForceGrid, CardGrid, Gallery, BattleHud
 }
 
-public sealed record MenuEntry(string Id, string Label, string Help, string? Destination = null, MenuAction? Action = null, bool Enabled = true);
+public sealed record MenuEntry(string Id, string Label, string Help, string? Destination = null, MenuAction? Action = null, bool Enabled = true)
+{
+    public string? DisabledReason { get; init; }
+}
 
 public sealed class MenuScreenDefinition
 {

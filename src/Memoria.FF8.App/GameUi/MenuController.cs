@@ -169,6 +169,11 @@ public sealed partial class MenuController
         catalogSearchEditing = false;
         screenId = ResolveSettingsAlias(screenId);
         screenId = ResolveJunctionDashboard(screenId);
+        if (!_screens.ContainsKey(screenId))
+        {
+            throw new ArgumentException($"Unknown menu screen '{screenId}'.", nameof(screenId));
+        }
+        CloseAbilityShop();
         IsFixtureContext = demo && !screenId.StartsWith("debug-", StringComparison.Ordinal);
         ClearBattleLearningReview();
         learnedAngeloAbilityId = null;
@@ -179,10 +184,6 @@ public sealed partial class MenuController
         _nameTarget = null;
         _acceptName = null;
         _nameHighSurrogate = null;
-        if (!_screens.ContainsKey(screenId))
-        {
-            throw new ArgumentException($"Unknown menu screen '{screenId}'.", nameof(screenId));
-        }
         if (IsDemo != demo)
         {
             _magicId = "";
@@ -247,12 +248,21 @@ public sealed partial class MenuController
         }
     }
 
+    private void CloseAbilityShop()
+    {
+        if (IsOpen && ScreenId.StartsWith("shop", StringComparison.Ordinal) && Data.SupportedActions.Contains("ability-shop-close"))
+        {
+            Execute(new MenuAction("ability-shop-close"));
+        }
+    }
+
     public void Close()
     {
         if (RequestBattleLoadoutExit(Close))
         {
             return;
         }
+        CloseAbilityShop();
         junctionEditor = "";
         junctionPlan = null;
         junctionReview = false;
@@ -629,6 +639,10 @@ public sealed partial class MenuController
             CancelControlsCapture();
             return;
         }
+        if (ScreenId is "shop" or "shop-junk" && _history.Count > 0)
+        {
+            CloseAbilityShop();
+        }
         if (_history.TryPop(out var previous))
         {
             ScreenId = previous;
@@ -666,7 +680,7 @@ public sealed partial class MenuController
         int next = count == 0 ? start : start + ((index - start) % count + count) % count;
         if (next != SelectedIndex)
         {
-            if (ScreenId == "shop-junk")
+            if (ScreenId is "shop-junk" or "ability")
             {
                 Message = "";
             }
@@ -813,7 +827,7 @@ public sealed partial class MenuController
         bool captureBinding = IsControlsBindingList && entry.Action?.Kind == "controls-select";
         if (!entry.Enabled)
         {
-            Message = entry.Help;
+            Message = entry.DisabledReason ?? entry.Help;
             if (ScreenId.StartsWith("ability", StringComparison.Ordinal))
             {
                 SoundRequested?.Invoke(MenuSound.Error);

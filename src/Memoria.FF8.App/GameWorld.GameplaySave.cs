@@ -26,7 +26,7 @@ internal sealed partial class GameWorld
         return GameplaySaveSessionWriter.Write(path, document, assets.GameDirectory, assets, resources, modelOverrides, readGameplayPolicy, validateContinuation, savedAtUtc, prepareDefinitions);
     }
 
-    internal bool CanCaptureGameplaySave => battle is null && !session.HasActiveBattle && (session.State.Scene switch
+    internal bool CanCaptureGameplaySave => !Events.HasAbilityShop && battle is null && !session.HasActiveBattle && (session.State.Scene switch
     {
         SceneKind.Field => IsImportedGameplayField ? CanCaptureImportedGameplayField() : CanCaptureCurrentGameplayField(),
         SceneKind.WorldMap => CanCaptureGameplayWorld() && session.State.World is { } current && IsSupportedGameplayWorld(current, session.State),

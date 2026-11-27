@@ -637,12 +637,14 @@ public sealed partial class LiveMenuCatalog
     private readonly string?[] abilityDescriptions;
     private ResourceService? resources;
     private readonly string[] cardDescriptions;
+    private readonly MngrpStringTable shopText;
+    private readonly MngrpStringTable generalMenuText;
     private readonly byte[] fieldItems;
     private NativeSolomonRingDefinition? solomonRing;
     private readonly TripleTriadCatalog tripleTriad;
     private ImmutableArray<NativeAngeloTrainingDefinition> angeloMoves = [];
 
-    private LiveMenuCatalog(byte[] kernelBytes, KernelData kernel, string[] guardianForceNames, string[] cardDescriptions, byte[] fieldItems, byte[] itemIconKinds, TripleTriadCatalog tripleTriad, ITextTermSource terms)
+    private LiveMenuCatalog(byte[] kernelBytes, KernelData kernel, string[] guardianForceNames, string[] cardDescriptions, MngrpArchive textArchive, byte[] fieldItems, byte[] itemIconKinds, TripleTriadCatalog tripleTriad, ITextTermSource terms)
     {
         StatRulesFingerprint = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(kernelBytes));
         this.kernel = kernel;
@@ -650,6 +652,8 @@ public sealed partial class LiveMenuCatalog
         statistics = new BattlePlayerStatReader(kernelBytes);
         this.guardianForceNames = guardianForceNames;
         this.cardDescriptions = cardDescriptions;
+        shopText = textArchive.GetSection<MngrpStringTableGroupSection>(2).Tables[3] ?? throw new InvalidDataException("Missing menu shop text table.");
+        generalMenuText = textArchive.GetSection<MngrpStringTableGroupSection>(0).Tables[0] ?? throw new InvalidDataException("Missing general menu text table.");
         this.fieldItems = fieldItems;
         this.itemIconKinds = itemIconKinds;
         this.tripleTriad = tripleTriad;
@@ -684,7 +688,7 @@ public sealed partial class LiveMenuCatalog
             throw new InvalidDataException("Original field item metadata requires complete four-byte rows.");
         }
         byte[] itemIconKinds = assets.ReadItemIconKinds();
-        LiveMenuCatalog catalog = new(kernelBytes, kernel, guardianForceNames, cardDescriptions, fieldItems, itemIconKinds, tripleTriad, assets.ReadNativeTextTerms());
+        LiveMenuCatalog catalog = new(kernelBytes, kernel, guardianForceNames, cardDescriptions, textArchive, fieldItems, itemIconKinds, tripleTriad, assets.ReadNativeTextTerms());
         catalog.resources = assets.Resources;
         catalog.angeloMoves = NativeAngeloTrainingDefinitionReader.Read(ReadMenu("pet_exp.bin"), ReadMenu("pet_exp.msg"), encoding);
         catalog.ReadLocations(ReadMenu("areames.dc1"), encoding, WorldMapLocations.Read(assets.Resources));
@@ -697,6 +701,25 @@ public sealed partial class LiveMenuCatalog
     public NativeFieldItem? FieldItem(int id) => id > 0 && id < fieldItems.Length / 4 ? new NativeFieldItem(fieldItems[id * 4], fieldItems[id * 4 + 1], fieldItems[id * 4 + 2], fieldItems[id * 4 + 3]) { SolomonRingDefinition = fieldItems[id * 4] == 15 ? solomonRing : null } : null;
 
     public NativeAngeloTrainingDefinition AngeloMove(int index) => (uint)index < angeloMoves.Length ? angeloMoves[index] : throw new ArgumentOutOfRangeException(nameof(index));
+
+    public string ShopName(int catalog)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(catalog);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(catalog, 20);
+        int ordinal = 2 * (catalog + 1);
+        return FormatDescription(LocalizedTable("mngrp_slot002_table003", ordinal, shopText[ordinal])) ?? throw new InvalidDataException("Missing shop name.");
+    }
+
+    public string ShopAbilityUnavailableReason(int abilityId)
+    {
+        string? text = abilityId switch
+        {
+            NativeShopMenuAbilities.CallShop => LocalizedTable("mngrp_slot000_table000", 108, generalMenuText[108]),
+            NativeShopMenuAbilities.JunkShop => LocalizedTable("mngrp_slot002_table003", 158, shopText[158]),
+            _ => throw new ArgumentOutOfRangeException(nameof(abilityId))
+        };
+        return FormatDescription(text) ?? throw new InvalidDataException("Missing shop ability help.");
+    }
 
     public string? CharacterName(int id) => FormatDescription((uint)id < kernel.Characters.Count ? LocalizedKernel(nameof(kernel.Characters), "Name", id, kernel.Characters[id].Name) : null);
     public string? GuardianForceName(int id) => FormatDescription((uint)id < guardianForceNames.Length ? LocalizedTable("defaults_guardians", id, guardianForceNames[id]) : null);

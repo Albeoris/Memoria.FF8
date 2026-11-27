@@ -149,7 +149,7 @@ public sealed partial class MenuController
         MenuItem? selected = Data.Items.FirstOrDefault(item => item.Id == SelectedEntry?.Id);
         var page = Grid([1.8f * Math.Max(1, TextScale), 5.8f, 0.65f], [3, 1.7f], 5);
         string help = ScreenId == "shop-buy" ? SystemText("ui.buildsecondaryshop.help.choose.an.item.to.purchase", "Choose an item to purchase.") : ScreenId == "shop-sell" ? SystemText("ui.buildsecondaryshop.help.choose.an.item.to.sell", "Choose an item to sell.") : ScreenId == "shop-junk" ? SystemText("ui.buildsecondaryshop.help.select.a.weapon.to.remodel", "Select a weapon to remodel.") : SystemText("ui.buildsecondaryshop.help.select.a.shop.command", "Select a shop command.");
-        Place(page, SecondaryHeader(SystemText("ui.buildsecondaryshop.header.shop", "Shop"), ScreenId == "shop-buy" ? SystemText("ui.buildsecondaryshop.header.buy", "Buy") : ScreenId == "shop-sell" ? SystemText("ui.buildsecondaryshop.header.sell", "Sell") : SystemText("ui.buildsecondaryshop.header.shop", "Shop"), selected?.Description ?? help), 0, 0, 1, 2);
+        Place(page, SecondaryHeader(IsDemo || IsFixtureContext ? SystemText("ui.buildsecondaryshop.header.shop", "Shop") : Data.Location, ScreenId == "shop-buy" ? SystemText("ui.buildsecondaryshop.header.buy", "Buy") : ScreenId == "shop-sell" ? SystemText("ui.buildsecondaryshop.header.sell", "Sell") : SystemText("ui.buildsecondaryshop.header.shop", "Shop"), selected?.Description ?? help), 0, 0, 1, 2);
         UiList commands = SecondaryCommands();
         if (ScreenId is "shop-buy" or "shop-sell")
         {
@@ -237,6 +237,13 @@ public sealed partial class MenuController
 
     private UiElement BuildSecondaryAbility()
     {
+        if (ScreenId == "ability-call-shop")
+        {
+            var shops = Grid([1.8f * Math.Max(1, TextScale), 5.8f], [1], 5);
+            Place(shops, SecondaryHeader(SystemText("ui.buildsecondaryability.header.ability", "Ability"), Data.ShopAbilities.FirstOrDefault(entry => entry.Destination == ScreenId)?.Label ?? CurrentScreen.Title, CurrentScreen.Help), 0);
+            Place(shops, Panel(null, SecondaryCommands()), 1);
+            return shops;
+        }
         var page = Grid([1.8f * Math.Max(1, TextScale), 5.8f], [1.35f, 1], 5);
         Place(page, SecondaryHeader(SystemText("ui.buildsecondaryability.header.ability", "Ability"), ScreenId == "ability" ? SystemText("ui.buildsecondaryability.header.select.an.ability", "Select an ability") : RefinementAbility, ScreenId == "ability" ? SelectedEntry?.Help ?? SystemText("ui.buildsecondaryability.header.select.a.menu.ability", "Select a menu ability.") : SelectedEntry?.Help ?? SystemText("ui.buildsecondaryability.header.select.an.item.to.refine", "Select an item to refine.")), 0, 0, 1, 2);
         UiList commands = SecondaryCommands();
@@ -261,6 +268,10 @@ public sealed partial class MenuController
         if (ScreenId == "ability" && SelectedEntry is { } entry && GuardianForcePassiveChoice(entry) is { } passive)
         {
             details = [Data.GuardianForces.Single(gf => gf.Id == entry.Action!.TargetId).Name, passive.Name, GuardianForcePassiveState(passive)];
+        }
+        else if (ScreenId == "ability" && SelectedEntry is { } shopAbility && Data.ShopAbilities.Contains(shopAbility))
+        {
+            details = [shopAbility.Label];
         }
         else if (ScreenId.StartsWith("ability-card", StringComparison.Ordinal))
         {

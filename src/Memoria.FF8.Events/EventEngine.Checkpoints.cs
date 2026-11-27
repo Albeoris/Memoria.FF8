@@ -58,6 +58,7 @@ public sealed partial class EventEngine
     /// <summary>Captures the complete cooperative VM, including typed waits and its deterministic random stream.</summary>
     public JsonElement Capture()
     {
+        RequireClosedAbilityShop();
         if (program is null)
         {
             throw new InvalidOperationException("No field has been loaded.");

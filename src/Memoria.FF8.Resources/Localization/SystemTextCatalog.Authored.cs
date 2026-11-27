@@ -736,6 +736,8 @@ public static partial class SystemTextCatalog
         defaults["save.view.quick-save"] = "Quick Save";
         defaults["save.view.save"] = "Save";
         defaults["save.view.transfer"] = "Transfer";
+        defaults["screen.ability-call-shop.help"] = "Choose a shop to call.";
+        defaults["screen.ability-call-shop.title"] = "Call Shop";
         defaults["screen.ability-card-mod.help"] = "Select a card to inspect its refinement result.";
         defaults["screen.ability-card-mod.title"] = "Ability \u00B7 Card Mod";
         defaults["screen.ability-card-result.help"] = "Confirm the card conversion.";
@@ -744,7 +746,7 @@ public static partial class SystemTextCatalog
         defaults["screen.ability-recipes.title"] = "Ability \u00B7 Recipes";
         defaults["screen.ability-refine.help"] = "Choose recipe batches for the selected character stock.";
         defaults["screen.ability-refine.title"] = "Ability \u00B7 Refine Quantity";
-        defaults["screen.ability.help"] = "Toggle learned GF party abilities or refine items, magic and cards.";
+        defaults["screen.ability.help"] = "Manage party abilities, call shops, remodel weapons and refine items, magic and cards.";
         defaults["screen.ability.title"] = "Ability";
         defaults["screen.autoplay-replace-confirm.help"] = "Starting or replaying automatic play replaces the current game. Unsaved progress will be lost.";
         defaults["screen.autoplay-replace-confirm.title"] = "Replace the current session?";

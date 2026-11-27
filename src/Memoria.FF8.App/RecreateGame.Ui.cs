@@ -157,15 +157,15 @@ internal sealed partial class RecreateGame
     private MenuData ReadLiveMenuData()
     {
         MenuData data;
-        if (IsNativeWeaponShopActive)
+        if (events?.CalledWorkshop is not null || IsNativeWeaponShopActive)
         {
             EnsureLiveMenuCatalog();
-            data = NativeWeaponShopMenuProjection.Build(events!.PartyMenu!.WeaponShop!, session.State.CharacterVitals, liveMenuCatalog!, id => LiveMenuData.CharacterName(session.State, checked((byte)id), events.Scene.Names, liveMenuCatalog));
+            data = NativeWeaponShopMenuProjection.Build(events!.CalledWorkshop ?? events.PartyMenu!.WeaponShop!, session.State.CharacterVitals, liveMenuCatalog!, id => LiveMenuData.CharacterName(session.State, checked((byte)id), events.Scene.Names, liveMenuCatalog));
         }
-        else if (IsNativeShopActive)
+        else if (events?.CalledShop is not null || IsNativeShopActive)
         {
             EnsureLiveMenuCatalog();
-            data = NativeShopMenuProjection.Build(events!.PartyMenu!.Shop!, liveMenuCatalog!);
+            data = NativeShopMenuProjection.Build(events!.CalledShop ?? events.PartyMenu!.Shop!, liveMenuCatalog!);
         }
         else
         {
@@ -176,7 +176,12 @@ internal sealed partial class RecreateGame
                 menuState = menuState with { GameplayPreferences = menuState.GameplayPreferences with { BattleAllyCount = currentWorld.ConfiguredBattleAllyCount } };
             }
             data = LiveMenuData.Build(menuState, events?.Scene.Names, liveMenuCatalog!, placeId: events?.Scene.PlaceId);
+            NativeShopMenuProjection.AugmentAbilities(data, menuState, liveMenuCatalog!);
             NativeRefinementMenuProjection.Augment(data, session.State, nativeRefinementDefinitions!, liveMenuCatalog!);
+        }
+        if (events?.HasAbilityShop == true)
+        {
+            data.SupportedActions.Add("ability-shop-close");
         }
         data.Settings["Music volume"] = uiPreferences.MusicVolume + "%";
         data.Settings["Cursor"] = uiPreferences.CursorMemory ? "Memory" : "Initial";
@@ -455,7 +460,23 @@ internal sealed partial class RecreateGame
             fieldSeconds = 0;
             return;
         }
-        if (action.Kind is "shop-buy" or "shop-sell" && IsNativeShopActive)
+        if (action.Kind is "call-shop-open" or "junk-shop-open" or "ability-shop-close")
+        {
+            PlayerAction input = action.Kind switch
+            {
+                "call-shop-open" => new PlayerAction(PlayerActionKind.OpenCallShop, int.Parse(action.SubjectId, System.Globalization.CultureInfo.InvariantCulture)),
+                "junk-shop-open" => new PlayerAction(PlayerActionKind.OpenJunkShop),
+                _ => new PlayerAction(PlayerActionKind.CloseAbilityShop)
+            };
+            PlayerActionResult result = world!.Apply(input);
+            if (!result.Accepted)
+            {
+                throw new InvalidOperationException(result.Detail);
+            }
+            fieldSeconds = 0;
+            return;
+        }
+        if (action.Kind is "shop-buy" or "shop-sell" && (IsNativeShopActive || events?.CalledShop is not null))
         {
             PlayerActionResult result = world!.Apply(NativeShopMenuProjection.PurchaseAction(action));
             if (!result.Accepted)
@@ -465,7 +486,7 @@ internal sealed partial class RecreateGame
             fieldSeconds = 0;
             return;
         }
-        if (action.Kind is "weapon-character" or "weapon-remodel" && IsNativeWeaponShopActive)
+        if (action.Kind is "weapon-character" or "weapon-remodel" && (IsNativeWeaponShopActive || events?.CalledWorkshop is not null))
         {
             PlayerActionResult result = world!.Apply(NativeWeaponShopMenuProjection.PlayerAction(action));
             if (!result.Accepted)

@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeWeaponShopTransaction([property: JsonRequired] int RawArgument, [property: JsonRequired] NativeWeaponShopDefinitions Definitions, [property: JsonRequired] string InitOutSha256, [property: JsonRequired] ImmutableArray<byte> Counts, [property: JsonRequired] uint Gil, [property: JsonRequired] bool Past, [property: JsonRequired] ushort EligibleMask, [property: JsonRequired] int SelectedCharacter, [property: JsonRequired] ushort RemodelRate, [property: JsonRequired] ImmutableArray<byte> AvailableRecipes)
+public sealed record NativeWeaponShopTransaction([property: JsonRequired] int? RawArgument, [property: JsonRequired] NativeWeaponShopDefinitions Definitions, [property: JsonRequired] string InitOutSha256, [property: JsonRequired] ImmutableArray<byte> Counts, [property: JsonRequired] uint Gil, [property: JsonRequired] bool Past, [property: JsonRequired] ushort EligibleMask, [property: JsonRequired] int SelectedCharacter, [property: JsonRequired] ushort RemodelRate, [property: JsonRequired] ImmutableArray<byte> AvailableRecipes)
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool WeaponMagazineRequired { get; init; }
@@ -40,7 +40,7 @@ public sealed record NativeWeaponShopTransaction([property: JsonRequired] int Ra
         return equipped is not null && equipped != recipeId && (ManagedWeapons?.ContainsKey(SelectedCharacter) != true || recipeId > equipped);
     }
 
-    public static (NativeCharacterVitals Vitals, NativeEconomy Economy, NativeWeaponShopTransaction Shop, NativeWeaponRecipes Recipes) Begin(int rawArgument, NativeWeaponShopDefinitions definitions, NativeEconomy economy, NativeCharacterVitals vitals, NativeWeaponRecipes recipes, GameplayPreferences? preferences = null, BattleLoadoutOverrides? loadouts = null)
+    public static (NativeCharacterVitals Vitals, NativeEconomy Economy, NativeWeaponShopTransaction Shop, NativeWeaponRecipes Recipes) Begin(int? rawArgument, NativeWeaponShopDefinitions definitions, NativeEconomy economy, NativeCharacterVitals vitals, NativeWeaponRecipes recipes, GameplayPreferences? preferences = null, BattleLoadoutOverrides? loadouts = null)
     {
         preferences ??= new GameplayPreferences();
         preferences.Validate();
@@ -49,19 +49,19 @@ public sealed record NativeWeaponShopTransaction([property: JsonRequired] int Ra
         vitals.Validate();
         recipes.Validate();
         loadouts?.Validate();
-        if (definitions.ArgumentMap[unchecked((byte)rawArgument)] != 21 || economy.InitOutSha256 != vitals.InitOutSha256 || recipes.InitOutSha256 != vitals.InitOutSha256 || definitions.KernelHash != vitals.KernelSha256)
+        if (rawArgument is int argument && definitions.ArgumentMap[unchecked((byte)argument)] != 21 || economy.InitOutSha256 != vitals.InitOutSha256 || recipes.InitOutSha256 != vitals.InitOutSha256 || definitions.KernelHash != vitals.KernelSha256)
         {
             throw new NotSupportedException("Native weapon shop requires its actual argument mapping and matching original saved/stat inputs.");
         }
         recipes = recipes.RecordEquippedWeapons(vitals);
-        NativeEconomy normalized = NativeShopTransaction.NormalizeInventory(economy);
+        NativeEconomy inventory = rawArgument.HasValue ? NativeShopTransaction.NormalizeInventory(economy) : economy;
         NativeCharacterVitals prepared = vitals.DeepCopy();
         for (int weapon = 0; weapon < 30; weapon++)
         {
             prepared = prepared.PreviewWeaponShopRow(definitions.Recipes[weapon].Character, (byte)weapon);
         }
-        ImmutableArray<byte> counts = NativeShopTransaction.CreateCounts(normalized);
-        uint gil = prepared.DreamEnabled ? normalized.PastGil : normalized.Gil;
+        ImmutableArray<byte> counts = NativeShopTransaction.CreateCounts(inventory);
+        uint gil = prepared.DreamEnabled ? inventory.PastGil : inventory.Gil;
         uint known = recipes.Bits;
         ushort eligible = 0;
         var managed = ImmutableSortedDictionary.CreateBuilder<int, int>();
@@ -76,16 +76,20 @@ public sealed record NativeWeaponShopTransaction([property: JsonRequired] int Ra
         {
             for (int character = 0; character < prepared.Records.Length; character++)
             {
-                if (character < 6 ? (prepared.Records[character].MemberFlags & 1) == 0 : !prepared.IsRosterMember(character) || !managed.ContainsKey(character))
+                if (!prepared.IsRosterMember(character) || character >= (rawArgument.HasValue ? 6 : NativeCharacterVitals.NativeRecordCount) && !managed.ContainsKey(character))
                 {
                     continue;
                 }
                 int? activeWeapon = loadouts?.ResolveWeaponId(prepared.Records[character].CharacterId);
-                if (activeWeapon is >= 28)
+                if (activeWeapon is >= 28 && (rawArgument.HasValue || character < 6))
                 {
                     continue;
                 }
-                int family = activeWeapon is int equippedWeapon ? definitions.Recipes[equippedWeapon].Character : character;
+                if (rawArgument is null)
+                {
+                    eligible |= (ushort)(1 << character);
+                }
+                int family = managed.TryGetValue(character, out int equippedWeapon) ? definitions.Recipes[equippedWeapon].Character : character;
                 for (int weapon = 0; weapon < 28; weapon++)
                 {
                     NativeWeaponRecipe recipe = definitions.Recipes[weapon];
@@ -148,7 +152,7 @@ public sealed record NativeWeaponShopTransaction([property: JsonRequired] int Ra
             ManagedWeapons = managed.Count == 0 ? null : managed.ToImmutable()
         };
         shop.Validate();
-        return (prepared, normalized, shop, recipes with { Bits = known });
+        return (prepared, inventory, shop, recipes with { Bits = known });
     }
 
     private static bool HasPreviousWeapon(NativeWeaponShopDefinitions definitions, int recipeId, NativeWeaponRecipes recipes, int? equippedWeapon = null)
@@ -296,6 +300,16 @@ public sealed record NativeWeaponShopTransaction([property: JsonRequired] int Ra
         return (refreshed.Shop, equipped, refreshed.Recipes);
     }
 
+    public BattleLoadoutOverrides? RemodelLoadout(int recipeId, NativeCharacterVitals vitals, BattleLoadoutOverrides? loadouts)
+    {
+        if (ManagedWeapons?.TryGetValue(SelectedCharacter, out int weapon) != true)
+        {
+            return loadouts;
+        }
+        int identity = vitals.Records[SelectedCharacter].CharacterId;
+        return (loadouts ?? throw new InvalidDataException("The weapon shop lost its equipped weapon.")).RemodelEquippedWeapon(identity, weapon, recipeId);
+    }
+
     public void Validate()
     {
         if ((MagazineRecipeBits & 0xF0000000u) != 0 || (ObtainedWeaponsBits & 0xF0000000u) != 0 || Definitions is null || InitOutSha256 is not { Length: 64 } || InitOutSha256.Any(value => !Uri.IsHexDigit(value)) || Counts.IsDefault || Counts.Length != 200 || AvailableRecipes.IsDefault || (EligibleMask >> NativeCharacterVitals.ExtendedRecordCount) != 0 || SelectedCharacter < -1 || SelectedCharacter >= NativeCharacterVitals.ExtendedRecordCount || (SelectedCharacter == -1) != (EligibleMask == 0) || SelectedCharacter >= 0 && (EligibleMask & 1 << SelectedCharacter) == 0 || RemodelRate is not (750 or 1000))
@@ -303,11 +317,11 @@ public sealed record NativeWeaponShopTransaction([property: JsonRequired] int Ra
             throw new InvalidDataException("Native weapon shop lost its actual constructor/cache/selection inputs.");
         }
         Definitions.Validate();
-        if (ManagedWeapons?.Any(pair => pair.Key is < 0 or >= NativeCharacterVitals.ExtendedRecordCount || pair.Value is < 0 or >= 28) == true || Enumerable.Range(6, NativeCharacterVitals.ExtendedRecordCount - 6).Any(row => (EligibleMask & 1 << row) != 0 && ManagedWeapons?.ContainsKey(row) != true))
+        if (ManagedWeapons?.Any(pair => pair.Key is < 0 or >= NativeCharacterVitals.ExtendedRecordCount || pair.Value is < 0 or >= 28) == true || Enumerable.Range(6, NativeCharacterVitals.ExtendedRecordCount - 6).Any(row => (RawArgument.HasValue || row >= NativeCharacterVitals.NativeRecordCount) && (EligibleMask & 1 << row) != 0 && ManagedWeapons?.ContainsKey(row) != true))
         {
             throw new InvalidDataException("Invalid equipped weapon in the shop.");
         }
-        if (Definitions.ArgumentMap[unchecked((byte)RawArgument)] != 21 || AvailableRecipes.Select(offer => offer & 0x3F).Distinct().Count() != AvailableRecipes.Length || AvailableRecipes.Any(offer => (offer & 0x3F) >= 28 || (offer & 0xC0) == 0 || Definitions.Recipes[offer & 0x3F].Character != RecipeFamily(SelectedCharacter)))
+        if (RawArgument is int argument && Definitions.ArgumentMap[unchecked((byte)argument)] != 21 || AvailableRecipes.Select(offer => offer & 0x3F).Distinct().Count() != AvailableRecipes.Length || AvailableRecipes.Any(offer => (offer & 0x3F) >= 28 || (offer & 0xC0) == 0 || Definitions.Recipes[offer & 0x3F].Character != RecipeFamily(SelectedCharacter)))
         {
             throw new InvalidDataException("Native weapon offers disagree with their actual selected character/recipe list.");
         }

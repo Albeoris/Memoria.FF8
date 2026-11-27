@@ -13,16 +13,11 @@ public sealed partial record NativeCharacterVitals
             {
                 continue;
             }
-            int learned = 0;
-            for (int ability = 0; ability < 128; ability++)
+            for (int ability = 92; ability < 116; ability++)
             {
                 if (guardianForce.HasLearnedAbility(ability))
                 {
-                    learned++;
-                    if (ability is >= 92 and < 116)
-                    {
-                        result |= 1u << (ability - 92);
-                    }
+                    result |= 1u << (ability - 92);
                 }
             }
         }

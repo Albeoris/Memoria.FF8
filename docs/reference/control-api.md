@@ -109,8 +109,11 @@ Choose identities from the active dialogue/menu/battle owner and current resourc
 | `WorldButtons` | `Value`: unsigned 16-bit digital mask for the supported active world vehicle owner. For cars and Garden, optional `Horizontal` supplies left-stick steering and `Vertical` supplies right-stick throttle; digital directions and throttle buttons override their corresponding analog axes. `0x02` switches view on a rising edge; `0x04`/`0x08` rotate the manual vehicle camera, and optional `CameraHorizontal` supplies camera input. `0x40` boards or leaves a vehicle when its terrain and proximity checks permit. Up/down throttle alternatives are added by the graphical host; raw packets retain native button semantics. Unsupported vehicle/menu contracts fail explicitly. |
 | `SelectPartySlot` | `Value`: slot 0..2 in an active party selection menu. |
 | `SelectPartyMember` | `Value`: physical character row 0..7 or 255 for an allowed empty member. |
+| `OpenCallShop` | `Value` selects a visited shop catalog available in the current era. Requires Call Shop. |
+| `OpenJunkShop` | Opens weapon remodeling from the Ability menu. Requires Junk Shop and the present-day party. |
+| `CloseAbilityShop` | Leaves the called shop or workshop and commits its local inventory and gil. |
 | `BuyShopItem`, `SellShopItem` | `Value`: item byte; explicit `Quantity`: 1..255. Requires the matching shop owner. |
-| `SelectWeaponShopCharacter` | `Value`: physical character 0..5. |
+| `SelectWeaponShopCharacter` | `Value`: a character row offered by the active workshop. |
 | `RemodelWeapon` | `Value`: ordinary recipe 0..27; requires the active weapon shop. |
 | `JunctionGuardianForce` | `Value`: character row 0..7; `Text`: decimal GF ID 0..15. Toggles its junction. |
 | `SetJunctionCommand` | `Value`: character row; `Text`: decimal command ability ID 0..127; `Quantity`: slot 0..2. |
@@ -129,7 +132,7 @@ Choose identities from the active dialogue/menu/battle owner and current resourc
 | `TriadAutoMove` | Advances the active player's supported automatic card move. |
 | `TriadTradeCard` | `Value`: active trade selection. |
 
-Junction, learning, refinement and magic menu operations require one frame with zero movement axes and their exact typed payload. Shop changes remain in the shop-local cache until its ordinary close commits them. Weapon remodel uses its existing shop transaction. Declaring a `Kind` does not bypass an unsupported active owner.
+Junction, learning, refinement and magic menu operations require one frame with zero movement axes and their exact typed payload. Shop purchases and sales remain in the shop-local cache until close commits them. Close a called shop or workshop before saving. Weapon remodel uses its existing shop transaction. Declaring a `Kind` does not bypass an unsupported active owner.
 
 ```json
 {"Id":"020-choice","Command":"action","Action":{"Kind":"Choose","Value":2}}

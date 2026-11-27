@@ -47,6 +47,11 @@ public sealed partial class EventEngine
     public PlayerActionResult Apply(PlayerAction action)
     {
         ArgumentNullException.ThrowIfNull(action);
+        if (HasAbilityShop || action.Kind is PlayerActionKind.OpenCallShop or PlayerActionKind.OpenJunkShop or PlayerActionKind.CloseAbilityShop)
+        {
+            bool accepted = ApplyAbilityShop(action, worldMenuAvailable: false);
+            return new PlayerActionResult(accepted, NextTrigger, 0, accepted ? null : "The current menu cannot perform this shop action.");
+        }
         if (action.Kind == PlayerActionKind.ReadMagazinePage && (action.Value is < 1 or > 198 || action.Quantity is null or < 0 or >= 69 || action.Frames != 1 || action.Horizontal != 0 || action.Vertical != 0 || action.Text is not null))
         {
             throw new ArgumentException("Magazine input requires an owned item and an original absolute page0..68.", nameof(action));
