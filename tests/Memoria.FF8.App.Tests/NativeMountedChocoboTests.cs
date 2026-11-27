@@ -282,7 +282,20 @@ public sealed class NativeMountedChocoboTests
         Assert.Equal(1, scene.State.ChocoboDismount!.Counter);
         Assert.Equal(7, scene.State.EventUi!.ScriptMode);
 
-        Assert.Equal(40, scene.Apply(new(PlayerActionKind.Wait, Frames: 40)).FramesAdvanced);
+        // Resume mode 7 with the preceding terrain query occluding the camera.
+        NativeChocoboWorldRuntimeState mounted = scene.State.NativeChocoboRuntime!;
+        NativeGardenWorldRuntimeState objects = mounted.Objects;
+        session.SetWorldState(scene.State with { NativeChocoboRuntime = mounted with { Objects = objects with { PriorTerrainOcclusion = true } } });
+        NativeForestCameraResult expected = session.WorldProcess!.StepOrdinaryCamera(objects.CameraPitch, scene.State.GroundType!.Value, 49, collision: true);
+        Assert.NotEqual(objects.CameraPitch, expected.Pitch);
+        Assert.Equal(1, scene.Apply(new(PlayerActionKind.Wait)).FramesAdvanced);
+        objects = scene.State.NativeChocoboRuntime!.Objects;
+        Assert.Equal(expected.Pitch, objects.ProjectionCamera!.Pitch);
+        Assert.Equal(expected.Pitch, objects.Forest.CameraPitch);
+        Assert.Equal(expected.Process.CameraCooldown, objects.Forest.CameraCooldown);
+        Assert.Equal(expected.Process.CameraCooldown, session.WorldProcess!.CameraCooldown);
+
+        Assert.Equal(39, scene.Apply(new(PlayerActionKind.Wait, Frames: 39)).FramesAdvanced);
         Assert.Equal(NativeChocoboEscapePhase.Run, scene.State.ChocoboDismount!.Phase);
         Assert.NotEmpty(scene.State.ChocoboDismount.Route!.BestPath);
         GameSession restored = new(JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!);

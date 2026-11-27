@@ -114,7 +114,8 @@ internal sealed partial class WorldMapScene
         NativeWorldPathProjectionCertificate projection = NativeWorldPathProjectionCertificate.CreateFoot(camera);
         NativeWorldBackgroundRailState rails = StepBackgroundRails(objects.BackgroundRails!, camera, ChocoboEntity, before.EventUi!.ScriptMode);
         WorldState after = before with { Frame = frame, BodyYaw = yaw, CameraYaw = cameraYaw, CameraVelocity = velocity, CameraTargetX = targetX, CameraTargetZ = targetZ, CameraTargetNativeHeight = targetHeight };
-        objects = objects with { ProjectionCamera = camera, CameraPitch = pitch.Pitch, Forest = forest with { CameraPitch = pitch.Pitch, CameraCooldown = pitch.Process.CameraCooldown } };
+        forest = forest with { CameraPitch = pitch.Pitch, CameraCooldown = pitch.Process.CameraCooldown };
+        objects = objects with { ProjectionCamera = camera, CameraPitch = forest.CameraPitch, Forest = forest };
         if (mapOnly)
         {
             salaryMovementUnits = (uint)objects.MovementMagnitude20409F4 / 8;
@@ -140,7 +141,7 @@ internal sealed partial class WorldMapScene
         {
             int riderLength = assets.GetMountedChocoboRiderModel(objects.Allocation.RiderEntityType).Animations[animation.RiderAnimation].Frames.Count * 16;
             int companionLength = companionVisible ? assets.GetChocoboModel(companion: true).Animations[animation.CompanionAnimation].Frames.Count * 16 : 0;
-            animation = animation.AdvanceAnimation(moving, visible, visible, companionVisible, riderLength, companionLength, objects.Forest, assets.ForestTables.Random, out forest);
+            animation = animation.AdvanceAnimation(moving, visible, visible, companionVisible, riderLength, companionLength, forest, assets.ForestTables.Random, out forest);
         }
         else
         {
