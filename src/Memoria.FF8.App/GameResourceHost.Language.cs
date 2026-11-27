@@ -30,6 +30,7 @@ internal sealed partial class GameResourceHost
 
     internal void FinishLanguageStartup(CancellationToken cancellationToken)
     {
+        SealLooseData();
         ValidateModLibraryStartup(cancellationToken);
     }
 

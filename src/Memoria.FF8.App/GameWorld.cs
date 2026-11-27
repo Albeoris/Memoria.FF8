@@ -177,6 +177,10 @@ internal sealed partial class GameWorld : IDisposable
         Events.OperationCompleted += ObservePendingBattle;
         if (assets.NativeRuntimeProfile is { IsVerified: true })
         {
+            if (assets.Resources.Source.Edition == GameDataEdition.Remastered)
+            {
+                Events.SelectedSalaryTable = assets.ReadNativeSalaryTable();
+            }
             Events.ShakeTables = assets.ReadNativeShakeTables();
             Events.DrawPointParticleTables = assets.ReadNativeDrawPointParticleTables();
             Events.ReadNativeFieldParticleDefinition = id => ReadFieldParticleResources(id)?.Definition;
@@ -230,7 +234,7 @@ internal sealed partial class GameWorld : IDisposable
         Events.ResolveNativeRefinementDefinitions = assets.ReadNativeRefinementDefinitions;
         Events.ReadNativeDrawPointCatalog = assets.ReadNativeDrawPointCatalog;
         Events.ReadNativeActorInfoArena = assets.ReadNativeActorInfoArena;
-        Events.ReadSteamDiscMount = selectedDisc => NativeSteamDiscMountReader.Read(assets.GameDirectory, selectedDisc);
+        Events.ReadSteamDiscMount = selectedDisc => NativeSteamDiscMountReader.Read(assets.GameDirectory, selectedDisc, assets.Resources);
         SynchronizeGameplayTuning();
         snapshotPreparation = session.BindSnapshotPreparation(PrepareSnapshot);
     }

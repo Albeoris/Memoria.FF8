@@ -5,6 +5,7 @@ namespace Memoria.FF8.Events;
 public sealed partial class EventEngine
 {
     private Action? pendingNativePlayerInput;
+    public NativeSalaryTable? SelectedSalaryTable { get; set; }
 
     private bool NativePlayerWalking => !Scene.RunEnabled || ((ButtonInput?.Held ?? throw new NotSupportedException("Native player movement requires the actual mapped input sample.")) & 0x10) != 0;
 
@@ -27,7 +28,7 @@ public sealed partial class EventEngine
         }
         // Native529FF0 consumes the PREVIOUS body callback's scalar before VM.
         // Prepare the entire payout before changing the clock, PC or body.
-        return NativeSalaryCalculator.Sample(state, services.Economy, services.CharacterVitals, Scene.NativeSalaryMovementUnits.Value, controls.EventFlags104);
+        return NativeSalaryCalculator.Sample(state, services.Economy, services.CharacterVitals, Scene.NativeSalaryMovementUnits.Value, controls.EventFlags104, SelectedSalaryTable);
     }
 
     private NativeMovementProgressResult? PrepareNativeFieldMovementProgress()

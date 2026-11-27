@@ -14,7 +14,7 @@ public static class NativeDrawPointCatalogReader
         return Read(new NativeExecutableMemory(executable), kernel, language: "en");
     }
 
-    public static NativeDrawPointCatalog Read(IGameNativeMemorySource memory, byte[] kernel, byte[]? commonMessages = null, StaticTextResource? selectedMessages = null, string? language = null)
+    public static NativeDrawPointCatalog Read(IGameNativeMemorySource memory, byte[] kernel, byte[]? commonMessages = null, StaticTextResource? selectedMessages = null, string? language = null, ImmutableArray<byte> drawPoints = default)
     {
         string executableHash = memory.SourceHash;
         if (!NativeFieldRuntimeProfile.IsSupportedImage(executableHash) || kernel.Length < 228 || BinaryPrimitives.ReadUInt32LittleEndian(kernel) != 56)
@@ -76,7 +76,7 @@ public static class NativeDrawPointCatalogReader
             throw new InvalidDataException("Original command ability section12 requires nineteen8-byte records.");
         }
         ImmutableArray<byte> commands = Enumerable.Range(0, 19).Select(index => kernel[commandStart + index * 8 + 5]).ToImmutableArray();
-        NativeDrawPointCatalog catalog = new(executableHash, Convert.ToHexString(SHA256.HashData(kernel)), memory.Read(0xB92328, 256).ToImmutableArray(), commands, messages[7], messageHashes[7])
+        NativeDrawPointCatalog catalog = new(executableHash, Convert.ToHexString(SHA256.HashData(kernel)), drawPoints.IsDefault ? memory.Read(0xB92328, 256).ToImmutableArray() : drawPoints, commands, messages[7], messageHashes[7])
         {
             CommonMessages = messages.MoveToImmutable(),
             CommonMessageHashes = messageHashes.MoveToImmutable(),

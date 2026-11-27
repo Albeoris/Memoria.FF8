@@ -30,7 +30,7 @@ public sealed partial class EventEngine
         }
         if (!controls.SalaryDisplaySuppressed && unchecked((short)seeD.SalaryDisplayCountdown184) > 0)
         {
-            NativeSalaryTable table = seeD.SalaryTable ?? throw new NotSupportedException("Menu rank-transition presentation requires the original salary table.");
+            NativeSalaryTable table = SelectedSalaryTable ?? seeD.SalaryTable ?? throw new NotSupportedException("Menu rank-transition presentation requires the original salary table.");
             int oldRank = unchecked((short)seeD.PreviousRank186) / 100;
             int newRank = unchecked((short)seeD.RankPoints) / 100;
             salary = salary.StartPayment(oldRank, newRank, table.Pay(oldRank), table.Pay(newRank));

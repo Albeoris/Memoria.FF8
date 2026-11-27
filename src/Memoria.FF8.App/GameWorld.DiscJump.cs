@@ -23,7 +23,7 @@ internal sealed partial class GameWorld
         }
         //4706B0 kind9 reloads wm2field before selecting entry kind0. The Steam
         //1001F290 callback selects the requested marker and forces phase6.
-        NativeSteamDiscMount actual = NativeSteamDiscMountReader.Read(assets.GameDirectory, disc.SavedDisc204);
+        NativeSteamDiscMount actual = NativeSteamDiscMountReader.Read(assets.GameDirectory, disc.SavedDisc204, assets.Resources);
         // Both receipts have been authenticated for the same edition; compare the selected media.
         if (actual != (request.Mount with { WrapperSha256 = actual.WrapperSha256 }))
         {

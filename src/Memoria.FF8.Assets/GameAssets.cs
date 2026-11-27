@@ -92,7 +92,7 @@ public sealed partial class GameAssets : IDisposable
             return nativeDrawPointCatalog;
         }
         using IFlArchive main = OpenArchive("main");
-        NativeDrawPointCatalog selected = NativeDrawPointCatalogReader.Read(ReadNativeMemory(), Read(main, "kernel.bin"), ReadResource(new ResourceKey("text/draw-points")), resources.FindText(StaticTextResource.DrawPointMessages), resources.Source.Language);
+        NativeDrawPointCatalog selected = NativeDrawPointCatalogReader.Read(ReadNativeMemory(), Read(main, "kernel.bin"), ReadResource(new ResourceKey("text/draw-points")), resources.FindText(StaticTextResource.DrawPointMessages), resources.Source.Language, resources.GetSource<IGameTableOverrideSource>()?.TableOverrides?.DrawPoints ?? default);
         nativeDrawPointCatalog = selected;
         nativeDrawPointGeneration = generation;
         return selected;
@@ -227,13 +227,17 @@ public sealed partial class GameAssets : IDisposable
         {
             throw UnsupportedRuntime("Salary lookup requires the authenticated original executable.");
         }
-        byte[] raw = ReadNativeMemory().Read(0xB8E474, 64);
+        return resources.GetSource<IGameTableOverrideSource>()?.TableOverrides?.Salary ?? ReadSalaryTable(NativeExecutableHash!, ReadNativeMemory().Read(0xB8E474, 64));
+    }
+
+    internal static NativeSalaryTable ReadSalaryTable(string sourceHash, ReadOnlySpan<byte> raw)
+    {
         ushort[] entries = new ushort[32];
         for (int index = 0; index < entries.Length; index++)
         {
-            entries[index] = System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(raw.AsSpan(index * 2));
+            entries[index] = System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(raw[(index * 2)..]);
         }
-        NativeSalaryTable table = new(NativeExecutableHash!, System.Collections.Immutable.ImmutableArray.CreateRange(entries));
+        NativeSalaryTable table = new(sourceHash, System.Collections.Immutable.ImmutableArray.CreateRange(entries));
         table.Validate();
         return table;
     }

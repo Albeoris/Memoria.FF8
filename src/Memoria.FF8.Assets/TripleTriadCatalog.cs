@@ -69,7 +69,8 @@ public sealed class TripleTriadCatalog
         }
         var cardAbility = kernel.MenuAbilities[23];
         TripleTriadCatalog native = Read(memory, names, language: FF8TextLanguages.Parse(resources.Source.Language));
-        TripleTriadCatalog catalog = new(native.Cards, native.originalNames, native.TradePriorities, native.AiParameters, NativeRefinementGroupReader.ReadCardRefinements(archive, new NativeRefinementAbility(cardAbility.Name ?? "", cardAbility.Index, cardAbility.Start, cardAbility.End)));
+        ImmutableArray<TripleTriadCard> selectedCards = resources.GetSource<IGameTableOverrideSource>()?.TableOverrides?.Cards ?? native.Cards;
+        TripleTriadCatalog catalog = new(selectedCards, native.originalNames, native.TradePriorities, native.AiParameters, NativeRefinementGroupReader.ReadCardRefinements(archive, new NativeRefinementAbility(cardAbility.Name ?? "", cardAbility.Index, cardAbility.Start, cardAbility.End)));
         catalog.resources = resources;
         return catalog;
     }
@@ -110,24 +111,7 @@ public sealed class TripleTriadCatalog
         for (int id = 0; id < CardCount; id++)
         {
             ReadOnlySpan<byte> row = ranks.AsSpan(id * 8, 8);
-            if (row[..4].ContainsAnyExceptInRange((byte)1, (byte)10))
-            {
-                throw new InvalidDataException($"Original Triple Triad card {id} has an invalid side rank.");
-            }
-            TripleTriadElement element = row[4] switch
-            {
-                0 => TripleTriadElement.None,
-                1 => TripleTriadElement.Fire,
-                2 => TripleTriadElement.Ice,
-                4 => TripleTriadElement.Thunder,
-                8 => TripleTriadElement.Earth,
-                16 => TripleTriadElement.Poison,
-                32 => TripleTriadElement.Wind,
-                64 => TripleTriadElement.Water,
-                128 => TripleTriadElement.Holy,
-                _ => throw new InvalidDataException($"Original Triple Triad card {id} has an invalid element.")
-            };
-            cards.Add(new TripleTriadCard(id, row[0], row[3], row[1], row[2], element));
+            cards.Add(ReadCard(id, row));
             priorities.Add(row[5]);
             int relative = BinaryPrimitives.ReadUInt16LittleEndian(nameData.AsSpan(2 + id * 2));
             if (relative < 2 + CardCount * 2 || relative >= nameData.Length)
@@ -150,6 +134,28 @@ public sealed class TripleTriadCatalog
         }
         TripleTriadNativeAiParameters ai = new(memory.Read(0xC75BAF, 73).ToImmutableArray(), profiles.MoveToImmutable());
         return new TripleTriadCatalog(cards.MoveToImmutable(), names.MoveToImmutable(), priorities.MoveToImmutable(), ai, refinementData is null ? [] : ReadRefinements(refinementData));
+    }
+
+    internal static TripleTriadCard ReadCard(int id, ReadOnlySpan<byte> row)
+    {
+        if (row[..4].ContainsAnyExceptInRange((byte)1, (byte)10))
+        {
+            throw new InvalidDataException($"Triple Triad card {id} has an invalid side rank.");
+        }
+        TripleTriadElement element = row[4] switch
+        {
+            0 => TripleTriadElement.None,
+            1 => TripleTriadElement.Fire,
+            2 => TripleTriadElement.Ice,
+            4 => TripleTriadElement.Thunder,
+            8 => TripleTriadElement.Earth,
+            16 => TripleTriadElement.Poison,
+            32 => TripleTriadElement.Wind,
+            64 => TripleTriadElement.Water,
+            128 => TripleTriadElement.Holy,
+            _ => throw new InvalidDataException($"Triple Triad card {id} has an invalid element.")
+        };
+        return new TripleTriadCard(id, row[0], row[3], row[1], row[2], element);
     }
 
     public static ImmutableArray<TripleTriadRefinement> ReadRefinements(byte[] data)

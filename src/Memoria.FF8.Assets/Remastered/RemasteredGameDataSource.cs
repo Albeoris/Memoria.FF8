@@ -67,6 +67,11 @@ public sealed partial class RemasteredGameDataSource : IResourceSource, IGameArc
         string localized = $"data/lang-{language}/{name}";
         string shared = $"data/{name}";
         string stem = Contains(localized + ".fl") || requireLocalizedArchives && name is ("main" or "menu" or "battle") ? localized : shared;
+        return OpenTriplet(stem);
+    }
+
+    private IFlArchive OpenTriplet(string stem)
+    {
         Stream? listing = null;
         Stream? metrics = null;
         Stream? content = null;
@@ -168,7 +173,7 @@ public sealed partial class RemasteredGameDataSource : IResourceSource, IGameArc
             string localized = Path.GetFileNameWithoutExtension(basename) + "_" + language + extension;
             if (Entry(archive, localized) is { } translated)
             {
-                return IsTextureAuthoringSource && !authoringSnapshot ? TextureAuthoringContent(key, extension.TrimStart('.')) : new ResourceContent(key, extension.TrimStart('.'), 1, $"{Descriptor.Id}:{key}", () => OpenEntrySnapshot(translated));
+                return IsTextureAuthoringSource && !authoringSnapshot ? TextureAuthoringContent(key, extension.TrimStart('.')) : new ResourceContent(key, extension.TrimStart('.'), 1, ArchiveOrigin(family, key), () => OpenEntrySnapshot(translated));
             }
             if (extension is ".jsm" or ".msd")
             {
@@ -176,26 +181,36 @@ public sealed partial class RemasteredGameDataSource : IResourceSource, IGameArc
             }
         }
         IFlArchiveEntry? entry = Entry(archive, basename);
-        return entry is null ? null : IsTextureAuthoringSource && !authoringSnapshot ? TextureAuthoringContent(key, Path.GetExtension(parts[^1]).TrimStart('.')) : new ResourceContent(key, Path.GetExtension(parts[^1]).TrimStart('.'), 1, $"{Descriptor.Id}:{key}", () => OpenEntrySnapshot(entry));
+        return entry is null ? null : IsTextureAuthoringSource && !authoringSnapshot ? TextureAuthoringContent(key, Path.GetExtension(parts[^1]).TrimStart('.')) : new ResourceContent(key, Path.GetExtension(parts[^1]).TrimStart('.'), 1, ArchiveOrigin(family, key), () => OpenEntrySnapshot(entry));
     }
 
     private ResourceContent Content(ResourceKey key, string path)
     {
-        return new ResourceContent(key, Path.GetExtension(path).TrimStart('.'), 1, $"{Descriptor.Id}:{key}", () => Open(path));
+        ExternalFile file = FindExternalFile(path) ?? throw new FileNotFoundException($"Mounted resource '{path}' is unavailable.");
+        return new ResourceContent(key, Path.GetExtension(path).TrimStart('.'), file.Revision, file.Origin, file.OpenRead);
     }
 
-    private bool Contains(string path) => main.Find(path) is not null || other.Find(path) is not null;
+    private bool Contains(string path) => FindExternalFile(path) is not null;
 
     private Stream Open(string path)
     {
         ObjectDisposedException.ThrowIf(disposed, this);
+        return (FindExternalFile(path) ?? throw new FileNotFoundException($"Mounted resource '{path}' is unavailable.")).OpenRead();
+    }
+
+    private ExternalFile? FindStockFile(string path)
+    {
         ZzzArchiveEntry? first = main.Find(path);
         ZzzArchiveEntry? second = other.Find(path);
         if (first is not null && second is not null)
         {
             throw new InvalidDataException($"Ambiguous mounted resource '{path}'.");
         }
-        return first is not null ? main.Open(first) : second is not null ? other.Open(second) : throw new FileNotFoundException($"Mounted resource '{path}' is unavailable.");
+        if (first is not null)
+        {
+            return new(first.Length, 1, $"main.zzz:{path}", () => main.Open(first));
+        }
+        return second is null ? null : new(second.Length, 1, $"other.zzz:{path}", () => other.Open(second));
     }
 
     private static IFlArchiveEntry? Entry(IFlArchive archive, string basename)
@@ -261,13 +276,15 @@ public sealed partial class RemasteredGameDataSource : IResourceSource, IGameArc
         }
         string localized = $"data/lang-{language}/{mountedRelative}";
         string path = Contains(localized) ? localized : "data/" + mountedRelative;
-        if (!Contains(path))
+        ExternalFile file = FindExternalFile(path) ?? throw new FileNotFoundException($"Data resource '{relative}' is unavailable.");
+        if (file.PhysicalPath is { } physicalPath && OperatingSystem.IsWindows())
         {
-            throw new FileNotFoundException($"Data resource '{relative}' is unavailable.");
+            using Stream check = file.OpenRead();
+            return physicalPath;
         }
         Directory.CreateDirectory(cacheDirectory);
         string target = Path.Combine(cacheDirectory, Guid.NewGuid().ToString("N") + Path.GetExtension(path));
-        using (Stream source = Open(path))
+        using (Stream source = file.OpenRead())
         using (FileStream destination = new(target, FileMode.CreateNew, FileAccess.Write, FileShare.None))
         {
             source.CopyTo(destination);
@@ -291,6 +308,14 @@ public sealed partial class RemasteredGameDataSource : IResourceSource, IGameArc
             return;
         }
         disposed = true;
+        ClearMountedCaches();
+        DisposeLooseFiles(looseData);
+        main.Dispose();
+        other.Dispose();
+    }
+
+    private void ClearMountedCaches()
+    {
         foreach (IFlArchive archive in archives.Values.Reverse())
         {
             archive.Dispose();
@@ -299,8 +324,7 @@ public sealed partial class RemasteredGameDataSource : IResourceSource, IGameArc
         catalog.Clear();
         artworkImages.Clear();
         iconAtlases.Clear();
-        main.Dispose();
-        other.Dispose();
+        files.Clear();
         if (Directory.Exists(cacheDirectory))
         {
             Directory.Delete(cacheDirectory, true);

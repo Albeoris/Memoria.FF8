@@ -136,3 +136,14 @@ See the [importer](../../src/Memoria.FF8.Mods/JunctionModImporter.cs), [catalog 
 ```powershell
 dotnet run --project tests/Memoria.FF8.Mods.Tests
 ```
+
+
+## Remastered Demaster data
+
+An enabled Demaster package can provide a loose file at the same `data/` path as an entry in Remastered's `main.zzz` or `other.zzz`. Keep the path relative to the package root. For example, an English Scan replacement belongs at `data/lang-en/desc_scan_en.dat`. The game's normal consumer determines which resource paths it requests. Older packages under `Mods/Demaster`, packages under `Mods/Demastered`, and installed `DEMASTER_EXP` share the same lookup.
+
+When multiple packages provide the same path, Memoria checks enabled standalone packages in descending priority, then the installed export, then the game archives. It selects each outer `.fl`, `.fi` and `.fs` separately and checks the resulting triplet. Inner membership follows the selected archive listing. A failed triplet reports the three sources. Media paths use the existing cue and localization rules.
+
+Restart the game after changing these files, enabling or disabling their package, or changing its priority. The active game host retains its startup data paths. Demaster textures continue to use the existing presentation refresh.
+
+The verified English wrapper requests `ffviii_en.exe.dat`. Memoria can read compatible salary, draw-point and Triple Triad changes from that file as data. It validates all differences against the authenticated game image and declines a contribution with unknown changes. The game installation supplies the authenticated runtime, and an alternative short spelling does not activate the long path. A visible `data/disk/wrong_disk` marker, including an empty file, triggers the current Remastered disc-transition diagnostic.

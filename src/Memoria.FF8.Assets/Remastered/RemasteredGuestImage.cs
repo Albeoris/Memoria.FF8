@@ -8,21 +8,24 @@ namespace Memoria.FF8.Assets.Remastered;
 public sealed class RemasteredGuestImage
 {
     private readonly List<Section> sections = [];
+    private readonly byte[] coff;
+    private readonly byte[] optional;
+    private readonly byte[] importData;
 
     public RemasteredGuestImage(string path) : this(File.OpenRead(path), leaveOpen: false)
     {
     }
 
-    internal RemasteredGuestImage(Stream file, bool leaveOpen)
+    internal RemasteredGuestImage(Stream file, bool leaveOpen, RemasteredGuestImage? authenticated = null)
     {
         using BinaryReader reader = new(file, Encoding.ASCII, leaveOpen);
-        byte[] coff = Take(reader, 20);
+        coff = Take(reader, 20);
         ushort sectionCount = BinaryPrimitives.ReadUInt16LittleEndian(coff.AsSpan(2));
         if (BinaryPrimitives.ReadUInt16LittleEndian(coff) != 0x14C || BinaryPrimitives.ReadUInt16LittleEndian(coff.AsSpan(16)) != 224)
         {
             throw new InvalidDataException("Unsupported Remastered DAT COFF header.");
         }
-        byte[] optional = Take(reader, 224);
+        optional = Take(reader, 224);
         if (BinaryPrimitives.ReadUInt16LittleEndian(optional) != 0x10B)
         {
             throw new InvalidDataException("Unsupported Remastered DAT optional header.");
@@ -38,6 +41,10 @@ public sealed class RemasteredGuestImage
         {
             throw new InvalidDataException("Remastered DAT section counts disagree or exceed the file bounds.");
         }
+        if (authenticated is not null && (!coff.AsSpan().SequenceEqual(authenticated.coff) || !optional.AsSpan().SequenceEqual(authenticated.optional)))
+        {
+            throw new InvalidDataException("Remastered DAT headers differ from the authenticated image.");
+        }
         for (int index = 0; index < sectionCount; index++)
         {
             byte[] header = Take(reader, 40);
@@ -46,6 +53,10 @@ public sealed class RemasteredGuestImage
             uint rva = BinaryPrimitives.ReadUInt32LittleEndian(header.AsSpan(12));
             uint expandedSize = ReadUInt32(reader);
             uint compressedSize = ReadUInt32(reader);
+            if (authenticated is not null && (!header.AsSpan().SequenceEqual(authenticated.sections[index].Header) || expandedSize != authenticated.sections[index].Data.Length))
+            {
+                throw new InvalidDataException($"Remastered DAT section {headerName} differs from the authenticated section layout.");
+            }
             uint extent = Math.Max(virtualSize, expandedSize);
             if (expandedSize > Array.MaxLength || rva > SizeOfImage || extent > SizeOfImage - rva || compressedSize > file.Length - file.Position)
             {
@@ -56,14 +67,27 @@ public sealed class RemasteredGuestImage
             {
                 throw new InvalidDataException("Remastered DAT guest sections overlap.");
             }
-            byte[] data = ExpandSection(file, compressedSize, (int)expandedSize);
+            long compressedStart = file.Position;
+            Section? stockSection = authenticated?.sections[index];
+            byte[] data = ExpandSection(file, compressedSize, (int)expandedSize, stockSection?.SerializedCompression);
+            byte[]? serializedCompression = null;
+            if (authenticated is null)
+            {
+                file.Position = compressedStart;
+                serializedCompression = Take(reader, checked((int)compressedSize));
+            }
             string name = ReadText(reader);
             if (name != headerName)
             {
                 throw new InvalidDataException("Remastered DAT serialized section names disagree.");
             }
             uint characteristics = BinaryPrimitives.ReadUInt32LittleEndian(header.AsSpan(36));
-            sections.Add(new Section(rva, extent, virtualSize, characteristics, data));
+            sections.Add(new Section(rva, extent, virtualSize, characteristics, data, header, serializedCompression));
+        }
+        long importStart = file.Position;
+        if (authenticated is not null && file.Length - importStart != authenticated.importData.Length)
+        {
+            throw new InvalidDataException("Remastered DAT import data length differs from the authenticated image.");
         }
         uint libraryCount = ReadCount(reader, 32);
         List<uint> iatAddresses = [];
@@ -96,7 +120,12 @@ public sealed class RemasteredGuestImage
         {
             throw new InvalidDataException("Unexpected trailing bytes in the Remastered DAT image.");
         }
-        sections.Sort((left, right) => left.Rva.CompareTo(right.Rva));
+        file.Position = importStart;
+        importData = Take(reader, checked((int)(file.Length - importStart)));
+        if (authenticated is not null && !importData.AsSpan().SequenceEqual(authenticated.importData))
+        {
+            throw new InvalidDataException("Remastered DAT import data differs from the authenticated image.");
+        }
     }
 
     public uint ImageBase { get; }
@@ -165,7 +194,7 @@ public sealed class RemasteredGuestImage
         }
     }
 
-    private static byte[] ExpandSection(Stream file, uint compressedSize, int expandedSize)
+    private static byte[] ExpandSection(Stream file, uint compressedSize, int expandedSize, byte[]? stockCompression)
     {
         using ExactCompressedStream compressed = new(file, compressedSize);
         using ZLibStream inflater = new(compressed, CompressionMode.Decompress, true);
@@ -180,9 +209,29 @@ public sealed class RemasteredGuestImage
             }
             position += read;
         }
-        if (inflater.ReadByte() != -1 || compressed.Remaining != 0 || compressed.ReadPastEnd)
+        if (inflater.ReadByte() != -1 || compressed.ReadPastEnd)
         {
             throw new InvalidDataException("Remastered DAT zlib section has an invalid expanded size, truncated stream or trailing data.");
+        }
+        if (compressed.Remaining != 0)
+        {
+            if (stockCompression is null || compressedSize != stockCompression.Length)
+            {
+                throw new InvalidDataException("Remastered DAT zlib section has an unexpected compressed suffix.");
+            }
+            // In-place recompression can leave the original compressed bytes beyond the new stream.
+            ReadOnlySpan<byte> suffix = stockCompression.AsSpan(stockCompression.Length - (int)compressed.Remaining);
+            Span<byte> buffer = stackalloc byte[4096];
+            while (!suffix.IsEmpty)
+            {
+                int length = Math.Min(suffix.Length, buffer.Length);
+                file.ReadExactly(buffer[..length]);
+                if (!buffer[..length].SequenceEqual(suffix[..length]))
+                {
+                    throw new InvalidDataException("Remastered DAT zlib suffix differs from the authenticated stock bytes.");
+                }
+                suffix = suffix[length..];
+            }
         }
         return data;
     }
@@ -252,7 +301,56 @@ public sealed class RemasteredGuestImage
         return sections.Any(section => (section.Characteristics & 0x80000000) != 0 && rva >= section.Rva && rva + count <= (long)section.Rva + section.VirtualSize);
     }
 
-    private sealed record Section(uint Rva, uint Extent, uint VirtualSize, uint Characteristics, byte[] Data);
+    internal void ValidateDataChanges(RemasteredGuestImage authenticated, IReadOnlyList<(uint Address, int Length)> allowed)
+    {
+        int unknownCount = 0;
+        uint firstUnknown = 0;
+        for (int index = 0; index < sections.Count; index++)
+        {
+            Section section = sections[index];
+            ReadOnlySpan<byte> original = authenticated.sections[index].Data;
+            ReadOnlySpan<byte> candidate = section.Data;
+            uint sectionAddress = ImageBase + section.Rva;
+            int compared = 0;
+            foreach ((uint address, int length) in allowed)
+            {
+                if (address < sectionAddress || (ulong)address + (uint)length > (ulong)sectionAddress + (uint)candidate.Length)
+                {
+                    continue;
+                }
+                int offset = checked((int)(address - sectionAddress));
+                CountUnknown(original, candidate, sectionAddress, compared, offset);
+                compared = offset + length;
+            }
+            CountUnknown(original, candidate, sectionAddress, compared, candidate.Length);
+        }
+        if (unknownCount != 0)
+        {
+            throw new InvalidDataException($"Remastered DAT contains {unknownCount} changed bytes outside supported tables, starting at guest address 0x{firstUnknown:X8}.");
+        }
+
+        void CountUnknown(ReadOnlySpan<byte> original, ReadOnlySpan<byte> candidate, uint sectionAddress, int start, int end)
+        {
+            if (original[start..end].SequenceEqual(candidate[start..end]))
+            {
+                return;
+            }
+            for (int offset = start; offset < end; offset++)
+            {
+                if (original[offset] == candidate[offset])
+                {
+                    continue;
+                }
+                if (unknownCount == 0)
+                {
+                    firstUnknown = sectionAddress + (uint)offset;
+                }
+                unknownCount++;
+            }
+        }
+    }
+
+    private sealed record Section(uint Rva, uint Extent, uint VirtualSize, uint Characteristics, byte[] Data, byte[] Header, byte[]? SerializedCompression);
 
     // Single-byte input prevents inflater read-ahead from concealing a serialized zlib suffix.
     private sealed class ExactCompressedStream(Stream source, long length) : Stream

@@ -3,12 +3,29 @@ using Memoria.FF8.Resources;
 
 namespace Memoria.FF8.Assets.Remastered;
 
-public sealed partial class RemasteredGameDataSource : IGameRuntimeSource, IGameNativeImageSource
+public sealed partial class RemasteredGameDataSource : IGameRuntimeSource, IGameNativeImageSource, IGameTableOverrideSource
 {
+    public const string ExternalGuestDataPath = "ffviii_en.exe.dat";
     private const string GuestImageName = "FFVIII_EN.exe.dat";
     private const string GuestImageAlias = "ff8_en.exe.dat";
     private RemasteredGuestImage? guestImage;
     private bool runtimeCodeVerified;
+
+    public GameTableOverrides? TableOverrides { get; private set; }
+
+    public void PrepareGuestData(Stream selected)
+    {
+        lock (archiveGate)
+        {
+            ObjectDisposedException.ThrowIf(disposed, this);
+            if (looseDataSealed || !looseDataPrepared || language != "en")
+            {
+                throw new InvalidOperationException("English guest tables must be prepared before publishing the startup data mount.");
+            }
+            RequireRuntimeCode();
+            TableOverrides = RemasteredGuestData.Read(RequireGuestImage(), selected);
+        }
+    }
 
     public string? NativeExecutableHash
     {
@@ -17,7 +34,7 @@ public sealed partial class RemasteredGameDataSource : IGameRuntimeSource, IGame
             lock (archiveGate)
             {
                 ObjectDisposedException.ThrowIf(disposed, this);
-                return guestImage is not null || File.Exists(Path.Combine(gameDirectory, GuestImageName)) || Contains(GuestImageName) || Contains(GuestImageAlias) ? SourceHash : null;
+                return guestImage is not null || File.Exists(Path.Combine(gameDirectory, GuestImageName)) || FindStockFile(GuestImageName) is not null || FindStockFile(GuestImageAlias) is not null ? SourceHash : null;
             }
         }
     }
@@ -145,9 +162,9 @@ public sealed partial class RemasteredGameDataSource : IGameRuntimeSource, IGame
 
         foreach (string name in new[] { GuestImageName, GuestImageAlias })
         {
-            if (Contains(name))
+            if (FindStockFile(name) is { } stock)
             {
-                using Stream archivedImage = Open(name);
+                using Stream archivedImage = stock.OpenRead();
                 if (ReadAuthenticatedGuestImage(archivedImage) is { } image)
                 {
                     return image;

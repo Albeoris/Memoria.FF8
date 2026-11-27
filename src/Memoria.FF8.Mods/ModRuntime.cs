@@ -747,8 +747,10 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 DiscoverJunction(nextAutoEnable, packages, files, notices, identities, visitedFiles);
                 continue;
             }
-            HashSet<string> packageIds = new(StringComparer.OrdinalIgnoreCase);
-            string[] roots = ModsDirectories.Select(directory => Path.Combine(directory, format.ToString())).Where(Directory.Exists).SelectMany(directory => Directory.GetDirectories(directory).OrderBy(path => Path.GetFileName(path), PathOrder)).OrderBy(path => Path.GetFileName(path), StringComparer.OrdinalIgnoreCase).ToArray();
+            Dictionary<string, string> packageRootsById = new(StringComparer.OrdinalIgnoreCase);
+            string[] roots = ModsDirectories.SelectMany(directory => format == ModFormat.Demaster
+                ? new[] { Path.Combine(directory, "Demaster"), Path.Combine(directory, "Demastered") }
+                : new[] { Path.Combine(directory, format.ToString()) }).Where(Directory.Exists).SelectMany(directory => Directory.GetDirectories(directory).OrderBy(path => Path.GetFileName(path), PathOrder)).OrderBy(path => Path.GetFileName(path), StringComparer.OrdinalIgnoreCase).ToArray();
             Dictionary<string, string> bundledPackages = new(StringComparer.OrdinalIgnoreCase);
             HashSet<string> bundledDescriptors = new(StringComparer.Ordinal);
             HashSet<string> requiredLanguageDependencies = new(StringComparer.OrdinalIgnoreCase);
@@ -858,7 +860,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
                     id = descriptor.RuntimePackageId;
                     bundledRoot = null;
                 }
-                if (!packageIds.Add(id))
+                if (!packageRootsById.TryAdd(id, root))
                 {
                     if (string.Equals(root, bundledRoot, StringComparison.OrdinalIgnoreCase)
                         || bundledDescriptors.Contains(root) && packages.Any(package => package.Id == id && package.Descriptor is not null && !package.IsBundled))
@@ -866,7 +868,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
                         continue;
                     }
                     identities.Add($"duplicate\0{root}");
-                    notices.Add(new("duplicate-package", $"A preceding mod directory owns {id}; ignoring duplicate at {root}.", id));
+                    notices.Add(new("duplicate-package", $"{packageRootsById[id]} owns {id}; ignoring duplicate at {root}.", id));
                     continue;
                 }
                 if (descriptor is not null)
@@ -967,6 +969,16 @@ public sealed partial class ModRuntime : IModService, IDisposable
                         EnumerateFiles(packageRoot, packageRoot, string.Empty, id, new HashSet<string>(StringComparer.OrdinalIgnoreCase), sourceFiles, notices, hasLocalization);
                         packageFiles.AddRange(sourceFiles.OrderBy(item => item.Relative, PathOrder).Select(file => (packageRoot, file.Physical, file.Relative)));
                     }
+                    if (installedDemaster && !packageFiles.Any(file => file.Relative.Equals("demaster.conf", StringComparison.OrdinalIgnoreCase)))
+                    {
+                        string gameRoot = Path.GetDirectoryName(root)!;
+                        string config = Path.Combine(gameRoot, "demaster.conf");
+                        if (File.Exists(config))
+                        {
+                            ValidateContentPath(gameRoot, config);
+                            packageFiles.Add((gameRoot, config, "demaster.conf"));
+                        }
+                    }
                 }
                 catch (Exception exception) when (IsFileError(exception))
                 {
@@ -1057,7 +1069,13 @@ public sealed partial class ModRuntime : IModService, IDisposable
                         {
                             long revision = ++fileRevision;
                             Action<Stream>? copyTo = format == ModFormat.Memoria && MoviePackagePaths.IsNativeMovieVideo(relative) ? destination => CopyFileVersion(packageRoot, physical, stamp, destination) : null;
-                            previous = new(stamp, new ModFile(id, format, relative, revision, () => ReadVersion(packageRoot, physical, stamp), copyTo) { ContentStamp = localizationManifest ? (localizationEpoch, 0) : (stamp.Length, stamp.LastWriteTicks), TextureLayout = textureLayout, AbsolutePath = Path.GetFullPath(physical) }, localizationEpoch, textureLayouts.Identity);
+                            previous = new(stamp, new ModFile(id, format, relative, revision, () => ReadVersion(packageRoot, physical, stamp), copyTo)
+                            {
+                                ContentStamp = localizationManifest ? (localizationEpoch, 0) : (stamp.Length, stamp.LastWriteTicks),
+                                TextureLayout = textureLayout,
+                                AbsolutePath = Path.GetFullPath(physical),
+                                OpenPhysicalVersion = format == ModFormat.Demaster && relative.StartsWith("data/", StringComparison.OrdinalIgnoreCase) ? () => OpenFileVersion(packageRoot, physical, stamp) : null
+                            }, localizationEpoch, textureLayouts.Identity);
                             fileEntries[key] = previous;
                         }
                         identities.Add($"{key}\0{previous.File.Revision}");
@@ -1149,9 +1167,17 @@ public sealed partial class ModRuntime : IModService, IDisposable
         string family = path.Split('/', 2)[0];
         if (family.Equals("textures", StringComparison.OrdinalIgnoreCase) || family.Equals("hashOutput", StringComparison.OrdinalIgnoreCase))
         {
-            return directory || Path.GetExtension(path).Equals(".png", StringComparison.OrdinalIgnoreCase) || Path.GetExtension(path).Equals(".dds", StringComparison.OrdinalIgnoreCase);
+            return directory || Path.GetExtension(path).Equals(".png", StringComparison.OrdinalIgnoreCase) || Path.GetExtension(path).Equals(".dds", StringComparison.OrdinalIgnoreCase) || DemasterSceneLighting.IsInput(path);
         }
-        return !directory && path.Equals(TextureLayoutManifest.FileName, StringComparison.OrdinalIgnoreCase);
+        return family.Equals("data", StringComparison.OrdinalIgnoreCase) ||
+            family.Equals("lut", StringComparison.OrdinalIgnoreCase) ||
+            family.Equals("shaders", StringComparison.OrdinalIgnoreCase) ||
+            !directory && (path.Equals(TextureLayoutManifest.FileName, StringComparison.OrdinalIgnoreCase) ||
+                path.Equals("demaster.conf", StringComparison.OrdinalIgnoreCase) ||
+                path.Equals("field_time.txt", StringComparison.OrdinalIgnoreCase) ||
+                path.Equals("scene_light.txt", StringComparison.OrdinalIgnoreCase) ||
+                path.Equals("ffviii_en.exe.dat", StringComparison.OrdinalIgnoreCase) ||
+                path.Equals("ff8_en.exe.dat", StringComparison.OrdinalIgnoreCase));
     }
 
     private static bool IsWithin(string root, string path)
@@ -1167,6 +1193,26 @@ public sealed partial class ModRuntime : IModService, IDisposable
         byte[] bytes = File.ReadAllBytes(path);
         ValidateFileVersion(path, expected);
         return bytes;
+    }
+
+    private static FileStream OpenFileVersion(string packageRoot, string path, FileStamp expected)
+    {
+        ValidateContentPath(packageRoot, path);
+        FileStream stream = new(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+        try
+        {
+            ValidateFileVersion(path, expected);
+            if (stream.Length != expected.Length)
+            {
+                throw new IOException($"Mod content changed during preparation: {path}.");
+            }
+            return stream;
+        }
+        catch
+        {
+            stream.Dispose();
+            throw;
+        }
     }
 
     private static void CopyFileVersion(string packageRoot, string path, FileStamp expected, Stream destination)

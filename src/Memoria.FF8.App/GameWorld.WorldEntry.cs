@@ -58,6 +58,7 @@ internal sealed partial class GameWorld
         scene.ReadFieldMagicStatRules = (vitals, row) => BattleResources.ReadPlayerNativeStatRules(vitals, row, session.State.BattleLoadouts?.ResolveWeaponId(vitals.Records[row].CharacterId));
         scene.ResolveNativeAutoJunction = Events.ResolveNativeAutoJunction;
         scene.PrepareSalaryEffects = Events.PrepareSalaryEffects;
+        scene.SelectedSalaryTable = Events.SelectedSalaryTable;
         scene.PrepareGlobalSound = Events.PrepareGlobalSound;
         scene.ReadDrawPointCatalog = assets.ReadNativeDrawPointCatalog;
         scene.PublishSalaryEffects = Events.PublishSalaryEffects;

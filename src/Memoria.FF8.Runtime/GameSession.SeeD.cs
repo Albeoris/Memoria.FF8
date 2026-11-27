@@ -15,7 +15,7 @@ public sealed partial class GameSession
         State = State with { SeeD = state };
     }
 
-    public static NativeSalaryResult? SampleWorldSalary(GameState source, NativeSeeDState? current, NativeEconomy? economy, uint units)
+    public static NativeSalaryResult? SampleWorldSalary(GameState source, NativeSeeDState? current, NativeEconomy? economy, uint units, NativeSalaryTable? selectedTable = null)
     {
         if (current is null)
         {
@@ -25,7 +25,7 @@ public sealed partial class GameSession
         {
             throw new NotSupportedException("World salary requires the executed event DWORD104 owner.");
         }
-        return NativeSalaryCalculator.Sample(current, economy, source.CharacterVitals, units, controls.EventFlags104);
+        return NativeSalaryCalculator.Sample(current, economy, source.CharacterVitals, units, controls.EventFlags104, selectedTable);
     }
 
     private static void ValidateSeeDCheckpoint(GameState state, JsonElement? vm)

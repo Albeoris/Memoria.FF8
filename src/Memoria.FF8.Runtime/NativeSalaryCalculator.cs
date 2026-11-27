@@ -46,7 +46,7 @@ public sealed record NativeSalaryResult(NativeSeeDState SeeD, NativeEconomy? Eco
 /// <summary>Native529FF0/6519D0 salary sampling, including52B140/651C10 saved effects. Process presentation consumes the explicit callback effects.</summary>
 public static class NativeSalaryCalculator
 {
-    public static NativeSalaryResult Sample(NativeSeeDState current, NativeEconomy? economy, NativeCharacterVitals? vitals, uint units, uint eventFlags104)
+    public static NativeSalaryResult Sample(NativeSeeDState current, NativeEconomy? economy, NativeCharacterVitals? vitals, uint units, uint eventFlags104, NativeSalaryTable? selectedTable = null)
     {
         current.Validate();
         economy?.Validate();
@@ -72,7 +72,7 @@ public static class NativeSalaryCalculator
             uint counter = unchecked(current.SalaryMovementCounter + units);
             if (counter >= 0x6000)
             {
-                if (economy is null || current.SalaryTable is not NativeSalaryTable table || economy.InitOutSha256 != vitals.InitOutSha256)
+                if (economy is null || (selectedTable ?? current.SalaryTable) is not NativeSalaryTable table || economy.InitOutSha256 != vitals.InitOutSha256)
                 {
                     throw new NotSupportedException("Salary payout requires current live gil, its actual32-entry table and matching physical character initialization.");
                 }

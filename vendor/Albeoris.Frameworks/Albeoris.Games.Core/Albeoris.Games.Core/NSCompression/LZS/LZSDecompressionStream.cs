@@ -57,7 +57,7 @@ public class LZSDecompressionStream : Stream
                 int next = input.ReadByte();
                 if (next == -1)
                 {
-                    throw new Exception("Unexpected end of stream.");
+                    throw new InvalidDataException("Unexpected end of LZS input.");
                 }
                 token[index] = (byte)next;
             }
@@ -85,7 +85,7 @@ public class LZSDecompressionStream : Stream
                 int read = await input.ReadAsync(token, total, required - total, cancellationToken).ConfigureAwait(false);
                 if (read == 0)
                 {
-                    throw new Exception("Unexpected end of stream.");
+                    throw new InvalidDataException("Unexpected end of LZS input.");
                 }
                 total += read;
             }

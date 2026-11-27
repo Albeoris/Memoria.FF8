@@ -59,6 +59,7 @@ internal sealed partial class GameResourceHost
             cancellationToken.ThrowIfCancellationRequested();
             if (Pump(force: true) || !Mods.IsReloadPending || Mods.View.Outcome is ModUpdateOutcome.Failed or ModUpdateOutcome.Blocked or ModUpdateOutcome.ReviewRequired)
             {
+                SealLooseData();
                 return;
             }
             if (cancellationToken.WaitHandle.WaitOne(5))

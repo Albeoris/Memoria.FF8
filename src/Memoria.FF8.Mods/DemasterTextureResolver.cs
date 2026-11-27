@@ -34,6 +34,11 @@ public sealed partial class DemasterTextureResolver : ITextureReplacementResolve
         {
             string path = file.RelativePath;
             string extension = Path.GetExtension(path);
+            if (path.StartsWith("shaders/", StringComparison.OrdinalIgnoreCase))
+            {
+                diagnostics.Add(new("Demaster.ShaderNotSupported", "This shader has no Memoria consumer.", file.PackageId, path));
+                continue;
+            }
             if (file.TextureLayout is not null && !SupportsExplicitTextureLayout(file))
             {
                 diagnostics.Add(new ModDiagnostic("demaster-unsupported-texture-layout", $"Texture '{path}' declares a layout that has no compatible native atlas adapter or canvas.", file.PackageId, path));
