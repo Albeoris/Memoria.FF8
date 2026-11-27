@@ -187,7 +187,7 @@ public sealed partial class MenuController
         {
             _magicId = "";
             _recipeId = "";
-            _refinementAbility = "";
+            _refinementAbilityId = "";
         }
         IsDemo = demo;
         _liveData = null;
@@ -1046,12 +1046,12 @@ public sealed partial class MenuController
                 _cardId = action.SubjectId;
                 return;
             case "select-refinement-ability":
-                _refinementAbility = action.SubjectId;
-                _recipeId = Data.Recipes.FirstOrDefault(recipe => recipe.Ability == _refinementAbility)?.Id ?? "";
+                _refinementAbilityId = action.SubjectId;
+                _recipeId = Data.Recipes.FirstOrDefault(recipe => RefinementAbilityId(recipe) == _refinementAbilityId)?.Id ?? "";
                 return;
             case "select-recipe":
                 _recipeId = action.SubjectId;
-                _refinementAbility = Recipe?.Ability ?? "";
+                _refinementAbilityId = Recipe is { } recipe ? RefinementAbilityId(recipe) : "";
                 return;
             case "select-exchange":
                 _exchangeId = action.SubjectId;

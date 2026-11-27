@@ -637,6 +637,7 @@ public static partial class SystemTextCatalog
         defaults["projection.status.native"] = "Native status 0x{0:X4}";
         defaults["refinement.card.already-refined"] = "Already refined in this game. Switching modes or acquiring more copies does not reset this card ID.";
         defaults["refinement.card.cost"] = "Requires {0} {1}; receive {2} {3}. Cards are kept. This card ID can be refined once per game.";
+        defaults["ui.list.page-indicator"] = "P.{0} / {1}";
         defaults["refinement.prompt.ability"] = "Choose a refinement ability.";
         defaults["refinement.prompt.empty"] = "No items to refine.";
         defaults["refinement.quantity.all"] = "All possible x{0}";

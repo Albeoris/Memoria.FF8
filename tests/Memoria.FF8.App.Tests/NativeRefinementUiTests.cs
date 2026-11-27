@@ -1,5 +1,7 @@
 using System.Text.Json;
 using Memoria.FF8.Assets;
+using Memoria.FF8.Assets.Localization;
+using Memoria.FF8.Resources.Localization;
 using Memoria.FF8.Events;
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Runtime;
@@ -44,6 +46,41 @@ public sealed class NativeRefinementUiTests
         MenuController controller = new(() => unavailable);
         controller.Open("ability");
         Assert.Empty(controller.Entries);
+    }
+
+    [Fact]
+    public void AbilityAndRecipeViewsUseLocalizedNamesWithoutMergingIdenticalTranslations()
+    {
+        using GameAssets assets = InstalledAssets();
+        NativeRefinementDefinitions definitions = assets.ReadNativeRefinementDefinitions();
+        LiveMenuCatalog catalog = LiveMenuCatalog.ReadInstalled(assets);
+        NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals().DeepCopy();
+        vitals.GuardianForces[0] = vitals.GuardianForces[0] with { Flags = 1, LearnedBank = new(0, ((1UL << 19) - 1) << 33) };
+        GameState state = new() { CharacterVitals = vitals, Economy = assets.ReadNewGameEconomy(), CardInventory = NativeCardInventory.CreateNewGame() };
+        const int first = 97;
+        const int second = 98;
+        const string shared = "Совпадающее название";
+        string AbilityKey(int id) => LocalizationSourceExporter.IndexedKey(assets.Resources.Source.Language, LocalizationSourceExporter.KernelTable("MenuAbilities", "Name"), id - 92);
+        string AbilityLabel(int id) => id is first or second ? shared : $"Рецепт {id}";
+        Dictionary<string, LocalizationValue> values = Enumerable.Range(first, 19).ToDictionary(AbilityKey, id => new LocalizationValue(AbilityLabel(id), "fixture", "fixture"));
+        values[SystemTextCatalog.Key("ui.refinementabilities.entry.help.select.an.item.to.refine")] = new("Выберите предмет.", "fixture", "fixture");
+        assets.Resources.PrepareLocalization(new LocalizationCatalog(values)).Commit();
+
+        MenuData data = new();
+        NativeRefinementMenuProjection.Augment(data, state, definitions, catalog);
+        MenuController controller = new(() => data);
+        controller.ConnectLocalizationText(assets.Resources.Localize);
+        controller.Open("ability");
+        Assert.Equal(Enumerable.Range(first, 19).Select(AbilityLabel), controller.Entries.Select(entry => entry.Label));
+        Assert.All(controller.Entries, entry => Assert.Equal("Выберите предмет.", entry.Help));
+        Assert.All(data.Recipes, recipe => Assert.Equal(AbilityLabel(recipe.NativeAbility!.Value), recipe.Ability));
+        Assert.Single(controller.Entries, entry => entry.Id == "native-refinement-97");
+        Assert.Single(controller.Entries, entry => entry.Id == "native-refinement-98");
+        controller.SelectEntry("ability", "native-refinement-98");
+        controller.Navigate(MenuInput.Confirm);
+        Assert.Equal("ability-recipes", controller.ScreenId);
+        Assert.Equal(shared, controller.RefinementAbility);
+        Assert.Equal(data.Recipes.Where(recipe => recipe.NativeAbility == second).Select(recipe => recipe.Id).Order(), controller.Entries.Select(entry => entry.Id).Order());
     }
 
     [Fact]

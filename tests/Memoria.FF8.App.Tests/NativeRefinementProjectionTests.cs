@@ -19,7 +19,7 @@ public sealed class NativeRefinementProjectionTests
         MenuData data = Project(assets, state, definitions);
 
         Assert.Empty(data.Recipes);
-        Assert.Equal(definitions.LearnedAbilities(state.CharacterVitals!).Select(id => definitions.Abilities[id - 92].Name), data.RefinementAbilities);
+        Assert.Equal(definitions.LearnedAbilities(state.CharacterVitals!).Select(id => definitions.Abilities[id - 92].Name), data.RefinementAbilities.Values);
         Assert.Equal(19, data.RefinementAbilities.Count);
         Assert.Contains("native-refine", data.SupportedActions);
         Assert.Equal(before, JsonSerializer.Serialize(state));
@@ -112,7 +112,7 @@ public sealed class NativeRefinementProjectionTests
         MenuData data = Project(assets, state, definitions);
 
         Assert.Equal(!once, data.Recipes.Any(entry => entry.NativeAbility == abilityId && entry.NativeRecipeIndex == recipeIndex));
-        Assert.Contains(definitions.Abilities[abilityId - 92].Name, data.RefinementAbilities);
+        Assert.Equal(definitions.Abilities[abilityId - 92].Name, data.RefinementAbilities[abilityId]);
     }
 
     [Fact]
@@ -149,7 +149,7 @@ public sealed class NativeRefinementProjectionTests
             state = state with { CharacterVitals = result.Vitals, Economy = result.Economy, CardInventory = result.Cards, RefinedCardIds = state.RefinedCardIds.Add(recipe.Ingredient) };
         });
         menu.Open("ability");
-        int abilityIndex = menu.Entries.ToList().FindIndex(entry => entry.Id == abilityName);
+        int abilityIndex = menu.Entries.ToList().FindIndex(entry => entry.Id == $"native-refinement-{abilityId}" && entry.Label == abilityName);
         Assert.True(abilityIndex >= 0);
         for (int index = 0; index < abilityIndex; index++)
         {
@@ -175,7 +175,7 @@ public sealed class NativeRefinementProjectionTests
         Assert.Equal(recipe.OutputCount, state.Economy!.Items.Single(stock => stock.ItemId == recipe.Output).Count);
         menu.Navigate(MenuInput.Cancel);
         Assert.Equal("ability", menu.ScreenId);
-        Assert.Contains(menu.Entries, entry => entry.Id == abilityName);
+        Assert.Contains(menu.Entries, entry => entry.Id == $"native-refinement-{abilityId}" && entry.Label == abilityName);
     }
 
     [Fact]

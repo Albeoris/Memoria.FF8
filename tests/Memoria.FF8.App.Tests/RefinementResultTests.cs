@@ -60,7 +60,9 @@ public sealed class RefinementResultTests
     public void Ability_list_gives_every_ability_its_menu_category_icon()
     {
         MenuData data = Data();
-        data.RefinementAbilities.AddRange(["T Mag-RF", "Card Mod", "Tool-RF"]);
+        data.RefinementAbilities.Add(100, "T Mag-RF");
+        data.RefinementAbilities.Add(115, "Card Mod");
+        data.RefinementAbilities.Add(112, "Tool-RF");
         MenuController menu = new(() => data);
         menu.Open("ability");
         UiList commands = Commands(menu.BuildView().Root);

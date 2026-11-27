@@ -21,8 +21,8 @@ internal sealed partial class RecreateGame
     private UiTheme CreateUiTheme(float fontSize = 16, byte backgroundAlpha = 255)
     {
         return uiPreferences.MenuPresentation == MenuPresentation.Vector
-            ? new VectorUiTheme { FontSize = fontSize, PanelBackgroundAlpha = backgroundAlpha, FontFamily = uiPreferences.UiFontFamily }
-            : new UiTheme { FontSize = fontSize, PanelBackgroundAlpha = backgroundAlpha, FontFamily = uiPreferences.UiFontFamily };
+            ? new VectorUiTheme { FontSize = fontSize, PanelBackgroundAlpha = backgroundAlpha, FontFamily = uiPreferences.UiFontFamily, ListPageLabel = FormatListPageLabel }
+            : new UiTheme { FontSize = fontSize, PanelBackgroundAlpha = backgroundAlpha, FontFamily = uiPreferences.UiFontFamily, ListPageLabel = FormatListPageLabel };
     }
     private bool previousPresentationTogglePressed;
     private UiPreferences uiPreferences = new();

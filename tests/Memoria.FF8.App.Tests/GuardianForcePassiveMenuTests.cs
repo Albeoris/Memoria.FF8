@@ -17,7 +17,7 @@ public sealed class GuardianForcePassiveMenuTests
     {
         MenuData data = new();
         data.SupportedActions.Add("gf-passive-toggle");
-        data.RefinementAbilities.Add("Refine");
+        data.RefinementAbilities.Add(97, "Refine");
         MenuGuardianForce first = new() { Id = "gf-0", Name = "First" };
         first.LearningChoices.Add(new MenuAbilityChoice("79", "Unlearned", false) { IsPassive = true });
         first.LearningChoices.Add(new MenuAbilityChoice("80", "Not passive", true));
@@ -33,7 +33,7 @@ public sealed class GuardianForcePassiveMenuTests
             owner.LearningChoices[0] = owner.LearningChoices[0] with { PassiveEnabled = !owner.LearningChoices[0].PassiveEnabled };
         });
         menu.Open("ability");
-        Assert.Equal(new[] { "gf-0-passive-12", "gf-5-passive-12", "Refine" }, menu.Entries.Select(entry => entry.Id));
+        Assert.Equal(new[] { "gf-0-passive-12", "gf-5-passive-12", "native-refinement-97" }, menu.Entries.Select(entry => entry.Id));
         menu.SelectEntry("ability", "gf-5-passive-12");
         UiList list = Assert.Single(Descendants(menu.BuildView().Root).OfType<UiList>(), element => element.Id == "commands");
         Assert.Equal(NativeAbilityMenuMetadata.Icon(79), list.Images[1]);
@@ -54,7 +54,7 @@ public sealed class GuardianForcePassiveMenuTests
         Assert.Equal(actions[0], actions[1]);
         Assert.Equal(enabled, owner.LearningChoices[0].PassiveEnabled);
         Assert.Equal(enabled, first.LearningChoices.Single(choice => choice.Id == "12").PassiveEnabled);
-        menu.SelectEntry("ability", "Refine");
+        menu.SelectEntry("ability", "native-refinement-97");
         menu.Navigate(MenuInput.Confirm);
         Assert.Equal("ability-recipes", menu.ScreenId);
         Assert.Equal(2, actions.Count);
