@@ -7,6 +7,7 @@ public sealed partial class GameSession
     private static void ValidateBattleFactsCheckpoint(GameState state)
     {
         ValidateAchievementCheckpoint(state);
+        state.LastNativeBattle?.Validate(state.AppliedBattleResultIds);
         if (state.Battle?.NativeExamTimer is { } timer && !System.Text.Json.JsonElement.DeepEquals(System.Text.Json.JsonSerializer.SerializeToElement(timer), System.Text.Json.JsonSerializer.SerializeToElement(state.ExamTimer)))
         {
             throw new InvalidDataException("Active battle and game root disagree about the canonical exam timer.");
@@ -206,7 +207,13 @@ public sealed partial class GameSession
             }
             statistics = statistics?.Complete(completedResult);
         }
-        GameState candidate = accepted with { BattleStatistics = statistics, ChocoboRewards = chocoboRewardsAfter ?? State.ChocoboRewards, KnownMagic = knownMagicAfter ?? State.KnownMagic, GlobalRandom = globalRandom, ShotAvailability = shots, LimitProgress = limitProgress, ScannedModels = scannedModelsAfter ?? State.ScannedModels, CrtRandom = crtRandom ?? State.CrtRandom, CharacterVitals = vitals.DeepCopy(), SavedBattleFlags = savedBattleFlags ?? SynchronizeSavedBattleFlags(vitals), Economy = economy.DeepCopy(), CardInventory = cards?.DeepCopy(), BattleVariables = battleVariables ?? State.BattleVariables, AppliedBattleResultIds = [.. State.AppliedBattleResultIds, encounter.OccurrenceId], PendingBattleEncounter = null };
+        byte? explorationResult = nativeResult;
+        if (achievementRewardPolicy == BattleRewardPolicy.DebugNoRewards && State.Battle is { Definition.NativeEntry: not null, DebugOutcome: BattleOutcome.Victory, Outcome: BattleOutcome.Victory } debug && debug.Definition.EncounterId == encounter.Formation)
+        {
+            explorationResult = BattleSession.ReadNativeResult(debug.Outcome);
+        }
+        NativeLastBattle? lastBattle = explorationResult is byte result ? new NativeLastBattle(encounter.OccurrenceId, checked((ushort)encounter.Formation), result) : State.LastNativeBattle;
+        GameState candidate = accepted with { BattleStatistics = statistics, LastNativeBattle = lastBattle, ChocoboRewards = chocoboRewardsAfter ?? State.ChocoboRewards, KnownMagic = knownMagicAfter ?? State.KnownMagic, GlobalRandom = globalRandom, ShotAvailability = shots, LimitProgress = limitProgress, ScannedModels = scannedModelsAfter ?? State.ScannedModels, CrtRandom = crtRandom ?? State.CrtRandom, CharacterVitals = vitals.DeepCopy(), SavedBattleFlags = savedBattleFlags ?? SynchronizeSavedBattleFlags(vitals), Economy = economy.DeepCopy(), CardInventory = cards?.DeepCopy(), BattleVariables = battleVariables ?? State.BattleVariables, AppliedBattleResultIds = [.. State.AppliedBattleResultIds, encounter.OccurrenceId], PendingBattleEncounter = null };
         ValidateNativeSavedBattleFlagsCheckpoint(candidate);
         ValidateLiveEventMemoryOwners(candidate, State.EventMemory);
         State = StageBattleAchievementObservation(candidate with { AchievementCursor = null, OriginalAchievementDrawCursor = null }, encounter.OccurrenceId, achievementOutcome, achievementFormationFlags, achievementRewardPolicy);

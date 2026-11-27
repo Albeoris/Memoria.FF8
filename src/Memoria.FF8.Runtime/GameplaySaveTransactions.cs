@@ -14,6 +14,8 @@ public sealed record GameplaySaveTransactions
     public required NativeBattleStatistics? BattleStatistics { get; init; }
     [JsonRequired]
     public required NativeBattleVariableState? BattleVariables { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeLastBattle? LastNativeBattle { get; init; }
     [JsonRequired]
     public required GameplaySaveAbandonedBattle[]? AbandonedBattles { get; init; }
     [JsonRequired]
@@ -46,6 +48,7 @@ public sealed record GameplaySaveTransactions
             AppliedBattleResults = state.AppliedBattleResultIds,
             BattleStatistics = state.BattleStatistics,
             BattleVariables = state.BattleVariables,
+            LastNativeBattle = state.LastNativeBattle,
             AbandonedBattles = state.AbandonedNativeBattles?.Select(value => new GameplaySaveAbandonedBattle(value.Encounter.OccurrenceId, value.Branch.PersistentFlags182, value.EntryClockCalls, value.ExitClockCalls, value.CombatCallbacks)).ToArray(),
             PendingDefeats = state.PendingAchievementFacts,
             PendingKillObservations = state.PendingAchievementObservations,
@@ -66,6 +69,7 @@ public sealed record GameplaySaveTransactions
             throw new InvalidDataException("Gameplay transaction receipts are malformed.");
         }
         BattleVariables?.Validate();
+        LastNativeBattle?.Validate(AppliedBattleResults);
         foreach (GameplaySaveAbandonedBattle abandoned in AbandonedBattles ?? [])
         {
             if (abandoned is null || !AppliedBattleResults.Contains(abandoned.OccurrenceId, StringComparer.Ordinal) || abandoned.EntryClockCalls < 0 || abandoned.CombatCallbacks < 0 || abandoned.ExitClockCalls != abandoned.EntryClockCalls + 4L * abandoned.CombatCallbacks)

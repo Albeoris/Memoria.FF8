@@ -5,7 +5,7 @@ namespace Memoria.FF8;
 
 internal sealed partial class WorldMapScene
 {
-    private WorldFieldSelection? SelectWorldCallback(WorldState accepted, WorldState cameraState, byte scriptMode, ref NativeWorldSalaryState salary, uint currentButtons, bool? activity = null)
+    private WorldFieldSelection? SelectWorldCallback(ref WorldState accepted, WorldState cameraState, byte scriptMode, ref NativeWorldSalaryState salary, uint currentButtons, bool? activity = null)
     {
         salary = PrepareSavedTerrainFlag(accepted, salary);
         // An already-open controls tutorial resumes even during a fresh allocation's entry hold.
@@ -32,9 +32,43 @@ internal sealed partial class WorldMapScene
         //PlayerAction is the digital input adapter; no analog controller axes are submitted.
         WorldFieldInputContext callbackInput = new(currentButtons, history.PreviousButtons, activity, -1, -1, -1, -1);
         WorldFieldSelectionInput input = new(accepted.X, accepted.Z, story, entityType);
-        WorldFieldSelection? selected = assets.WorldEvents.SelectWorldEvent(input, shape => IsNearWorldEventShape(accepted, cameraState, shape), flags, (opcode, operand) => EvaluateWorldEventPredicate(accepted, scriptMode, staged.SavedWorldEvents!, opcode, operand, callbackInput, staged.EventUi), (opcode, operand) => staged = staged.WithWorldEventCommand(opcode, operand, opcode == 0xFF1F ? PrepareWorldMessage(unchecked((sbyte)operand), unchecked((byte)(operand >> 8))) : null));
+        WorldState eventState = accepted;
+        int choiceResult = -1;
+        WorldFieldSelection? selected = assets.WorldEvents.SelectWorldEvent(input, shape => IsNearWorldEventShape(eventState, cameraState, shape), flags, EvaluatePredicate, ExecuteCommand);
+
+        bool? EvaluatePredicate(ushort opcode, ushort operand)
+        {
+            switch (opcode)
+            {
+                case 0xFF29:
+                    choiceResult = staged.EventUi?.ReadChoiceResult(operand) ?? -1;
+                    return choiceResult >= 0;
+                case 0xFF2A:
+                    return choiceResult == operand;
+                case 0xFF2F:
+                    NativeWorldForestState forest = eventState.NativeFootRuntime?.Forest ?? throw new NotSupportedException("World event random selection requires its shared foot random stream.");
+                    forest = forest.DrawRandom(assets.ForestTables.Random, out byte high);
+                    forest = forest.DrawRandom(assets.ForestTables.Random, out byte low);
+                    eventState = PublishFootForest(eventState, forest);
+                    return ((high << 8) | low) < operand;
+                default:
+                    return EvaluateWorldEventPredicate(eventState, scriptMode, staged.SavedWorldEvents!, opcode, operand, callbackInput, staged.EventUi);
+            }
+        }
+
+        void ExecuteCommand(ushort opcode, ushort operand)
+        {
+            if (opcode == 0xFF2B)
+            {
+                staged = StageWorldEventBattle(eventState, staged, operand);
+                return;
+            }
+            NativeWorldMessage? message = opcode is 0xFF1F or 0xFF23 ? PrepareWorldMessage(unchecked((sbyte)operand), opcode == 0xFF23 ? unchecked((sbyte)(operand >> 8)) : operand >> 8) : null;
+            staged = staged.WithWorldEventCommand(opcode, operand, message);
+        }
+
         byte modeAfterCommands = accepted.NativeRagnarokRuntime?.Transfer is not null ? scriptMode : staged.EventUi?.ScriptMode ?? scriptMode;
-        if (selected is null && modeAfterCommands == 0 && !entryHeld)
+        if (selected is null && staged.RandomEncounters?.Pending is null && modeAfterCommands == 0 && !entryHeld)
         {
             NativeWorldGroundCacheState cache = accepted.NativeFootRuntime?.GroundCache ?? accepted.NativeCarRuntime?.GroundCache ?? accepted.NativeGardenRuntime?.GroundCache ?? accepted.NativeRagnarokRuntime?.GroundCache ?? accepted.NativeChocoboRuntime?.GroundCache ?? throw new NotSupportedException("World terrain entry requires its accepted ground owner.");
             bool? entrance = null;
@@ -47,8 +81,9 @@ internal sealed partial class WorldMapScene
                 }
                 entrance = candidate;
             }
-            selected = assets.FieldEntries.Select(input, entrance == true ? (byte)8 : (byte)0, (opcode, operand) => EvaluateWorldEventPredicate(accepted, scriptMode, staged.SavedWorldEvents!, opcode, operand, callbackInput, staged.EventUi));
+            selected = assets.FieldEntries.Select(input, entrance == true ? (byte)8 : (byte)0, EvaluatePredicate);
         }
+        accepted = eventState;
         salary = staged;
         return selected;
     }
@@ -61,7 +96,7 @@ internal sealed partial class WorldMapScene
         }
         byte speed = session.State.InputConfiguration?.FieldMessageSpeedByte ?? throw new NotSupportedException("World text requires its saved native field-message speed; migrate the historical input configuration explicitly.");
         NativeWorldMessage binding = assets.ReadNativeWorldMessage(window, message);
-        byte[] bytes = assets.ReadWorldMessageBytes(message);
+        byte[] bytes = assets.ReadWorldChannelMessageBytes(message);
         return binding with { Text = NativeWorldTextState.Create(System.Collections.Immutable.ImmutableArray.CreateRange(bytes), assets.ReadWorldMessageSpeed(speed)) };
     }
 

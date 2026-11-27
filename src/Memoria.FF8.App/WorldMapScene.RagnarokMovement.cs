@@ -68,7 +68,7 @@ internal sealed partial class WorldMapScene
                 runtime = runtime with { BackgroundRails = CompleteBackgroundRails(mapRails, before.X, before.Z, before.NativeHeight) };
             }
             WorldState mapped = cameraState with { Frame = before.Frame + 1, NativeRagnarokRuntime = runtime };
-            fieldEntry = SelectWorldCallback(mapped, cameraState, scriptMode, ref salary, buttons, false);
+            fieldEntry = SelectWorldCallback(ref mapped, cameraState, scriptMode, ref salary, buttons, false);
             return mapped;
         }
         NativeWorldPathPosition? landingPlacement = admission.Action ? PrepareRagnarokLanding(cameraState) : null;
@@ -92,7 +92,7 @@ internal sealed partial class WorldMapScene
         graphicsSpeed = nativeGraphicsSpeed;
         //53FAC0 excludes entity50 from6519D0 movement aging and salary distance.
         movementUnits = 0;
-        fieldEntry = SelectWorldCallback(after, cameraState, scriptMode, ref salary, buttons, activity);
+        fieldEntry = SelectWorldCallback(ref after, cameraState, scriptMode, ref salary, buttons, activity);
         if (fieldEntry is null)
         {
             if (landingPlacement is not null)

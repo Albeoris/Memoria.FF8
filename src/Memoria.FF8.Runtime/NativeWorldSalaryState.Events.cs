@@ -60,17 +60,23 @@ public sealed partial record NativeWorldSalaryState
         {
             return this with { EventUi = RequireWorldEventUi().SuppressClose() };
         }
-        if (opcode == 0xFF1F)
+        if (opcode is 0xFF1F or 0xFF23)
         {
             if (decodedMessage is null || decodedMessage.WindowId != unchecked((sbyte)operand) || decodedMessage.MessageId != operand >> 8)
             {
                 throw new NotSupportedException("World message command requires its original signed window selector and unsigned message resource.");
             }
-            return this with { EventUi = RequireWorldEventUi().Show(decodedMessage) };
+            NativeWorldEventUi ui = RequireWorldEventUi();
+            return this with { EventUi = opcode == 0xFF23 ? ui.ShowChoice(decodedMessage) : ui.Show(decodedMessage) };
         }
         if (opcode == 0xFF24)
         {
             return this with { EventUi = RequireWorldEventUi().Close(operand) };
+        }
+        if (opcode == 0xFF37)
+        {
+            NativeEconomy economy = Economy ?? throw new NotSupportedException("World item rewards require the shared inventory.");
+            return this with { Economy = economy.AddItem(unchecked((sbyte)operand), operand >> 8, out _) };
         }
         NativeSavedWorldState saved = SavedWorldEvents ?? throw new NotSupportedException("Native world event commands require their actual saved-world owner.");
         NativeSavedWorldState next = opcode switch
@@ -80,6 +86,15 @@ public sealed partial record NativeWorldSalaryState
             _ => throw new NotSupportedException($"Unsupported saved-world event command{opcode:X4}.")
         };
         return this with { SavedWorldEvents = next };
+    }
+
+    public NativeWorldSalaryState AdvanceWorldEventChoice(int? selection)
+    {
+        if (EventUi?.HasPendingChoice != true || InputHistory is not { PreviousButtons: ushort prior } history)
+        {
+            return this;
+        }
+        return this with { EventUi = EventUi.AdvanceChoice(history.CurrentButtons, prior, selection) };
     }
 
     private NativeSavedWorldState? ApplySavedWorldOwners(NativeSavedWorldState? saved)

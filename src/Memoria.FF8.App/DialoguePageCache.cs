@@ -27,6 +27,10 @@ internal sealed class DialoguePageCache
     {
         if (valueIdentity)
         {
+            if (previous.Operation == WorldMapScene.NativeEventChoiceOperation && current.Operation == WorldMapScene.NativeEventChoiceOperation)
+            {
+                return previous with { InitialChoice = current.InitialChoice, CanConfirm = current.CanConfirm } == current;
+            }
             return previous == current;
         }
         // Confirmation and MESSYNC replace the dialogue record but retain the physical window.

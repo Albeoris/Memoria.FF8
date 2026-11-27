@@ -138,9 +138,9 @@ public sealed record GameplaySaveProgression
         {
             throw new InvalidDataException("Gameplay world UI requires its ordinary world scene facts.");
         }
-        if (WorldUi is { ScriptMode: 14 } && (World?.EventFlags is not { } flags || !(flags.IsKnown(0x013D) && flags.Matches(0x013D) || flags.IsKnown(0x013F) && flags.Matches(0x013F))))
+        if (WorldUi is { ScriptMode: 14, ChoiceChannels.Length: 0 } && World?.EventVariable1 is null or 0 && (World?.EventFlags is not { } flags || !HasWorldDialogueFlag(flags)))
         {
-            throw new InvalidDataException("Gameplay world tutorial requires its active saved-world flag.");
+            throw new InvalidDataException("Gameplay world dialogue mode requires its active saved-world event state.");
         }
         if (FieldContinuation is { } continuation)
         {
@@ -150,6 +150,19 @@ public sealed record GameplaySaveProgression
             }
             _ = NormalizeFieldContinuation();
         }
+    }
+
+    private static bool HasWorldDialogueFlag(NativeWorldEventFlags flags)
+    {
+        // The section36 modal close branches use flags60..63.
+        for (ushort operand = 0x013C; operand <= 0x013F; operand++)
+        {
+            if (flags.IsKnown(operand) && flags.Matches(operand))
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     public GameplaySaveProgression RestoreMissingRuntimeData()

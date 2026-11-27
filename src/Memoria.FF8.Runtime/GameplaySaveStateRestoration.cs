@@ -110,6 +110,7 @@ public static class GameplaySaveStateRestoration
             AppliedBattleResultIds = transactions.AppliedBattleResults,
             BattleStatistics = transactions.BattleStatistics,
             BattleVariables = transactions.BattleVariables,
+            LastNativeBattle = transactions.LastNativeBattle,
             PendingAchievementFacts = transactions.PendingDefeats,
             PendingAchievementObservations = transactions.PendingKillObservations,
             PendingOriginalAchievementObservations = transactions.PendingOriginalObservations,

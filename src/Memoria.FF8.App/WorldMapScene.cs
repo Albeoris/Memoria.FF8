@@ -398,6 +398,12 @@ internal sealed partial class WorldMapScene : IDisposable
         {
             throw new ArgumentOutOfRangeException(nameof(action), "Native world station choices use visible lines1 and2.");
         }
+        bool eventChoice = action.Kind == PlayerActionKind.Choose && State.EventUi?.CanAcceptChoice == true;
+        if (eventChoice && action.Value is not (1 or 2))
+        {
+            throw new ArgumentOutOfRangeException(nameof(action), "World event choices use visible lines 1 and 2.");
+        }
+        int choiceButtons = State.EventUi?.HasPendingChoice == true ? 0x50D0 : 0;
         bool worldMessageConfirm = sourceDialogue is { CanConfirm: true, FirstChoice: null } && action.Kind == PlayerActionKind.Confirm;
         bool ragnarokCar = State.NativeFootRuntime is not null && State.NativeRagnarokRuntime?.Allocation.SavedCarIndex >= 0;
         bool gardenCar = State.NativeFootRuntime is not null && State.NativeGardenRuntime?.Allocation.SavedCarIndex >= 0;
@@ -408,7 +414,7 @@ internal sealed partial class WorldMapScene : IDisposable
         bool carButtons = (State.NativeCarRuntime is not null || State.NativeFootRuntime?.ParkedCar is not null || stationCar || gardenCar || ragnarokCar) && action.Kind == PlayerActionKind.WorldButtons;
         bool gardenButtons = State.NativeGardenRuntime is not null && State.NativeFootRuntime is null && action.Kind == PlayerActionKind.WorldButtons;
         bool vehicleButtons = ragnarokButtons || carButtons || gardenButtons;
-        if (action.WorldButtons != 0 && (action.Kind is not (PlayerActionKind.Move or PlayerActionKind.Wait or PlayerActionKind.WorldButtons) || (action.WorldButtons & ~(worldConfirm ? 0x142 : 0x102)) != 0))
+        if (action.WorldButtons != 0 && (action.Kind is not (PlayerActionKind.Move or PlayerActionKind.Wait or PlayerActionKind.WorldButtons) || (action.WorldButtons & ~(choiceButtons | (worldConfirm ? 0x142 : 0x102))) != 0))
         {
             throw new ArgumentException("Ordinary world button levels support camera and map display controls on Move or Wait actions.", nameof(action));
         }
@@ -424,7 +430,7 @@ internal sealed partial class WorldMapScene : IDisposable
         {
             throw new NotSupportedException("Ragnarok Move adapts only digital throttle/steering; submit WorldButtons for exact ordinary vertical controls.");
         }
-        bool accepted = action.Kind is PlayerActionKind.Move or PlayerActionKind.Wait || stationChoice || drawChoice || transportConfirm || vehicleButtons || worldMessageConfirm;
+        bool accepted = action.Kind is PlayerActionKind.Move or PlayerActionKind.Wait || stationChoice || drawChoice || eventChoice || transportConfirm || vehicleButtons || worldMessageConfirm;
         int advanced = 0;
         WorldState candidate = State;
         FullMapMarkers? candidateMapMarkers = fullMapMarkers;
@@ -452,7 +458,7 @@ internal sealed partial class WorldMapScene : IDisposable
                 int priorGraphics = salary.VibrationProcess?.GraphicsSpeed20409F0 ?? throw new NotSupportedException("Native world movement requires its canonical retained graphics magnitude.");
                 bool gardenFootAtCallback = candidate.NativeGardenRuntime is not null && candidate.NativeFootRuntime is not null;
                 bool ragnarokFootAtCallback = candidate.NativeRagnarokRuntime is not null && candidate.NativeFootRuntime is not null;
-                uint buttons = vehicleButtons ? unchecked((uint)action.Value) : (transportConfirm || worldMessageConfirm || drawChoice) && index == 0 ? 0x40u : 0;
+                uint buttons = vehicleButtons ? unchecked((uint)action.Value) : (transportConfirm || worldMessageConfirm || drawChoice || eventChoice) && index == 0 ? 0x40u : 0;
                 buttons |= action.WorldButtons;
                 if (action.Kind == PlayerActionKind.Move)
                 {
@@ -532,7 +538,7 @@ internal sealed partial class WorldMapScene : IDisposable
                     }
                     if (candidate.DrawPoint is null)
                     {
-                        fieldEntry = SelectWorldCallback(candidate, callbackStart, scriptMode, ref salary, buttons, activity) ?? fieldEntry;
+                        fieldEntry = SelectWorldCallback(ref candidate, callbackStart, scriptMode, ref salary, buttons, activity) ?? fieldEntry;
                     }
                     else
                     {
@@ -622,9 +628,10 @@ internal sealed partial class WorldMapScene : IDisposable
                 }
                 //53FAC0 calls49A970 after ordinary body update; its already-requested departure fade returns before that call.
                 salary = salary.Advance(salaryResult, effects.Presentation?.Advance(advanceUi ? 2 : 0), effects.SoundProcess, movementUnits, advanceUi ? 2 : 0);
+                salary = salary.AdvanceWorldEventChoice(eventChoice && index == 0 ? action.Value : null);
                 salaryRequests.AddRange(effects.Requests);
                 advanced++;
-                if (!drawActive && candidate.DrawPoint is null && mapScriptMode != 12 && fieldEntry is null && ProcessRandomEncounters is not null && candidate.NativeChocoboRuntime is null && (candidate.NativeRagnarokRuntime is null || ragnarokFootAtCallback) && (candidate.NativeGardenRuntime is null || gardenFootAtCallback))
+                if (!drawActive && candidate.DrawPoint is null && mapScriptMode != 12 && fieldEntry is null && salary.RandomEncounters?.Pending is null && ProcessRandomEncounters is not null && candidate.NativeChocoboRuntime is null && (candidate.NativeRagnarokRuntime is null || ragnarokFootAtCallback) && (candidate.NativeGardenRuntime is null || gardenFootAtCallback))
                 {
                     var encounterResult = ProcessRandomEncounters(candidate, encounterMovementMagnitude, salary.RandomEncounters);
                     candidate = encounterResult.World;

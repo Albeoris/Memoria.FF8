@@ -983,7 +983,25 @@ internal sealed partial class RecreateGame : GamePresentationHost
                 presentedDialogue = dialogue;
                 selectedChoice = dialogue?.InitialChoice ?? 0;
             }
-            if (dialogue is { FirstChoice: not null, LastChoice: not null })
+            if (dialogue is { Operation: WorldMapScene.NativeEventChoiceOperation })
+            {
+                int choice = dialogue.InitialChoice ?? throw new InvalidDataException("Native world choice has no selected row.");
+                PlayerAction? action = input.Confirm && dialogue.CanConfirm ? new PlayerAction(PlayerActionKind.Choose, choice) : null;
+                if (action is null && world.WorldScene?.State.EventUi?.HasPendingChoice == true)
+                {
+                    ushort buttons = input.Confirm ? (ushort)0x40 : input.Cancel ? (ushort)0x10 : input.MenuVertical < 0 ? (ushort)0x1000 : input.MenuVertical > 0 ? (ushort)0x4000 : (ushort)0;
+                    if (buttons != 0)
+                    {
+                        action = new PlayerAction(PlayerActionKind.Wait, WorldButtons: buttons);
+                    }
+                }
+                if (action is not null)
+                {
+                    metrics.Simulate(world.Apply(action).FramesAdvanced);
+                    return;
+                }
+            }
+            else if (dialogue is { FirstChoice: not null, LastChoice: not null })
             {
                 if (DialoguePresentation.ResolveInput(dialogue, input, ref selectedChoice, enteredName) is PlayerAction action && !AdvanceDialoguePages())
                 {

@@ -126,7 +126,7 @@ internal sealed partial class WorldMapScene
             garden = garden with { BackgroundRails = CompleteBackgroundRails(completedRails, after.X, after.Z, after.NativeHeight) };
         }
         after = after with { NativeGardenRuntime = garden };
-        fieldEntry = SelectWorldCallback(after, cameraState, scriptMode, ref salary, buttons, admission.Action ? true : null);
+        fieldEntry = SelectWorldCallback(ref after, cameraState, scriptMode, ref salary, buttons, admission.Action ? true : null);
         if (fieldEntry is null && scriptMode == 0)
         {
             after = StepGardenCactuar(after, ref salary);

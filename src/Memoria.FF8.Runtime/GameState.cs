@@ -86,6 +86,8 @@ public sealed record GameState
     public NativeBattleVariableState? BattleVariables { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleStatistics? BattleStatistics { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeLastBattle? LastNativeBattle { get; init; }
     public int Version { get; init; } = 1;
     public SceneKind Scene { get; init; } = SceneKind.Title;
     public int FieldId { get; init; } = 74;

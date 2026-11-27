@@ -22,7 +22,7 @@ internal sealed partial class WorldMapScene
             NativeWorldTextState? text = null;
             if (message.Text is { } progress)
             {
-                byte[] bytes = message.FuelRemaining is byte remaining ? assets.ReadFuelMessageBytes(remaining) : message.WindowId == 1 && message.MessageId == 43 ? assets.ReadFuelMessageBytes(0) : assets.ReadWorldMessageBytes(message.MessageId);
+                byte[] bytes = message.FuelRemaining is byte remaining ? assets.ReadFuelMessageBytes(remaining) : message.WindowId == 1 && message.MessageId == 43 ? assets.ReadFuelMessageBytes(0) : assets.ReadWorldChannelMessageBytes(message.MessageId);
                 text = new(ImmutableArray.CreateRange(bytes), progress.Position, progress.Speed, progress.Accumulator, progress.Openness, progress.Phase, progress.PauseTicks, progress.PageCounter, progress.Complete);
                 text.Validate();
             }
@@ -33,7 +33,9 @@ internal sealed partial class WorldMapScene
             AliasedWindows = saved.AliasedWindows.Select(RestoreMessage).ToImmutableArray(),
             ClosingChannels = saved.ClosingChannels.ToImmutableArray(),
             RetainedChannelReadiness = saved.RetainedChannelReadiness.ToImmutableArray(),
-            PageInputChannel = saved.PageInputChannel
+            PageInputChannel = saved.PageInputChannel,
+            ChoiceChannels = saved.ChoiceChannels.ToImmutableArray(),
+            ChoiceInputChannel = saved.ChoiceInputChannel
         };
         ui.Validate();
         NativeWorldProcess process = session.State.WorldProcess ?? throw new NotSupportedException("Gameplay world UI requires its initialized process.");

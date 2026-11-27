@@ -179,12 +179,9 @@ internal sealed partial class WorldMapScene
                 return (state.NativeRagnarokRuntime?.Transfer is not null ? scriptMode : eventUi?.ScriptMode ?? scriptMode) == operand;
             case 0xFF2C:
                 return eventUi?.MatchesTextComplete(unchecked((sbyte)operand), unchecked((byte)(operand >> 8)));
-            case 0xFF29:
-                if (CurrentDialogue is null)
-                {
-                    return false;
-                }
-                throw new NotSupportedException("World event FF29 requires its actual active window result owner.");
+            case 0xFF34:
+            case 0xFF35:
+                return ReadWorldEventBattlePredicate(opcode, operand);
             case 0xFF2D:
             case 0xFF30:
             case 0xFF31:
@@ -197,6 +194,7 @@ internal sealed partial class WorldMapScene
             case 0xFF38:
                 int? acceptedMagnitude = state.NativeFootRuntime is { } movementFoot ? movementFoot.MovementMagnitude20409F4 : state.NativeCarRuntime is { } movementCar ? movementCar.MovementMagnitude20409F4 : WorldEventGardenObjects(state)?.MovementMagnitude20409F4;
                 return acceptedMagnitude is int magnitude ? operand == (magnitude != 0 ? 1 : 0) : null;
+            case 0xFF22:
             case 0xFF32:
             case 0xFF33:
                 NativeWorldGroundCacheState cache = state.NativeFootRuntime?.GroundCache ?? state.NativeCarRuntime?.GroundCache ?? state.NativeTrainRuntime?.GroundCache ?? state.NativeGardenRuntime?.GroundCache ?? state.NativeRagnarokRuntime?.GroundCache ?? state.NativeChocoboRuntime?.GroundCache ?? throw new NotSupportedException($"World event {opcode:X4} requires the executed accepted-ground owner.");
@@ -204,8 +202,13 @@ internal sealed partial class WorldMapScene
                 foreach (NativeWorldGroundAlternative alternative in cache.Alternatives)
                 {
                     WorldTriangle ground = assets.ResolveNativeGroundIdentity(alternative.CurrentGround, replacements);
-                    //546100 compares FF32 as a WORD and FF33 as its low unsigned BYTE.
-                    bool candidate = opcode == 0xFF32 ? operand != ((ground.TextureFlags & 8) == 0 ? 1 : 0) : unchecked((byte)operand) == ground.GroundType;
+                    // 546100 compares the accepted block's polygon index and the texture test as WORDs, and the ground type as a BYTE.
+                    bool candidate = opcode switch
+                    {
+                        0xFF22 => operand == alternative.CurrentGround.PolygonIndex,
+                        0xFF32 => operand != ((ground.TextureFlags & 8) == 0 ? 1 : 0),
+                        _ => unchecked((byte)operand) == ground.GroundType
+                    };
                     if (passed is bool prior && prior != candidate)
                     {
                         throw new NotSupportedException($"World event {opcode:X4} differs across retained accepted ground alternatives.");

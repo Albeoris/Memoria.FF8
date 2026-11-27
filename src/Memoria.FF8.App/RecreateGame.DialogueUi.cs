@@ -101,7 +101,14 @@ internal sealed partial class RecreateGame
         {
             var presentation = GetDialoguePages(dialogue);
             presentation.Pager.UpdateReveal(elapsed, presentation.Pages[presentation.Pager.PageIndex], uiPreferences.FieldMessageSpeed, instant: dialogue.IsNamePrompt);
-            if (!dialogue.CanConfirm && dialogue.NativeWindow is not { Delta: < 0 })
+            if (session.State.Scene == SceneKind.WorldMap && dialogue.Operation == WorldMapScene.NativeEventChoiceOperation)
+            {
+                if (dialogue.CanConfirm)
+                {
+                    presentation.Pager.RevealCurrentPage(presentation.Pages[presentation.Pager.PageIndex]);
+                }
+            }
+            else if (!dialogue.CanConfirm && dialogue.NativeWindow is not { Delta: < 0 })
             {
                 presentation.Pager.UpdatePopup(elapsed, presentation.Pages, DialoguePager.CharactersPerSecond(uiPreferences.FieldMessageSpeed));
             }
@@ -209,14 +216,16 @@ internal sealed partial class RecreateGame
             position.Y += lineHeight * page.SpeakerScale + DialogueLayout.SpeakerGap * scale;
         }
         int remaining = presentation.Pager.VisibleCharacters;
-        int choiceLine = LocalizedChoiceLine(dialogue, DialoguePresentation.ResolveSelection(dialogue, selectedChoice));
+        bool nativeWorldChoice = session.State.Scene == SceneKind.WorldMap && dialogue.Operation == WorldMapScene.NativeEventChoiceOperation;
+        int choice = nativeWorldChoice ? dialogue.InitialChoice ?? 0 : selectedChoice;
+        int choiceLine = LocalizedChoiceLine(dialogue, DialoguePresentation.ResolveSelection(dialogue, choice));
         if (authoringDraftPreview is not null && IsEditingAuthoringOccurrence(dialogue) && localizationWorkbench.Session?.Mode == Localization.Authoring.LocalizationSessionMode.Preview)
         {
             choiceLine = AuthoringPreviewChoiceLine(page, localizationWorkbench.PreviewChoice, choiceLine);
         }
         foreach (var line in page.Lines)
         {
-            if (line.IsChoice && line.SourceLineIndex == choiceLine)
+            if (line.IsChoice && line.SourceLineIndex == choiceLine && (!nativeWorldChoice || dialogue.CanConfirm))
             {
                 uiCanvas!.MenuPointer(new UiRect(position.X, position.Y, DialogueLayout.ChoiceIndent(lineHeight) - DialogueLayout.ChoicePointerGap, lineHeight));
             }

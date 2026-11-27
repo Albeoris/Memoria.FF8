@@ -5,6 +5,8 @@ namespace Memoria.FF8;
 
 internal sealed partial class WorldMapScene
 {
+    internal const int NativeEventChoiceOperation = 0x5438D0;
+
     private static int TrainStation(NativeTrainRailBank bank)
     {
         //548BF0 tests the physical status, stop counter and signed direction independently.
@@ -33,17 +35,21 @@ internal sealed partial class WorldMapScene
             {
                 return DrawPointDialogue(drawPoint);
             }
-            if ((State.EventUi?.FocusedPageMessage ?? State.EventUi?.Windows.LastOrDefault()) is { } nativeMessage)
+            if ((State.EventUi?.FocusedChoiceMessage ?? State.EventUi?.FocusedPageMessage ?? State.EventUi?.Windows.LastOrDefault()) is { } nativeMessage)
             {
                 NativeWorldMessage prepared = nativeMessage.FuelRemaining is byte remaining ? assets.ReadNativeFuelMessage(remaining) : assets.ReadNativeWorldMessage(nativeMessage.WindowId, nativeMessage.MessageId);
                 bool emptyFuel = nativeMessage.WindowId == 1 && nativeMessage.MessageId == 43;
-                byte[] source = nativeMessage.FuelRemaining is byte fuel ? assets.ReadFuelMessageBytes(fuel) : emptyFuel ? assets.ReadFuelMessageBytes(0) : assets.ReadWorldMessageBytes(nativeMessage.MessageId);
+                byte[] source = nativeMessage.FuelRemaining is byte fuel ? assets.ReadFuelMessageBytes(fuel) : emptyFuel ? assets.ReadFuelMessageBytes(0) : assets.ReadWorldChannelMessageBytes(nativeMessage.MessageId);
                 if (prepared != (nativeMessage with { TextComplete = false, Text = null }) || nativeMessage.Text is { } text && !text.Bytes.AsSpan().SequenceEqual(source))
                 {
                     throw new InvalidDataException("The saved world message differs from its installed source.");
                 }
                 // Confirm supplies a real digital pulse to authored world-event predicates; it does not assert native text completion or close the window itself.
-                string messageText = nativeMessage.Text is { HasPages: true } pages ? assets.ReadWorldMessagePage(pages) : nativeMessage.FuelRemaining is byte count ? assets.ReadFuelMessage(count) : emptyFuel ? assets.ReadFuelMessage(0) : assets.ReadWorldMessage(nativeMessage.MessageId);
+                string messageText = nativeMessage.Text is { } textState ? assets.ReadWorldMessagePage(textState) : nativeMessage.FuelRemaining is byte count ? assets.ReadFuelMessage(count) : emptyFuel ? assets.ReadFuelMessage(0) : assets.ReadWorldMessage(nativeMessage.MessageId);
+                if (State.EventUi?.FocusedChoice is { } choice && choice.Channel == nativeMessage.Channel)
+                {
+                    return new DialogueState(nativeMessage.Channel, nativeMessage.MessageId, messageText, nativeMessage.X, nativeMessage.Y, 1, 2, choice.Selection, 2, Operation: NativeEventChoiceOperation, CanConfirm: State.EventUi.CanAcceptChoice);
+                }
                 return new DialogueState(nativeMessage.Channel, nativeMessage.MessageId, messageText, nativeMessage.X, nativeMessage.Y, Operation: 0x543790);
             }
             if (State.NativeTrainRuntime is not { Primary.Pause: -1 } train)

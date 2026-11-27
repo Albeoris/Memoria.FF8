@@ -138,7 +138,7 @@ internal sealed partial class WorldMapScene
         int quantity = basis * (roll + 128) / 512 + 1 + session.State.GameplayPreferences.Tuning.DrawBonus;
         NativeWorldDrawPointPhase phase = DrawPointParty(point).Any(member => member.CanDraw) ? NativeWorldDrawPointPhase.Found : NativeWorldDrawPointPhase.NoDraw;
         PrepareWorldDrawPointSound(false, ref salary, sounds);
-        return PublishDrawPointForest(state with { DrawPoint = point with { Phase = phase, Quantity = quantity } }, forest);
+        return PublishFootForest(state with { DrawPoint = point with { Phase = phase, Quantity = quantity } }, forest);
     }
 
     private WorldState AdvanceWorldDrawPoint(WorldState state, PlayerAction action, ref NativeWorldSalaryState salary, List<GlobalSoundRequest> sounds)
@@ -185,7 +185,7 @@ internal sealed partial class WorldMapScene
                 forest = forest.DrawRandom(assets.ForestTables.Random, out _);
             }
             PrepareWorldDrawPointSound(true, ref salary, sounds);
-            return PublishDrawPointForest(state with { DrawPoint = point }, forest);
+            return PublishFootForest(state with { DrawPoint = point }, forest);
         }
         if (salary.InputHistory is not { CurrentButtons: var current, PreviousButtons: ushort prior } || ((current & ~prior) & 0x40) == 0)
         {
@@ -203,7 +203,7 @@ internal sealed partial class WorldMapScene
         sounds.Add(prepared.Request);
     }
 
-    private static WorldState PublishDrawPointForest(WorldState state, NativeWorldForestState forest)
+    private static WorldState PublishFootForest(WorldState state, NativeWorldForestState forest)
     {
         return state with
         {

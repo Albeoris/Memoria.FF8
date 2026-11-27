@@ -10,6 +10,7 @@ public sealed partial class WorldAssets
 {
     private readonly Dictionary<(int Window, int Message), NativeWorldMessage> worldMessageBindings = [];
     private readonly Dictionary<byte, byte[]> fuelMessageBytes = [];
+    private readonly Dictionary<int, (long Generation, byte[] Bytes)> worldChannelMessageBytes = [];
 
     public NativeWorldMessage ReadNativeFuelMessage(byte remaining)
     {
@@ -24,7 +25,7 @@ public sealed partial class WorldAssets
         }
         if (remaining == 0)
         {
-            byte[] empty = ExpandWorldItemNames(ReadWorldMessageBytes(43));
+            byte[] empty = ReadWorldChannelMessageBytes(43);
             fuelMessageBytes.Add(0, empty);
             return empty.ToArray();
         }
@@ -76,7 +77,7 @@ public sealed partial class WorldAssets
             throw new InvalidDataException("Fuel message template has no bounded terminator.");
         }
         result.Add(0);
-        byte[] bytes = ExpandWorldItemNames(result.ToArray());
+        byte[] bytes = ExpandWorldText(result.ToArray());
         fuelMessageBytes.Add(remaining, bytes);
         return bytes.ToArray();
     }
@@ -87,28 +88,70 @@ public sealed partial class WorldAssets
         return NativeTextEncoding.Create(resources.Source.Language).GetString(bytes.AsSpan(0, bytes.Length - 1));
     }
 
-    private byte[] ExpandWorldItemNames(byte[] source)
+    public byte[] ReadWorldChannelMessageBytes(int message)
     {
-        if (!source.Contains((byte)13))
+        long generation = resources.Generation;
+        if (!worldChannelMessageBytes.TryGetValue(message, out var cached) || cached.Generation != generation)
         {
-            return source;
+            cached = (generation, ExpandWorldText(ReadWorldMessageBytes(message)));
+            worldChannelMessageBytes[message] = cached;
         }
-        byte[] kernel = resources.Read(new ResourceKey("main/kernel.bin"));
+        return cached.Bytes.ToArray();
+    }
+
+    private byte[] ExpandWorldText(byte[] source)
+    {
+        byte[]? dictionary = null;
+        byte[]? kernel = null;
         List<byte> result = [];
         for (int position = 0; position < source.Length; position++)
         {
             byte token = source[position];
-            if (token != 13)
+            if (token is < 3 or > 15)
             {
                 result.Add(token);
                 continue;
             }
-            //4B8B30 expands item tokens before measurement and the channel text runner.
-            if (++position >= source.Length - 1 || source[position] < 32)
+            if (++position >= source.Length)
+            {
+                throw new InvalidDataException("World text control is missing its parameter.");
+            }
+            byte parameter = source[position];
+            // 4B8B30 expands terms and item names before window measurement and text reveal.
+            if (token is 14 or 15)
+            {
+                dictionary ??= resources.Read(new ResourceKey("main/namedic.bin"));
+                int index = unchecked((byte)(parameter - 32)) + 224 * (token - 14);
+                int count = BinaryPrimitives.ReadUInt16LittleEndian(dictionary);
+                if (index < count)
+                {
+                    int header = 2 + count * 2;
+                    if (dictionary.Length < header)
+                    {
+                        throw new InvalidDataException("World text dictionary has an incomplete offset table.");
+                    }
+                    int offset = BinaryPrimitives.ReadUInt16LittleEndian(dictionary.AsSpan(2 + index * 2));
+                    int end = offset >= header && offset < dictionary.Length ? Array.IndexOf(dictionary, (byte)0, offset) : -1;
+                    if (end < 0)
+                    {
+                        throw new InvalidDataException("World term is outside its original text dictionary.");
+                    }
+                    result.AddRange(dictionary.AsSpan(offset, end - offset));
+                }
+                continue;
+            }
+            if (token != 13)
+            {
+                result.Add(token);
+                result.Add(parameter);
+                continue;
+            }
+            if (parameter < 32)
             {
                 throw new InvalidDataException("World item substitution requires its unsigned item selector.");
             }
-            int item = source[position] - 32;
+            kernel ??= resources.Read(new ResourceKey("main/kernel.bin"));
+            int item = parameter - 32;
             int recordSection = item < 33 ? 7 : 8;
             int textSection = item < 33 ? 38 : 39;
             int recordSize = item < 33 ? 24 : 4;
