@@ -14,7 +14,7 @@ internal sealed partial class RecreateGame
     private Task<(string Path, MovieInformation Information, MovieSubtitleTrack? Subtitles)>? startupMovieSource;
     private Task<NativeStartupArtwork>? startupArtwork;
     private readonly Dictionary<int, Texture2D> startupTextures = [];
-    private string? startupArtworkFingerprint;
+    private long? startupArtworkGeneration;
     private bool startupMusicStarted;
     private bool startupFaulted;
     private BlendState? startupSubtract;
@@ -95,15 +95,15 @@ internal sealed partial class RecreateGame
             {
                 return true;
             }
-            string? artworkFingerprint = resourceHost?.Resources.Localization.ArtworkFingerprint;
-            if (startupArtworkFingerprint != artworkFingerprint)
+            long? artworkGeneration = resourceHost?.Resources.CatalogGeneration;
+            if (startupArtworkGeneration != artworkGeneration)
             {
                 foreach (Texture2D texture in startupTextures.Values)
                 {
                     texture.Dispose();
                 }
                 startupTextures.Clear();
-                startupArtworkFingerprint = artworkFingerprint;
+                startupArtworkGeneration = artworkGeneration;
             }
             NativeStartupCreditsFrame frame = startup.Stage == StartupStage.SquareLogo ? NativeStartupCredits.SampleSquare(startup.Elapsed) : NativeStartupCredits.SampleCredits(startup.Elapsed, startup.Policy.SkipCreditsPause);
             if (frame.Finished)
@@ -125,7 +125,7 @@ internal sealed partial class RecreateGame
             {
                 PixelImage image = startupArtwork.GetAwaiter().GetResult().Read(frame.ResourceIndex);
                 Texture2D texture = new(GraphicsDevice, image.Width, image.Height);
-                texture.SetData(image.Pixels.Select(color => new Color(color.R, color.G, color.B, color.A)).ToArray());
+                texture.SetData(image.Pixels.Select(color => Color.FromNonPremultiplied(color.R, color.G, color.B, color.A)).ToArray());
                 startupTextures.Add(frame.ResourceIndex, texture);
             }
             if (startup.Stage == StartupStage.Credits && !startupMusicStarted)
@@ -163,7 +163,8 @@ internal sealed partial class RecreateGame
         }
         PixelBounds fit = ViewportLayout.Fit(640, 480, bounds.Width, bounds.Height);
         Rectangle target = new(bounds.X + fit.X, bounds.Y + fit.Y + fit.Height / 12, fit.Width, fit.Height * 5 / 6);
-        batch.Draw(texture, target, Color.White);
+        PixelBounds artwork = NativeStartupArtwork.PictureBounds(frame.ResourceIndex, texture.Width, texture.Height, target.Width, target.Height);
+        batch.Draw(texture, new Rectangle(target.X + artwork.X, target.Y + artwork.Y, artwork.Width, artwork.Height), Color.White);
         // Native5302C0 adds white (mode1) or subtracts intensity (mode2) per color channel.
         startupSubtract ??= new BlendState { ColorBlendFunction = BlendFunction.ReverseSubtract, ColorSourceBlend = Blend.One, ColorDestinationBlend = Blend.One, AlphaSourceBlend = Blend.Zero, AlphaDestinationBlend = Blend.One };
         batch.End();
