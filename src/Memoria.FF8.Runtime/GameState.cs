@@ -31,6 +31,9 @@ public sealed record GameState
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public GameplaySaveAudioPresentation? AudioPresentation { get; init; }
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public SceneClockSnapshot? SceneClock { get; init; }
+
     public int SnapshotSchemaVersion { get; init; } = CurrentSnapshotSchemaVersion;
 
     [JsonIgnore]

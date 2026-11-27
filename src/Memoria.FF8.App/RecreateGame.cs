@@ -241,6 +241,10 @@ internal sealed partial class RecreateGame : GamePresentationHost
             return;
         }
         autoPlayAdvancedThisFrame = false;
+        if (!userPaused)
+        {
+            world?.AdvanceSceneLighting(gameTime.ElapsedGameTime, battleEntryTransition is not null);
+        }
         if (battleEntryTransition is not null)
         {
             UpdateBattleEntry(gameTime);

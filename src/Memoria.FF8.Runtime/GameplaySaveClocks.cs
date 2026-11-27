@@ -4,13 +4,24 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record GameplaySaveSeeD([property: JsonRequired] ushort RankPoints, [property: JsonRequired] bool? SalaryUiEnabled, [property: JsonRequired] uint SalaryMovement, [property: JsonRequired] ushort KillBaseline, [property: JsonRequired] ushort SalaryDisplayCountdown, [property: JsonRequired] ushort PreviousRank, [property: JsonRequired] byte TestLevel);
 
+public sealed record GameplaySaveSceneClock([property: JsonRequired] double Seconds, [property: JsonRequired] bool Paused)
+{
+    internal SceneClockSnapshot Restore() => new(Seconds, Paused);
+}
+
 /// <summary>Accumulated time, correlated timer alternatives and random/movement history without installed salary tables.</summary>
 public sealed record GameplaySaveClocks([property: JsonRequired] NativeExamTimerState? ExamTimer, [property: JsonRequired] NativePlaytimeState? Playtime, [property: JsonRequired] NativeEventRandomState? EventRandom, [property: JsonRequired] NativeCrtRandomState? CrtRandom, [property: JsonRequired] NativeMenuRandomState? MenuRandom, [property: JsonRequired] NativeGlobalRandomState? GlobalRandom, [property: JsonRequired] GameplaySaveSeeD? SeeD)
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public GameplaySaveSceneClock? SceneClock { get; init; }
+
     internal static GameplaySaveClocks Capture(GameState state)
     {
         state.SeeD?.Validate();
-        return new(state.ExamTimer, state.Playtime, state.EventRandom, state.CrtRandom, state.MenuRandom, state.GlobalRandom, state.SeeD is { } seed ? new(seed.RankPoints, seed.SalaryUiEnabled, seed.SalaryMovementCounter, seed.KillBaseline18, seed.SalaryDisplayCountdown184, seed.PreviousRank186, seed.TestLevel) : null);
+        return new(state.ExamTimer, state.Playtime, state.EventRandom, state.CrtRandom, state.MenuRandom, state.GlobalRandom, state.SeeD is { } seed ? new(seed.RankPoints, seed.SalaryUiEnabled, seed.SalaryMovementCounter, seed.KillBaseline18, seed.SalaryDisplayCountdown184, seed.PreviousRank186, seed.TestLevel) : null)
+        {
+            SceneClock = state.SceneClock is { } sceneClock ? new(sceneClock.Seconds, sceneClock.Paused) : null
+        };
     }
 
     public void Validate()
@@ -19,5 +30,6 @@ public sealed record GameplaySaveClocks([property: JsonRequired] NativeExamTimer
         Playtime?.Validate();
         EventRandom?.Validate();
         MenuRandom?.Validate();
+        SceneClock?.Restore().Validate();
     }
 }

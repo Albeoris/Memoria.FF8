@@ -15,6 +15,7 @@ public sealed partial class GameSession
     private static void ValidateNativePlaytime(GameState state)
     {
         state.Playtime?.Validate();
+        state.SceneClock?.Validate();
         if (state.Playtime is { } playtime && (state.ExamTimer is null || playtime.ClockCalls != state.ExamTimer.ClockCalls))
         {
             throw new InvalidDataException("Native playtime and exam timer disagree about admitted4701B0 calls.");

@@ -99,6 +99,7 @@ public static class GameplaySaveStateRestoration
             DialogueDraft = rules.DialogueChoice,
             ExamTimer = timer,
             Playtime = clocks.Playtime,
+            SceneClock = clocks.SceneClock?.Restore(),
             EventRandom = clocks.EventRandom,
             CrtRandom = clocks.CrtRandom,
             MenuRandom = clocks.MenuRandom,

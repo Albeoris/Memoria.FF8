@@ -238,6 +238,7 @@ internal sealed partial class GameWorld : IDisposable
     private GameState PrepareSnapshot(GameState state)
     {
         Events.RequireClosedAbilityShop();
+        state = PrepareSceneLightingSnapshot(state);
         if (diagnosticBattle is not null)
         {
             throw new NotSupportedException("Diagnostic battle lifecycle persistence is unsupported; retain the declared recipe and restart a fresh process instead.");
