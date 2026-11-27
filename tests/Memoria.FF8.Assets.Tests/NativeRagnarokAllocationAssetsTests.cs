@@ -106,6 +106,30 @@ public sealed class NativeRagnarokAllocationAssetsTests
     }
 
     [Theory]
+    [InlineData(3900)]
+    [InlineData(12000)]
+    [InlineData(13000)]
+    public void SavingParkedRagnarokPreservesTheGardenPoseWhenNoGardenWasAllocated(ushort story)
+    {
+        using WorldAssets assets = new(GameDirectory);
+        using GameAssets game = new(GameDirectory);
+        NativeRagnarokWorldAllocation allocation = Read(assets, game, story, 0, 0);
+        Assert.DoesNotContain(allocation.Objects, item => item.ShapeId == 64);
+        NativeRagnarokWorldRuntimeState runtime = NativeRagnarokWorldRuntimeState.CreateAfterLoader(allocation, 0, 0) with
+        {
+            GroundCache = NativeWorldGroundCacheState.CreateFresh(new(0, 0, 0, 0)),
+            ProjectionCamera = new(0, 0, 0, 0, 0, -256, 0, -112, -341, -7168),
+            CurrentGroundHeight = 0,
+            PrimaryContact = -1,
+            BroadContact = -1
+        };
+        NativeSavedWorldState saved = NativeSavedWorldState.CreateNewGame() with { GardenPose3 = new(1024, -2048, -128, 128) };
+        NativeSavedWorldState parked = saved.WithRagnarokParking(runtime);
+        Assert.Equal(saved.GardenPose3, parked.GardenPose3);
+        Assert.Equal(allocation.LoadPose, parked.RagnarokPose2);
+    }
+
+    [Theory]
     [InlineData(74)]
     [InlineData(85)]
     [InlineData(87)]

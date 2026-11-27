@@ -14,8 +14,11 @@ public sealed partial record NativeSavedWorldState
         }
         //549E80 saves shape1 to its independent+24 pose2 before publishing
         //the current controlled foot0 pose and auxiliary return fields.
-        NativeRagnarokWorldObject garden = runtime.Objects.Last(item => item.ShapeId == 64);
-        NativeSavedWorldPose gardenPose = new(garden.Position.X, unchecked(-garden.Position.Z), unchecked((short)garden.Position.Y), unchecked((ushort)garden.Yaw));
+        NativeSavedWorldPose? gardenPose = GardenPose3;
+        if (runtime.Objects.LastOrDefault(item => item.ShapeId == 64) is { } garden)
+        {
+            gardenPose = new(garden.Position.X, unchecked(-garden.Position.Z), unchecked((short)garden.Position.Y), unchecked((ushort)garden.Yaw));
+        }
         NativeSavedWorldVehicleSlot car = Slot4;
         if (runtime.Allocation.SavedCarIndex >= 0)
         {
