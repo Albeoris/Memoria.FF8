@@ -30,7 +30,8 @@ public sealed partial class WorldTerrainRenderer
         }
         TriangleMaterial material = new(gpuSkyTexture, TriangleBlend.Replace, TriangleDepthComparison.Always, false, Sampler: TriangleSampler.PointClamp)
         {
-            DynamicTexture = true
+            DynamicTexture = true,
+            ColorGrade = ColorGrade
         };
         TriangleVertex a = new(Vector2.Zero, 0, 1, Vector2.Zero, Vector4.One);
         TriangleVertex b = new(new Vector2(Width, 0), 0, 1, Vector2.UnitX, Vector4.One);
@@ -40,16 +41,16 @@ public sealed partial class WorldTerrainRenderer
         renderer.Draw(c, b, d, material);
     }
 
-    private void DrawGpuTriangle(ScreenVertex a, ScreenVertex b, ScreenVertex c, PixelImage texture, bool transparent, TriangleBlend? blend = null, bool? nativeParticlePass = null)
+    private void DrawGpuTriangle(ScreenVertex a, ScreenVertex b, ScreenVertex c, PixelImage texture, bool transparent, TriangleBlend? blend = null, bool? nativeParticlePass = null, Vector3 terrainNormal = default)
     {
         static TriangleVertex Convert(ScreenVertex vertex)
         {
             return new TriangleVertex(new Vector2(vertex.X, vertex.Y), vertex.NativeOrderingReciprocal ?? vertex.ReciprocalZ, vertex.ReciprocalZ, vertex.UvOverZ / vertex.ReciprocalZ, vertex.ColorOverZ / vertex.ReciprocalZ ?? Vector4.One);
         }
-        TriangleMaterial material = TerrainMaterial(texture, transparent);
+        TriangleMaterial material = TerrainMaterial(texture, transparent) with { ColorGrade = GradeTerrain(terrainNormal) };
         if (blend is { } mode)
         {
-            material = material with { Blend = mode, DepthComparison = mode == TriangleBlend.Subtract ? TriangleDepthComparison.GreaterEqual : TriangleDepthComparison.Greater, DepthWrite = false, FogStart = 0, FogEnd = 0, AlphaMultiplier = 1 };
+            material = material with { Blend = mode, DepthComparison = mode == TriangleBlend.Subtract ? TriangleDepthComparison.GreaterEqual : TriangleDepthComparison.Greater, DepthWrite = false, FogStart = 0, FogEnd = 0, AlphaMultiplier = 1, ColorGrade = default };
         }
         if (nativeParticlePass is bool stpPass)
         {
@@ -68,6 +69,12 @@ public sealed partial class WorldTerrainRenderer
         TriangleRenderer!.Draw(Convert(a), Convert(b), Convert(c), material);
     }
 
+    private Memoria.FF8.Resources.SceneColorGrade GradeTerrain(Vector3 normal)
+    {
+        float shade = SceneSun.Multiplier(normal);
+        return shade == 1 ? ColorGrade : ColorGrade with { LinearTint = (ColorGrade.LinearTint ?? Vector3.One) * shade };
+    }
+
     private TriangleMaterial TerrainMaterial(PixelImage texture, bool transparent)
     {
         return new TriangleMaterial(texture, transparent ? TriangleBlend.Alpha : TriangleBlend.Replace, TriangleDepthComparison.Greater, !transparent, Sampler: TriangleSampler.PointClamp)
@@ -78,7 +85,8 @@ public sealed partial class WorldTerrainRenderer
             MinimumReciprocalW = 1 / far,
             FogColor = new Vector3(fog.R, fog.G, fog.B) / 255,
             FogStart = far * 0.6f,
-            FogEnd = far
+            FogEnd = far,
+            ColorGrade = ColorGrade
         };
     }
 }

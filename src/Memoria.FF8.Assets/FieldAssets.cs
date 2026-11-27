@@ -38,6 +38,7 @@ public sealed record BackgroundTile(int X, int Y, int Z, int AnimationId, int An
     public ushort PackedPalette { get; init; }
     public FieldBackgroundIndexedSource? IndexedSource { get; init; }
     public Memoria.FF8.Resources.AssetHandle<Memoria.FF8.Resources.TextureValue>? Texture { get; init; }
+    public bool PreparedColorLayer { get; init; }
     public PixelImage ResolvedImage => Texture?.Value.Image ?? Image;
 }
 

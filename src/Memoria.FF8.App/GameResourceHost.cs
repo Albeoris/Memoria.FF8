@@ -1,15 +1,17 @@
 using Memoria.FF8.Assets;
 using Memoria.FF8.Assets.Localization;
+using Memoria.FF8.Assets.Remastered;
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Mods;
 using Memoria.FF8.Platform;
 using Memoria.FF8.Resources;
 using Memoria.FF8.Resources.Localization;
+using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8;
 
 /// <summary>Application composition root. Resource consumers do not reference the mod adapters.</summary>
-internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSource
+internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSource, ISceneLightingProfileSource
 {
     private readonly IResourceSource source;
     private readonly string? resourceLanguage;
@@ -78,6 +80,8 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
     public Func<GuardianForceAbilityMods, ModCatalogSnapshot, ModPreparationResult>? PrepareGuardianForcePublication { get; set; }
     public EncounterMods EncounterMods { get; private set; } = EncounterMods.Empty;
     public Func<EncounterMods, ModCatalogSnapshot, IReadOnlyList<EncodedResource>, ModPreparationResult>? PrepareEncounterPublication { get; set; }
+    public SceneLightingProfile SceneLightingProfile { get; private set; } = SceneLightingProfile.Empty;
+    public SceneColorGradeMods SceneColorGrades { get; private set; } = SceneColorGradeMods.Empty;
     public FieldSceneMods SceneMods { get; private set; } = FieldSceneMods.Empty;
     public ModelMods ModelMods => modelPublication.Models;
     public StartupPolicy StartupPolicy { get; private set; } = StartupPolicy.Default;
@@ -375,6 +379,17 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         }
         List<ITextureReplacementResolver> resolvers = [];
         List<string> usable = [];
+        List<ModDiagnostic> sceneLightingDiagnostics = [];
+        SceneLightingProfile sceneLighting = DemasterSceneLighting.Load(catalog, sceneLightingDiagnostics, Resources.Source.Language);
+        SceneColorGradeMods sceneGrades = SceneColorGradeMods.Load(catalog, sceneLightingDiagnostics);
+        if (ReferenceEquals(sceneLighting, SceneLightingProfile.Empty) && sceneGrades.PackageIds.Count != 0)
+        {
+            sceneLighting = new SceneLightingProfile { ClockEnabled = true, GradeEnabled = true };
+        }
+        usable.AddRange(sceneGrades.PackageIds);
+        usable.AddRange(catalog.Files.Where(file => DemasterFieldLayers.IsInput(file.Format, file.RelativePath)).Select(file => file.PackageId));
+        usable.AddRange(catalog.Files.Where(file => file.Format == ModFormat.Demaster && DemasterSceneLighting.IsInput(file.RelativePath)
+            || file.Format == ModFormat.Memoria && DemasterSceneLighting.IsNativeInput(file.RelativePath)).Select(file => file.PackageId));
         usable.AddRange(subtitles.PackageIds);
         usable.AddRange(catalog.Files.Where(file => file.Format == ModFormat.Memoria && (MoviePackagePaths.IsNativeMovieVideo(file.RelativePath) || MoviePackagePaths.IsNativeMovieCamera(file.RelativePath))).Select(file => file.PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
         NativeTextureMods nativeTextures = nativePreparation.Textures;
@@ -410,6 +425,12 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         {
             usable.Add(ModRuntime.Ff7EnemyIntegrationPackageId);
         }
+        List<ModDiagnostic> shellDiagnostics = [];
+        if (ShellArtworkMods.Prepare(catalog, Resources.GetSource<RemasteredGameDataSource>(), shellDiagnostics) is { } shell)
+        {
+            resolvers.Add(shell);
+            usable.Add(shell.PackageId);
+        }
         DemasterInspection demaster = DemasterTextureResolver.Inspect(source.Descriptor, catalog, (source as SelectedModelResourceSource)?.ModelSourceDescriptor);
         if (catalog.Files.Any(file => file.Format == ModFormat.Demaster))
         {
@@ -424,7 +445,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
             usable.AddRange(ffnx.UsablePackageIds);
         }
         TonberryTextureResolver? tonberry = TonberryTextureResolver.Create(source.Descriptor, catalog, out IReadOnlyList<ModDiagnostic> tonberryDiagnostics, recognition);
-        IReadOnlyList<ModDiagnostic> diagnostics = encodedDiagnostics.Concat(statusDiagnostics).Concat(modelDiagnostics).Concat(fieldResourceDiagnostics).Concat(staticFileDiagnostics).Concat(tonberryDiagnostics).Concat(demaster.Diagnostics).Concat(ffnx.Diagnostics).Concat(nativeTextureDiagnostics).Concat(subtitleDiagnostics).Concat(guardianPublication.Diagnostics ?? []).Concat(encounterPublication.Diagnostics ?? []).ToArray();
+        IReadOnlyList<ModDiagnostic> diagnostics = encodedDiagnostics.Concat(statusDiagnostics).Concat(modelDiagnostics).Concat(fieldResourceDiagnostics).Concat(staticFileDiagnostics).Concat(tonberryDiagnostics).Concat(demaster.Diagnostics).Concat(shellDiagnostics).Concat(sceneLightingDiagnostics).Concat(ffnx.Diagnostics).Concat(nativeTextureDiagnostics).Concat(subtitleDiagnostics).Concat(guardianPublication.Diagnostics ?? []).Concat(encounterPublication.Diagnostics ?? []).ToArray();
         if (diagnostics.Any(diagnostic => diagnostic.Code == "Tonberry.MalformedRow" && Mods.Catalog.Files.Any(old => old.PackageId == diagnostic.PackageId && old.RelativePath == diagnostic.RelativePath)))
         {
             return new ModPreparationResult(false, Diagnostics: diagnostics);
@@ -505,6 +526,8 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
                 GuardianForms = guardianForms;
                 EncounterMods = encounterMods;
                 SceneMods = sceneMods;
+                SceneLightingProfile = sceneLighting;
+                SceneColorGrades = sceneGrades;
                 modelPublication = new(modelMods, springMods);
                 nativeTextureMods = nativeTextures;
                 movieSubtitles = subtitles;
@@ -521,6 +544,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
 
     public void Dispose()
     {
+        PersistGlobalSceneClock();
         candidatePreparation?.Dispose();
         modLibrary?.Dispose();
         localizationCancellation.Cancel();

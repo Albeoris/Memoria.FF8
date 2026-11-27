@@ -416,7 +416,8 @@ public sealed partial class FieldRenderer
             DepthComparison = TriangleDepthComparison.Less,
             ClipRectangle = WorldClip,
             PerspectiveDepth = !OrthographicScene,
-            FieldLighting = FieldLightingPass.Model
+            FieldLighting = FieldLightingPass.Model,
+            ColorGrade = ColorGrade
         };
         Vector4 tint = new((actor.PresentationPolygonColor ?? actor.PolygonColor!.Value) / 128, 1);
         TriangleVertex Vertex(int corner) => GpuVertex(projected[face.Vertices[corner]], face.TextureCoordinates[corner] * textureScale / new Vector2(texture.Width, texture.Height), tint * (face.VertexColors?[corner] ?? Vector4.One), perspective: !OrthographicScene) with { WorldPosition = pose.World[face.Vertices[corner]], WorldNormal = pose.Normals[faceIndex][corner] };

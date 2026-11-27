@@ -11,6 +11,9 @@ internal sealed partial class GameWorld
     private readonly Func<FieldSceneMods>? readSceneMods;
     private FieldSceneMods? appliedSceneMods;
     private FieldAssets? appliedSceneField;
+    private ModCatalogSnapshot? appliedPreparedLayerCatalog;
+    private bool hasPreparedLayers;
+    private bool preparedLayerCatalogHasEntries;
     private FieldAssets? presentationField;
     private readonly Dictionary<BackgroundTile, (bool Visible, string Package)> modBackgrounds = [];
     private readonly Dictionary<BackgroundTile, bool> modBackgroundVisibility = [];
@@ -24,7 +27,15 @@ internal sealed partial class GameWorld
             return;
         }
         RefreshMovementMod(current);
-        if (ReferenceEquals(current, appliedSceneMods) && ReferenceEquals(Field, appliedSceneField))
+        GameResourceHost? host = modelOverrides as GameResourceHost;
+        ModCatalogSnapshot? layerCatalog = host?.Mods.Catalog;
+        bool catalogChanged = !ReferenceEquals(layerCatalog, appliedPreparedLayerCatalog);
+        if (catalogChanged)
+        {
+            appliedPreparedLayerCatalog = layerCatalog;
+            preparedLayerCatalogHasEntries = layerCatalog?.Files.Any(file => DemasterFieldLayers.IsPayload(file.Format, file.RelativePath)) == true;
+        }
+        if (ReferenceEquals(current, appliedSceneMods) && ReferenceEquals(Field, appliedSceneField) && (!catalogChanged || !preparedLayerCatalogHasEntries && !hasPreparedLayers))
         {
             if (renderer is null || renderer.OutputWidth != renderWidth || renderer.OutputHeight != renderHeight)
             {
@@ -80,7 +91,28 @@ internal sealed partial class GameWorld
                 actors.TryAdd(actor.ObjectId, (actor, modelId, owned.PackageId));
             }
         }
-        FieldAssets next = Field with { Models = Array.AsReadOnly(models.ToArray()) };
+        IReadOnlyList<BackgroundTile> presentationTiles = Field.Background;
+        var renderedVisibility = new Dictionary<BackgroundTile, bool>();
+        if (preparedLayerCatalogHasEntries)
+        {
+            var layers = DemasterFieldLayers.Resolve(layerCatalog!, Field, assets.Resources.Source.Language, host!.Mods.ReportResourceRejection);
+            if (layers.Count != 0)
+            {
+                BackgroundTile[] tiles = Field.Background.ToArray();
+                foreach ((int index, var replacement) in layers)
+                {
+                    BackgroundTile original = tiles[index];
+                    BackgroundTile painted = original with { Image = replacement.Image, Texture = null, IndexedSource = null, PreparedColorLayer = true };
+                    tiles[index] = painted;
+                    if (backgrounds.TryGetValue(original, out var visibility))
+                    {
+                        renderedVisibility.Add(painted, visibility.Visible);
+                    }
+                }
+                presentationTiles = Array.AsReadOnly(tiles);
+            }
+        }
+        FieldAssets next = Field with { Models = Array.AsReadOnly(models.ToArray()), Background = presentationTiles };
         FieldRenderer nextRenderer = new(next, renderWidth, renderHeight);
         modBackgrounds.Clear();
         modBackgroundVisibility.Clear();
@@ -88,6 +120,10 @@ internal sealed partial class GameWorld
         {
             modBackgrounds.Add(pair.Key, pair.Value);
             modBackgroundVisibility.Add(pair.Key, pair.Value.Visible);
+        }
+        foreach ((BackgroundTile tile, bool visible) in renderedVisibility)
+        {
+            modBackgroundVisibility.TryAdd(tile, visible);
         }
         modActors.Clear();
         foreach (var pair in actors)
@@ -98,6 +134,7 @@ internal sealed partial class GameWorld
         renderer = nextRenderer;
         appliedSceneMods = current;
         appliedSceneField = Field;
+        hasPreparedLayers = !ReferenceEquals(presentationTiles, Field.Background);
         RevalidateDebugAnimations();
     }
 

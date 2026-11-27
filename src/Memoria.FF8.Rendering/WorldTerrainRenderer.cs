@@ -1,4 +1,5 @@
 using System.Numerics;
+using Memoria.FF8.Resources;
 using Albeoris.Games.FF8.Imaging;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
@@ -111,8 +112,11 @@ public sealed partial class WorldTerrainRenderer
     private ushort terrainReplacementMask;
     private readonly record struct Vertex(Vector3 Position, Vector2 Uv, Vector4? Color = null);
     private readonly record struct ScreenVertex(float X, float Y, float ReciprocalZ, Vector2 UvOverZ, Vector4? ColorOverZ = null, float? NativeOrderingReciprocal = null);
-    private readonly record struct RasterTriangle(ScreenVertex A, ScreenVertex B, ScreenVertex C, PixelImage Texture, bool Transparent, TriangleBlend? Blend = null, bool? NativeParticlePass = null, WorldGroundTextureSampler? Sampler = null);
+    private readonly record struct RasterTriangle(ScreenVertex A, ScreenVertex B, ScreenVertex C, PixelImage Texture, bool Transparent, TriangleBlend? Blend = null, bool? NativeParticlePass = null, WorldGroundTextureSampler? Sampler = null, Vector3 TerrainNormal = default);
     private readonly List<RasterTriangle> rasterTriangles = [];
+
+    public SceneColorGrade ColorGrade { get; set; }
+    public SceneDirectionalLighting SceneSun { get; set; }
 
     public WorldTerrainRenderer(WorldAssets assets, int width, int height)
     {
@@ -281,6 +285,7 @@ public sealed partial class WorldTerrainRenderer
             Rgba32 second = fraction < 0.5f ? sky.Center : sky.Bottom;
             float blend = fraction < 0.5f ? fraction * 2 : fraction * 2 - 1;
             Rgba32 color = nativeGradient is WorldSkyGradient gradient ? gradient.Sample((y + 0.5) * WorldSkyProjection.LogicalHeight / Height) : new Rgba32((byte)MathF.Round(first.R + (second.R - first.R) * blend), (byte)MathF.Round(first.G + (second.G - first.G) * blend), (byte)MathF.Round(first.B + (second.B - first.B) * blend), 255);
+            color = ColorGrade.Apply(color);
             for (int x = 0; x < Width; x++)
             {
                 int index = (y * Width + x) * 4;
@@ -307,7 +312,13 @@ public sealed partial class WorldTerrainRenderer
             return point;
         }
         bool filterTexture = FilterGroundTextures && !transparent && !triangle.Water && !triangle.Road;
-        Draw(new Vertex(TerrainPoint(triangle.A), triangle.UvA * uvScale), new Vertex(TerrainPoint(triangle.B), triangle.UvB * uvScale), new Vertex(TerrainPoint(triangle.C), triangle.UvC * uvScale), assets.GetTexture(triangle, terrainReplacementMask, textureAnimation), transparent, filterTexture: filterTexture);
+        Draw(new Vertex(TerrainPoint(triangle.A), triangle.UvA * uvScale), new Vertex(TerrainPoint(triangle.B), triangle.UvB * uvScale), new Vertex(TerrainPoint(triangle.C), triangle.UvC * uvScale), assets.GetTexture(triangle, terrainReplacementMask, textureAnimation), transparent, filterTexture: filterTexture, terrainNormal: TerrainFaceNormal(triangle));
+    }
+
+    private static Vector3 TerrainFaceNormal(WorldTriangle triangle)
+    {
+        Vector3 normal = Vector3.Cross(triangle.B - triangle.A, triangle.C - triangle.A);
+        return normal.Y < 0 ? -normal : normal;
     }
 
     private void DrawAvatar(FieldModel model, Vector3 position, float heading, int animationId, float frame, WorldAnimationBlend? animationBlend, float nativePitch = 0, float nativeRoll = 0)
@@ -368,7 +379,7 @@ public sealed partial class WorldTerrainRenderer
         }
     }
 
-    private void Draw(Vertex a, Vertex b, Vertex c, PixelImage texture, bool transparent, TriangleBlend? blend = null, bool filterTexture = false)
+    private void Draw(Vertex a, Vertex b, Vertex c, PixelImage texture, bool transparent, TriangleBlend? blend = null, bool filterTexture = false, Vector3 terrainNormal = default)
     {
         static CameraSpaceVertex CameraVertex(Vertex vertex) => new(vertex.Position, vertex.Uv, vertex.Color);
         ReadOnlySpan<CameraSpaceVertex> input = [CameraVertex(Transform(a)), CameraVertex(Transform(b)), CameraVertex(Transform(c))];
@@ -386,7 +397,7 @@ public sealed partial class WorldTerrainRenderer
             }
             if (TriangleRenderer is not null)
             {
-                DrawGpuTriangle(first, second, third, texture, transparent, blend);
+                DrawGpuTriangle(first, second, third, texture, transparent, blend, terrainNormal: terrainNormal);
                 DrawnTriangles++;
             }
             else
@@ -395,7 +406,7 @@ public sealed partial class WorldTerrainRenderer
                 {
                     sampler ??= WorldGroundTextureSampler.For(texture);
                 }
-                rasterTriangles.Add(new RasterTriangle(first, second, third, texture, transparent, blend, Sampler: sampler));
+                rasterTriangles.Add(new RasterTriangle(first, second, third, texture, transparent, blend, Sampler: sampler, TerrainNormal: terrainNormal));
             }
         }
     }
@@ -414,7 +425,8 @@ public sealed partial class WorldTerrainRenderer
 
     private void Raster(RasterTriangle triangle, int stripeTop, int stripeBottom)
     {
-        var (a, b, c, texture, transparent, blend, nativeParticlePass, sampler) = triangle;
+        var (a, b, c, texture, transparent, blend, nativeParticlePass, sampler, terrainNormal) = triangle;
+        SceneColorGrade grade = GradeTerrain(terrainNormal);
         float area = Edge(a.X, a.Y, b.X, b.Y, c.X, c.Y);
         if (MathF.Abs(area) < 0.001f)
         {
@@ -494,6 +506,14 @@ public sealed partial class WorldTerrainRenderer
                     continue;
                 }
                 float haze = blend is not null ? 0 : Math.Clamp((distance - far * 0.6f) / (far * 0.4f), 0, 1);
+                if (blend is null && grade.Enabled)
+                {
+                    Vector3 input = new(color.R, color.G, color.B);
+                    Vector3 hazeColor = Vector3.Lerp(input, new(fog.R, fog.G, fog.B), haze) / 255;
+                    Vector3 graded = grade.Apply(hazeColor) * 255;
+                    color = new((byte)MathF.Round(graded.X), (byte)MathF.Round(graded.Y), (byte)MathF.Round(graded.Z), color.A);
+                    haze = 0;
+                }
                 float alpha = transparent ? color.A / 255f * 0.5f : 1;
                 int pixel = index * 4;
                 if (nativeParticlePass != false && blend is { } nativeBlend)

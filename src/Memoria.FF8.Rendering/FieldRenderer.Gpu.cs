@@ -56,11 +56,16 @@ public sealed partial class FieldRenderer
             MapBlendMode.QuarterAdd => TriangleBlend.QuarterAdd,
             _ => TriangleBlend.Replace
         };
-        BackgroundAtlasRegion region = GpuBackgroundRegion(subtractive ? SubtractiveImage(tile) : tile.ResolvedImage);
+        bool smoothLayer = tile.PreparedColorLayer && tile.BlendMode == MapBlendMode.None;
+        BackgroundAtlasRegion region = smoothLayer
+            ? new(tile.ResolvedImage, Vector2.Zero, Vector2.One)
+            : GpuBackgroundRegion(subtractive ? SubtractiveImage(tile) : tile.ResolvedImage);
         TriangleMaterial material = GpuMaterial(region.Image, blend, !translucentPass) with
         {
             MinimumAlpha = blended && !translucentPass ? 0.75f : 1f / 255,
-            MaximumAlpha = translucentPass && !subtractive ? 0.75f : 1
+            MaximumAlpha = translucentPass && !subtractive ? 0.75f : 1,
+            ColorGrade = !translucentPass || tile.BlendMode == MapBlendMode.Average ? ColorGrade : default,
+            Sampler = smoothLayer ? TriangleSampler.AlphaWeightedLinearClamp : TriangleSampler.PointClamp
         };
         Vector4 color = new(shade / 128, 1);
         if (inspection is { } quad)
@@ -73,7 +78,7 @@ public sealed partial class FieldRenderer
             DrawGpuInspectionBackdrop(quad, start, end, color, material with { PerspectiveDepth = true, CentroidTextureSampling = true });
             return;
         }
-        GpuQuad(raster.Origin, raster.Size, raster.Depth, color, material with { ClipRectangle = raster.Clip }, region.End, region.Start, pointSampleRectangle: true);
+        GpuQuad(raster.Origin, raster.Size, raster.Depth, color, material with { ClipRectangle = raster.Clip }, region.End, region.Start, pointSampleRectangle: !smoothLayer);
     }
 
     private void DrawGpuInspectionBackdrop(InspectionBackdropQuad tile, Vector2 uvStart, Vector2 uvEnd, Vector4 color, TriangleMaterial material)

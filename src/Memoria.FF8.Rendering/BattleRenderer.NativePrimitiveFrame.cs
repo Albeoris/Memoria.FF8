@@ -106,8 +106,12 @@ public sealed partial class BattleRenderer
     private INativeBattleEffectTextureSource? nativeEffectTextureSource;
     private long effectTextureGeneration;
     private bool sameNativeTextureOrigins;
+    public SceneColorGrade ColorGrade { get; set; }
+    public SceneDirectionalLighting SceneSun { get; set; }
+    public float FighterSunShare { get; set; }
+
     private readonly List<NativeRasterTriangle> nativeTriangles = [];
-    private readonly record struct NativeRasterTriangle(PrimitiveVertex A, PrimitiveVertex B, PrimitiveVertex C, PixelImage? Texture, int Blend, byte Pass, float Area, int Left, int Right, int Top, int Bottom, bool Line = false, float ActorOpacity = 1);
+    private readonly record struct NativeRasterTriangle(PrimitiveVertex A, PrimitiveVertex B, PrimitiveVertex C, PixelImage? Texture, int Blend, byte Pass, float Area, int Left, int Right, int Top, int Bottom, bool Line = false, float ActorOpacity = 1, SceneColorGrade Grade = default);
 
     /// <summary>Render the executed original battle OT into a viewport representing its320x216 draw environment.</summary>
     public byte[] RenderNativePrimitiveFrame(NativeBattlePrimitiveFrame frame, NativeBattleEffectTextureState? textures, BattleCamera? overlayCamera = null, NativeBattlePrimitiveCapabilities? capabilities = null, NativeBattlePcTextureWindowCache? textureWindowCache = null, IReadOnlyList<NativeBattleTextureReplacement>? replacements = null, NativeBattlePcUiFrame? uiFrame = null, Func<int, int, bool, PixelImage>? uiTexture = null, INativeBattleEffectTextureSource? effectTextureSource = null)
@@ -391,8 +395,34 @@ public sealed partial class BattleRenderer
                 }
                 continue;
             }
+            SceneColorGrade grade = default;
+            if (ColorGrade.Enabled && textured && blend is not (1 or 3) && command.SceneCapture is null
+                && (command.TextureSourceOwner?.StartsWith("battle/a0stg", StringComparison.OrdinalIgnoreCase) == true
+                    || command.PresentationActorId is not null && !command.Pilot.IsEmpty && command.Pilot.Identity.Bank is 0x502D40 or 0x507BF0))
+            {
+                bool fighter = command.PresentationActorId is not null;
+                grade = fighter ? ColorGrade with { LinearTint = null } : ColorGrade;
+                if (!command.Pilot.IsEmpty && !command.Pilot.ScreenSpace && overlayCamera is { } camera)
+                {
+                    Vector3 first = command.Pilot.Corner(0);
+                    Vector3 second = command.Pilot.Corner(1);
+                    Vector3 third = command.Pilot.Corner(2);
+                    Vector3 normal = Vector3.Cross(second - first, third - first);
+                    Vector3 nativeEye = camera.Eye * new Vector3(100, -100, -100);
+                    if (Vector3.Dot(normal, nativeEye - first) < 0)
+                    {
+                        normal = -normal;
+                    }
+                    SceneDirectionalLighting sun = fighter ? SceneSun with { Strength = SceneSun.Strength * FighterSunShare } : SceneSun;
+                    float multiplier = sun.Multiplier(normal);
+                    if (multiplier != 1)
+                    {
+                        grade = grade with { LinearTint = (grade.LinearTint ?? Vector3.One) * multiplier };
+                    }
+                }
+            }
             int submitted = DrawnTriangles;
-            QueueNativePrimitive(a, b, c, texture, blend, resolved.Pass, centroidTextureSampling: textured, actorOpacity: actorOpacity);
+            QueueNativePrimitive(a, b, c, texture, blend, resolved.Pass, centroidTextureSampling: textured, actorOpacity: actorOpacity, grade: grade);
             if (DrawnTriangles > submitted)
             {
                 ObserveActorTriangle(command.PresentationActorId, a, b, c);
@@ -405,7 +435,7 @@ public sealed partial class BattleRenderer
             {
                 PrimitiveVertex d = At(command, pilot, 3, projected[3], words, projectedPoints);
                 submitted = DrawnTriangles;
-                QueueNativePrimitive(b, d, c, texture, blend, resolved.Pass, centroidTextureSampling: textured, actorOpacity: actorOpacity);
+                QueueNativePrimitive(b, d, c, texture, blend, resolved.Pass, centroidTextureSampling: textured, actorOpacity: actorOpacity, grade: grade);
                 if (DrawnTriangles > submitted)
                 {
                     ObserveActorTriangle(command.PresentationActorId, b, d, c);
@@ -941,7 +971,7 @@ public sealed partial class BattleRenderer
         }
     }
 
-    private void QueueNativePrimitive(PrimitiveVertex a, PrimitiveVertex b, PrimitiveVertex c, PixelImage? texture, int blend, byte pass, bool centroidTextureSampling = false, float actorOpacity = 1)
+    private void QueueNativePrimitive(PrimitiveVertex a, PrimitiveVertex b, PrimitiveVertex c, PixelImage? texture, int blend, byte pass, bool centroidTextureSampling = false, float actorOpacity = 1, SceneColorGrade grade = default)
     {
         static float Edge(in PrimitiveVertex first, in PrimitiveVertex second, float x, float y) => (second.X - first.X) * (y - first.Y) - (second.Y - first.Y) * (x - first.X);
         float area = Edge(a, b, c.X, c.Y);
@@ -959,7 +989,7 @@ public sealed partial class BattleRenderer
         {
             static TriangleVertex Convert(in PrimitiveVertex vertex) => new(new Vector2(vertex.X, vertex.Y), vertex.Z, vertex.ReciprocalW, vertex.Uv, new Vector4(vertex.Color / 255f, vertex.Alpha / 255f));
             TriangleMaterial material = NativePrimitiveMaterial(texture, blend, pass, centroidTextureSampling);
-            material = WithNativeActorOpacity(material, blend, actorOpacity);
+            material = WithNativeActorOpacity(material, blend, actorOpacity) with { ColorGrade = grade };
             renderer.Draw(Convert(a), Convert(b), Convert(c), material);
             return;
         }
@@ -967,7 +997,7 @@ public sealed partial class BattleRenderer
         int right = Math.Clamp((int)MathF.Ceiling(Math.Max(a.X, Math.Max(b.X, c.X))), 0, Width - 1);
         int top = Math.Clamp((int)MathF.Floor(Math.Min(a.Y, Math.Min(b.Y, c.Y))), 0, Height - 1);
         int bottom = Math.Clamp((int)MathF.Ceiling(Math.Max(a.Y, Math.Max(b.Y, c.Y))), 0, Height - 1);
-        nativeTriangles.Add(new(a, b, c, texture, blend, pass, area, left, right, top, bottom, ActorOpacity: actorOpacity));
+        nativeTriangles.Add(new(a, b, c, texture, blend, pass, area, left, right, top, bottom, ActorOpacity: actorOpacity, Grade: grade));
     }
 
     private static TriangleMaterial NativePrimitiveMaterial(PixelImage? texture, int blend, byte pass, bool centroidTextureSampling)
@@ -1066,6 +1096,10 @@ public sealed partial class BattleRenderer
                     color *= new Vector3(texel.R, texel.G, texel.B) / 255f;
                     //D3DTBLEND_MODULATE selects texture alpha when the texture has an alpha channel.
                     alpha = texel.A / 255f;
+                }
+                if (triangle.Grade.Enabled)
+                {
+                    color = triangle.Grade.Apply(color / 255) * 255;
                 }
                 BlendNativePcPrimitive(index * 4, color, alpha, blend, triangle.ActorOpacity);
                 if (pass == 1 && triangle.ActorOpacity == 1)

@@ -15,6 +15,7 @@ internal sealed partial class WorldMapScene : IDisposable
     private const double NativeAtanScale = 651.8986206054688;
     private GameSession session;
     private readonly WorldAssets assets;
+    internal NativeSalaryTable? SelectedSalaryTable { get; set; }
     private readonly ResourceService? resources;
     private readonly IReadOnlyDictionary<int, int> replacements;
     private readonly byte storyByte;
@@ -597,7 +598,7 @@ internal sealed partial class WorldMapScene : IDisposable
                     //6519D0 still consumes the retained accepted magnitude when script12 skips the position query.
                     salary = salary.PrepareDrawPointAging(movementUnits).PrepareMovementProgress(movementUnits);
                 }
-                NativeSalaryResult? salaryResult = samplesMovementProgress ? GameSession.SampleWorldSalary(session.State, salary.SeeD, salary.Economy, movementUnits) : null;
+                NativeSalaryResult? salaryResult = samplesMovementProgress ? GameSession.SampleWorldSalary(session.State, salary.SeeD, salary.Economy, movementUnits, SelectedSalaryTable) : null;
                 NativeSalaryEffects effects;
                 if (salaryResult?.Payment is not null)
                 {
@@ -757,7 +758,7 @@ internal sealed partial class WorldMapScene : IDisposable
 
     }
 
-    public byte[] Render(int width, int height, ITriangleRenderer? triangleRenderer = null, float interpolation = 1)
+    public byte[] Render(int width, int height, ITriangleRenderer? triangleRenderer = null, float interpolation = 1, Memoria.FF8.Resources.SceneColorGrade colorGrade = default, SceneDirectionalLighting sun = default)
     {
         ObjectDisposedException.ThrowIf(disposed, this);
         if (renderer is null || renderer.Width != width || renderer.Height != height)
@@ -765,6 +766,8 @@ internal sealed partial class WorldMapScene : IDisposable
             renderer = new WorldTerrainRenderer(assets, width, height);
         }
         renderer.TriangleRenderer = triangleRenderer;
+        renderer.ColorGrade = colorGrade;
+        renderer.SceneSun = sun with { Direction = sun.Direction * new Vector3(1, -1, -1) };
         WorldRenderFrame frame = presentation.Sample(State, interpolation, PrepareRenderFrame);
         uint mainLoopCounter = session.State.WorldProcess?.MainLoopCounter ?? throw new NotSupportedException("World presentation requires the executed native main-loop counter.");
         NativeWorldTextureAnimationState animation = session.State.WorldProcess?.TextureAnimation ?? throw new NotSupportedException("World presentation requires its retained texture animation clocks; migrate this save explicitly.");

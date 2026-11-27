@@ -17,6 +17,9 @@ public sealed record WorldTriangle(Vector3 A, Vector3 B, Vector3 C, Vector2 UvA,
 {
     public int NativeBlockIndex { get; init; }
     public int NativePolygonIndex { get; init; }
+    public Vector3 NormalA { get; init; }
+    public Vector3 NormalB { get; init; }
+    public Vector3 NormalC { get; init; }
     public bool Walkable => (VertexFlags & 0x80) != 0;
     public bool Forest => GroundType <= 5;
     public bool Road => (TextureFlags & 0x20) != 0;

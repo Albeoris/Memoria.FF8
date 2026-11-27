@@ -1169,6 +1169,12 @@ public sealed partial class ModRuntime : IModService, IDisposable
         {
             return directory || Path.GetExtension(path).Equals(".png", StringComparison.OrdinalIgnoreCase) || Path.GetExtension(path).Equals(".dds", StringComparison.OrdinalIgnoreCase) || DemasterSceneLighting.IsInput(path);
         }
+        if (family.Equals("layout_pc", StringComparison.OrdinalIgnoreCase))
+        {
+            return directory
+                ? path.Equals("layout_pc", StringComparison.OrdinalIgnoreCase) || path.Equals("layout_pc/logo", StringComparison.OrdinalIgnoreCase)
+                : ShellArtworkMods.IsInput(ModFormat.Demaster, path) || DemasterTextureResolver.IsUnboundShellPath(path);
+        }
         return family.Equals("data", StringComparison.OrdinalIgnoreCase) ||
             family.Equals("lut", StringComparison.OrdinalIgnoreCase) ||
             family.Equals("shaders", StringComparison.OrdinalIgnoreCase) ||
@@ -1177,7 +1183,8 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 path.Equals("field_time.txt", StringComparison.OrdinalIgnoreCase) ||
                 path.Equals("scene_light.txt", StringComparison.OrdinalIgnoreCase) ||
                 path.Equals("ffviii_en.exe.dat", StringComparison.OrdinalIgnoreCase) ||
-                path.Equals("ff8_en.exe.dat", StringComparison.OrdinalIgnoreCase));
+                path.Equals("ff8_en.exe.dat", StringComparison.OrdinalIgnoreCase) ||
+                DemasterTextureResolver.IsUnboundShellPath(path));
     }
 
     private static bool IsWithin(string root, string path)

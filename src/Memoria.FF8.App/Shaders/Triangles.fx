@@ -89,6 +89,51 @@ texture SourceTexture7;
 #endif
 sampler TextureSampler7 : register(s7) = sampler_state
 { Texture = <SourceTexture7>; };
+float4 SceneSun; // direction toward the sun in world space, directional shading strength
+float4 SceneLinearTint; // RGB multiplier, active flag
+float4 ColorGradeParameters; // first size, second size, interpolation, strength
+#if VULKAN || DIRECTX12
+Texture2D ColorGradeFirst : register(t9);
+Texture2D ColorGradeSecond : register(t10);
+#else
+texture ColorGradeFirst;
+texture ColorGradeSecond;
+#endif
+sampler ColorGradeFirstSampler : register(s9) = sampler_state
+{ Texture = <ColorGradeFirst>; MinFilter = Linear; MagFilter = Linear; AddressU = Clamp; AddressV = Clamp; };
+sampler ColorGradeSecondSampler : register(s10) = sampler_state
+{ Texture = <ColorGradeSecond>; MinFilter = Linear; MagFilter = Linear; AddressU = Clamp; AddressV = Clamp; };
+
+float4 ColorGradeCoordinates(float3 color, float size)
+{
+    float blue = color.b * (size - 1);
+    float slice = floor(blue);
+    float next = min(slice + 1, size - 1);
+    float2 cell = color.rg * (size - 1) + 0.5;
+    return float4((float2(slice, next) * size + cell.x) / (size * size), cell.y / size, blue - slice);
+}
+
+float3 ApplyColorGrade(float3 color)
+{
+    if (ColorGradeParameters.w <= 0)
+    {
+        return color;
+    }
+    float3 first = color;
+    if (ColorGradeParameters.x > 0)
+    {
+        float4 coordinate = ColorGradeCoordinates(color, ColorGradeParameters.x);
+        first = lerp(SAMPLE_TEXTURE(ColorGradeFirst, ColorGradeFirstSampler, coordinate.xz).rgb, SAMPLE_TEXTURE(ColorGradeFirst, ColorGradeFirstSampler, coordinate.yz).rgb, coordinate.w);
+    }
+    float3 second = color;
+    if (ColorGradeParameters.y > 0 && ColorGradeParameters.z > 0)
+    {
+        float4 coordinate = ColorGradeCoordinates(color, ColorGradeParameters.y);
+        second = lerp(SAMPLE_TEXTURE(ColorGradeSecond, ColorGradeSecondSampler, coordinate.xz).rgb, SAMPLE_TEXTURE(ColorGradeSecond, ColorGradeSecondSampler, coordinate.yz).rgb, coordinate.w);
+    }
+    return lerp(color, lerp(first, second, ColorGradeParameters.z), ColorGradeParameters.w);
+}
+
 float2 SelectedTextureSize(float slot)
 {
     switch ((int)slot)
@@ -200,6 +245,7 @@ VSOutput WorldVertexMain(WorldVSInput input)
     // Homogeneous clipping preserves the camera-space near plane at Z = 1.
     output.Position = float4(camera.x * WorldFocal * 2 / ViewportSize.x, camera.y * WorldFocal * 2 / ViewportSize.y, cameraZ - 1, cameraZ);
     output.Color = float4(1, 1, 1, 1);
+    output.WorldNormal = input.Normal;
     output.Uv = float3(input.Uv, 1);
     output.TextureUv = output.Uv;
     output.Depth = cameraZ;
@@ -532,7 +578,23 @@ PSOutput PixelMainCore(VSOutput input, bool fieldLighting)
             uv = (input.TextureTexelRectangle.xy + pixel + 0.5) / textureSize;
         }
         float4 texel = SampleSourceTexture(input.TextureSlot, uv);
-        if (FogParameters.w > 0)
+        if (FogParameters.w > 1.5)
+        {
+            float2 cell = interpolatedUv * textureSize - 0.5;
+            float2 vertex = floor(cell);
+            float2 weight = frac(cell);
+            float2 low = (clamp(vertex, 0, textureSize - 1) + 0.5) / textureSize;
+            float2 high = (clamp(vertex + 1, 0, textureSize - 1) + 0.5) / textureSize;
+            float4 c00 = SampleSourceTexture(input.TextureSlot, low);
+            float4 c10 = SampleSourceTexture(input.TextureSlot, float2(high.x, low.y));
+            float4 c01 = SampleSourceTexture(input.TextureSlot, float2(low.x, high.y));
+            float4 c11 = SampleSourceTexture(input.TextureSlot, high);
+            float4 weights = float4((1-weight.x)*(1-weight.y), weight.x*(1-weight.y), (1-weight.x)*weight.y, weight.x*weight.y);
+            weights *= float4(c00.a, c10.a, c01.a, c11.a);
+            texel.a = dot(weights, float4(1, 1, 1, 1));
+            texel.rgb = (c00.rgb*weights.x + c10.rgb*weights.y + c01.rgb*weights.z + c11.rgb*weights.w) / max(0.00001, texel.a);
+        }
+        else if (FogParameters.w > 0)
         {
             // Integer source UVs are smooth RGB texel centers; texel above retains point-sampled cutout coverage.
             float2 texelPosition = clamp(interpolatedUv * textureSize, 0, textureSize - 1);
@@ -568,6 +630,18 @@ PSOutput PixelMainCore(VSOutput input, bool fieldLighting)
         color.rgb = lerp(color.rgb, FogColor, saturate((1 / input.Uv.z - FogParameters.x) / (FogParameters.y - FogParameters.x)));
     }
     color.rgb = saturate(color.rgb);
+    if (SceneLinearTint.w > 0 || SceneSun.w > 0)
+    {
+        float3 tint = SceneLinearTint.w > 0 ? SceneLinearTint.rgb : 1;
+        float magnitude = dot(input.WorldNormal, input.WorldNormal);
+        if (SceneSun.w > 0 && magnitude > 1e-12)
+        {
+            float facing = clamp(dot(input.WorldNormal * rsqrt(magnitude), SceneSun.xyz), -1, 1);
+            tint *= 1 - SceneSun.w * (0.5 - 0.5 * facing);
+        }
+        color.rgb = FieldSrgb(saturate(FieldLinear(color.rgb) * tint));
+    }
+    color.rgb = ApplyColorGrade(color.rgb);
     if (AlphaParameters.w < 0) color.a = 0.5;
     else color.rgb *= AlphaParameters.w;
     if (FogParameters.z > 0) input.Depth = 1 / input.Uv.z;

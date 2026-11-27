@@ -35,6 +35,11 @@ internal static class TexturePackageCompatibility
                     continue;
                 }
             }
+            if (DemasterSceneLighting.IsNativeInput(path) || path.StartsWith("scene-lighting/lut/", StringComparison.OrdinalIgnoreCase) || ShellArtworkMods.IsInput(ModFormat.Memoria, path) || DemasterFieldLayers.IsPayload(ModFormat.Memoria, path))
+            {
+                hasTexture = true;
+                continue;
+            }
             if (hasLocalization && path.StartsWith("Localization/", StringComparison.OrdinalIgnoreCase))
             {
                 continue;

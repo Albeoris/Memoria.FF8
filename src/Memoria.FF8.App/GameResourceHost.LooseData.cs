@@ -1,6 +1,6 @@
 using Memoria.FF8.Assets.Remastered;
-using Memoria.FF8.Resources;
 using Memoria.FF8.Mods;
+using Memoria.FF8.Resources;
 
 namespace Memoria.FF8;
 

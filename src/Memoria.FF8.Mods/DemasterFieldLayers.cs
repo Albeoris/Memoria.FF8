@@ -11,16 +11,23 @@ namespace Memoria.FF8.Mods;
 public static class DemasterFieldLayers
 {
     private const string Prefix = "textures/field_bg/";
+    private const string NativePrefix = "scene-lighting/field-paintings/";
     private const int TileSize = 16;
     private static readonly string[] CompanionSuffixes = ["_nt_A", "_A", "_LF", "_ND", "_ORME", "_EC"];
 
     public static bool IsInput(string relativePath)
     {
-        if (!relativePath.StartsWith(Prefix, StringComparison.OrdinalIgnoreCase))
+        return IsInput(ModFormat.Demaster, relativePath);
+    }
+
+    public static bool IsInput(ModFormat format, string relativePath)
+    {
+        string? prefix = InputPrefix(format);
+        if (prefix is null || !relativePath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }
-        string[] parts = relativePath[Prefix.Length..].Split('/');
+        string[] parts = relativePath[prefix.Length..].Split('/');
         if (parts.Length != 3 || parts[0].Length != 2 || parts[1].Length < 2 || !parts[1].StartsWith(parts[0], StringComparison.OrdinalIgnoreCase))
         {
             return false;
@@ -40,6 +47,22 @@ public static class DemasterFieldLayers
         return token.Length == 8 && uint.TryParse(token, NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out _);
     }
 
+    public static bool IsPayload(ModFormat format, string relativePath)
+    {
+        return IsInput(format, relativePath) || CompanionPaintingPath(format, relativePath) is not null ||
+            InputPrefix(format) is { } prefix && relativePath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) && relativePath.EndsWith("_pbr.txt", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string? InputPrefix(ModFormat format)
+    {
+        return format switch
+        {
+            ModFormat.Demaster => Prefix,
+            ModFormat.Memoria => NativePrefix,
+            _ => null
+        };
+    }
+
     public static IReadOnlyDictionary<int, TextureReplacement> Resolve(ModCatalogSnapshot catalog, FieldAssets field, string? language, Action<ModDiagnostic>? diagnose = null)
     {
         return Resolve(catalog, field.Name, field.Background, language, diagnose);
@@ -52,8 +75,10 @@ public static class DemasterFieldLayers
         {
             return replacements;
         }
-        string folder = $"{Prefix}{field[..2]}/{field}/";
-        var (files, companions) = SelectFiles(catalog, folder);
+        string folder = $"{field[..2]}/{field}/";
+        ModFile[] candidatesInField = catalog.Files.Where(file => InputPrefix(file.Format) is { } prefix && file.RelativePath.StartsWith(prefix + folder, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(file => file.Format != ModFormat.Memoria).ToArray();
+        var (files, companions) = SelectFiles(candidatesInField);
         if (files.Count == 0 && companions.Count == 0)
         {
             return replacements;
@@ -70,7 +95,7 @@ public static class DemasterFieldLayers
             AddCandidate(candidates, id, canvas);
         }
         Dictionary<uint, Painting> paintings = [];
-        ILookup<string, ModFile> fieldFiles = catalog.Files.Where(file => file.Format == ModFormat.Demaster && file.RelativePath.StartsWith(folder, StringComparison.OrdinalIgnoreCase)).ToLookup(file => file.RelativePath, StringComparer.OrdinalIgnoreCase);
+        ILookup<string, ModFile> fieldFiles = candidatesInField.ToLookup(file => file.RelativePath, StringComparer.OrdinalIgnoreCase);
         foreach ((uint id, List<Frame> choices) in candidates)
         {
             string suffix = $"{id:X8}";
@@ -129,13 +154,13 @@ public static class DemasterFieldLayers
         return replacements;
     }
 
-    private static (Dictionary<string, ModFile> Paintings, Dictionary<string, ModFile> Companions) SelectFiles(ModCatalogSnapshot catalog, string folder)
+    private static (Dictionary<string, ModFile> Paintings, Dictionary<string, ModFile> Companions) SelectFiles(IEnumerable<ModFile> files)
     {
         Dictionary<string, ModFile> selected = new(StringComparer.OrdinalIgnoreCase);
         Dictionary<string, ModFile> companions = new(StringComparer.OrdinalIgnoreCase);
-        foreach (ModFile file in catalog.Files.Where(file => file.Format == ModFormat.Demaster && file.RelativePath.StartsWith(folder, StringComparison.OrdinalIgnoreCase)))
+        foreach (ModFile file in files)
         {
-            if (IsInput(file.RelativePath))
+            if (IsInput(file.Format, file.RelativePath))
             {
                 string name = Path.GetFileNameWithoutExtension(file.RelativePath);
                 if (!selected.TryGetValue(name, out ModFile? current) || file.PackageId == current.PackageId && PreferImage(file, current))
@@ -143,7 +168,7 @@ public static class DemasterFieldLayers
                     selected[name] = file;
                 }
             }
-            else if (CompanionPaintingPath(file.RelativePath) is { } painting)
+            else if (CompanionPaintingPath(file.Format, file.RelativePath) is { } painting)
             {
                 companions.TryAdd(Path.GetFileNameWithoutExtension(painting), file);
             }
@@ -151,7 +176,7 @@ public static class DemasterFieldLayers
         return (selected, companions);
     }
 
-    private static string? CompanionPaintingPath(string path)
+    private static string? CompanionPaintingPath(ModFormat format, string path)
     {
         string extension = Path.GetExtension(path);
         string stem = path[..^extension.Length];
@@ -160,7 +185,7 @@ public static class DemasterFieldLayers
             if (stem.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
             {
                 string painting = stem[..^suffix.Length] + extension;
-                if (IsInput(painting))
+                if (IsInput(format, painting))
                 {
                     return painting;
                 }

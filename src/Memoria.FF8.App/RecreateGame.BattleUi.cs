@@ -642,6 +642,11 @@ internal sealed partial class RecreateGame
         {
             float renderPhase = ReadBattleRenderPhase(active, battleScene!);
             battleScene!.PilotDiagnosticsEnabled = diagnosticTelemetry?.VisualChangesEnabled == true;
+            string gradePlace = active.EntryStageId is int stage ? FormattableString.Invariant($"battle/a0stg{stage:000}") : "battle";
+            SceneLightingState? lighting = world?.ReadSceneLighting();
+            battleScene.ColorGrade = (resourceHost?.SceneColorGrades ?? Memoria.FF8.Mods.SceneColorGradeMods.Empty).Resolve(gradePlace, lighting) with { LinearTint = lighting?.Look is null ? null : lighting.Tint };
+            battleScene.SceneSun = SceneDirectionalLighting.Resolve(lighting);
+            battleScene.FighterSunShare = lighting?.Look?.FighterSun ?? 0;
             pixels = battleScene.Render(active, size.Width, size.Height, battleGpu, renderPhase);
             InvalidateTexturePresentation();
             texturePresentedBattle = active;

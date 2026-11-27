@@ -1,6 +1,7 @@
 using System.Numerics;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Rendering;
+using Memoria.FF8.Resources;
 using Memoria.FF8.Runtime;
 using Memoria.FF8.Ui;
 
@@ -26,6 +27,12 @@ internal sealed partial class BattleScenePresentation
     private NativeBattleEffectTextureState? renderedTextures;
     private NativeBattlePcTextureWindowCache? renderedTextureWindows;
     private byte[]? renderedPixels;
+    private SceneColorGrade renderedColorGrade;
+    public SceneColorGrade ColorGrade { get; set; }
+    public SceneDirectionalLighting SceneSun { get; set; }
+    public float FighterSunShare { get; set; }
+    private SceneDirectionalLighting renderedSun;
+    private float renderedFighterSunShare;
     private GpuTriangleRenderer? renderedGpu;
     private long renderedGpuVersion;
     private readonly Dictionary<(BattleModel Model, NativeBattleModelTextureBinding Binding, bool Weapon), (object[] Materials, IReadOnlyList<NativeBattleTextureReplacement> Replacements)> replacementBindings = [];
@@ -108,6 +115,9 @@ internal sealed partial class BattleScenePresentation
             renderedGpu = null;
         }
         renderer.TriangleRenderer = triangleRenderer;
+        renderer.ColorGrade = ColorGrade;
+        renderer.SceneSun = SceneSun;
+        renderer.FighterSunShare = FighterSunShare;
         using IDisposable visibleArea = BattleSceneVisibleArea.Begin(BattleSceneVisibleArea.FromViewport(width, height, renderer.ProjectionBounds.X, renderer.ProjectionBounds.Y, renderer.ProjectionBounds.Width, renderer.ProjectionBounds.Height));
         renderer.PilotDiagnosticsEnabled = PilotDiagnosticsEnabled;
         BattlePresentationProcess process = session.Presentation ?? throw new InvalidOperationException("Battle rendering requires its presentation process.");
@@ -182,7 +192,7 @@ internal sealed partial class BattleScenePresentation
         NativeBattlePcUiFrame? uiFrame = prepared.UiFrame;
         NativeBattlePcTextureWindowCache? windows = prepared.TextureWindows;
         IReadOnlyList<NativeBattleTextureReplacement> replacements = NativeModelReplacements(prepared);
-        bool unchanged = pilotNext is null && ReferenceEquals(renderedPrimitiveFrame, frame) && renderedPrimitiveCapabilities == primitiveCapabilities && ReferenceEquals(renderedPcRenderTail, frame.LastPcRenderTail) && ReferenceEquals(renderedPcUiFrame, uiFrame) && ReferenceEquals(renderedTextures, textures) && ReferenceEquals(renderedTextureWindows, windows) && renderedCamera == selectedCamera && renderedModelReplacements is not null && renderedModelReplacements.SequenceEqual(replacements) && renderedEffectTextureGeneration == assets.EffectTextureSource.Generation;
+        bool unchanged = renderedColorGrade == ColorGrade && renderedSun == SceneSun && renderedFighterSunShare == FighterSunShare && pilotNext is null && ReferenceEquals(renderedPrimitiveFrame, frame) && renderedPrimitiveCapabilities == primitiveCapabilities && ReferenceEquals(renderedPcRenderTail, frame.LastPcRenderTail) && ReferenceEquals(renderedPcUiFrame, uiFrame) && ReferenceEquals(renderedTextures, textures) && ReferenceEquals(renderedTextureWindows, windows) && renderedCamera == selectedCamera && renderedModelReplacements is not null && renderedModelReplacements.SequenceEqual(replacements) && renderedEffectTextureGeneration == assets.EffectTextureSource.Generation;
         if (triangleRenderer is null && renderedPixels is not null && unchanged)
         {
             return renderedPixels;
@@ -210,6 +220,9 @@ internal sealed partial class BattleScenePresentation
         }
         renderedGpu = null;
         renderedPixels = RenderNative();
+        renderedColorGrade = ColorGrade;
+        renderedSun = SceneSun;
+        renderedFighterSunShare = FighterSunShare;
         renderedPrimitiveFrame = frame;
         renderedPrimitiveCapabilities = primitiveCapabilities;
         renderedPcRenderTail = frame.LastPcRenderTail;

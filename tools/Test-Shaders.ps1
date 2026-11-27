@@ -65,11 +65,17 @@ function Assert-DirectXBindings
                 }
                 if ($entry.source -like '*Triangles.fx' -and $samplerCount -gt 0)
                 {
-                    $expectedCount = if ($entrypoint -eq 'FieldPixelMain') { 9 } else { 8 }
-                    $expectedSlots = (0..($expectedCount - 1)) -join ','
-                    if ($samplerCount -ne $expectedCount -or (($textureSlots | Sort-Object) -join ',') -ne $expectedSlots -or (($samplerSlots | Sort-Object) -join ',') -ne $expectedSlots)
+                    $expected = switch ($entrypoint)
                     {
-                        throw "DX11 triangle bindings must occupy t0..$($expectedCount - 1) and s0..$($expectedCount - 1): $entrypoint."
+                        'FieldPixelMain' { 0..10 }
+                        'FieldShadowPixel' { 0..7 }
+                        default { (0..7) + @(9, 10) }
+                    }
+                    $expectedSlots = $expected -join ','
+                    $expectedTextureSlots = (0..($expected.Count - 1)) -join ','
+                    if ($samplerCount -ne $expected.Count -or (($textureSlots | Sort-Object) -join ',') -ne $expectedTextureSlots -or (($samplerSlots | Sort-Object) -join ',') -ne $expectedSlots)
+                    {
+                        throw "DX11 triangle bindings for $entrypoint should use textures [$expectedTextureSlots] and samplers [$expectedSlots] but found textures [$($textureSlots -join ',')] and samplers [$($samplerSlots -join ',')]."
                     }
                 }
                 $null = $reader.ReadBytes($reader.ReadByte())

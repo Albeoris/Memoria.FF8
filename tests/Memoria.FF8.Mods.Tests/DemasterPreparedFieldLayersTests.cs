@@ -21,6 +21,18 @@ public sealed class DemasterPreparedFieldLayersTests
     }
 
     [Fact]
+    public void NativeAndDemasterPackagesCanBindTheSamePreparedTile()
+    {
+        FieldAssets field = Field(new BackgroundTile(0, 0, 0, 255, 0, 4, MapBlendMode.None, false, true, new PixelImage(16, 16)));
+        ModFile demaster = Painting("044FF000", 16, 16, (_, _) => new(20, 40, 80, 255));
+        ModFile native = new("native", ModFormat.Memoria, "scene-lighting/field-paintings/sa/sample/sample_044FF000.png", 2, demaster.ReadBytes);
+        Assert.True(DemasterFieldLayers.IsInput(ModFormat.Memoria, native.RelativePath));
+        TextureReplacement replacement = Assert.Single(DemasterFieldLayers.Resolve(new(1, [], [demaster, native]), field, "en")).Value;
+        Assert.StartsWith("native/", replacement.Provenance);
+        Assert.Equal(new Rgba32(20, 40, 80, 255), replacement.Image[0, 0]);
+    }
+
+    [Fact]
     public void CropsPupuAnimationAndCoincidentTilesWithNativeCoverage()
     {
         PixelImage native = new(16, 16);

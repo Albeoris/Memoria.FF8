@@ -130,6 +130,9 @@ public sealed class DemasterDirectIoTests : IDisposable
         Assert.Equal([52], File.ReadAllBytes(host.ResolveGameFile("music/dmusic/new.sgt")));
         var source = host.Resources.GetSource<RemasteredGameDataSource>()!;
         Assert.True(source.ContainsExternalData("data/disk/wrong_disk"));
+        RemasteredExternalFileInfo selected = Assert.IsType<RemasteredExternalFileInfo>(source.DescribeExternalData(ScanPath));
+        Assert.Equal(3, selected.Length);
+        Assert.Equal(ModRuntime.InstalledDemasterPackageId + "/" + ScanPath, selected.Origin);
         Assert.False(source.ContainsExternalData("data/disk/missing"));
         using Stream marker = host.Resources.Get(new("files/disk/wrong_disk")).OpenRead();
         Assert.Equal(0, marker.Length);
@@ -159,7 +162,8 @@ public sealed class DemasterDirectIoTests : IDisposable
         Assert.False(alternate.SequenceEqual(new ResourceService(stock).Read(cardNames)));
         Assert.NotNull(stock.Find(new("battle/d0w007.dat")));
         Assert.Null(source.Find(new("battle/d0w007.dat")));
-        Assert.Throws<NotSupportedException>(() => NativeSteamDiscMountReader.Read(game!, 1, resources));
+        NotSupportedException marker = Assert.Throws<NotSupportedException>(() => NativeSteamDiscMountReader.Read(game!, 1, resources));
+        Assert.Contains("rejected-marker", marker.Message);
     }
 
     private GameResourceHost Open(string language = "en")

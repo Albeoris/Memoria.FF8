@@ -107,6 +107,15 @@ internal static class WorldAssetReader
                 ReadOnlySpan<byte> item = bytes.AsSpan(vertexOffset + vertex * 8, 8);
                 positions[vertex] = new Vector3(originX + block % 4 * 2048 + BinaryPrimitives.ReadInt16LittleEndian(item), -BinaryPrimitives.ReadInt16LittleEndian(item[2..]), originZ + block / 4 * 2048 - BinaryPrimitives.ReadInt16LittleEndian(item[4..]));
             }
+            Vector3 ReadNormal(byte index)
+            {
+                if (index >= normals)
+                {
+                    return default;
+                }
+                ReadOnlySpan<byte> normal = bytes.AsSpan(vertexOffset + vertices * 8 + index * 8, 8);
+                return new Vector3(BinaryPrimitives.ReadInt16LittleEndian(normal), -BinaryPrimitives.ReadInt16LittleEndian(normal[2..]), -BinaryPrimitives.ReadInt16LittleEndian(normal[4..])) / 4096;
+            }
             for (int polygon = 0; polygon < polygons; polygon++)
             {
                 ReadOnlySpan<byte> item = bytes.AsSpan(offset + 4 + polygon * 16, 16);
@@ -114,7 +123,14 @@ internal static class WorldAssetReader
                 {
                     throw new InvalidDataException("World polygon references an absent vertex.");
                 }
-                triangles.Add(new WorldTriangle(positions[item[0]], positions[item[1]], positions[item[2]], TerrainUv(item[6], item[7]), TerrainUv(item[8], item[9]), TerrainUv(item[10], item[11]), (byte)(item[12] >> 4), (byte)(item[12] & 15), item[13], item[14], item[15]) { NativeBlockIndex = block, NativePolygonIndex = polygon });
+                triangles.Add(new WorldTriangle(positions[item[0]], positions[item[1]], positions[item[2]], TerrainUv(item[6], item[7]), TerrainUv(item[8], item[9]), TerrainUv(item[10], item[11]), (byte)(item[12] >> 4), (byte)(item[12] & 15), item[13], item[14], item[15])
+                {
+                    NativeBlockIndex = block,
+                    NativePolygonIndex = polygon,
+                    NormalA = ReadNormal(item[3]),
+                    NormalB = ReadNormal(item[4]),
+                    NormalC = ReadNormal(item[5])
+                });
             }
         }
         return new WorldSegment(mapId, sourceId, group, triangles);

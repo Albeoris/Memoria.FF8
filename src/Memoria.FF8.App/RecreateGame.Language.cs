@@ -331,6 +331,7 @@ internal sealed partial class RecreateGame
     private void BindLanguageHost(GameResourceHost candidate, LaunchOptions launch, GameSession coldSession)
     {
         gameMenus?.DisconnectMods();
+        candidate.ConfigureGlobalSceneClock(globalSettings);
         resourceHost = candidate;
         options = launch;
         candidate.PrepareTexturePublication = PrepareTexturePublication;

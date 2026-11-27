@@ -1,4 +1,5 @@
 using System.Numerics;
+using Memoria.FF8.Resources;
 using System.Runtime.InteropServices;
 using Albeoris.Games.FF8.Imaging;
 using Albeoris.Games.FF8.Imaging.Map;
@@ -420,6 +421,8 @@ public sealed partial class FieldRenderer
         return runs.ToArray();
     }
 
+    public SceneColorGrade ColorGrade { get; set; }
+
     private void DrawTile(TileRaster raster, bool translucentPass = false)
     {
         BackgroundTile tile = raster.Tile;
@@ -437,6 +440,14 @@ public sealed partial class FieldRenderer
             DrawGpuTile(raster, shade, translucentPass);
             return;
         }
+        if (tile.PreparedColorLayer && tile.BlendMode == MapBlendMode.None)
+        {
+            if (!translucentPass)
+            {
+                DrawPreparedColorLayer(raster, shade);
+            }
+            return;
+        }
         Span<uint> packedPixels = MemoryMarshal.Cast<byte, uint>(pixels.AsSpan());
         foreach (RasterRun row in raster.Rows)
         {
@@ -452,6 +463,10 @@ public sealed partial class FieldRenderer
                 if (translucentPass != (blend != MapBlendMode.None))
                 {
                     continue;
+                }
+                if (blend is MapBlendMode.None or MapBlendMode.Average)
+                {
+                    color = ColorGrade.Apply(color);
                 }
                 uint packed = BitConverter.IsLittleEndian ? (uint)(color.R | color.G << 8 | color.B << 16 | 255 << 24) : (uint)(color.R << 24 | color.G << 16 | color.B << 8 | 255);
                 for (int y = row.Start; y < row.End; y++)
@@ -604,7 +619,8 @@ public sealed partial class FieldRenderer
             {
                 DepthComparison = primitiveTransparencyEnabled ? TriangleDepthComparison.LessEqual : TriangleDepthComparison.Less,
                 PerspectiveDepth = !OrthographicScene,
-                ClipRectangle = WorldClip
+                ClipRectangle = WorldClip,
+                ColorGrade = primitiveTransparencyEnabled ? default : ColorGrade
             };
             Vector4 color = new(polygonColor / 128, 1);
             Vector2 size = new(texture.Width, texture.Height);
@@ -651,7 +667,7 @@ public sealed partial class FieldRenderer
                 {
                     continue;
                 }
-                WritePixel(index, color, primitiveTransparencyEnabled ? MapBlendMode.Add : MapBlendMode.None);
+                WritePixel(index, primitiveTransparencyEnabled ? color : ColorGrade.Apply(color), primitiveTransparencyEnabled ? MapBlendMode.Add : MapBlendMode.None);
                 if (!primitiveTransparencyEnabled)
                 {
                     depth[index] = z;

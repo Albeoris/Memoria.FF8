@@ -46,9 +46,10 @@ public sealed partial class WorldTerrainRenderer
                 runMaximum = Vector3.Max(runMaximum, Vector3.Max(triangle.A, Vector3.Max(triangle.B, triangle.C)) / 16);
                 // Road polygons also carry the water bit, but use the full-height road atlas.
                 Vector2 scale = triangle.Water && !triangle.Road ? new Vector2(1, 2) : Vector2.One;
-                vertices.Add(new WorldTerrainVertex(triangle.A / 16, triangle.UvA * scale));
-                vertices.Add(new WorldTerrainVertex(triangle.B / 16, triangle.UvB * scale));
-                vertices.Add(new WorldTerrainVertex(triangle.C / 16, triangle.UvC * scale));
+                Vector3 facing = TerrainFaceNormal(triangle);
+                vertices.Add(new WorldTerrainVertex(triangle.A / 16, triangle.UvA * scale, triangle.NormalA != Vector3.Zero ? triangle.NormalA : facing));
+                vertices.Add(new WorldTerrainVertex(triangle.B / 16, triangle.UvB * scale, triangle.NormalB != Vector3.Zero ? triangle.NormalB : facing));
+                vertices.Add(new WorldTerrainVertex(triangle.C / 16, triangle.UvC * scale, triangle.NormalC != Vector3.Zero ? triangle.NormalC : facing));
             }
             if (source is not null)
             {
@@ -86,7 +87,7 @@ public sealed partial class WorldTerrainRenderer
                 continue;
             }
             // Resolve current resource handles each frame; geometry survives texture replacement.
-            TriangleMaterial material = TerrainMaterial(assets.GetTexture(run.TextureSource, terrainReplacementMask, textureAnimation), false);
+            TriangleMaterial material = TerrainMaterial(assets.GetTexture(run.TextureSource, terrainReplacementMask, textureAnimation), false) with { SceneSun = SceneSun };
             hardware.DrawTerrain(geometry.Mesh, camera, material, run.Start, run.Count);
             DrawnTriangles += run.Count / 3;
         }

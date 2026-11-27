@@ -545,10 +545,13 @@ internal sealed partial class GameWorld : IDisposable
             return RenderTripleTriad();
         }
         RequireSupportedMovieMaskRender();
+        SceneLightingState? lighting = ReadSceneLighting();
+        SceneColorGradeMods grades = (modelOverrides as GameResourceHost)?.SceneColorGrades ?? SceneColorGradeMods.Empty;
         if (session.State.Scene == SceneKind.WorldMap)
         {
             EnsureField();
-            return worldScene!.Render(renderWidth, renderHeight, triangleRenderer, worldInterpolation);
+            SceneColorGrade grade = grades.Resolve("world", lighting);
+            return worldScene!.Render(renderWidth, renderHeight, triangleRenderer, worldInterpolation, grade with { LinearTint = lighting?.Look is null ? null : lighting.Tint }, SceneDirectionalLighting.Resolve(lighting));
         }
         FieldPresentationFrame frame = frozenLightingPresentationFrame ?? CaptureFieldPresentation();
         FieldPresentationSample sample = frozenLightingPresentationSample ?? fieldPresentation.Sample(frame, fieldInterpolation, smoothFieldAnimation);
@@ -563,6 +566,7 @@ internal sealed partial class GameWorld : IDisposable
         fade.Validate();
         renderer!.TriangleRenderer = triangleRenderer;
         renderer.ActiveLighting = ActiveLighting;
+        renderer.ColorGrade = grades.Resolve("field/" + session.State.FieldName, lighting);
         renderer.NativeFieldShadows = nativeFieldShadows;
         renderer.InspectionCamera = inspectionCamera;
         renderer.InspectionBackdropEnabled = previewInspectionBackdrop;

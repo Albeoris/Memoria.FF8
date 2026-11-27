@@ -44,7 +44,7 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
     private const int MaximumStreamBatches = 2048;
     private const int MaximumBatchTextures = 8;
     private const int FieldShadowTextureSlot = 8;
-    private const int TouchedTextureSlots = 9;
+    private const int TouchedTextureSlots = 11;
     private static readonly string[] TextureNames = ["SourceTexture", "SourceTexture1", "SourceTexture2", "SourceTexture3", "SourceTexture4", "SourceTexture5", "SourceTexture6", "SourceTexture7"];
     private static readonly string[] TextureSizeNames = ["TextureSize", "TextureSize1", "TextureSize2", "TextureSize3", "TextureSize4", "TextureSize5", "TextureSize6", "TextureSize7"];
     private readonly GpuVertex[] vertices = new GpuVertex[MaximumStreamVertices];
@@ -556,11 +556,13 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
 
     private SamplerState ApplyMaterialState(in TriangleMaterial material)
     {
+        ApplyColorGradeState(material.ColorGrade);
+        effect.Parameters["SceneSun"].SetValue(new Vector4(material.SceneSun.Direction.X, material.SceneSun.Direction.Y, material.SceneSun.Direction.Z, material.SceneSun.Strength));
         device.BlendState = Blend(material.Blend, material.ColorWrite, material.PreserveTargetAlpha, material.CompositeTargetAlpha);
         device.DepthStencilState = Depth(material.DepthComparison, material.DepthWrite);
         SamplerState sampler = material.Sampler switch
         {
-            TriangleSampler.CutoutLinearClamp => SamplerState.PointClamp,
+            TriangleSampler.CutoutLinearClamp or TriangleSampler.AlphaWeightedLinearClamp => SamplerState.PointClamp,
             TriangleSampler.PointClamp => SamplerState.PointClamp,
             TriangleSampler.PointWrap => SamplerState.PointWrap,
             TriangleSampler.LinearClamp => SamplerState.LinearClamp,
@@ -571,7 +573,7 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
         effect.Parameters["MaterialParameters"].SetValue(new Vector4(material.Texture is null ? 0 : 1, material.TextureSelectsAlpha ? 1 : 0, material.AlphaMultiplier, material.DepthMapping == TriangleDepthMapping.Positive ? 1 : 0));
         effect.Parameters["ActorOpacityParameters"].SetValue(new Vector2(material.ActorOpacity, material.ActorOpacityReplacesAlpha ? 1 : 0));
         effect.Parameters["AlphaParameters"].SetValue(new Vector4(material.MinimumAlpha, material.MaximumAlpha, material.MinimumReciprocalW, multiplier));
-        effect.Parameters["FogParameters"].SetValue(new Vector4(material.FogStart, material.FogEnd, material.PerspectiveDepth ? 1 : 0, material.Sampler == TriangleSampler.CutoutLinearClamp ? 1 : 0));
+        effect.Parameters["FogParameters"].SetValue(new Vector4(material.FogStart, material.FogEnd, material.PerspectiveDepth ? 1 : 0, material.Sampler == TriangleSampler.AlphaWeightedLinearClamp ? 2 : material.Sampler == TriangleSampler.CutoutLinearClamp ? 1 : 0));
         effect.Parameters["DepthScale"].SetValue(material.DepthScale);
         effect.Parameters["CentroidTextureSampling"].SetValue(material.CentroidTextureSampling);
         effect.Parameters["FieldLightingPass"].SetValue((float)material.FieldLighting);
@@ -833,6 +835,7 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
             UnbindTexture(cached.Texture);
             cached.Texture.Dispose();
         }
+        DisposeColorGrade();
         effect.Dispose();
         fieldShadowTarget?.Dispose();
         foreach (BlendState blend in blends.Values)

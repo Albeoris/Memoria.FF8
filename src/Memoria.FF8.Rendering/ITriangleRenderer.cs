@@ -2,6 +2,7 @@ using System.Numerics;
 using Albeoris.Games.FF8.Imaging;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
+using Memoria.FF8.Resources;
 
 namespace Memoria.FF8.Rendering;
 
@@ -41,7 +42,8 @@ public enum TriangleSampler
     PointWrap,
     LinearClamp,
     LinearWrap,
-    CutoutLinearClamp
+    CutoutLinearClamp,
+    AlphaWeightedLinearClamp
 }
 public enum TriangleDepthMapping
 {
@@ -81,6 +83,8 @@ public readonly record struct TriangleMaterial(PixelImage? Texture, TriangleBlen
     public float FogEnd { get; init; }
     public float MinimumReciprocalW { get; init; }
     public FieldLightingPass FieldLighting { get; init; }
+    public SceneColorGrade ColorGrade { get; init; }
+    public SceneDirectionalLighting SceneSun { get; init; }
     public SceneAlphaCoverage SceneCoverage { get; init; }
     public FieldSceneSampler SceneSampler { get; init; }
 }

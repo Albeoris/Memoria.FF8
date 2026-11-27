@@ -39,6 +39,15 @@ public sealed partial class DemasterTextureResolver : ITextureReplacementResolve
                 diagnostics.Add(new("Demaster.ShaderNotSupported", "This shader has no Memoria consumer.", file.PackageId, path));
                 continue;
             }
+            if (IsUnboundShellPath(path))
+            {
+                diagnostics.Add(new("Demaster.ShellFileUnused", "This file has no matching Memoria shell slot.", file.PackageId, path));
+                continue;
+            }
+            if (DemasterFieldLayers.IsPayload(ModFormat.Demaster, path))
+            {
+                continue;
+            }
             if (file.TextureLayout is not null && !SupportsExplicitTextureLayout(file))
             {
                 diagnostics.Add(new ModDiagnostic("demaster-unsupported-texture-layout", $"Texture '{path}' declares a layout that has no compatible native atlas adapter or canvas.", file.PackageId, path));
@@ -102,6 +111,12 @@ public sealed partial class DemasterTextureResolver : ITextureReplacementResolve
             }
         }
         return new(usable.ToFrozenSet(StringComparer.OrdinalIgnoreCase), diagnostics.AsReadOnly());
+    }
+
+    internal static bool IsUnboundShellPath(string path)
+    {
+        return path.ToLowerInvariant() is "psx_buttons.png" or "psx_buttons.tga" or "square_enix.png"
+            or "ff8-en_hw.reg" or "layout_pc/logo/title-logo.png" or "layout_pc/logo/title-logo_jp.png";
     }
 
     public TextureReplacement? Resolve(TextureBuildContext context)

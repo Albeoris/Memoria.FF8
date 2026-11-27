@@ -18,10 +18,12 @@ public static class NativeSteamDiscMountReader
     {
         if (selectedDisc is < 1 or > 4)
         {
-            throw new NotSupportedException("Steam DISCJUMP requires a selected disc from1 through4.");
+            throw new NotSupportedException("Steam DISCJUMP requires a selected disc from 1 through 4.");
         }
         NativeFieldRuntimeProfile profile = resources.GetSource<IGameRuntimeSource>() is { } runtime ? runtime.RequireNativeRuntimeProfile() : throw new NotSupportedException("Steam DISCJUMP requires an authenticated edition runtime provider.");
-        using Stream wrapperStream = resources.Get(new ResourceKey("runtime/disc-wrapper")).OpenRead();
+        ResourceKey wrapperKey = new("runtime/disc-wrapper");
+        ResourceContent wrapperContent = resources.GetSource<IResourceSource>()?.Find(wrapperKey) ?? throw new FileNotFoundException("The authenticated disc wrapper is unavailable.");
+        using Stream wrapperStream = wrapperContent.OpenRead();
         string wrapper = Convert.ToHexString(SHA256.HashData(wrapperStream));
         int version = profile.ExecutableHash == NativeFieldRuntimeProfile.RemasteredEnImageHash ? 2 : 1;
         if (version == 2 && (resources.GetSource<Remastered.RemasteredGameDataSource>()?.ContainsExternalData("data/disk/wrong_disk") == true || File.Exists(Path.Combine(gameDirectory, "data", "disk", "WRONG_DISK"))))

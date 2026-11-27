@@ -6,6 +6,8 @@ namespace Memoria.FF8.Assets.Remastered;
 /// <summary>An exact external game-data address selected by the host's startup package order.</summary>
 public sealed record RemasteredLooseDataFile(string Path, string Origin, long Revision, Func<FileStream> OpenVersion);
 
+public sealed record RemasteredExternalFileInfo(string Path, long Length, string Origin, long Revision);
+
 public sealed partial class RemasteredGameDataSource
 {
     private sealed record ExternalFile(long Length, long Revision, string Origin, Func<Stream> OpenRead, string? PhysicalPath = null);
@@ -58,7 +60,7 @@ public sealed partial class RemasteredGameDataSource
                     }
                 }
                 looseData = selected;
-                foreach (string stem in selected.Keys.Where(IsOuterTripletPath).Select(path => path[..^3]).Distinct(StringComparer.OrdinalIgnoreCase))
+                foreach (string stem in selected.Keys.Where(IsOuterTripletPath).Select(path => path[..^3]).Distinct(StringComparer.OrdinalIgnoreCase).Where(stem => Contains(stem + ".fl")))
                 {
                     ValidateTriplet(stem);
                 }
@@ -94,12 +96,19 @@ public sealed partial class RemasteredGameDataSource
         }
     }
 
-    public bool ContainsExternalData(string relativePath)
+    public RemasteredExternalFileInfo? DescribeExternalData(string relativePath)
     {
         lock (archiveGate)
         {
-            return FindExternalFile(new ResourceKey(relativePath).Path) is not null;
+            string path = new ResourceKey(relativePath).Path;
+            ExternalFile? file = FindExternalFile(path);
+            return file is null ? null : new(path, file.Length, file.Origin, file.Revision);
         }
+    }
+
+    public bool ContainsExternalData(string relativePath)
+    {
+        return DescribeExternalData(relativePath) is not null;
     }
 
     private ExternalFile? FindExternalFile(string path)
