@@ -419,7 +419,7 @@ internal sealed partial class RecreateGame : GamePresentationHost
         }
         gameplayClock.Configure(uiPreferences.FastForwardMultiplier, uiPreferences.BattleSpeedPercent);
         world?.ConfigureMovementSpeeds(uiPreferences.FieldMovementSpeedPercent, uiPreferences.WorldMovementSpeedPercent);
-        if (!BattleModalBlocksGameplay && keyboard.SpeedToggleRequested && gameMenus?.IsNamePrompt != true)
+        if (keyboard.SpeedToggleRequested && gameMenus?.IsNamePrompt != true && !SlotsModalBlocksGameplay && !DuelOwnsInput)
         {
             gameplayClock.ToggleSpeed();
         }
