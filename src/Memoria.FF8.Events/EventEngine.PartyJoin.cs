@@ -301,27 +301,52 @@ public sealed partial class EventEngine
         {
             throw FreezeJoin("JOIN requires its certified native mode1 adapters, actual motion authority and retained native WORD474");
         }
-        // 524F40 preserves474/610 for the shared mode1 direction helper.
-        NativeScriptDirectionQuery directionQuery = new NativeScriptDirectionQuery(actor.ObjectId, target.FixedX, target.FixedY, target.TargetX, target.TargetY, (short)target.Speed, 96, (ushort)actor.PushRadius, authority.MovementDirection, (byte)actor.Direction, actor.NativeTurnAccumulator474!.Value, actor.MovementDirectionLimit, authority.FacingHold != 0);
-        NativeScriptDirectionResult direction = PrepareJoinDirection(directionQuery);
+        NativeScriptDirectionResult direction;
+        try
+        {
+            // 524F40 preserves474/610. The shared mode1 helper consumes the
+            // current physical word and limit, including completed prior MOVE state.
+            direction = PrepareNativeDirectionStep(new NativeScriptDirectionQuery(actor.ObjectId, target.FixedX, target.FixedY, target.TargetX, target.TargetY, (short)target.Speed, 96, (ushort)actor.PushRadius, authority.MovementDirection, (byte)actor.Direction, actor.NativeTurnAccumulator474!.Value, actor.MovementDirectionLimit, authority.FacingHold != 0));
+        }
+        catch (NotSupportedException exception)
+        {
+            throw FreezeJoin(exception.Message);
+        }
         ushort completion = 2;
         PartyJoinTarget next = target with { FixedX = direction.FixedX, FixedY = direction.FixedY };
         if (direction.Status == NativeScriptDirectionStatus.Moving)
         {
-            NativeJoinMovementResult movement = ResolveJoinStep(actor, target, direction);
-            // NG-135: route around the dead-end edge only when the stock proposal is rejected.
-            if (!movement.Accepted && IsOrphanageJoinDeadEnd(actor, directionQuery, movement))
+            NativeJoinMovementQuery nativeQuery = new(actor.ObjectId, actor.WalkmeshTriangle, target.FixedX, target.FixedY, target.FixedZ, direction.Direction, (short)target.Speed, actor.PushRadius, probe => EvaluateNativePlayerGroundContacts(actor, probe).Collision);
+            NativeJoinMovementResult movement = ResolveNativeJoinMovement(nativeQuery) ?? throw FreezeJoin("Unsupported native JOIN movement geometry; preserved raw coordinates and JOIN PC require the certified adapter");
+            if (movement.Proposals is null || movement.Proposals.Count is < 1 or > 16 || (uint)movement.Direction > 255 || movement.Triangle is < 0 or > short.MaxValue || new[] { movement.FixedX, movement.FixedY, movement.FixedZ }.Any(value => (value >> 12) is < short.MinValue or > short.MaxValue) || movement.Proposals.Any(proposal => (uint)proposal.Direction > 255) || movement.Proposals[0].Direction != direction.Direction || movement.Accepted && (movement.FixedX != movement.Proposals[^1].FixedX || movement.FixedY != movement.Proposals[^1].FixedY || movement.Direction != movement.Proposals[^1].Direction || (movement.FixedZ & 4095) != 0) || !movement.Accepted && (movement.FixedX != target.FixedX || movement.FixedY != target.FixedY || movement.FixedZ != target.FixedZ))
             {
-                NativeScriptDirectionResult detour = PrepareJoinDirection(directionQuery with { TargetX = -170 * 4096, TargetY = 570 * 4096, StopDistance = 0 });
-                if (detour.Status == NativeScriptDirectionStatus.Moving)
+                throw FreezeJoin("Native JOIN movement adapter returned an inconsistent raw proposal, phase or result");
+            }
+            try
+            {
+                if (movement.ProposalGroundProbes is not null)
                 {
-                    NativeJoinMovementResult candidate = ResolveJoinStep(actor, target, detour);
-                    if (candidate.Accepted)
+                    if (movement.ProposalGroundProbes.Count != movement.Proposals.Count)
                     {
-                        direction = detour;
-                        movement = candidate;
+                        throw new NotSupportedException("Native JOIN ground/contact fans do not match all ordered proposals.");
+                    }
+                    for (int proposal = 0; proposal < movement.Proposals.Count; proposal++)
+                    {
+                        _ = ValidateNativePlayerGroundContacts(actor, movement.Proposals[proposal], movement.ProposalGroundProbes[proposal]);
+                    }
+                    if (movement.Accepted && movement.ProposalGroundProbes[^1].Any(probe => probe.ActorCollision))
+                    {
+                        throw new NotSupportedException("Accepted native JOIN result retains a blocking actor fan.");
                     }
                 }
+                else
+                {
+                    throw new NotSupportedException("Native party movement requires all ordered original fan ground heights.");
+                }
+            }
+            catch (NotSupportedException exception)
+            {
+                throw FreezeJoin(exception.Message);
             }
             next = target with { FixedX = movement.FixedX, FixedY = movement.FixedY, FixedZ = movement.FixedZ };
             completion = 1;
@@ -345,65 +370,6 @@ public sealed partial class EventEngine
         targets[index] = next;
         partyJoin = partyJoin with { Targets = targets };
         return true;
-    }
-
-    private NativeScriptDirectionResult PrepareJoinDirection(NativeScriptDirectionQuery query)
-    {
-        try
-        {
-            return PrepareNativeDirectionStep(query);
-        }
-        catch (NotSupportedException exception)
-        {
-            throw FreezeJoin(exception.Message);
-        }
-    }
-
-    private NativeJoinMovementResult ResolveJoinStep(ActorState actor, PartyJoinTarget target, NativeScriptDirectionResult direction)
-    {
-        NativeJoinMovementQuery nativeQuery = new(actor.ObjectId, actor.WalkmeshTriangle, target.FixedX, target.FixedY, target.FixedZ, direction.Direction, (short)target.Speed, actor.PushRadius, probe => EvaluateNativePlayerGroundContacts(actor, probe).Collision);
-        NativeJoinMovementResult movement = ResolveNativeJoinMovement!(nativeQuery) ?? throw FreezeJoin("Unsupported native JOIN movement geometry; preserved raw coordinates and JOIN PC require the certified adapter");
-        if (movement.Proposals is null || movement.Proposals.Count is < 1 or > 16 || (uint)movement.Direction > 255 || movement.Triangle is < 0 or > short.MaxValue || new[] { movement.FixedX, movement.FixedY, movement.FixedZ }.Any(value => (value >> 12) is < short.MinValue or > short.MaxValue) || movement.Proposals.Any(proposal => (uint)proposal.Direction > 255) || movement.Proposals[0].Direction != direction.Direction || movement.Accepted && (movement.FixedX != movement.Proposals[^1].FixedX || movement.FixedY != movement.Proposals[^1].FixedY || movement.Direction != movement.Proposals[^1].Direction || (movement.FixedZ & 4095) != 0) || !movement.Accepted && (movement.FixedX != target.FixedX || movement.FixedY != target.FixedY || movement.FixedZ != target.FixedZ))
-        {
-            throw FreezeJoin("Native JOIN movement adapter returned an inconsistent raw proposal, phase or result");
-        }
-        try
-        {
-            if (movement.ProposalGroundProbes is not null)
-            {
-                if (movement.ProposalGroundProbes.Count != movement.Proposals.Count)
-                {
-                    throw new NotSupportedException("Native JOIN ground/contact fans do not match all ordered proposals.");
-                }
-                for (int proposal = 0; proposal < movement.Proposals.Count; proposal++)
-                {
-                    _ = ValidateNativePlayerGroundContacts(actor, movement.Proposals[proposal], movement.ProposalGroundProbes[proposal]);
-                }
-                if (movement.Accepted && movement.ProposalGroundProbes[^1].Any(probe => probe.ActorCollision))
-                {
-                    throw new NotSupportedException("Accepted native JOIN result retains a blocking actor fan.");
-                }
-            }
-            else
-            {
-                throw new NotSupportedException("Native party movement requires all ordered original fan ground heights.");
-            }
-        }
-        catch (NotSupportedException exception)
-        {
-            throw FreezeJoin(exception.Message);
-        }
-        return movement;
-    }
-
-    private bool IsOrphanageJoinDeadEnd(ActorState actor, NativeScriptDirectionQuery query, NativeJoinMovementResult blocked)
-    {
-        return FieldId == 505 && programHash == "39501EB9F61E9C2FCA23068E8D19FE9E245515D8DA15B7833D211803C8E9F6BF"
-            && actor is { ObjectId: 1, CharacterId: 1, WalkmeshTriangle: 106, NativeScriptMovement: { SupersededByPartyJoin: true, ScriptId: 13, Operation: 116 } }
-            && query is { Speed: 7929, Radius: 48, DirectionLimit: 0, HoldsFacing: false } && blocked.Proposals is [{ Direction: 9 }]
-            && blocked.ProposalGroundProbes is [{ } probes] && probes.All(probe => !probe.ActorCollision)
-            && partyJoin is { CallerObjectId: 0 } join
-            && fibers.Any(fiber => fiber.Sequence == join.FiberSequence && fiber.ObjectId == 0 && fiber.Script.Id == 6 && fiber.Position == 31);
     }
 
     private EventScriptException FreezeJoin(string reason)
