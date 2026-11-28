@@ -100,6 +100,25 @@ public sealed class CardMarkerRenderingTests
         Assert.InRange(120 - 25 * 240 / 224.0 - bounds.Bottom - 1, 3, 5);
     }
 
+    [Theory]
+    [InlineData(0, false)]
+    [InlineData(4, true)]
+    public void QuestLossBorderSurroundsBothFacesWhileKeepingTheArtwork(double seconds, bool back)
+    {
+        FieldRenderer renderer = new(Field(), modelTextureSampling: ModelTextureSampling.Nearest);
+        byte[] baseline = renderer.Render(new Dictionary<int, int>(), [Actor], TimeSpan.Zero).ToArray();
+        byte[] pixels = renderer.Render(new Dictionary<int, int>(), [Actor], TimeSpan.FromSeconds(seconds), cardMarkers: [Marker with { IsQuestLoss = true }]);
+        var bounds = ChangedBounds(baseline, pixels, renderer.OutputWidth);
+        int middleY = (bounds.Top + bounds.Bottom) / 2;
+        int middleX = (bounds.Left + bounds.Right) / 2;
+        Rgba32 red = new(240, 32, 48);
+        Assert.Equal(red, Sample(pixels, renderer.OutputWidth, bounds.Left, middleY));
+        Assert.Equal(red, Sample(pixels, renderer.OutputWidth, bounds.Right, middleY));
+        Assert.Equal(red, Sample(pixels, renderer.OutputWidth, middleX, bounds.Top));
+        Assert.Equal(red, Sample(pixels, renderer.OutputWidth, middleX, bounds.Bottom));
+        Assert.Equal(back ? BackLeft : FrontLeft, Sample(pixels, renderer.OutputWidth, bounds.Left + 2, middleY));
+    }
+
     private static FieldAssets Field()
     {
         PixelImage texture = Solid(new Rgba32(0, 0, 200), 16, 16);

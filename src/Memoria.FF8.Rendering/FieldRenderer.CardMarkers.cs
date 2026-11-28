@@ -1,19 +1,22 @@
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using Albeoris.Games.FF8.Imaging;
 using Memoria.FF8.Assets;
 
 namespace Memoria.FF8.Rendering;
 
-public sealed record CardMarkerVisual(int ObjectId, PixelImage Front, PixelImage Back);
+public sealed record CardMarkerVisual(int ObjectId, PixelImage Front, PixelImage Back, bool IsQuestLoss = false, bool UseHiddenInteractionAnchor = false);
 
 public sealed partial class FieldRenderer
 {
+    private static readonly ConditionalWeakTable<PixelImage, PixelImage> QuestLossCardFaces = new();
+
     private void DrawCardMarkers(IReadOnlyList<ActorVisual> actors, IReadOnlyList<CardMarkerVisual> markers, TimeSpan elapsed)
     {
         foreach (CardMarkerVisual marker in markers)
         {
-            ActorVisual actor = actors.FirstOrDefault(actor => actor.ObjectId == marker.ObjectId);
-            if (!actor.Visible || (uint)actor.ModelId >= field.Models.Count)
+            ActorVisual? anchor = actors.Where(candidate => candidate.ObjectId == marker.ObjectId).Select(candidate => (ActorVisual?)candidate).FirstOrDefault();
+            if (anchor is not { } actor || (!actor.Visible && !marker.UseHiddenInteractionAnchor) || (uint)actor.ModelId >= field.Models.Count)
             {
                 continue;
             }
@@ -45,6 +48,10 @@ public sealed partial class FieldRenderer
             float angle = (float)(elapsed.TotalSeconds % 8 / 8 * Math.Tau);
             float cosine = MathF.Cos(angle);
             PixelImage texture = cosine >= 0 ? marker.Front : marker.Back;
+            if (marker.IsQuestLoss)
+            {
+                texture = QuestLossCardFaces.GetValue(texture, AddQuestLossBorder);
+            }
             float height = 14 * scale;
             // Both faces occupy the same physical card. Preserve the front texture's aspect.
             float halfWidth = height * marker.Front.Width / marker.Front.Height / 2;
@@ -64,5 +71,28 @@ public sealed partial class FieldRenderer
             Triangle(a, b, c, uvA, uvB, uvC, texture, new Vector3(128), false);
             Triangle(b, d, c, uvB, uvD, uvC, texture, new Vector3(128), false);
         }
+    }
+
+    private static PixelImage AddQuestLossBorder(PixelImage artwork)
+    {
+        PixelImage face = new(artwork.Width, artwork.Height);
+        artwork.Pixels.AsSpan().CopyTo(face.Pixels);
+        int borderWidth = Math.Max(1, face.Width / 8);
+        int borderHeight = Math.Max(1, face.Height / 8);
+        Rgba32 red = new(240, 32, 48);
+        for (int y = 0; y < face.Height; y++)
+        {
+            Span<Rgba32> row = face.Pixels.AsSpan(y * face.Width, face.Width);
+            if (y < borderHeight || y >= face.Height - borderHeight)
+            {
+                row.Fill(red);
+            }
+            else
+            {
+                row[..borderWidth].Fill(red);
+                row[^borderWidth..].Fill(red);
+            }
+        }
+        return face;
     }
 }

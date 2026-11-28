@@ -7,6 +7,28 @@ namespace Memoria.FF8.App.Tests;
 public sealed class RareCardMarkerIntegrationTests
 {
     [Fact]
+    public void NativeDelingQuicksaveRendersKirosOverTheBakedPedestrian()
+    {
+        string directory = TestResources.GameDirectory;
+        string source = TestResources.FixturePath("App.Tests.RareCardMarkerIntegrationTests.2");
+        var session = new GameSession(GameplaySaveSessionLoader.Load(source, directory));
+        using var world = new GameWorld(session, directory);
+        world.EnsureField();
+        world.SetRenderSize(640, 480);
+        Assert.Equal(742, world.Events.FieldId);
+        Assert.False(world.Events.Actors[12].Visible);
+        Assert.Contains(new RareCardOffer(12, 100, UseHiddenInteractionAnchor: true), world.Events.GetRareCardOffers());
+        JsonElement before = world.Events.Capture();
+        byte[] disabled = world.Render(TimeSpan.Zero, rareCardMarkers: false).ToArray();
+        byte[] front = world.Render(TimeSpan.Zero).ToArray();
+        byte[] back = world.Render(TimeSpan.FromSeconds(4)).ToArray();
+        Assert.False(front.SequenceEqual(disabled));
+        Assert.False(back.SequenceEqual(disabled));
+        Assert.False(front.SequenceEqual(back));
+        Assert.True(JsonElement.DeepEquals(before, world.Events.Capture()));
+    }
+
+    [Fact]
     public void NativeMartineOfferRendersBothFacesWithoutMutationAndResumesFromStandaloneSave()
     {
         string directory = TestResources.GameDirectory;

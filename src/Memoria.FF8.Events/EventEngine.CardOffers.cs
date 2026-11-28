@@ -3,7 +3,7 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Events;
 
-public sealed record RareCardOffer(int ObjectId, int CardId);
+public sealed record RareCardOffer(int ObjectId, int CardId, bool IsQuestLoss = false, bool UseHiddenInteractionAnchor = false);
 
 public sealed partial class EventEngine
 {
@@ -14,11 +14,12 @@ public sealed partial class EventEngine
         {
             return [];
         }
-        if (Enumerable.Range(0, NativeCardInventory.CardCount).Sum(card => Math.Max(0, cards.AvailableCount(card))) < 5)
+        if (cards.TotalAvailableCount < 5)
         {
             return [];
         }
         List<RareCardOffer> offers = [];
+        int? queenQuestCard = GetQueenQuestLossCard(cards);
         foreach (ActorState actor in actors)
         {
             EventObject obj = program.Objects[actor.ObjectId];
@@ -27,13 +28,23 @@ public sealed partial class EventEngine
                 continue;
             }
             EventScript script = obj.Scripts[2];
+            if (queenQuestCard is int questCard && actor.Visible && IsQueenCardChallenge(script))
+            {
+                offers.Add(new RareCardOffer(actor.ObjectId, questCard, IsQuestLoss: true));
+            }
             if (!CardOfferScriptCanReachGame(script, []))
             {
                 continue;
             }
             foreach ((int owner, int limit, int objectId) in ReadCardChallengeOwners(script, actor.ObjectId))
             {
-                if (!actors[objectId].Active || !actors[objectId].Visible || actors[objectId].RenderModelId is < 0 or ushort.MaxValue)
+                ActorState opponent = actors[objectId];
+                if (!opponent.Active || opponent.RenderModelId is < 0 or ushort.MaxValue)
+                {
+                    continue;
+                }
+                bool hiddenAnchor = !opponent.Visible && IsHiddenCardInteractionAnchor(opponent);
+                if (!opponent.Visible && !hiddenAnchor)
                 {
                     continue;
                 }
@@ -42,12 +53,79 @@ public sealed partial class EventEngine
                 {
                     if (cards.Location(card) == owner && matched++ < limit)
                     {
-                        offers.Add(new RareCardOffer(objectId, card));
+                        offers.Add(new RareCardOffer(objectId, card, UseHiddenInteractionAnchor: hiddenAnchor));
                     }
                 }
             }
         }
         return offers.Distinct().ToArray();
+    }
+
+    private bool IsHiddenCardInteractionAnchor(ActorState actor)
+    {
+        if (!actor.TalkEnabled || !actor.CollisionEnabled)
+        {
+            return false;
+        }
+        // A baked-in pedestrian has a placed model for contact and talk.
+        // Its initializer explicitly turns both back on after hiding the mesh.
+        EventScript initializer = program!.Objects[actor.ObjectId].Scripts[0];
+        var operations = initializer.ReachableOperations.Select(index => program.Operations[index]).OrderBy(operation => operation.Index);
+        bool hidden = false;
+        bool placed = false;
+        bool solid = false;
+        foreach (JsmOperation operation in operations)
+        {
+            switch (operation.Opcode)
+            {
+                case Jsm.Opcode.HIDE:
+                case Jsm.Opcode.SHOW:
+                    hidden = operation.Opcode == Jsm.Opcode.HIDE;
+                    placed = solid = false;
+                    break;
+                case Jsm.Opcode.SET3 when hidden:
+                    placed = operation.Parameter == actor.WalkmeshTriangle;
+                    solid = false;
+                    break;
+                case Jsm.Opcode.THROUGHOFF when placed:
+                    solid = true;
+                    break;
+                case Jsm.Opcode.TALKON when solid:
+                    return true;
+            }
+        }
+        return false;
+    }
+
+    private int? GetQueenQuestLossCard(NativeCardInventory cards)
+    {
+        // Dollet's Queen of Cards script advances this byte when she accepts
+        // the preceding card and makes the corresponding reward available.
+        NativeScalarValue stage = EventMemory.Read(300, 1, false);
+        int card = (stage.IsExact ? stage.RequireExact() : -1) switch
+        {
+            0 => 80,
+            1 => 86,
+            2 => 81,
+            3 => 94,
+            4 => 97,
+            _ => -1
+        };
+        return card >= 0 && cards.AvailableCount(card) > 0 ? card : null;
+    }
+
+    private bool IsQueenCardChallenge(EventScript script)
+    {
+        foreach (int index in script.ReachableOperations)
+        {
+            if (program!.Operations[index].Opcode == Jsm.Opcode.CARDGAME && script.ContainsOperation(index - 7)
+                && program.Operations[index - 7] is { Opcode: Jsm.Opcode.PSHN_L, Parameter: 1 })
+            {
+                // The final crash-site challenge uses the same owner, but never checks quest card ownership.
+                return script.ReachableOperations.Any(position => program.Operations[position].Opcode == Jsm.Opcode.WHERECARD);
+            }
+        }
+        return false;
     }
 
     private IReadOnlySet<(int Owner, int Limit, int Object)> ReadCardChallengeOwners(EventScript script, int objectId, CardOfferBranch? seed = null, int depth = 0)

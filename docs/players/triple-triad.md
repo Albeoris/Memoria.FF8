@@ -45,3 +45,7 @@ With the option Off and Same or Plus active, cards keep their printed ranks and 
 The calculation mode is frozen when a challenge starts and survives saving, reloading, redraws and Sudden Death.
 
 The scalable parchment board and its ornaments are drawn procedurally. Installed card artwork replacements continue to supply the card faces.
+
+## Rare card markers
+
+Enable **Rare card markers** under Interface in Config to see spinning cards above opponents who can play them. A red frame above the Queen of Cards marks the next quest card to lose to her, when that card is in your collection.

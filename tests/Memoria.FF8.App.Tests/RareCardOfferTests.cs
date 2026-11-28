@@ -124,13 +124,84 @@ public sealed class RareCardOfferTests
         return [(Jsm.Opcode.PSHN_L, owner), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, chance), (Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.PSHN_L, 127), (Jsm.Opcode.CARDGAME, 0)];
     }
 
-    private static (GameSession Session, EventEngine Engine) Create((Jsm.Opcode, int)[] talk, int quantity = 5, int gate = 0)
+    [Fact]
+    public void NativeDelingPedestrianUsesItsHiddenInteractionAnchor()
+    {
+        string directory = TestResources.GameDirectory;
+        Assert.SkipUnless(Directory.Exists(directory), "Installed native field corpus is required.");
+        using GameAssets assets = new(directory);
+        var fixture = Create(Challenge(121, 50));
+        fixture.Session.CardInventory!.Cards[100] = 23;
+        fixture.Engine.LoadField(742, assets.LoadField(742).Jsm, []);
+        typeof(EventEngine).GetField("defaultsStarted", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(fixture.Engine, true);
+        SetActor(fixture.Engine, nameof(ActorState.ModelId), 7, 12);
+        SetActor(fixture.Engine, nameof(ActorState.Visible), false, 12);
+        SetActor(fixture.Engine, nameof(ActorState.WalkmeshTriangle), 203, 12);
+        RareCardOffer expected = new(12, 100, UseHiddenInteractionAnchor: true);
+        Assert.Equal(expected, Assert.Single(fixture.Engine.GetRareCardOffers()));
+        SetActor(fixture.Engine, nameof(ActorState.CollisionEnabled), false, 12);
+        Assert.Empty(fixture.Engine.GetRareCardOffers());
+    }
+
+    [Theory]
+    [InlineData(0, 80)]
+    [InlineData(1, 86)]
+    [InlineData(2, 81)]
+    [InlineData(3, 94)]
+    [InlineData(4, 97)]
+    [InlineData(5, null)]
+    public void NativeQueenMarksOnlyTheCurrentQuestCardHeldByThePlayer(int stage, int? card)
+    {
+        string directory = TestResources.GameDirectory;
+        Assert.SkipUnless(Directory.Exists(directory), "Installed native field corpus is required.");
+        using GameAssets assets = new(directory);
+        var fixture = Create(Challenge(121, 50), questStage: stage);
+        fixture.Engine.LoadField(336, assets.LoadField(336).Jsm, []);
+        typeof(EventEngine).GetField("defaultsStarted", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(fixture.Engine, true);
+        SetActor(fixture.Engine, nameof(ActorState.ModelId), 6, 15);
+        Assert.DoesNotContain(fixture.Engine.GetRareCardOffers(), offer => offer.IsQuestLoss);
+        foreach (int questCard in new[] { 80, 86, 81, 94, 97 })
+        {
+            fixture.Session.SetCardInventory(fixture.Session.CardInventory!.Acquire(questCard, out _));
+        }
+        JsonElement before = fixture.Engine.Capture();
+        RareCardOffer[] hints = fixture.Engine.GetRareCardOffers().Where(offer => offer.IsQuestLoss).ToArray();
+        Assert.True(JsonElement.DeepEquals(before, fixture.Engine.Capture()));
+        if (card is int expected)
+        {
+            Assert.Equal(new RareCardOffer(15, expected, IsQuestLoss: true), Assert.Single(hints));
+            fixture.Session.SetCardInventory(fixture.Session.CardInventory!.Transfer(expected, 1, out _));
+            Assert.DoesNotContain(fixture.Engine.GetRareCardOffers(), offer => offer.IsQuestLoss);
+        }
+        else
+        {
+            Assert.Empty(hints);
+        }
+    }
+
+    [Theory]
+    [InlineData(127, 20, true)]
+    [InlineData(347, 8, false)]
+    public void NativeQueenOnlyShowsTheLossHintAtQuestChallenges(int field, int actor, bool questChallenge)
+    {
+        string directory = TestResources.GameDirectory;
+        Assert.SkipUnless(Directory.Exists(directory), "Installed native field corpus is required.");
+        using GameAssets assets = new(directory);
+        var fixture = Create(Challenge(121, 50));
+        fixture.Session.SetCardInventory(fixture.Session.CardInventory!.Acquire(80, out _));
+        fixture.Engine.LoadField(field, assets.LoadField(field).Jsm, []);
+        typeof(EventEngine).GetField("defaultsStarted", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(fixture.Engine, true);
+        SetActor(fixture.Engine, nameof(ActorState.ModelId), 6, actor);
+        Assert.Equal(questChallenge, fixture.Engine.GetRareCardOffers().Contains(new RareCardOffer(actor, 80, IsQuestLoss: true)));
+    }
+
+    private static (GameSession Session, EventEngine Engine) Create((Jsm.Opcode, int)[] talk, int quantity = 5, int gate = 0, int questStage = 0)
     {
         NativeCardInventory cards = NativeCardInventory.CreateNewGame();
         cards.Cards[0] = (byte)(128 | quantity);
         cards.Cards[84] = 121;
         GameSession session = new(new GameState { Scene = SceneKind.Field, FieldId = 100, CardInventory = cards });
-        EventEngine engine = new(session, NativeEventMemory.FromDWords(new Dictionary<int, int> { [512] = gate }));
+        EventEngine engine = new(session, NativeEventMemory.FromDWords(new Dictionary<int, int> { [512] = gate, [300] = questStage }));
         List<(Jsm.Opcode Opcode, int Parameter)> operations = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 0), (Jsm.Opcode.LBL, 1), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 0), (Jsm.Opcode.LBL, 2)];
         operations.AddRange(talk);
         operations.Add((Jsm.Opcode.RET, 0));

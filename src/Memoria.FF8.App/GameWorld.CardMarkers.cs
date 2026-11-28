@@ -27,12 +27,13 @@ internal sealed partial class GameWorld
             cardArtworkGeneration = resources?.Generation ?? 0;
         }
         cardArtwork ??= CardArtwork.Load(assets.GameDirectory, resources);
-        // An opponent may hold several unique cards. Show each for one complete turn.
+        // Show each available hint for one complete turn.
         long turn = (long)Math.Floor(Math.Max(0, elapsed.TotalSeconds) / 8);
         return offers.GroupBy(offer => offer.ObjectId).Select(group =>
         {
             RareCardOffer[] cards = group.OrderBy(offer => offer.CardId).ToArray();
-            return new CardMarkerVisual(group.Key, cardArtwork.GetFront(cards[turn % cards.Length].CardId), cardArtwork.Back);
+            RareCardOffer card = cards[turn % cards.Length];
+            return new CardMarkerVisual(group.Key, cardArtwork.GetFront(card.CardId), cardArtwork.Back, card.IsQuestLoss, card.UseHiddenInteractionAnchor);
         }).ToArray();
     }
 }
