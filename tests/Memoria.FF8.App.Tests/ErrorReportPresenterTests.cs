@@ -1,5 +1,7 @@
 using Memoria.FF8.Platform;
+using Memoria.FF8.Runtime;
 using Memoria.FF8.Ui;
+using Microsoft.Xna.Framework.Input;
 
 namespace Memoria.FF8.Tests;
 
@@ -93,6 +95,38 @@ public sealed class ErrorReportPresenterTests
         Assert.DoesNotContain(trace, copied);
         buttons[3].Click!();
         Assert.True(closed);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ErrorReportDefaultsToReportingAndCanReturnToMainMenu(bool usePointer)
+    {
+        int returns = 0;
+        using ErrorReportPresenter presenter = new(_ => { }, returnToMainMenu: () => returns++);
+        presenter.Reset("Original native failure");
+        presenter.Incident = ErrorIncident.Capture(new InvalidDataException("Original native failure"), "FFVIII battle");
+        UiView view = presenter.View("Game stopped");
+        view.Resize(960, 672);
+        Assert.Equal("Report error", Assert.IsType<UiButton>(view.FocusedElement).Text);
+        UiButton returnButton = Assert.Single(Descendants(view.Root).OfType<UiButton>(), button => button.Text == "Return to main menu");
+        KeyboardInput keyboard = new();
+        if (usePointer)
+        {
+            MouseState mouse = new((int)(returnButton.Bounds.X + 10), (int)(returnButton.Bounds.Y + 10), 0, ButtonState.Pressed, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released);
+            Assert.True(presenter.Update("Game stopped", default, keyboard, mouse, 960, 672));
+        }
+        else
+        {
+            InputFrame right = default(InputFrame) with { MenuHorizontal = 1 };
+            for (int index = 0; index < 3; index++)
+            {
+                Assert.True(presenter.Update("Game stopped", right, keyboard, default, 960, 672));
+            }
+            Assert.Same(returnButton, view.FocusedElement);
+            Assert.True(presenter.Update("Game stopped", default(InputFrame) with { Confirm = true }, keyboard, default, 960, 672));
+        }
+        Assert.Equal(1, returns);
     }
 
     private static IEnumerable<UiElement> Descendants(UiElement element)

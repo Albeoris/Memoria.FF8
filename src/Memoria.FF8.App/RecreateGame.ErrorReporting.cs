@@ -10,7 +10,9 @@ namespace Memoria.FF8;
 internal sealed partial class RecreateGame
 {
     private ErrorReportPresenter? sharedErrorReport;
-    private ErrorReportPresenter ErrorReporter => sharedErrorReport ??= new ErrorReportPresenter(authoringClipboard.Copy);
+    private ErrorReportPresenter ErrorReporter => sharedErrorReport ??= new ErrorReportPresenter(authoringClipboard.Copy, returnToMainMenu: ReturnToTitleFromErrorReport);
+    private bool ErrorReportOwnsInput => error is not null && sharedErrorReport?.Incident is not null && !saveMenu.IsOpen && gameMenus?.IsOpen != true;
+
     private ErrorIncident? errorIncident
     {
         get => ErrorReporter.Incident;
@@ -199,6 +201,17 @@ internal sealed partial class RecreateGame
 
     private UiView BuildErrorReportView() => ErrorReporter.View(error);
 
+    private void ReturnToTitleFromErrorReport()
+    {
+        if (error is null)
+        {
+            return;
+        }
+        StopAutoPlayForPlayerSession();
+        ReturnToTitleScreen();
+        previousTitlePointerPressed = physicalInput.ReadMouse().LeftButton == ButtonState.Pressed;
+    }
+
     private bool UpdateErrorReport(InputFrame input)
     {
         if (error is null && errorIncident is not null)
@@ -223,7 +236,7 @@ internal sealed partial class RecreateGame
             reportBreadcrumbs.Add("input", input.Confirm ? "confirm" : input.Cancel ? "cancel" : input.QuickLoad ? "quick load" : input.Save ? "save" : "load menu");
         }
         sharedErrorReport?.PollPreparation();
-        if (errorIncident is null || error is null || saveMenu.IsOpen || gameMenus?.IsOpen == true || input.QuickLoad || input.SaveMenu || input.LoadMenu)
+        if (!ErrorReportOwnsInput || input.QuickLoad || input.SaveMenu || input.LoadMenu)
         {
             return false;
         }

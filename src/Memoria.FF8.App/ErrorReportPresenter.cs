@@ -6,7 +6,7 @@ using Microsoft.Xna.Framework.Input;
 namespace Memoria.FF8;
 
 /// <summary>Shared report preparation, recovery actions and UI; game adapters supply validated evidence.</summary>
-internal sealed class ErrorReportPresenter(Action<string> copy, Func<ErrorIncident, Task<PreparedErrorReport>>? prepare = null) : IDisposable
+internal sealed class ErrorReportPresenter(Action<string> copy, Func<ErrorIncident, Task<PreparedErrorReport>>? prepare = null, Action? returnToMainMenu = null) : IDisposable
 {
     internal ErrorIncident? Incident { get; set; }
     internal Task<ErrorIncident>? Evidence { get; set; }
@@ -255,6 +255,10 @@ internal sealed class ErrorReportPresenter(Action<string> copy, Func<ErrorIncide
         if (closePerformance is not null)
         {
             buttons.Children.Add(new UiButton { Text = "Close", FontSize = 15, Click = closePerformance });
+        }
+        else if (returnToMainMenu is not null)
+        {
+            buttons.Children.Add(new UiButton { Text = "Return to main menu", FontSize = 15, Click = returnToMainMenu });
         }
         stack.Children.Add(buttons);
         if (preparedReport is not null)

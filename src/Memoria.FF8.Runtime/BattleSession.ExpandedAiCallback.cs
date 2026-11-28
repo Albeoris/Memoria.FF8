@@ -90,6 +90,24 @@ public sealed partial class BattleSession
         });
     }
 
+    private void CancelIneligibleExpandedAiCallbacks(BattleCombatant actor)
+    {
+        BattleActorReference owner = TargetActorReference(actor);
+        int count = actions.Count;
+        for (int remaining = count; remaining > 0; remaining--)
+        {
+            BattleAttackCommand command = actions.Dequeue();
+            if (command.ExpandedAiCallback is not { } request || request.Actor != owner || CanDispatchExpandedAiCallback(actor, request))
+            {
+                actions.Enqueue(command);
+            }
+        }
+        if (actions.Count != count && ActiveAction?.ActorId != actor.Id && !actions.Any(command => command.ActorId == actor.Id && command.RosterOperation is null))
+        {
+            actor.IsBusy = false;
+        }
+    }
+
     private void DispatchExpandedAiCallback(BattleAttackCommand packet, BattleExpandedAiCallbackRequest request)
     {
         BattleCombatant actor = ValidateExpandedAiCallback(packet, request);

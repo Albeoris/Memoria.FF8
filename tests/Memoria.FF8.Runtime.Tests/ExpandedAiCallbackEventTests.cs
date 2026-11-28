@@ -61,6 +61,58 @@ public sealed class ExpandedAiCallbackEventTests
         Assert.Equal(3, logical.Events.Count(entry => entry.Kind == "ActionComplete"));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Model_lifecycle_retires_ineligible_callbacks_before_another_actors_hosted_completion(bool release)
+    {
+        BattleCombatantDefinition leaving = Combatant("leaving", 22, Program());
+        BattleCombatantDefinition staying = Combatant("staying", 23, Program());
+        var (logical, process) = Fixture(Program(), [leaving, staying]);
+        for (int index = 0; index < 3; index++)
+        {
+            Dispatch(logical);
+            CompleteEmpty(logical, process, 0x47DDA0);
+        }
+
+        BattleCombatant leavingActor = Actor(logical, leaving.Id);
+        BattleCombatant stayingActor = Actor(logical, staying.Id);
+        Queue(logical, Actor(logical, Enemy), 3);
+        Dispatch(logical);
+        Queue(logical, stayingActor, 1);
+        Queue(logical, leavingActor, 1);
+        Queue(logical, stayingActor, 3);
+        Queue(logical, leavingActor, 3);
+        BattleAttackCommand[] retained = logical.QueuedActions.Where(command => command.ActorId == staying.Id || !release && command.ExpandedAiCallback?.Stage == 3).ToArray();
+        int eventsBeforeRelease = logical.Events.Count;
+        BattleModelOwner owner = logical.ReadPresentationModelOwner(leaving.Id);
+        NativeBattleModelLifecycleReceipt receipt = release
+            ? new NativeBattleModelParticipantReleased(owner, leaving.Id)
+            : new NativeBattleModelParticipantSuspended(owner, leaving.Id, 3);
+
+        CompleteEmpty(logical, process, 0x47DDA0, receipt);
+
+        Assert.Equal(!release, leavingActor.IsActive);
+        Assert.Equal(!release, leavingActor.IsBusy);
+        Assert.Equal(retained, logical.QueuedActions);
+        Assert.True(stayingActor.IsBusy);
+        Dispatch(logical);
+        CompleteEmpty(logical, process, 0x47DE70);
+        Dispatch(logical);
+        CompleteEmpty(logical, process, 0x47DDA0);
+        Assert.False(stayingActor.IsBusy);
+        Assert.Equal((byte)1, stayingActor.AiTurnCount);
+        if (!release)
+        {
+            Dispatch(logical);
+            CompleteEmpty(logical, process, 0x47DDA0);
+            Assert.False(leavingActor.IsBusy);
+        }
+        Assert.Empty(logical.QueuedActions);
+        Assert.Equal((byte)0, leavingActor.AiTurnCount);
+        Assert.Equal(release ? 0 : 1, logical.Events.Skip(eventsBeforeRelease).Count(item => item.Kind == "ActionComplete" && item.ActorId == leaving.Id));
+    }
+
     [Fact]
     public void Death_callback_removes_vacant_original_rows_without_allocating_a_model_task()
     {
@@ -523,7 +575,7 @@ public sealed class ExpandedAiCallbackEventTests
         return (logical, process);
     }
 
-    private static void CompleteEmpty(BattleSession logical, BattlePresentationProcess process, uint callback)
+    private static void CompleteEmpty(BattleSession logical, BattlePresentationProcess process, uint callback, NativeBattleModelLifecycleReceipt? lifecycle = null)
     {
         Assert.Null(process.ActiveActionToken);
         var graphics = process.Graphics;
@@ -531,6 +583,10 @@ public sealed class ExpandedAiCallbackEventTests
         Assert.Equal((ushort)10, packet.Command);
         Assert.Equal(callback, packet.Argument);
         NativeBattleModelLifecycleServices services = logical.CaptureModelLifecycleServices(graphics.ActorModels.Roster);
+        if (lifecycle is not null)
+        {
+            services.Emit(lifecycle);
+        }
         Field(process, "hostedFrameServices").SetValue(process, services);
         try
         {
@@ -540,7 +596,7 @@ public sealed class ExpandedAiCallbackEventTests
         {
             Field(process, "hostedFrameServices").SetValue(process, null);
         }
-        NativeBattlePresentationCompletionRequested receipt = Assert.IsType<NativeBattlePresentationCompletionRequested>(Assert.Single(services.ReadOrderedReceipts()));
+        NativeBattlePresentationCompletionRequested receipt = Assert.Single(services.ReadOrderedReceipts().OfType<NativeBattlePresentationCompletionRequested>());
         Assert.Same(receipt, process.PendingCompletion);
         Invoke(logical, "ApplyExpandedHostedFrameReceipts", services, null);
         Assert.True(process.IsCompletionAcknowledged(receipt.Token));

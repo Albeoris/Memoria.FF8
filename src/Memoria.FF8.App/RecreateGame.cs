@@ -365,7 +365,7 @@ internal sealed partial class RecreateGame : GamePresentationHost
         }
         keyboard.TextEntryEnabled = typingName;
         keyboard.NamingNavigationEnabled = namingNavigation;
-        keyboard.NativeButtonsOwnInput = DuelOwnsInput;
+        keyboard.NativeButtonsOwnInput = !ErrorReportOwnsInput && DuelOwnsInput;
         InputFrame input = keyboard.Read(keys, pad, acceptsInput && !capturing);
         var currentMovieIdentity = (session.State.FieldId, session.State.MovieIndex, session.State.MovieSource);
         if (session.State.Scene != SceneKind.Movie || movieSkipIdentity != currentMovieIdentity || !acceptsInput)

@@ -43,10 +43,12 @@ public sealed partial class BattleSession
         ApplyExpandedModelRelease(RequireExpandedLifecycleActor(roster, receipt));
     }
 
-    private static void ApplyExpandedModelRelease(BattleCombatant actor)
+    private void ApplyExpandedModelRelease(BattleCombatant actor)
     {
         actor.NativeCombatantFlags = (actor.NativeCombatantFlags | 0x40) & ~1u;
         actor.NativeStatus0 |= 1;
+        // The completion receipt in this frame can restore a candidate before the next logical tick prunes the queue.
+        CancelIneligibleExpandedAiCallbacks(actor);
     }
 
     private void AcknowledgeExpandedModelSuspension(BattleModelRoster roster, NativeBattleModelParticipantSuspended receipt)
@@ -58,6 +60,7 @@ public sealed partial class BattleSession
     {
         actor.NativeCombatantFlags |= 0x40;
         actor.NativeStatus0 |= 1;
+        CancelIneligibleExpandedAiCallbacks(actor);
         ObserveEncounterNativeTerminal(actor, receipt.Sequence, receipt.ActiveHeader, receipt.Owner);
     }
 
