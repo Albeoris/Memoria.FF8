@@ -36,7 +36,7 @@ public static partial class LocalizationSourceExporter
             }
             Attempt("Monsters", "battle", Enemies);
             Attempt("World", WorldResource, World);
-            foreach ((string resource, string category, string table) in new[] { ("text/card-names", "Cards", "names_cards"), ("text/card-names-alternate", "Cards", "namesalternate_cards"), ("text/card-descriptions", "Cards", "named_texts_cards"), ("text/draw-points", "Draw points", "drawpoints_world") })
+            foreach ((string resource, string category, string table) in new[] { ("text/card-names", "Cards", TripleTriadCatalog.NameLocalizationTable), ("text/card-names-alternate", "Cards", "namesalternate_cards"), ("text/card-descriptions", "Cards", "named_texts_cards"), ("text/draw-points", "Draw points", "drawpoints_world") })
             {
                 Attempt(category, resource, () =>
                 {

@@ -2,7 +2,10 @@ using Bitmap = SkiaSharp.SKBitmap;
 using Color = SkiaSharp.SKColor;
 
 using Memoria.FF8.Assets;
+using Memoria.FF8.Assets.Localization;
 using Memoria.FF8.GameUi;
+using Memoria.FF8.Resources;
+using Memoria.FF8.Resources.Localization;
 using Memoria.FF8.Runtime;
 using Memoria.FF8.Ui;
 
@@ -128,6 +131,34 @@ public sealed class TripleTriadSelectionViewTests
         UiRect title = Assert.Single(canvas.Texts, entry => entry.Text == "Triple Triad").Bounds;
         Assert.Equal(480, title.X + title.Width / 2);
         Assert.Equal(canvas.MeasureText("Triple Triad", 25, float.PositiveInfinity).Width, title.Width);
+    }
+
+    [Fact]
+    public void SelectionUsesCurrentCardNameLocalizationAndRestoresTheFallback()
+    {
+        using GameAssets assets = new(TestResources.GameDirectory);
+        TripleTriadCatalog catalog = TripleTriadCatalog.Load(assets.GameDirectory, assets.Resources);
+        const int translatedCard = 101;
+        const int untranslatedCard = 100;
+        const string translation = "Переведённая карта";
+        string untranslated = catalog.Name(untranslatedCard);
+        string original = catalog.Name(translatedCard);
+        var collection = Enumerable.Range(97, 5).ToDictionary(id => id, _ => 1);
+        TripleTriadController controller = new(catalog.Cards, collection, [0, 1, 2, 3, 4], catalog.Name);
+        UiView view = controller.BuildView();
+        Assert.Contains(Draw(view).Texts, entry => entry.Text == original);
+
+        string key = LocalizationSourceExporter.IndexedKey(assets.Resources.Source.Language, "names_cards", translatedCard);
+        assets.Resources.PrepareLocalization(new LocalizationCatalog(new Dictionary<string, LocalizationValue> { [key] = new(translation, "test", "test") })).Commit();
+        RecordingCanvas translated = Draw(view);
+        Assert.Contains(translated.Texts, entry => entry.Text == translation);
+        Assert.DoesNotContain(translated.Texts, entry => entry.Text == original);
+        Assert.Contains(translated.Texts, entry => entry.Text == untranslated);
+
+        assets.Resources.PrepareLocalization(LocalizationCatalog.Empty).Commit();
+        RecordingCanvas restored = Draw(view);
+        Assert.Contains(restored.Texts, entry => entry.Text == original);
+        Assert.DoesNotContain(restored.Texts, entry => entry.Text == translation);
     }
 
     [Fact]

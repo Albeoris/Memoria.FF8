@@ -723,7 +723,7 @@ public sealed partial class LiveMenuCatalog
 
     public string? CharacterName(int id) => FormatDescription((uint)id < kernel.Characters.Count ? LocalizedKernel(nameof(kernel.Characters), "Name", id, kernel.Characters[id].Name) : null);
     public string? GuardianForceName(int id) => FormatDescription((uint)id < guardianForceNames.Length ? LocalizedTable("defaults_guardians", id, guardianForceNames[id]) : null);
-    public string? CardName(int id) => FormatDescription((uint)id < tripleTriad.Cards.Length ? LocalizedTable("names_cards", id, tripleTriad.Name(id)) : null);
+    public string? CardName(int id) => FormatDescription((uint)id < tripleTriad.Cards.Length ? tripleTriad.Name(id) : null);
     public string? CardDescription(int id) => (uint)id < cardDescriptions.Length ? FormatDescription(LocalizedTable("mngrp_slot192_records", id, cardDescriptions[id])) : null;
     public TripleTriadCard? CardDefinition(int id) => (uint)id < tripleTriad.Cards.Length ? tripleTriad.Cards[id] : null;
     public TripleTriadRefinement? CardRefinement(int id) => tripleTriad.Refinements.FirstOrDefault(recipe => recipe.CardId == id);

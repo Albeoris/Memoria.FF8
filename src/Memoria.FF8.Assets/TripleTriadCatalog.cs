@@ -1,4 +1,6 @@
 using Memoria.FF8.Resources;
+using Memoria.FF8.Assets.Localization;
+using Memoria.FF8.Resources.Localization;
 using Memoria.FF8.Runtime;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
@@ -12,6 +14,7 @@ namespace Memoria.FF8.Assets;
 public sealed class TripleTriadCatalog
 {
     public const int CardCount = 110;
+    internal const string NameLocalizationTable = "names_cards";
     private const uint RankTableAddress = 0xB96508;
     private const uint NameTableAddress = 0xC75074;
     private const int NativeNameTableLength = 1200;
@@ -28,7 +31,7 @@ public sealed class TripleTriadCatalog
     }
 
     public ImmutableArray<TripleTriadCard> Cards { get; }
-    public ImmutableArray<string> Names => resources?.FindText(StaticTextResource.CardNames)?.Texts ?? originalNames;
+    public ImmutableArray<string> Names => resources is null ? originalNames : Enumerable.Range(0, CardCount).Select(Name).ToImmutableArray();
     public ImmutableArray<byte> TradePriorities { get; }
     public TripleTriadNativeAiParameters AiParameters { get; }
     /// <summary>Original Card Mod recipes. Empty when only the executable was supplied to ReadExecutable.</summary>
@@ -40,7 +43,19 @@ public sealed class TripleTriadCatalog
         {
             throw new ArgumentOutOfRangeException(nameof(cardId));
         }
-        return resources?.ReadText(StaticTextResource.CardNames, cardId, originalNames[cardId]) ?? originalNames[cardId];
+        string original = originalNames[cardId];
+        if (resources is null)
+        {
+            return original;
+        }
+        string fallback = resources.ReadText(StaticTextResource.CardNames, cardId, original) ?? original;
+        string key = LocalizationSourceExporter.IndexedKey(resources.Source.Language, NameLocalizationTable, cardId);
+        if (!LocalizationTextTrace.Enabled)
+        {
+            return resources.Localize(key, fallback);
+        }
+        BoundLocalizationText resolved = resources.ResolveText(key, fallback);
+        return LocalizationTextTrace.Attach(resolved.Text, resolved.Binding with { Category = resolved.Binding.Category ?? "Cards", File = resolved.Binding.File ?? NameLocalizationTable });
     }
 
     public int TradePriority(int cardId)
