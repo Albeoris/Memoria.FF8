@@ -1,4 +1,6 @@
 using System.Buffers.Binary;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using Albeoris.Games.FF8.Jsm;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
@@ -33,6 +35,37 @@ public sealed class ErrorReportSnapshotCaptureTests
         Assert.Equal(42, result.State.X);
         Assert.Equal("current validated snapshot", result.Kind);
         Assert.Equal(now, result.CapturedUtc);
+    }
+
+    [Fact]
+    public void Current_field_report_validates_independent_saved_flag_and_character_provenance()
+    {
+        using GameAssets assets = new(TestResources.GameDirectory);
+        NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals() with { InitOutSha256 = new string('A', 64) };
+        NativeSavedBattleFlags flags = new(NativeInputConfiguration.OriginalInitHash, 4);
+        GameSession live = new(new GameState { Scene = SceneKind.Field, FieldId = 100, CharacterVitals = vitals, SavedBattleFlags = flags });
+        byte[] program = SingleObjectProgram(Jsm.Opcode.LBL, Jsm.Opcode.RET);
+        EventEngine engine = new(live);
+        engine.LoadField(live.State.FieldId, program, []);
+        GameState current = live.PrepareSnapshot() with { EventState = engine.Capture() };
+
+        ErrorReportSnapshot result = ErrorReportSnapshotCapture.Capture(SaveBoundaryStatus.Ready, () => current, () => throw new InvalidOperationException("Fallback must not run"), state =>
+        {
+            GameSession candidate = new(state);
+            EventEngine restored = new(candidate);
+            restored.LoadField(state.FieldId, program, [], restoringCheckpoint: true);
+            restored.Restore(state.EventState!.Value);
+            Assert.Equal(flags, candidate.State.SavedBattleFlags);
+            Assert.Equal(vitals.InitOutSha256, candidate.CharacterVitals!.InitOutSha256);
+
+            JsonObject corrupt = JsonNode.Parse(state.EventState.Value.GetRawText())!.AsObject();
+            corrupt["SavedBattleFlags"]!["Value"] = flags.Value | 1;
+            Assert.Throws<InvalidDataException>(() => restored.Restore(JsonSerializer.SerializeToElement(corrupt)));
+        }, DateTimeOffset.UtcNow);
+
+        Assert.True(result.State is not null, result.UnavailableReason);
+        Assert.Same(current, result.State);
+        Assert.Equal("current validated snapshot", result.Kind);
     }
 
     [Fact]
@@ -189,14 +222,7 @@ public sealed class ErrorReportSnapshotCaptureTests
     [Fact]
     public void Vm_fault_retains_typed_source_and_real_stack_before_reporting()
     {
-        byte[] program = new byte[28];
-        program[3] = 1;
-        BinaryPrimitives.WriteUInt16LittleEndian(program.AsSpan(4), 10);
-        BinaryPrimitives.WriteUInt16LittleEndian(program.AsSpan(6), 16);
-        BinaryPrimitives.WriteUInt16LittleEndian(program.AsSpan(12), 3);
-        BinaryPrimitives.WriteInt32LittleEndian(program.AsSpan(16), (int)Jsm.Opcode.LBL);
-        BinaryPrimitives.WriteInt32LittleEndian(program.AsSpan(20), (int)Jsm.Opcode.WAIT);
-        BinaryPrimitives.WriteInt32LittleEndian(program.AsSpan(24), (int)Jsm.Opcode.RET);
+        byte[] program = SingleObjectProgram(Jsm.Opcode.LBL, Jsm.Opcode.WAIT, Jsm.Opcode.RET);
         EventEngine engine = new(new GameSession(new GameState()));
         engine.LoadField(100, program, []);
 
@@ -213,4 +239,17 @@ public sealed class ErrorReportSnapshotCaptureTests
         Assert.Contains("EventEngine", exception.StackTrace);
     }
 
+    private static byte[] SingleObjectProgram(params Jsm.Opcode[] opcodes)
+    {
+        byte[] program = new byte[16 + sizeof(int) * opcodes.Length];
+        program[3] = 1;
+        BinaryPrimitives.WriteUInt16LittleEndian(program.AsSpan(4), 10);
+        BinaryPrimitives.WriteUInt16LittleEndian(program.AsSpan(6), 16);
+        BinaryPrimitives.WriteUInt16LittleEndian(program.AsSpan(12), (ushort)opcodes.Length);
+        for (int index = 0; index < opcodes.Length; index++)
+        {
+            BinaryPrimitives.WriteInt32LittleEndian(program.AsSpan(16 + sizeof(int) * index), (int)opcodes[index]);
+        }
+        return program;
+    }
 }

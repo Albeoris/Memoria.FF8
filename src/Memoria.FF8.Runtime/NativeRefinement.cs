@@ -13,18 +13,34 @@ public sealed record NativeRefinementDefinitions(string ExecutableHash, string K
 
     public void Validate()
     {
-        if (!NativeFieldRuntimeProfile.IsSupportedImage(ExecutableHash) || KernelHash is not { Length: 64 } || KernelHash.Any(value => !Uri.IsHexDigit(value)) || TableHashes.IsDefault || TableHashes.Length != 0 && (TableHashes.Length != 5 || TableHashes.Any(hash => hash is not { Length: 64 } || hash.Any(value => !Uri.IsHexDigit(value)))) || Abilities.IsDefault || Abilities.Length != 24 || Tables.IsDefault || Tables.Length != 5 || Tables.Where((table, kind) => table.IsDefaultOrEmpty || table.Length > 256 || kind == 4 && table.Length != 110 || table.Any(recipe => recipe is null || recipe.IngredientCount == 0 || recipe.Output == 0 || recipe.OutputCount == 0)).Any() || Abilities.Where((ability, index) => ability is null || index >= 5 && (ability.Kind >= 5 || ability.First > ability.Last || ability.Last >= Tables[ability.Kind].Length)).Any())
+        if (!NativeFieldRuntimeProfile.IsSupportedImage(ExecutableHash) || KernelHash is not { Length: 64 } || KernelHash.Any(value => !Uri.IsHexDigit(value)) || TableHashes.IsDefault || TableHashes.Length != 0 && (TableHashes.Length != 5 || TableHashes.Any(hash => hash is not { Length: 64 } || hash.Any(value => !Uri.IsHexDigit(value)))) || Abilities.IsDefault || Abilities.Length != 24 || Tables.IsDefault || Tables.Length != 5 || Tables.Where((table, kind) => table.IsDefaultOrEmpty || table.Length > 256 || kind == 4 && table.Length != 110 || table.Any(recipe => recipe is null || recipe.IngredientCount == 0 || recipe.Output == 0 || recipe.OutputCount == 0)).Any())
         {
-            throw new InvalidDataException("Native refinement requires the authenticated complete kernel ranges and five original recipe tables.");
+            throw new InvalidDataException("Native refinement requires an authenticated executable, 24 kernel menu abilities and five complete recipe tables.");
         }
-        foreach (NativeRefinementAbility ability in Abilities.Skip(5))
+        for (int index = 0; index < Abilities.Length; index++)
         {
-            foreach (NativeRefinementRecipe recipe in Tables[ability.Kind].Skip(ability.First).Take(ability.Last - ability.First + 1))
+            int abilityId = index + 92;
+            NativeRefinementAbility ability = Abilities[index] ?? throw new InvalidDataException($"Kernel menu ability {abilityId} is missing.");
+            if (index < 5)
             {
+                continue;
+            }
+            if (ability.Kind >= Tables.Length)
+            {
+                throw new InvalidDataException($"Kernel menu ability {abilityId} ({ability.Name}) selects unknown recipe table {ability.Kind}.");
+            }
+            int tableCount = Tables[ability.Kind].Length;
+            if (ability.First > ability.Last || ability.Last >= tableCount)
+            {
+                throw new InvalidDataException($"Kernel menu ability {abilityId} ({ability.Name}) selects recipes {ability.First} through {ability.Last} in menu group {188 + ability.Kind}, which contains {tableCount} records.");
+            }
+            for (int recipeIndex = ability.First; recipeIndex <= ability.Last; recipeIndex++)
+            {
+                NativeRefinementRecipe recipe = Tables[ability.Kind][recipeIndex];
                 bool validIngredient = ability.Kind == 4 ? recipe.Ingredient < 110 : recipe.Ingredient > 0 && recipe.Ingredient < (ability.Kind == 2 ? 57 : 199);
                 if (!validIngredient || recipe.Output >= (ability.Kind is 0 or 2 ? 57 : 199))
                 {
-                    throw new InvalidDataException("Native refinement ability refers to an invalid item, magic or card ID.");
+                    throw new InvalidDataException($"Recipe {recipeIndex} in menu group {188 + ability.Kind} has invalid ingredient {recipe.Ingredient} or output {recipe.Output} for kernel menu ability {abilityId} ({ability.Name}).");
                 }
             }
         }
@@ -36,7 +52,7 @@ public sealed record NativeRefinementDefinitions(string ExecutableHash, string K
         vitals.Validate();
         if (!string.Equals(vitals.KernelSha256, KernelHash, StringComparison.OrdinalIgnoreCase))
         {
-            throw new NotSupportedException("Refinement requires character definitions from its authenticated recipe kernel.");
+            throw new NotSupportedException($"Refinement cannot use main/kernel.bin with SHA-256 {KernelHash} because the character definitions use kernel SHA-256 {vitals.KernelSha256}.");
         }
         //4C2B40 includes every acquired GF, whether junctioned or not.
         return Enumerable.Range(0, 16).Where(id => (vitals.GuardianForces[id].Flags & 1) != 0).SelectMany(id => vitals.GuardianForceAbilities(id)).Where(ability => ability.Learned && ability.Ability is >= 97 and < 116).Select(ability => ability.Ability).Distinct().Order().ToArray();

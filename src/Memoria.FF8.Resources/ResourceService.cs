@@ -288,9 +288,14 @@ public sealed class ResourceService : IResourceChangeFeed, IResourceLanguageSour
         return new ResourcePrefix(bytes.ToArray(), size);
     }
 
-    public byte[] Read(ResourceKey key)
+    public byte[] Read(ResourceKey key) => Read(key, out _);
+
+    public byte[] Read(ResourceKey key, out string? provenance)
     {
-        using Stream stream = Get(key).OpenRead();
+        provenance = null;
+        ResourceContent content = Get(key);
+        provenance = content.Provenance;
+        using Stream stream = content.OpenRead();
         using ResourceTrafficTelemetry.StagingStream bytes = new();
         stream.CopyTo(bytes);
         return bytes.ToArray();

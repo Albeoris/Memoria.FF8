@@ -177,7 +177,11 @@ internal sealed partial class RecreateGame
             }
             data = LiveMenuData.Build(menuState, events?.Scene.Names, liveMenuCatalog!, placeId: events?.Scene.PlaceId);
             NativeShopMenuProjection.AugmentAbilities(data, menuState, liveMenuCatalog!);
-            NativeRefinementMenuProjection.Augment(data, session.State, nativeRefinementDefinitions!, liveMenuCatalog!);
+            if (session.State.CharacterVitals is not null && session.State.Economy is not null)
+            {
+                nativeRefinementDefinitions ??= ReadLiveRefinementDefinitions();
+                NativeRefinementMenuProjection.Augment(data, session.State, nativeRefinementDefinitions, liveMenuCatalog!);
+            }
         }
         if (events?.HasAbilityShop == true)
         {
@@ -314,14 +318,20 @@ internal sealed partial class RecreateGame
     {
         if (liveMenuCatalog is null)
         {
-            using var assets = new Memoria.FF8.Assets.GameAssets(options.GameDirectory, resources: resourceHost?.Resources);
-            liveMenuCatalog = LiveMenuCatalog.ReadInstalled(assets);
-            liveMenuCatalog.FindItemOverride = FindInventoryItemOverride;
-            liveMenuCatalog.InterfaceLanguage = () => resourceHost?.EffectiveContentLanguage;
-            liveMenuCatalog.FindAbilityDescriptionOverride = (ability, language) => resourceHost?.GuardianRules.Description(ability, language);
-            liveMenuCatalog.FindGuardianForm = guardianForce => resourceHost?.GuardianForms.SupportsGuardianForce(guardianForce) == true;
-            nativeRefinementDefinitions = assets.ReadNativeRefinementDefinitions();
+            using var assets = new GameAssets(options.GameDirectory, resources: resourceHost?.Resources);
+            LiveMenuCatalog catalog = LiveMenuCatalog.ReadInstalled(assets);
+            catalog.FindItemOverride = FindInventoryItemOverride;
+            catalog.InterfaceLanguage = () => resourceHost?.EffectiveContentLanguage;
+            catalog.FindAbilityDescriptionOverride = (ability, language) => resourceHost?.GuardianRules.Description(ability, language);
+            catalog.FindGuardianForm = guardianForce => resourceHost?.GuardianForms.SupportsGuardianForce(guardianForce) == true;
+            liveMenuCatalog = catalog;
         }
+    }
+
+    private NativeRefinementDefinitions ReadLiveRefinementDefinitions()
+    {
+        using var assets = new GameAssets(options.GameDirectory, resources: resourceHost?.Resources);
+        return assets.ReadNativeRefinementDefinitions();
     }
 
     private IReadOnlyList<DebugNameTarget> ReadDebugNames()

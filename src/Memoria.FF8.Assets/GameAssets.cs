@@ -389,16 +389,20 @@ public sealed partial class GameAssets : IDisposable
         return result;
     }
 
-    private byte[] Read(IFlArchive archive, string basename)
+    private byte[] Read(IFlArchive archive, string basename) => Read(archive, basename, out _);
+
+    private byte[] Read(IFlArchive archive, string basename, out string? provenance)
     {
+        provenance = null;
         IFlArchiveEntry? entry = archive.Entries.SingleOrDefault(entry => entry.RelativePath.Replace('\\', '/').Split('/')[^1].Equals(basename, StringComparison.OrdinalIgnoreCase));
         if (entry is not null && overrides?.TryRead(entry.RelativePath.Replace('\\', '/').TrimStart('/'), out byte[]? content) == true)
         {
+            provenance = "explicit asset override";
             return content;
         }
         if (archiveIdentities.TryGetValue(archive, out string? identity))
         {
-            return resources.Read(new ResourceKey(identity + "/" + basename));
+            return resources.Read(new ResourceKey(identity + "/" + basename), out provenance);
         }
         if (entry is null)
         {

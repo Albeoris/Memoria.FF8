@@ -1,6 +1,9 @@
 using System.Text.Json;
+using Albeoris.Games.FF8.KernelBin;
+using Albeoris.Games.FF8.TextEncoding;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Assets.Localization;
+using Memoria.FF8.Resources;
 using Memoria.FF8.Resources.Localization;
 using Memoria.FF8.Events;
 using Memoria.FF8.GameUi;
@@ -10,6 +13,29 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class NativeRefinementUiTests
 {
+    [Fact]
+    public void BadSelectedKernelReportsItsOriginAndRejectedAbilityRange()
+    {
+        using GameAssets stock = InstalledAssets();
+        ResourceKey key = new("main/kernel.bin");
+        var encoding = NativeTextEncoding.Create(stock.Resources.Source.Language);
+        KernelData kernel = KernelData.ReadFromArray(stock.ReadResource(key), encoding);
+        kernel.MenuAbilities[5].Start = 2;
+        kernel.MenuAbilities[5].End = 1;
+
+        using GameAssets selected = InstalledAssets();
+        selected.Resources.Prepare(null, encodedResources: [new EncodedResource(key, "bin", 1, "test kernel replacement", kernel.WriteToArray(encoding))]).Commit();
+
+        InvalidDataException failure = Assert.Throws<InvalidDataException>(() => selected.ReadNativeRefinementDefinitions());
+        Assert.Contains("main/kernel.bin", failure.Message);
+        Assert.Contains("test kernel replacement", failure.Message);
+        Assert.Contains("menu/mngrp.bin", failure.Message);
+        Assert.Contains("menu/mngrphd.bin", failure.Message);
+        Assert.Contains("ability 97", failure.Message);
+        Assert.Contains("recipes 2 through 1", failure.Message);
+        Assert.IsType<InvalidDataException>(failure.InnerException);
+    }
+
     [Fact]
     public void OwnedRecipesProjectOnlyForLearnedAbilitiesWithoutMutation()
     {

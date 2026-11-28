@@ -19,7 +19,8 @@ public static class NativeRefinementGroupReader
             MngrpTextRecordSection section = archive.GetSection<MngrpTextRecordSection>(188 + kind);
             if (section.Records.Count is < 1 or > 256 || kind == 4 && section.Records.Count != 110)
             {
-                throw new InvalidDataException("Native refinement groups require complete byte-addressable records and 110 card records.");
+                string expected = kind == 4 ? "110 card records" : "1 through 256 records";
+                throw new InvalidDataException($"Refinement group {188 + kind} contains {section.Records.Count} records and requires {expected}.");
             }
             ImmutableArray<NativeRefinementRecipe>.Builder recipes = ImmutableArray.CreateBuilder<NativeRefinementRecipe>(section.Records.Count);
             foreach (MngrpTextRecord record in section.Records)
@@ -27,7 +28,7 @@ public static class NativeRefinementGroupReader
                 byte[] payload = record.Payload;
                 if (payload.Length != 6)
                 {
-                    throw new InvalidDataException("Native refinement records require six payload bytes after their text pointer.");
+                    throw new InvalidDataException($"Record {recipes.Count} in refinement group {188 + kind} has {payload.Length} payload bytes after its text pointer and requires six.");
                 }
                 ushort outputCount = BinaryPrimitives.ReadUInt16LittleEndian(payload);
                 int ingredient = payload[3];
@@ -35,7 +36,7 @@ public static class NativeRefinementGroupReader
                 bool validIngredient = kind == 4 ? ingredient < 110 : ingredient > 0 && ingredient < (kind == 2 ? 57 : 199);
                 if (!validIngredient || output == 0 || output >= (kind is 0 or 2 ? 57 : 199) || outputCount == 0 || payload[4] == 0 || kind == 4 && (outputCount > 100 || payload[4] > 100))
                 {
-                    throw new InvalidDataException("Native refinement group record has an invalid inventory ID or quantity.");
+                    throw new InvalidDataException($"Record {recipes.Count} in refinement group {188 + kind} has an invalid inventory ID or quantity (ingredient {ingredient}, quantity {payload[4]}, output {output}, quantity {outputCount}).");
                 }
                 recipes.Add(new NativeRefinementRecipe(outputCount, payload[2], payload[3], payload[4], payload[5]));
             }
@@ -101,7 +102,7 @@ public static class NativeRefinementGroupReader
                 uint length = BinaryPrimitives.ReadUInt32LittleEndian(descriptor[4..]);
                 if (rawOffset is 0 or uint.MaxValue || length == 0 || (ulong)rawOffset - 1 + length > (ulong)content.Length)
                 {
-                    throw new InvalidDataException("Native refinement record or text group lies outside its selected menu resource.");
+                    throw new InvalidDataException($"Refinement slot {slot} specifies offset {rawOffset} and length {length} outside the {content.Length}-byte menu resource.");
                 }
                 hash.AppendData(descriptor);
                 hash.AppendData(content.AsSpan(checked((int)rawOffset - 1), checked((int)length)));

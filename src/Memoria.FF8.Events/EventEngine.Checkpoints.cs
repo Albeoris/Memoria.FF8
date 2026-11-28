@@ -89,7 +89,7 @@ public sealed partial class EventEngine
         }
         if (saved.SavedBattleFlags is { } savedFlags)
         {
-            if (restoreSharedState && services is not GameSession || saved.CharacterVitals is { } flagVitals && (savedFlags.InitOutSha256 != flagVitals.InitOutSha256 || ((savedFlags.Value & 1) != 0) != flagVitals.DreamEnabled))
+            if (restoreSharedState && services is not GameSession || saved.CharacterVitals is { } flagVitals && ((savedFlags.Value & 1) != 0) != flagVitals.DreamEnabled)
             {
                 throw new InvalidDataException("Saved battle flags require their canonical session and matching saved character bit0 alias.");
             }
