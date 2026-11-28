@@ -26,38 +26,38 @@
           "url": "https://github.com/Albeoris/Memoria.FF8/releases/download/v0.9.22/Memoria-FF8-osx-arm64.tar.gz"
         }
       },
-      "publishedAt": "2026-11-28T18:03:09.0000000+00:00",
+      "publishedAt": "2026-11-28T18:03:09+00:00",
       "buildId": "622fda1ebdfd17888e4f25088947b2437b489615",
       "name": "v0.9.22"
     },
     "nightly": {
-      "tag": "nightly",
-      "name": "Nightly - 2026-10-27 02:22:56 UTC",
-      "publishedAt": "2026-11-28T11:57:57+00:00",
-      "buildId": "bfa712291a930f1f1e14da95ad349b11998f8f48",
+      "publishedAt": "2026-11-28T18:04:12.0000000+00:00",
       "artifacts": {
         "win-x64": {
-          "url": "https://github.com/Albeoris/Memoria.FF8/releases/download/nightly/Memoria-FF8-win-x64.zip",
-          "sha256": "23c7388e20070026fe0b2c94df74ed8516890cf8c5fb5b05e397489ecc893ee9",
-          "size": 548116560
+          "size": 548115660,
+          "sha256": "c91822a131e2ec088bb884445b488e4cb14a6d8e5c8c22ff4ecc5b11ddefc5f2",
+          "url": "https://github.com/Albeoris/Memoria.FF8/releases/download/nightly/Memoria-FF8-win-x64.zip"
         },
         "linux-x64": {
-          "url": "https://github.com/Albeoris/Memoria.FF8/releases/download/nightly/Memoria-FF8-linux-x64.tar.gz",
-          "sha256": "499ce36338a7adc3b904342ec827c58b7f004a6141e81a5efdfd9f1a624724f6",
-          "size": 300334690
+          "size": 300329243,
+          "sha256": "02c6f006f018c151b7e48b5bdd5d1702e114badd11169d3f16aebb850a42dcc0",
+          "url": "https://github.com/Albeoris/Memoria.FF8/releases/download/nightly/Memoria-FF8-linux-x64.tar.gz"
         },
         "osx-x64": {
-          "url": "https://github.com/Albeoris/Memoria.FF8/releases/download/nightly/Memoria-FF8-osx-x64.tar.gz",
-          "sha256": "48a9ffa9235b2f0b806c1e6fa269c76fe8a4a65ead5298b99250ae8243c16367",
-          "size": 298280993
+          "size": 298284436,
+          "sha256": "754b356af99ddddde9986616e74e262dc23b1432c1e7cd1b215b7f34c6ecf31f",
+          "url": "https://github.com/Albeoris/Memoria.FF8/releases/download/nightly/Memoria-FF8-osx-x64.tar.gz"
         },
         "osx-arm64": {
-          "url": "https://github.com/Albeoris/Memoria.FF8/releases/download/nightly/Memoria-FF8-osx-arm64.tar.gz",
-          "sha256": "8d26eaf3f5d056a7a3149bec09015ffd4b504e9a909136c41d7cb97da3c59675",
-          "size": 277359917
+          "size": 277362676,
+          "sha256": "cda44cc9a248a888fb7f597f0fd5dcab41b448f903b830377ef71e29ef02de02",
+          "url": "https://github.com/Albeoris/Memoria.FF8/releases/download/nightly/Memoria-FF8-osx-arm64.tar.gz"
         }
       },
-      "engineCompatibilityVersion": "0.9.18"
+      "name": "Nightly - 2026-10-27 02:22:56 UTC",
+      "engineCompatibilityVersion": "0.9.18",
+      "buildId": "622fda1ebdfd17888e4f25088947b2437b489615",
+      "tag": "nightly"
     }
   }
 }
