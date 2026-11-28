@@ -99,7 +99,7 @@ public sealed class JunctionTranslationResourceInstalledTests
                     Assert.Equal(Expected("menu/mngrp.bin"), roundtrip.Content);
                     Assert.Equal(Expected("menu/mngrphd.bin"), roundtrip.Header);
                     MngrpTextRecordSection cards = textArchive.GetSection<MngrpTextRecordSection>(192);
-                    Assert.Equal(LiveMenuCatalog.FormatText(cards.Records[0].Text.Value), menu.CardDescription(0));
+                    Assert.Equal(LiveMenuCatalog.FormatText(Assert.IsType<MngrpTextRecord>(cards.Records[0]).Text.Value), menu.CardDescription(0));
                     foreach (var pair in expected.Where(pair => NativeDataResourceFiles.Classify(pair.Key) == NativeDataResourceKind.Enemy))
                     {
                         byte[] bytes = pair.Value;

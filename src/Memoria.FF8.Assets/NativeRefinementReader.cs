@@ -43,7 +43,7 @@ public sealed partial class GameAssets
         NativeRefinementDefinitions definitions = LoadRefinementInput($"recipe tables in {menuSources}", () =>
         {
             MngrpArchive archive = MngrpArchive.Read(content, header, encoding);
-            return new NativeRefinementDefinitions(executableHash, kernelHash, abilities, NativeRefinementGroupReader.ReadTables(archive))
+            return new NativeRefinementDefinitions(executableHash, kernelHash, abilities, NativeRefinementGroupReader.ReadTables(archive, abilities))
             {
                 TableHashes = NativeRefinementGroupReader.ReadTableHashes(content, header)
             };

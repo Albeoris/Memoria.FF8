@@ -137,7 +137,7 @@ public sealed class MagicIntegrationTests
         state.GuardianForces[0] = state.GuardianForces[0] with { LearnedBank = new(0, 1UL << (97 - 64)) };
         state = state.ChangeMagicStock(1, 1, 10, MagicOperationReason.ScriptReward, out _).ChangeMagicStock(1, 2, 99, MagicOperationReason.ScriptReward, out _);
         NativeRefinementRecipe recipe = new(5, 0, 1, 2, 2);
-        NativeRefinementDefinitions definitions = new(NativeFieldRuntimeProfile.FF8EnExecutableHash, kernelHash, Enumerable.Range(0, 24).Select(_ => new NativeRefinementAbility("Synthetic", 2, 0, 0)).ToImmutableArray(), new[] { 102, 143, 10, 12, 110 }.Select(count => Enumerable.Repeat(recipe, count).ToImmutableArray()).ToImmutableArray());
+        NativeRefinementDefinitions definitions = new(NativeFieldRuntimeProfile.FF8EnExecutableHash, kernelHash, Enumerable.Range(0, 24).Select(_ => new NativeRefinementAbility("Synthetic", 2, 0, 0)).ToImmutableArray(), new[] { 102, 143, 10, 12, 110 }.Select(count => Enumerable.Repeat<NativeRefinementRecipe?>(recipe, count).ToImmutableArray()).ToImmutableArray());
         NativeEconomy economy = new() { Version = 1, Rule = NativeEconomy.InitializationRule, InitOutSha256 = state.InitOutSha256, Items = Enumerable.Repeat(new NativeItemStock(0, 0), NativeEconomy.ItemSlotCount).ToArray(), Gil = 0, PastGil = 0, EventBankGil72 = 0, EventBankPastGil76 = 0 };
         Assert.Equal(1, definitions.MaximumBatches(state, economy, null, 97, 0, 1));
         NativeRefinementResult result = definitions.Refine(state, economy, null, 97, 0, 1, 1);

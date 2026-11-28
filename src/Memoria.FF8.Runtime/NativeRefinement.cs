@@ -7,13 +7,13 @@ public sealed record NativeRefinementAbility(string Name, byte Kind, byte First,
 public sealed record NativeRefinementResult(NativeCharacterVitals Vitals, NativeEconomy Economy, NativeCardInventory? Cards, int Batches);
 
 /// <summary>Original kernel menu-ability ranges and menu-group recipes consumed by4D7180/4D7410.</summary>
-public sealed record NativeRefinementDefinitions(string ExecutableHash, string KernelHash, ImmutableArray<NativeRefinementAbility> Abilities, ImmutableArray<ImmutableArray<NativeRefinementRecipe>> Tables)
+public sealed record NativeRefinementDefinitions(string ExecutableHash, string KernelHash, ImmutableArray<NativeRefinementAbility> Abilities, ImmutableArray<ImmutableArray<NativeRefinementRecipe?>> Tables)
 {
     public ImmutableArray<string> TableHashes { get; init; } = [];
 
     public void Validate()
     {
-        if (!NativeFieldRuntimeProfile.IsSupportedImage(ExecutableHash) || KernelHash is not { Length: 64 } || KernelHash.Any(value => !Uri.IsHexDigit(value)) || TableHashes.IsDefault || TableHashes.Length != 0 && (TableHashes.Length != 5 || TableHashes.Any(hash => hash is not { Length: 64 } || hash.Any(value => !Uri.IsHexDigit(value)))) || Abilities.IsDefault || Abilities.Length != 24 || Tables.IsDefault || Tables.Length != 5 || Tables.Where((table, kind) => table.IsDefaultOrEmpty || table.Length > 256 || kind == 4 && table.Length != 110 || table.Any(recipe => recipe is null || recipe.IngredientCount == 0 || recipe.Output == 0 || recipe.OutputCount == 0)).Any())
+        if (!NativeFieldRuntimeProfile.IsSupportedImage(ExecutableHash) || KernelHash is not { Length: 64 } || KernelHash.Any(value => !Uri.IsHexDigit(value)) || TableHashes.IsDefault || TableHashes.Length != 0 && (TableHashes.Length != 5 || TableHashes.Any(hash => hash is not { Length: 64 } || hash.Any(value => !Uri.IsHexDigit(value)))) || Abilities.IsDefault || Abilities.Length != 24 || Tables.IsDefault || Tables.Length != 5 || Tables.Where((table, kind) => table.IsDefaultOrEmpty || table.Length > 256 || kind == 4 && table.Length != 110 || table.Any(recipe => recipe is not null && (recipe.IngredientCount == 0 || recipe.Output == 0 || recipe.OutputCount == 0))).Any())
         {
             throw new InvalidDataException("Native refinement requires an authenticated executable, 24 kernel menu abilities and five complete recipe tables.");
         }
@@ -36,7 +36,10 @@ public sealed record NativeRefinementDefinitions(string ExecutableHash, string K
             }
             for (int recipeIndex = ability.First; recipeIndex <= ability.Last; recipeIndex++)
             {
-                NativeRefinementRecipe recipe = Tables[ability.Kind][recipeIndex];
+                if (Tables[ability.Kind][recipeIndex] is not { } recipe)
+                {
+                    continue;
+                }
                 bool validIngredient = ability.Kind == 4 ? recipe.Ingredient < 110 : recipe.Ingredient > 0 && recipe.Ingredient < (ability.Kind == 2 ? 57 : 199);
                 if (!validIngredient || recipe.Output >= (ability.Kind is 0 or 2 ? 57 : 199))
                 {
@@ -59,6 +62,11 @@ public sealed record NativeRefinementDefinitions(string ExecutableHash, string K
     }
 
     public NativeRefinementRecipe Recipe(int abilityId, int recipeIndex)
+    {
+        return RecipeOrNull(abilityId, recipeIndex) ?? throw new InvalidOperationException($"Recipe {recipeIndex} for kernel menu ability {abilityId} is empty.");
+    }
+
+    public NativeRefinementRecipe? RecipeOrNull(int abilityId, int recipeIndex)
     {
         Validate();
         if (abilityId is < 97 or >= 116)
@@ -87,7 +95,7 @@ public sealed record NativeRefinementDefinitions(string ExecutableHash, string K
         }
         for (int index = ability.First; index <= ability.Last; index++)
         {
-            if (Tables[ability.Kind][index].Ingredient == ingredient)
+            if (Tables[ability.Kind][index]?.Ingredient == ingredient)
             {
                 return index;
             }
@@ -97,7 +105,10 @@ public sealed record NativeRefinementDefinitions(string ExecutableHash, string K
 
     public int MaximumBatches(NativeCharacterVitals vitals, NativeEconomy economy, NativeCardInventory? cards, int abilityId, int recipeIndex, int row, bool cardModOnce = false, IReadOnlyList<int>? refinedCardIds = null)
     {
-        NativeRefinementRecipe recipe = Recipe(abilityId, recipeIndex);
+        if (RecipeOrNull(abilityId, recipeIndex) is not { } recipe)
+        {
+            return 0;
+        }
         economy.Validate();
         if (!string.Equals(vitals.InitOutSha256, economy.InitOutSha256, StringComparison.OrdinalIgnoreCase))
         {

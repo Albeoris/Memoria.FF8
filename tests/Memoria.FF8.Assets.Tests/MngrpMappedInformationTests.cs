@@ -107,8 +107,9 @@ public sealed class MngrpMappedInformationTests
         BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(200 * 8 + 4), 2);
         var records = Assert.IsType<MngrpTextRecordSection>(MngrpArchive.ReadSection(content, header, Encoding.UTF8, 192));
         Assert.Equal(200, records.TextSlotIndex);
-        Assert.Equal("x", Assert.Single(records.Records).Text.Value);
-        Assert.Equal(7, records.Records[0].Payload[0]);
+        var record = Assert.IsType<MngrpTextRecord>(Assert.Single(records.Records));
+        Assert.Equal("x", record.Text.Value);
+        Assert.Equal(7, record.Payload[0]);
     }
 
     private static MngrpFilePair Fixture()

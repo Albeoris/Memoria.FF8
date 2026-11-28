@@ -20,8 +20,7 @@ public static class NativeRefinementMenuProjection
             data.RefinementAbilities.Add(abilityId, abilityName);
             for (int index = ability.First; index <= ability.Last; index++)
             {
-                NativeRefinementRecipe recipe = definitions.Recipe(abilityId, index);
-                if (definitions.FindRecipeIndex(abilityId, recipe.Ingredient) != index)
+                if (definitions.RecipeOrNull(abilityId, index) is not { } recipe || definitions.FindRecipeIndex(abilityId, recipe.Ingredient) != index)
                 {
                     continue;
                 }

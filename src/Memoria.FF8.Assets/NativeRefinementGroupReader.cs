@@ -10,25 +10,32 @@ namespace Memoria.FF8.Assets;
 /// <summary>The five menu record groups actually selected by the native refinement controller.</summary>
 public static class NativeRefinementGroupReader
 {
-    public static ImmutableArray<ImmutableArray<NativeRefinementRecipe>> ReadTables(MngrpArchive archive)
+    public static ImmutableArray<ImmutableArray<NativeRefinementRecipe?>> ReadTables(MngrpArchive archive, ImmutableArray<NativeRefinementAbility> abilities = default)
     {
         ArgumentNullException.ThrowIfNull(archive);
-        ImmutableArray<ImmutableArray<NativeRefinementRecipe>>.Builder tables = ImmutableArray.CreateBuilder<ImmutableArray<NativeRefinementRecipe>>(5);
+        ImmutableArray<ImmutableArray<NativeRefinementRecipe?>>.Builder tables = ImmutableArray.CreateBuilder<ImmutableArray<NativeRefinementRecipe?>>(5);
         for (int kind = 0; kind < 5; kind++)
         {
             MngrpTextRecordSection section = archive.GetSection<MngrpTextRecordSection>(188 + kind);
-            if (section.Records.Count is < 1 or > 256 || kind == 4 && section.Records.Count != 110)
+            int requiredCount = kind == 4 ? 110 : abilities.IsDefault ? 1 : abilities.Skip(5).Where(ability => ability.Kind == kind).Select(ability => ability.Last + 1).DefaultIfEmpty(1).Max();
+            int count = Math.Max(section.Records.Count, Math.Min(requiredCount, section.ReservedSize / 8));
+            if (count is < 1 or > 256 || kind == 4 && count != 110)
             {
                 string expected = kind == 4 ? "110 card records" : "1 through 256 records";
-                throw new InvalidDataException($"Refinement group {188 + kind} contains {section.Records.Count} records and requires {expected}.");
+                throw new InvalidDataException($"Refinement group {188 + kind} contains {count} record positions and requires {expected}.");
             }
-            ImmutableArray<NativeRefinementRecipe>.Builder recipes = ImmutableArray.CreateBuilder<NativeRefinementRecipe>(section.Records.Count);
-            foreach (MngrpTextRecord record in section.Records)
+            ImmutableArray<NativeRefinementRecipe?>.Builder recipes = ImmutableArray.CreateBuilder<NativeRefinementRecipe?>(count);
+            for (int index = 0; index < count; index++)
             {
+                if (index >= section.Records.Count || section.Records[index] is not { } record)
+                {
+                    recipes.Add(null);
+                    continue;
+                }
                 byte[] payload = record.Payload;
                 if (payload.Length != 6)
                 {
-                    throw new InvalidDataException($"Record {recipes.Count} in refinement group {188 + kind} has {payload.Length} payload bytes after its text pointer and requires six.");
+                    throw new InvalidDataException($"Record {index} in refinement group {188 + kind} has {payload.Length} payload bytes after its text pointer and requires six.");
                 }
                 ushort outputCount = BinaryPrimitives.ReadUInt16LittleEndian(payload);
                 int ingredient = payload[3];
@@ -36,7 +43,7 @@ public static class NativeRefinementGroupReader
                 bool validIngredient = kind == 4 ? ingredient < 110 : ingredient > 0 && ingredient < (kind == 2 ? 57 : 199);
                 if (!validIngredient || output == 0 || output >= (kind is 0 or 2 ? 57 : 199) || outputCount == 0 || payload[4] == 0 || kind == 4 && (outputCount > 100 || payload[4] > 100))
                 {
-                    throw new InvalidDataException($"Record {recipes.Count} in refinement group {188 + kind} has an invalid inventory ID or quantity (ingredient {ingredient}, quantity {payload[4]}, output {output}, quantity {outputCount}).");
+                    throw new InvalidDataException($"Record {index} in refinement group {188 + kind} has an invalid inventory ID or quantity (ingredient {ingredient}, quantity {payload[4]}, output {output}, quantity {outputCount}).");
                 }
                 recipes.Add(new NativeRefinementRecipe(outputCount, payload[2], payload[3], payload[4], payload[5]));
             }
@@ -47,7 +54,7 @@ public static class NativeRefinementGroupReader
 
     public static ImmutableArray<TripleTriadRefinement> ReadCardRefinements(MngrpArchive archive, NativeRefinementAbility? ability = null)
     {
-        ImmutableArray<NativeRefinementRecipe> table = ReadTables(archive)[4];
+        ImmutableArray<NativeRefinementRecipe?> table = ReadTables(archive)[4];
         ability ??= new NativeRefinementAbility("", 4, 0, 109);
         if (ability.Kind != 4)
         {
@@ -59,9 +66,9 @@ public static class NativeRefinementGroupReader
         }
         HashSet<byte> seen = [];
         ImmutableArray<TripleTriadRefinement>.Builder result = ImmutableArray.CreateBuilder<TripleTriadRefinement>();
-        foreach (NativeRefinementRecipe recipe in table.Skip(ability.First).Take(ability.Last - ability.First + 1))
+        foreach (NativeRefinementRecipe? recipe in table.Skip(ability.First).Take(ability.Last - ability.First + 1))
         {
-            if (seen.Add(recipe.Ingredient) && recipe.Requirement <= 100)
+            if (recipe is not null && seen.Add(recipe.Ingredient) && recipe.Requirement <= 100)
             {
                 result.Add(new TripleTriadRefinement(recipe.Ingredient, recipe.IngredientCount, recipe.Output, recipe.OutputCount));
             }
@@ -74,8 +81,12 @@ public static class NativeRefinementGroupReader
         _ = ReadTables(archive);
         string[] descriptions = Enumerable.Repeat("", 110).ToArray();
         HashSet<byte> seen = [];
-        foreach (MngrpTextRecord record in archive.GetSection<MngrpTextRecordSection>(192).Records)
+        foreach (MngrpTextRecord? record in archive.GetSection<MngrpTextRecordSection>(192).Records)
         {
+            if (record is null)
+            {
+                continue;
+            }
             byte card = record.Payload[3];
             if (seen.Add(card))
             {

@@ -145,7 +145,7 @@ public sealed class CardModOnceTests
         NativeEconomy economy = Economy();
         NativeCardInventory cards = Session(4, false).State.CardInventory!;
         NativeRefinementRecipe recipe = new(5, 0, 0, 2, 118);
-        NativeRefinementDefinitions definitions = new(NativeFieldRuntimeProfile.FF8EnExecutableHash, vitals.KernelSha256, Enumerable.Repeat(new NativeRefinementAbility("Synthetic", 4, 0, 0), 24).ToImmutableArray(), new[] { 102, 143, 10, 12, 110 }.Select(count => Enumerable.Repeat(recipe, count).ToImmutableArray()).ToImmutableArray());
+        NativeRefinementDefinitions definitions = new(NativeFieldRuntimeProfile.FF8EnExecutableHash, vitals.KernelSha256, Enumerable.Repeat(new NativeRefinementAbility("Synthetic", 4, 0, 0), 24).ToImmutableArray(), new[] { 102, 143, 10, 12, 110 }.Select(count => Enumerable.Repeat<NativeRefinementRecipe?>(recipe, count).ToImmutableArray()).ToImmutableArray());
         Assert.Equal(2, definitions.MaximumBatches(vitals, economy, cards, 115, 0, 0));
         Assert.Equal(1, definitions.MaximumBatches(vitals, economy, cards, 115, 0, 0, true, []));
         Assert.Equal(0, definitions.MaximumBatches(vitals, economy, cards, 115, 0, 0, true, [0]));

@@ -1,6 +1,8 @@
 using System.Buffers.Binary;
+using System.Collections.Immutable;
 using System.Text.Json;
 using Albeoris.Games.FF8.MngrpBin;
+using Albeoris.Games.FF8.MngrpBin.Abstractions;
 using Albeoris.Games.FF8.TextEncoding;
 using Memoria.FF8.Resources;
 using Memoria.FF8.Runtime;
@@ -28,6 +30,56 @@ public sealed class NativeRefinementGroupReaderTests
         Assert.NotEmpty(descriptions[24]);
         files.Content[recordOffset + 27 * 8 + 5] = 110;
         Assert.Throws<InvalidDataException>(() => NativeRefinementGroupReader.ReadTables(MngrpArchive.Read(files, FF8Encoding.CreateEuropean(FF8TextLanguage.EN))));
+    }
+
+    [Fact]
+    public void SparseCardRecordsKeepPhysicalIndicesAndRoundTripCompanionText()
+    {
+        MngrpFilePair files = Groups();
+        int recordOffset = (int)BinaryPrimitives.ReadUInt32LittleEndian(files.Header.AsSpan(192 * 8)) - 1;
+        files.Content.AsSpan(recordOffset, 8).Clear();
+        files.Content.AsSpan(recordOffset + 27 * 8, 8).Clear();
+        files.Content.AsSpan(recordOffset + 109 * 8, 8).Clear();
+
+        var encoding = FF8Encoding.CreateEuropean(FF8TextLanguage.EN);
+        MngrpArchive archive = MngrpArchive.Read(files, encoding);
+        MngrpTextRecordSection section = archive.GetSection<MngrpTextRecordSection>(192);
+        Assert.Null(section.Records[0]);
+        Assert.Null(section.Records[27]);
+        ImmutableArray<NativeRefinementRecipe?> recipes = NativeRefinementGroupReader.ReadTables(archive)[4];
+        Assert.Equal(110, recipes.Length);
+        Assert.Null(recipes[0]);
+        Assert.Null(recipes[27]);
+        Assert.Null(recipes[109]);
+        Assert.Equal(new NativeRefinementRecipe(1, 1, 28, 1, 1), recipes[28]);
+        Assert.Equal(28, Assert.Single(NativeRefinementGroupReader.ReadCardRefinements(archive, new("Synthetic", 4, 27, 28))).CardId);
+        Assert.DoesNotContain(NativeRefinementGroupReader.ReadCardRefinements(archive), recipe => recipe.CardId is 0 or 27 or 109);
+        string[] descriptions = NativeRefinementGroupReader.ReadCardDescriptions(archive);
+        Assert.Empty(descriptions[0]);
+        Assert.Empty(descriptions[27]);
+        Assert.Empty(descriptions[109]);
+        Assert.Equal(encoding.GetString([0x45]), descriptions[28]);
+
+        MngrpFilePair written = archive.Write();
+        Assert.Equal(files.Content, written.Content);
+        Assert.Equal(files.Header, written.Header);
+    }
+
+    [Fact]
+    public void KernelRangeCanAddressEmptyRowsAfterTheLastOccupiedRecord()
+    {
+        MngrpFilePair files = Groups();
+        int recordOffset = (int)BinaryPrimitives.ReadUInt32LittleEndian(files.Header.AsSpan(188 * 8)) - 1;
+        files.Content.AsSpan(recordOffset + 100 * 8, 2 * 8).Clear();
+        MngrpArchive archive = MngrpArchive.Read(files, FF8Encoding.CreateEuropean(FF8TextLanguage.EN));
+        ImmutableArray<NativeRefinementAbility> abilities = Enumerable.Repeat(new NativeRefinementAbility("Synthetic", 0, 99, 101), 24).ToImmutableArray();
+
+        Assert.Equal(100, NativeRefinementGroupReader.ReadTables(archive)[0].Length);
+        ImmutableArray<NativeRefinementRecipe?> recipes = NativeRefinementGroupReader.ReadTables(archive, abilities)[0];
+        Assert.Equal(102, recipes.Length);
+        Assert.Equal(new NativeRefinementRecipe(1, 1, 100, 1, 1), recipes[99]);
+        Assert.Null(recipes[100]);
+        Assert.Null(recipes[101]);
     }
 
     [Fact]
@@ -65,9 +117,13 @@ public sealed class NativeRefinementGroupReaderTests
         ]).Commit();
         using GameAssets assets = new(TestResources.GameDirectory, resources: resources);
         NativeRefinementDefinitions definitions = assets.ReadNativeRefinementDefinitions();
-        Assert.Equal(magicOutput, definitions.Tables[0][20].Output);
+        NativeRefinementRecipe? magicRecipe = definitions.Tables[0][20];
+        Assert.NotNull(magicRecipe);
+        Assert.Equal(magicOutput, magicRecipe.Output);
         Assert.Equal(new NativeRefinementRecipe(3, 1, 126, 1, 10), definitions.Tables[1][0]);
-        Assert.Equal(10, definitions.Tables[4][77].OutputCount);
+        NativeRefinementRecipe? cardRecipe = definitions.Tables[4][77];
+        Assert.NotNull(cardRecipe);
+        Assert.Equal(10, cardRecipe.OutputCount);
         Assert.Equal(NativeRefinementGroupReader.ReadTableHashes(content, header).ToArray(), definitions.TableHashes.ToArray());
         NativeRefinementDefinitions restored = JsonSerializer.Deserialize<NativeRefinementDefinitions>(JsonSerializer.Serialize(definitions))!;
         Assert.Equal(definitions.TableHashes.ToArray(), restored.TableHashes.ToArray());

@@ -351,7 +351,10 @@ public static partial class ModPreviewResources
                 case MngrpTextRecordSection records:
                     for (int index = 0; index < records.Records.Count; index++)
                     {
-                        yield return ($"{label}, entry {index}", records.Records[index].Text.Value);
+                        if (records.Records[index] is { } record)
+                        {
+                            yield return ($"{label}, entry {index}", record.Text.Value);
+                        }
                     }
                     break;
                 case MngrpTextBlockSection blocks:

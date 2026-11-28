@@ -169,7 +169,10 @@ public static partial class LocalizationSourceExporter
                     case MngrpTextRecordSection records:
                         for (int row = 0; row < records.Records.Count; row++)
                         {
-                            Add(category, prefix + "_records", row, records.Records[row].Text.Value, "menu/mngrp.bin", metadata);
+                            if (records.Records[row] is { } record)
+                            {
+                                Add(category, prefix + "_records", row, record.Text.Value, "menu/mngrp.bin", metadata);
+                            }
                         }
                         break;
                     case MngrpTextBlockSection blocks:

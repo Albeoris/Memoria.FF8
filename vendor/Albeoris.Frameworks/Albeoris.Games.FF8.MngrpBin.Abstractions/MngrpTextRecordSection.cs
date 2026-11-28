@@ -1,10 +1,8 @@
 namespace Albeoris.Games.FF8.MngrpBin.Abstractions;
 
 /// <summary>
-/// A section of fixed eight-byte records, terminated by an all-zero record. Each record starts
-/// with a 16-bit offset addressing its text inside a companion slot; this class represents both
-/// slots as one logical section, so the companion slot's content and every text offset are
-/// derived from <see cref="Records"/> on serialization.
+/// A section of fixed eight-byte records with all-zero positions for absent records. Each
+/// occupied record starts with a 16-bit offset addressing its text inside a companion slot.
 /// </summary>
 public sealed class MngrpTextRecordSection : MngrpSection
 {
@@ -27,13 +25,13 @@ public sealed class MngrpTextRecordSection : MngrpSection
 
     public override MngrpSectionLayout Layout => MngrpSectionLayout.TextRecordList;
 
-    /// <summary>The section's records, in file order.</summary>
-    public List<MngrpTextRecord> Records { get; } = [];
+    /// <summary>Records by physical index, including null holes before the last occupied record.</summary>
+    public List<MngrpTextRecord?> Records { get; } = [];
 
-    /// <summary>
-    /// Raw bytes following the last record, trimmed of trailing zeros. Empty in every known
-    /// file; preserved verbatim in case a file carries packer garbage there.
-    /// </summary>
+    /// <summary>Bytes in the companion slot before the first referenced text.</summary>
+    public Byte[] LeadingTextBytes { get; set; } = [];
+
+    /// <summary>Raw bytes following the last occupied record, trimmed of trailing zeros.</summary>
     public Byte[] TrailingData
     {
         get => _trailingData;
