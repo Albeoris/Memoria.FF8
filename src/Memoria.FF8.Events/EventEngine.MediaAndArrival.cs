@@ -13,12 +13,14 @@ public sealed partial class EventEngine
     private int axisTarget;
     private int axisDuration;
     private int axisElapsed;
+    private int inputAxisCameraIndex;
     private bool movieProgressExpected;
     public Func<ActorState, FaceDirectionBaseline>? ReadFaceBaseline { get; set; }
     public Func<ActorState, float>? ReadFaceAnchorHeight { get; set; }
     public Func<ActorState, bool>? CanDisableAdditionalControl { get; set; }
     public Func<int, SoundResourceStatus>? LoadSoundResource { get; set; }
     public byte InitInputAxisDirection { get; set; }
+    public Func<int, byte>? ReadCameraInputAxisDirection { get; set; }
     /// <summary>Host-configured input projection offset; native INF/AXIS and saved actor state retain their original values.</summary>
     public byte PlayerInputDirectionOffset { get; set; }
     public int InputAxisDirection { get; private set; }
@@ -748,6 +750,13 @@ public sealed partial class EventEngine
 
     private void StepInputAxis()
     {
+        if (ReadCameraInputAxisDirection is { } readCameraDirection && Scene.CameraIndex != inputAxisCameraIndex)
+        {
+            inputAxisCameraIndex = Scene.CameraIndex;
+            axisStart = readCameraDirection(inputAxisCameraIndex);
+            InputAxisDirection = axisStart;
+        }
+
         if (axisElapsed >= axisDuration)
         {
             return;

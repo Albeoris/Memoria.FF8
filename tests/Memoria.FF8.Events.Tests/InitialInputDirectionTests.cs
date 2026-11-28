@@ -8,6 +8,45 @@ namespace Memoria.FF8.Events.Tests;
 
 internal static partial class Program
 {
+    private static void CameraInputDirectionAndRestore()
+    {
+        byte[] content = SyntheticMainProgram(
+            (Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.SETCAMERA, 0),
+            (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.WAIT, 0),
+            (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETCAMERA, 0),
+            (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8));
+        EventEngine Create()
+        {
+            EventEngine engine = new(CreateInitializedSession())
+            {
+                InitInputAxisDirection = 16,
+                ReadCameraInputAxisDirection = camera => camera == 1 ? (byte)128 : (byte)16
+            };
+            engine.LoadField(600, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+            return engine;
+        }
+
+        EventEngine engine = Create();
+        for (int tick = 0; tick < 4 && engine.Scene.CameraIndex == 0; tick++)
+        {
+            engine.Step();
+        }
+        Require(engine.Scene.CameraIndex == 1 && engine.InputAxisDirection == 16, "SETCAMERA changed the input direction before the next field callback.");
+        EventEngine restored = Create();
+        restored.Restore(engine.Capture());
+        restored.Step();
+        engine.Step();
+        Require(engine.InputAxisDirection == 128 && JsonElement.DeepEquals(engine.Capture(), restored.Capture()), "The next callback did not load camera one's direction after restore.");
+        restored.Restore(engine.Capture());
+        for (int tick = 0; tick < 6; tick++)
+        {
+            engine.Step();
+            restored.Step();
+            Require(JsonElement.DeepEquals(engine.Capture(), restored.Capture()), "The retained input camera diverged after restore.");
+        }
+        Require(engine.Scene.CameraIndex == 0 && engine.InputAxisDirection == 16, "Returning to camera zero did not restore its original direction.");
+    }
+
     private static void InitialInputDirectionAndRestore(string gameDirectory)
     {
         byte[] content = SyntheticMainProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 64), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.AXIS, 0), (Jsm.Opcode.PSHN_L, 8), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8));

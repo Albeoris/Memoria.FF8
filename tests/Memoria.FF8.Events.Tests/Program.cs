@@ -296,6 +296,7 @@ internal static partial class Program
                 ["legacy-movie-axis-and-fault-resume"] = () => MovieAxisAndFaultResume(),
                 ["legacy-arrival-initialization-order"] = () => ArrivalInitializationOrder(),
                 ["legacy-background-loop-resume"] = () => BackgroundLoopResume(),
+                ["camera-input-direction-and-restore"] = CameraInputDirectionAndRestore,
                 ["legacy-initial-input-direction-and-restore"] = () => InitialInputDirectionAndRestore(selectedGameDirectory),
                 ["legacy-player-action-corpus"] = () => PlayerActionCorpus(selectedGameDirectory),
                 ["legacy-corridor-line-corpus"] = () => CorridorLineCorpus(selectedGameDirectory),

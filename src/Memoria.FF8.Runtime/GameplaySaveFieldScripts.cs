@@ -59,7 +59,11 @@ public sealed record GameplaySaveScriptFiber([property: JsonRequired] int Object
 public sealed record GameplaySaveScriptOperands([property: JsonRequired] int ObjectId, [property: JsonRequired] int?[] Words, [property: JsonRequired] byte?[] SavedDepths, [property: JsonRequired] int? LiveDepth, [property: JsonRequired] ushort? ActorWord398);
 public sealed record GameplaySaveDoorSchedule([property: JsonRequired] int ObjectId, [property: JsonRequired] byte CurrentSlot, [property: JsonRequired] long CurrentSequence, [property: JsonRequired] long DefaultSequence, [property: JsonRequired] long InitializationSequence, [property: JsonRequired] int? RetiredOperation);
 public sealed record GameplaySaveFieldClock([property: JsonRequired] long Ordinary, [property: JsonRequired] long Movie, [property: JsonRequired] long Menu, [property: JsonRequired] long Loader, [property: JsonRequired] long? Battle, [property: JsonRequired] long Initialization, [property: JsonRequired] long RandomBattle, [property: JsonRequired] long MenuBattle);
-public sealed record GameplaySaveFieldInputAxis([property: JsonRequired] int Start, [property: JsonRequired] int Target, [property: JsonRequired] int Duration, [property: JsonRequired] int Elapsed, [property: JsonRequired] int Direction);
+public sealed record GameplaySaveFieldInputAxis([property: JsonRequired] int Start, [property: JsonRequired] int Target, [property: JsonRequired] int Duration, [property: JsonRequired] int Elapsed, [property: JsonRequired] int Direction)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public int CameraIndex { get; init; }
+}
 
 /// <summary>Logical cooperative script state only; scene/actor reconstruction must complete independently before input resumes.</summary>
 public sealed record GameplaySaveFieldScripts([property: JsonRequired] int Version, [property: JsonRequired] int FieldId, [property: JsonRequired] string ProgramSha256, [property: JsonRequired] long Frame, [property: JsonRequired] double FractionalSeconds, [property: JsonRequired] long Sequence, [property: JsonRequired] bool UserControl, [property: JsonRequired] bool SequenceControlDisabled, [property: JsonRequired] int BackgroundFps, [property: JsonRequired] int NameEntity, [property: JsonRequired] GameplaySaveFieldClock Clock, [property: JsonRequired] GameplaySaveScriptFiber[] Fibers, [property: JsonRequired] GameplaySaveScriptOperands[] Operands, [property: JsonRequired] GameplaySaveDoorSchedule[] Doors, [property: JsonRequired] GameplaySaveEventCell[] Locals)
@@ -83,7 +87,7 @@ public sealed record GameplaySaveFieldScripts([property: JsonRequired] int Versi
         {
             throw new InvalidDataException("Gameplay field script callback counts disagree with their saved timebase.");
         }
-        if (InputAxis is { } axis && (axis.Duration < 0 || axis.Elapsed < 0 || axis.Elapsed > axis.Duration))
+        if (InputAxis is { } axis && (axis.Duration < 0 || axis.Elapsed < 0 || axis.Elapsed > axis.Duration || axis.CameraIndex is < 0 or > 3))
         {
             throw new InvalidDataException("Gameplay field input-axis interpolation has an invalid logical phase.");
         }

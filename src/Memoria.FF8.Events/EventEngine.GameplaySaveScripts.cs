@@ -32,7 +32,7 @@ public sealed partial class EventEngine
         {
             throw new NotSupportedException("Gameplay script capture cannot split a cross-owner local event cell.");
         }
-        GameplaySaveFieldScripts result = new(1, FieldId, programHash, Frame, accumulatedSeconds, sequence, userControlEnabled, userControlSequenceDisabled, backgroundFps, nameEntity, new(clock.OrdinaryCallbacks, clock.MovieCallbacks, clock.MenuCallbacks, clock.FieldLoaderCallbacks, clock.BattleCallbacks, clock.InitializationTransactions ?? throw new NotSupportedException("Gameplay scripts require known completed initialization."), clock.RandomBattleCallbacks, clock.MenuBattleCallbacks), saved, operands, doors, locals) { PreparedMovie = preparedMovie >= 0 ? preparedMovie : null, InputAxis = new(axisStart, axisTarget, axisDuration, axisElapsed, InputAxisDirection), Dialogues = CaptureGameplayDialogues() };
+        GameplaySaveFieldScripts result = new(1, FieldId, programHash, Frame, accumulatedSeconds, sequence, userControlEnabled, userControlSequenceDisabled, backgroundFps, nameEntity, new(clock.OrdinaryCallbacks, clock.MovieCallbacks, clock.MenuCallbacks, clock.FieldLoaderCallbacks, clock.BattleCallbacks, clock.InitializationTransactions ?? throw new NotSupportedException("Gameplay scripts require known completed initialization."), clock.RandomBattleCallbacks, clock.MenuBattleCallbacks), saved, operands, doors, locals) { PreparedMovie = preparedMovie >= 0 ? preparedMovie : null, InputAxis = new(axisStart, axisTarget, axisDuration, axisElapsed, InputAxisDirection) { CameraIndex = inputAxisCameraIndex }, Dialogues = CaptureGameplayDialogues() };
         result.Validate();
         return result;
     }
@@ -214,11 +214,12 @@ public sealed partial class EventEngine
         userControlSequenceDisabled = saved.SequenceControlDisabled;
         backgroundFps = saved.BackgroundFps;
         nameEntity = saved.NameEntity;
-        axisStart = saved.InputAxis?.Start ?? 0;
+        axisStart = saved.InputAxis?.Start ?? InitInputAxisDirection;
         axisTarget = saved.InputAxis?.Target ?? 0;
         axisDuration = saved.InputAxis?.Duration ?? 0;
         axisElapsed = saved.InputAxis?.Elapsed ?? 0;
-        InputAxisDirection = saved.InputAxis?.Direction ?? 0;
+        InputAxisDirection = saved.InputAxis?.Direction ?? InitInputAxisDirection;
+        inputAxisCameraIndex = saved.InputAxis?.CameraIndex ?? 0;
         preparedMovie = saved.PreparedMovie ?? -1;
         CurrentMoviePlayback = null;
         movieProgressExpected = false;

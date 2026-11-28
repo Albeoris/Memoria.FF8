@@ -165,6 +165,7 @@ public sealed partial class EventEngine
         axisDuration = 0;
         axisElapsed = 0;
         InputAxisDirection = InitInputAxisDirection;
+        inputAxisCameraIndex = 0;
         partyMenu = null;
         programHash = nextHash;
         NativeRuntimeProfile = nativeRuntimeProfile;

@@ -70,7 +70,7 @@ public sealed partial class EventEngine
             backgroundFps, nameEntity,
             actors.ToArray(), fibers.Select(fiber => new FiberCheckpoint(fiber.ObjectId, fiber.Script.Id, fiber.Priority, fiber.Sequence, fiber.Initialization, fiber.Position, fiber.Complete, fiber.Started, fiber.NativeResultFrameEntered, fiber.Stack.Capture(), fiber.StackExpressions.ToArray(), new Dictionary<int, NativeScalarValue>(fiber.Results), fiber.WaitReason, fiber.WaitUntil, fiber.Request?.Sequence, fiber.DialogueChannel, fiber.BackgroundId, fiber.SoundResourceId, fiber.NativeDoorSlot, fiber.NativeActorSlot, fiber.NativeMoveOperation, fiber.NativeMoveTarget, fiber.NativeDoorRequestWait, fiber.NativeDoorDefaultFrame, fiber.NativeDoorSavedResults, fiber.NativeShadeOperation, fiber.NativePartyRequestPointer, fiber.NativeGlobalJumps.ToArray(), fiber.NativeDialogueConsumer)).ToArray(),
             dialogues.Values.ToArray(), CurrentDialogue?.Channel, new Dictionary<int, int>(backgroundStates), backgroundAnimations.Select(pair => new BackgroundCheckpoint(pair.Key, pair.Value.First, pair.Value.Last, pair.Value.Speed, pair.Value.Complete, pair.Value.NativeVersion, pair.Value.Counter, pair.Value.Position, pair.Value.Active, pair.Value.Loop, pair.Value.NativeFlag404)).ToArray(), EventMemory, sceneSnapshot, axisStart, axisTarget, axisDuration, axisElapsed, InputAxisDirection, movieProgressExpected, CurrentMoviePlayback, pendingArrival, LastFault, partyJoin, partySplit, services.WorldControls, services.ExamTimer, services.CharacterVitals, services.CharacterAppearance, services.CardInventory, services.SeeD, services.MessageVariables, services.Economy, services.GlobalSoundProcess, services.SalaryPresentation, services.FieldShake, services.InputConfiguration, services.FieldButtonInput, services.ShotAvailability, partyMenu, services.EventRandom, services.NativeFieldLocation, services.VibrationProcess, services.FieldFade, services.ShopHistory, services.MenuRandom, services.WeaponRecipes, services.WorldEntryMemory, services.DiscProcess, services.MovieSource, userControlSequenceDisabled, services.FieldBars, services.FieldRequestPacket, services.NativeGameOver, (services as GameSession)?.State.SavedBattleFlags, services.NativeFieldDebugRequested, services.LimitProgress);
-        return JsonSerializer.SerializeToElement(snapshot with { FieldCallbackInterrupted = FieldCallbackInterrupted, NativeDialogueMaskVersion = NativeRuntimeProfile is { IsVerified: true } ? 1 : null }, CheckpointOptions);
+        return JsonSerializer.SerializeToElement(snapshot with { FieldCallbackInterrupted = FieldCallbackInterrupted, InputAxisCameraIndex = inputAxisCameraIndex, NativeDialogueMaskVersion = NativeRuntimeProfile is { IsVerified: true } ? 1 : null }, CheckpointOptions);
     }
 
     /// <summary>Restores a captured VM after LoadField has supplied exactly the same field's bytes and messages.</summary>
@@ -610,7 +610,7 @@ public sealed partial class EventEngine
                 throw new InvalidDataException("Invalid saved actor state.");
             }
         }
-        if (saved.AxisDuration is < 0 or > 65535 || saved.AxisElapsed < 0 || saved.AxisElapsed > saved.AxisDuration || saved.InputAxisDirection is < 0 or > 255 || saved.PendingArrival is FieldTransition arrival && arrival.FieldId != FieldId)
+        if (saved.AxisDuration is < 0 or > 65535 || saved.AxisElapsed < 0 || saved.AxisElapsed > saved.AxisDuration || saved.InputAxisDirection is < 0 or > 255 || saved.InputAxisCameraIndex is < 0 or > 3 || saved.PendingArrival is FieldTransition arrival && arrival.FieldId != FieldId)
         {
             throw new InvalidDataException("Invalid saved movie, axis or arrival state.");
         }
@@ -758,6 +758,7 @@ public sealed partial class EventEngine
         axisDuration = saved.AxisDuration;
         axisElapsed = saved.AxisElapsed;
         InputAxisDirection = saved.InputAxisDirection;
+        inputAxisCameraIndex = saved.InputAxisCameraIndex;
         movieProgressExpected = saved.MovieProgressExpected || services.IsMoviePlaying;
         CurrentMoviePlayback = saved.CurrentMoviePlayback;
         pendingArrival = saved.PendingArrival;
@@ -851,6 +852,9 @@ public sealed partial class EventEngine
 
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
         public bool FieldCallbackInterrupted { get; init; }
+
+        [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+        public int InputAxisCameraIndex { get; init; }
 
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public int? NativeDialogueMaskVersion { get; init; }
