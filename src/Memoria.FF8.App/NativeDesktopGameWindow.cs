@@ -3,7 +3,7 @@ using Microsoft.Xna.Framework;
 
 namespace Memoria.FF8;
 
-/// <summary>Uses the SDL2 window owned by MonoGame's native Vulkan runtime on Linux and macOS.</summary>
+/// <summary>Uses MonoGame's native Vulkan exports on Linux and macOS so the SDL2 window stays with the runtime that owns it.</summary>
 internal sealed class NativeDesktopGameWindow : IGameWindowPlatform
 {
     private readonly GameWindow window;

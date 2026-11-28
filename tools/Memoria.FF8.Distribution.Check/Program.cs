@@ -232,6 +232,10 @@ static class GraphicsPayload
             using FileStream runtimeStream = File.OpenRead(Path.Combine(directory, runtime));
             NativeImage.RequireAbi(runtimeStream, rid);
         }
+        if (backend == "Vulkan" && rid != "win-x64")
+        {
+            ValidateDesktopWindowImports(Path.Combine(directory, "Memoria.FF8.dll"));
+        }
         PayloadImages.Validate(directory, rid);
         using JsonDocument manifest = JsonDocument.Parse(File.ReadAllText(manifestPath));
         JsonElement root = manifest.RootElement;
@@ -282,6 +286,42 @@ static class GraphicsPayload
             }
         }
         Console.WriteLine($"Graphics payload verified: {backend}, isolated MonoGame family, {rid} native ABI, four embedded effects and complete three-profile manifest hashes.");
+    }
+
+    private static void ValidateDesktopWindowImports(string assemblyPath)
+    {
+        using FileStream stream = File.OpenRead(assemblyPath);
+        using PEReader image = new(stream);
+        MetadataReader metadata = image.GetMetadataReader();
+        TypeDefinitionHandle adapter = metadata.TypeDefinitions.FirstOrDefault(handle =>
+        {
+            TypeDefinition type = metadata.GetTypeDefinition(handle);
+            return metadata.StringComparer.Equals(type.Namespace, "Memoria.FF8") && metadata.StringComparer.Equals(type.Name, "NativeDesktopGameWindow");
+        });
+        if (adapter.IsNil)
+        {
+            throw new InvalidDataException("The Vulkan host is missing the MonoGame desktop window adapter.");
+        }
+
+        HashSet<string> exports = new(StringComparer.Ordinal) { "Memoria_Window_GetGeometry", "Memoria_Window_Maximize", "Memoria_Window_RestorePlacement", "Memoria_Window_SetTransferHidden" };
+        foreach (MethodDefinitionHandle handle in metadata.GetTypeDefinition(adapter).GetMethods())
+        {
+            MethodImport import = metadata.GetMethodDefinition(handle).GetImport();
+            if (import.Module.IsNil)
+            {
+                continue;
+            }
+            string name = metadata.GetString(import.Name);
+            if (!metadata.StringComparer.Equals(metadata.GetModuleReference(import.Module).Name, "mgruntime") || !exports.Remove(name))
+            {
+                throw new InvalidDataException($"Unexpected native import in the MonoGame desktop window adapter: {name}.");
+            }
+        }
+        if (exports.Count != 0)
+        {
+            throw new InvalidDataException($"The MonoGame desktop window adapter is missing native imports: {string.Join(", ", exports.Order(StringComparer.Ordinal))}.");
+        }
+        Console.WriteLine("Desktop window imports verified against MonoGame's SDL2 runtime.");
     }
 
     private static bool IsHash(string value)

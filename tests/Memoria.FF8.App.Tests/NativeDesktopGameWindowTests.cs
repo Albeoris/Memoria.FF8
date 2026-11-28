@@ -1,4 +1,5 @@
 using Microsoft.Xna.Framework;
+using SDL3;
 
 namespace Memoria.FF8.App.Tests;
 
@@ -8,13 +9,15 @@ public sealed class NativeDesktopGameWindowTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Vulkan_window_can_start_and_present_with_or_without_a_transfer(bool transfer)
+    public void Vulkan_window_can_start_and_present_without_SDL3_video(bool transfer)
     {
         Assert.SkipUnless(OperatingSystem.IsLinux(), "This desktop check runs on Linux.");
         Assert.SkipUnless(Environment.GetEnvironmentVariable("MEMORIA_FF8_WINDOW_MODE_TEST") == "1", "Set MEMORIA_FF8_WINDOW_MODE_TEST=1 to run the visible window mode check.");
+        Assert.Equal((SDL.InitFlags)0, SDL.WasInit(SDL.InitFlags.Video));
         using WindowGame game = new(transfer);
         game.Run();
         Assert.Equal(2, game.PresentedFrames);
+        Assert.Equal((SDL.InitFlags)0, SDL.WasInit(SDL.InitFlags.Video));
     }
 
     private sealed class WindowGame : Game
