@@ -48,4 +48,4 @@ The scalable parchment board and its ornaments are drawn procedurally. Installed
 
 ## Rare card markers
 
-Enable **Rare card markers** under Interface in Config to see spinning cards above opponents who can play them. A red frame above the Queen of Cards marks the next quest card to lose to her, when that card is in your collection.
+Enable **Rare card markers** under Interface in Config to see spinning cards above opponents who can play them. A red frame above the Queen of Cards marks the next quest card to lose to her, when that card is in your collection. The red-framed card takes priority over any cards you could win from her.

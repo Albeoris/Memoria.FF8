@@ -7,6 +7,49 @@ namespace Memoria.FF8.App.Tests;
 public sealed class RareCardMarkerIntegrationTests
 {
     [Fact]
+    public void NativeQueenQuicksaveRendersOwnedCardsAndPrioritizesAnAvailableQuestLoss()
+    {
+        string directory = TestResources.GameDirectory;
+        string source = TestResources.FixturePath("App.Tests.RareCardMarkerIntegrationTests.3");
+        var session = new GameSession(GameplaySaveSessionLoader.Load(source, directory));
+        using var world = new GameWorld(session, directory);
+        world.EnsureField();
+        Assert.Equal(532, world.Events.FieldId);
+        Assert.True(world.Events.IsDialogueOpen);
+        Assert.Empty(world.Events.GetRareCardOffers());
+        for (int callback = 0; callback < 120 && (!world.Events.IsUserControlEnabled || world.Events.IsDialogueOpen); callback++)
+        {
+            if (world.Events.CurrentDialogue is { CanConfirm: true } dialogue && world.Events.CanReceiveDialogueInput(dialogue))
+            {
+                world.Events.ConfirmDialogue(dialogue.LastChoice);
+            }
+            world.Events.Step();
+        }
+        Assert.Null(world.Events.LastFault);
+        Assert.Null(world.Events.PendingTripleTriad);
+        Assert.True(world.Events.IsUserControlEnabled);
+        Assert.False(world.Events.IsDialogueOpen);
+        world.SetRenderSize(640, 480);
+        Assert.Equal([84, 90], world.Events.GetRareCardOffers().Where(offer => offer.ObjectId == 10).Select(offer => offer.CardId).Order().ToArray());
+        JsonElement before = world.Events.Capture();
+        byte[] disabled = world.Render(TimeSpan.Zero, rareCardMarkers: false).ToArray();
+        byte[] ifrit = world.Render(TimeSpan.Zero).ToArray();
+        Assert.False(ifrit.SequenceEqual(disabled));
+        Assert.False(ifrit.SequenceEqual(world.Render(TimeSpan.FromSeconds(8))));
+        Assert.True(JsonElement.DeepEquals(before, world.Events.Capture()));
+
+        // Exercise priority with the same opponent and both types of hint available.
+        session.SetEventMemory(session.EventMemory.Write(300, 1, 0));
+        var offers = world.Events.GetRareCardOffers();
+        Assert.Contains(new RareCardOffer(10, 80, IsQuestLoss: true), offers);
+        Assert.Contains(new RareCardOffer(10, 84), offers);
+        byte[] quest = world.Render(TimeSpan.Zero).ToArray();
+        Assert.False(quest.SequenceEqual(ifrit));
+        Assert.Equal(quest, world.Render(TimeSpan.FromSeconds(8)));
+        Assert.Equal(quest, world.Render(TimeSpan.FromSeconds(16)));
+    }
+
+    [Fact]
     public void NativeDelingQuicksaveRendersKirosOverTheBakedPedestrian()
     {
         string directory = TestResources.GameDirectory;

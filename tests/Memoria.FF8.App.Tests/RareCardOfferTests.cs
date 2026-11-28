@@ -56,6 +56,15 @@ public sealed class RareCardOfferTests
     }
 
     [Theory]
+    [InlineData(121, true)]
+    [InlineData(122, false)]
+    public void UnknownRuleBranchKeepsOnlyOffersProvedForBothOutcomes(int alternateOwner, bool expectedOffer)
+    {
+        var fixture = Create([(Jsm.Opcode.RND, 0), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.JPF, 9), .. Challenge(121, 50), .. Challenge(alternateOwner, 50)]);
+        Assert.Equal(expectedOffer, fixture.Engine.GetRareCardOffers().Contains(new RareCardOffer(0, 84)));
+    }
+
+    [Theory]
     [InlineData(621, 6, 121, 145)]
     [InlineData(165, 18, 31, 1132)]
     public void ActualNativeChallengeUsesItsSavedOwnerWithoutMutation(int field, int actor, int owner, int operation)

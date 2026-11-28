@@ -7,7 +7,7 @@ public sealed record RareCardOffer(int ObjectId, int CardId, bool IsQuestLoss = 
 
 public sealed partial class EventEngine
 {
-    /// <summary>Read-only native challenge analysis. Unknown predicates and unsupported paths produce no offer.</summary>
+    /// <summary>Read-only native challenge analysis. An uncertain predicate can only preserve offers proved on both paths.</summary>
     public IReadOnlyList<RareCardOffer> GetRareCardOffers()
     {
         if (program is null || !defaultsStarted || transitionRequested || LastFault is not null || services.IsMoviePlaying || HasPendingBattle || PendingTripleTriad is not null || Scene.NativeTutorial is not null || !IsUserControlEnabled || IsDialogueOpen || services.CardInventory is not NativeCardInventory cards)
@@ -36,7 +36,8 @@ public sealed partial class EventEngine
             {
                 continue;
             }
-            foreach ((int owner, int limit, int objectId) in ReadCardChallengeOwners(script, actor.ObjectId))
+            int budget = 4096;
+            foreach ((int owner, int limit, int objectId) in ReadCardChallengeOwners(script, actor.ObjectId, new CardOfferBranch(script.Start), ref budget, 0))
             {
                 ActorState opponent = actors[objectId];
                 if (!opponent.Active || opponent.RenderModelId is < 0 or ushort.MaxValue)
@@ -128,7 +129,7 @@ public sealed partial class EventEngine
         return false;
     }
 
-    private IReadOnlySet<(int Owner, int Limit, int Object)> ReadCardChallengeOwners(EventScript script, int objectId, CardOfferBranch? seed = null, int depth = 0)
+    private IReadOnlySet<(int Owner, int Limit, int Object)> ReadCardChallengeOwners(EventScript script, int objectId, CardOfferBranch seed, ref int budget, int depth)
     {
         HashSet<(int Owner, int Limit, int Object)> owners = [];
         if (depth > 8)
@@ -136,8 +137,7 @@ public sealed partial class EventEngine
             return owners;
         }
         Queue<CardOfferBranch> pending = new();
-        pending.Enqueue(seed ?? new CardOfferBranch(script.Start));
-        int budget = 4096;
+        pending.Enqueue(seed);
         while (pending.TryDequeue(out CardOfferBranch? branch) && budget > 0)
         {
             try
@@ -211,10 +211,24 @@ public sealed partial class EventEngine
                             branch.Position = JsmProgram.JumpTarget(operation.Index, parameter);
                             break;
                         case Jsm.Opcode.JPF:
-                            int condition = branch.Pop() ?? throw new NotSupportedException("Unknown challenge predicate.");
-                            if (condition == 0)
+                            int? condition = branch.Pop();
+                            int jumpTarget = JsmProgram.JumpTarget(operation.Index, parameter);
+                            if (condition is null)
                             {
-                                branch.Position = JsmProgram.JumpTarget(operation.Index, parameter);
+                                // An uncertain rule branch can still prove a card offer when both paths agree.
+                                CardOfferBranch jump = branch.Copy();
+                                jump.Position = jumpTarget;
+                                var fallthrough = ReadCardChallengeOwners(script, objectId, branch, ref budget, depth + 1);
+                                if (fallthrough.Count > 0)
+                                {
+                                    var taken = ReadCardChallengeOwners(script, objectId, jump, ref budget, depth + 1);
+                                    owners.UnionWith(fallthrough.Where(taken.Contains));
+                                }
+                                branch.Position = -1;
+                            }
+                            else if (condition == 0)
+                            {
+                                branch.Position = jumpTarget;
                             }
                             break;
                         case Jsm.Opcode.WHERECARD:
@@ -249,7 +263,7 @@ public sealed partial class EventEngine
                                 //A different requested actor has no input action2 flag:
                                 //its native LBL starts R0..R7 at0. Parent results stay local.
                                 CardOfferBranch called = new(targetScript.Start) { Writes = new(branch.Writes), Results = [] };
-                                owners.UnionWith(ReadCardChallengeOwners(targetScript, target, called, depth + 1));
+                                owners.UnionWith(ReadCardChallengeOwners(targetScript, target, called, ref budget, depth + 1));
                                 branch.Position = -1;
                                 break;
                             }
