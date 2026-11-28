@@ -196,6 +196,7 @@ public sealed partial class WorldTerrainRenderer
         int segment = WorldAssets.SegmentAt(position.X, position.Z);
         int radius = Math.Min(4, (int)MathF.Ceiling(camera.FarDistance / 512));
         List<(WorldTriangle Triangle, Vector3 Offset)> transparent = [];
+        List<(WorldSegment Segment, Vector3 Offset)>? shadowReceivers = presentation?.Shadows?.Any(shadow => shadow.ShapeId == 1) == true ? [] : null;
         for (int row = -radius; row <= radius; row++)
         {
             for (int column = -radius; column <= radius; column++)
@@ -205,6 +206,7 @@ public sealed partial class WorldTerrainRenderer
                 int mapId = ((rawRow % 24 + 24) % 24) * 32 + (rawColumn % 32 + 32) % 32;
                 Vector3 offset = new(MathF.Floor(rawColumn / 32f) * 16384, 0, MathF.Floor(rawRow / 24f) * 12288);
                 WorldSegment terrain = assets.GetSegment(mapId, replacements);
+                shadowReceivers?.Add((terrain, offset));
                 if (TriangleRenderer is IWorldTerrainRenderer hardware)
                 {
                     DrawRetainedTerrain(hardware, terrain, offset, transparent);
@@ -223,7 +225,7 @@ public sealed partial class WorldTerrainRenderer
                 }
             }
         }
-        DrawWorldShadows(presentation?.Shadows);
+        DrawWorldShadows(presentation?.Shadows, shadowReceivers);
         if (avatarVisible)
         {
             DrawAvatar(avatarModel ?? assets.Squall, position, heading, animationId, animationFrame, avatarAnimationBlend);
@@ -301,18 +303,19 @@ public sealed partial class WorldTerrainRenderer
     {
         // Road polygons also carry the water bit, but use the full-height road atlas.
         Vector2 uvScale = triangle.Water && !triangle.Road ? new Vector2(1, 2) : Vector2.One;
-        Vector3 TerrainPoint(Vector3 raw)
-        {
-            Vector3 point = raw / 16 + offset;
-            if (nativeTerrain)
-            {
-                float cameraDepth = -Vector3.Transform(point, view).Z * 16;
-                point.Y = -WorldTerrainCurvature.PresentationHeight(-raw.Y, cameraDepth) / 16;
-            }
-            return point;
-        }
         bool filterTexture = FilterGroundTextures && !transparent && !triangle.Water && !triangle.Road;
-        Draw(new Vertex(TerrainPoint(triangle.A), triangle.UvA * uvScale), new Vertex(TerrainPoint(triangle.B), triangle.UvB * uvScale), new Vertex(TerrainPoint(triangle.C), triangle.UvC * uvScale), assets.GetTexture(triangle, terrainReplacementMask, textureAnimation), transparent, filterTexture: filterTexture, terrainNormal: TerrainFaceNormal(triangle));
+        Draw(new Vertex(TerrainPoint(triangle.A, offset), triangle.UvA * uvScale), new Vertex(TerrainPoint(triangle.B, offset), triangle.UvB * uvScale), new Vertex(TerrainPoint(triangle.C, offset), triangle.UvC * uvScale), assets.GetTexture(triangle, terrainReplacementMask, textureAnimation), transparent, filterTexture: filterTexture, terrainNormal: TerrainFaceNormal(triangle));
+    }
+
+    private Vector3 TerrainPoint(Vector3 raw, Vector3 offset)
+    {
+        Vector3 point = raw / 16 + offset;
+        if (nativeTerrain)
+        {
+            float cameraDepth = -Vector3.Transform(point, view).Z * 16;
+            point.Y = -WorldTerrainCurvature.PresentationHeight(-raw.Y, cameraDepth) / 16;
+        }
+        return point;
     }
 
     private static Vector3 TerrainFaceNormal(WorldTriangle triangle)
