@@ -15,9 +15,19 @@ internal static class GraphicsDeviceSettings
         return sceneQuality.TryGetValue(device, out SceneQuality? quality) ? quality.Samples : device.PresentationParameters.MultiSampleCount;
     }
 
+    internal static int LimitSceneMsaaSamples(int requested)
+    {
+#if MEMORIA_VULKAN
+        // TODO(TD-040): MonoGame 3.8.5.1 reports at most four samples but passes the unclamped request to Vulkan.
+        return Math.Min(requested, 4);
+#else
+        return requested;
+#endif
+    }
+
     private static void RememberSceneQuality(GraphicsDevice device, int samples)
     {
-        sceneQuality.GetValue(device, static _ => new()).Samples = samples;
+        sceneQuality.GetValue(device, static _ => new()).Samples = LimitSceneMsaaSamples(samples);
     }
 
     internal static GraphicsDeviceManager Create(Game game, UiPreferences preferences, LaunchOptions? options, Func<UiPreferences> currentPreferences)

@@ -53,10 +53,11 @@ public sealed class Ff7GraphicsSettingsTests
             Assert.Equal(requested, UiPreferences.Load(paths.UiPreferencesPath).Graphics.MsaaSamples);
             Assert.Equal(frame % 2 != 0, ((GraphicsDeviceManager)game.Services.GetService<IGraphicsDeviceManager>()!).SynchronizeWithVerticalRetrace);
             GraphicsDevice device = game.GraphicsDevice;
-            using RenderTarget2D reference = new(device, 1, 1, false, SurfaceFormat.Color, DepthFormat.Depth24, requested, RenderTargetUsage.PreserveContents);
+            int expected = GraphicsHostReadiness.Backend == "Vulkan" && requested == 8 ? 4 : requested;
+            using RenderTarget2D reference = new(device, 1, 1, false, SurfaceFormat.Color, DepthFormat.Depth24, expected, RenderTargetUsage.PreserveContents);
             int supported = reference.MultiSampleCount;
             Assert.Equal(0, device.PresentationParameters.MultiSampleCount);
-            Assert.Equal(requested, GraphicsDeviceSettings.SceneMsaaSamples(device));
+            Assert.Equal(expected, GraphicsDeviceSettings.SceneMsaaSamples(device));
             GpuTriangleRenderer gpu = (GpuTriangleRenderer)Field(typeof(Ff7Scene), "triangles").GetValue(scene)!;
             gpu.Begin(64, 64, new Vector4N(0, 0, 0, 1));
             TriangleVertex Vertex(float x, float y) => new(new Vector2N(x, y), 1, 1, Vector2N.Zero, Vector4N.One);

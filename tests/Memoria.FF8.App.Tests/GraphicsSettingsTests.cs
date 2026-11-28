@@ -11,6 +11,37 @@ namespace Memoria.FF8.App.Tests;
 public sealed class GraphicsSettingsTests
 {
     [Theory]
+    [InlineData(0, 0)]
+    [InlineData(2, 2)]
+    [InlineData(4, 4)]
+    [InlineData(8, 4)]
+    public void Scene_sample_requests_respect_the_Vulkan_framework_limit(int requested, int vulkanSamples)
+    {
+        int expected = GraphicsHostReadiness.Backend == "Vulkan" ? vulkanSamples : requested;
+        Assert.Equal(expected, GraphicsDeviceSettings.LimitSceneMsaaSamples(requested));
+    }
+
+    [Fact]
+    public void Vulkan_host_creates_scene_targets_with_the_default_quality()
+    {
+        Assert.SkipUnless(GraphicsHostReadiness.Backend == "Vulkan", "This graphics host check requires Vulkan.");
+        Assert.SkipUnless(OperatingSystem.IsWindows() || Environment.GetEnvironmentVariable("MEMORIA_FF8_GRAPHICS_HOST_TEST") == "1", "Set MEMORIA_FF8_GRAPHICS_HOST_TEST=1 to run this graphics host check on a graphical Unix desktop.");
+        UiPreferences preferences = new() { WindowWidth = 320, WindowHeight = 180, VSync = false };
+        using Game game = new();
+        using GraphicsDeviceManager graphics = GraphicsDeviceSettings.Create(game, preferences, null, () => preferences);
+        game.RunOneFrame();
+
+        _ = new GraphicsHostReadiness(game.GraphicsDevice);
+        Assert.Equal(8, preferences.Graphics.MsaaSamples);
+        Assert.Equal(0, game.GraphicsDevice.PresentationParameters.MultiSampleCount);
+        Assert.Equal(4, GraphicsDeviceSettings.SceneMsaaSamples(game.GraphicsDevice));
+        using GpuTriangleRenderer renderer = new(game.GraphicsDevice);
+        renderer.Begin(16, 16, System.Numerics.Vector4.One);
+        renderer.End();
+        Assert.Equal(4, renderer.Target.MultiSampleCount);
+    }
+
+    [Theory]
     [InlineData(0)]
     [InlineData(4)]
     public void Standalone_devices_retain_their_actual_scene_sample_count(int samples)
@@ -152,14 +183,14 @@ public sealed class GraphicsSettingsTests
         private void AssertSamples(int requested)
         {
             GraphicsDevice device = game.GraphicsDevice;
-            using RenderTarget2D reference = new(device, 1, 1, false, SurfaceFormat.Color, DepthFormat.Depth24, requested, RenderTargetUsage.PreserveContents);
-            int supported = reference.MultiSampleCount;
+            int expected = GraphicsHostReadiness.Backend == "Vulkan" && requested == 8 ? 4 : requested;
+            using RenderTarget2D reference = new(device, 1, 1, false, SurfaceFormat.Color, DepthFormat.Depth24, expected, RenderTargetUsage.PreserveContents);
             Assert.Equal(0, device.PresentationParameters.MultiSampleCount);
-            Assert.Equal(requested, GraphicsDeviceSettings.SceneMsaaSamples(device));
+            Assert.Equal(expected, GraphicsDeviceSettings.SceneMsaaSamples(device));
             GpuTriangleRenderer renderer = (GpuTriangleRenderer)Field("battleGpu").GetValue(game)!;
             renderer.Begin(16, 16, System.Numerics.Vector4.One);
             renderer.End();
-            Assert.Equal(supported, renderer.Target.MultiSampleCount);
+            Assert.Equal(reference.MultiSampleCount, renderer.Target.MultiSampleCount);
         }
     }
 }
